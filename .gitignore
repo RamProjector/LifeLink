@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+.env.*
+!.env.example
+local.properties
+.gradle/
+build/
+node_modules/
+.expo/
+.kotlin/
+.DS_Store

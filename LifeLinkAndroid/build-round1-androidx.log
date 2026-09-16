@@ -1,0 +1,82 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.10.2/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:mergeDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:parseDebugLocalResources
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:processDebugManifestForPackage
+> Task :app:checkDebugDuplicateClasses
+> Task :app:processDebugResources
+> Task :app:mergeExtDexDebug
+> Task :app:mergeDebugJniLibFolders
+> Task :app:mergeLibDexDebug
+> Task :app:mergeDebugNativeLibs
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+
+> Task :app:stripDebugDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so.
+
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:kspDebugKotlin
+
+> Task :app:compileDebugKotlin FAILED
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/data/repository/DonorRepository.kt:25:26 Return type of 'saveProfile' is not a subtype of the return type of the overridden member 'suspend fun saveProfile(profile: DonorProfile): Unit' defined in 'com/lifelink/app/domain/DonorRepository'.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/data/repository/EmergencyRequestRepository.kt:131:26 Unresolved reference 'DonorRepository'.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/data/repository/EmergencyRequestRepository.kt:143:54 New inference error [NewConstraintError at Incorporate TypeVariable(T) == com/lifelink/app/domain/BloodType? from Fix variable T from position Fix variable T: com/lifelink/app/domain/BloodType? <!: kotlin/Enum<TypeVariable(T)>].
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/activeRequest/ActiveRequestScreen.kt:46:13 This material API is experimental and is likely to change or to be removed in the future.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/activeRequest/ActiveRequestScreen.kt:59:24 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/activeRequest/ActiveRequestScreen.kt:59:49 Argument already passed for this parameter.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/activeRequest/ActiveRequestScreen.kt:59:119 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/activeRequest/ActiveRequestScreen.kt:62:28 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/activeRequest/ActiveRequestScreen.kt:62:53 Argument already passed for this parameter.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/activeRequest/ActiveRequestScreen.kt:62:100 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/donor/DonorScreen.kt:37:25 This material API is experimental and is likely to change or to be removed in the future.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestScreen.kt:135:9 The API of this layout is experimental and is likely to change in the future.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestScreen.kt:214:280 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestScreen.kt:214:305 Argument already passed for this parameter.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestScreen.kt:214:325 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestScreen.kt:214:357 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestScreen.kt:214:455 Argument already passed for this parameter.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestScreen.kt:214:658 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestScreen.kt:231:798 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestScreen.kt:231:837 Argument already passed for this parameter.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestScreen.kt:231:946 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestScreen.kt:231:985 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestScreen.kt:231:1024 Argument already passed for this parameter.
+e: file:///home/ubuntu/LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestScreen.kt:231:1096 @Composable invocations can only happen from the context of a @Composable function
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 2m 17s
+30 actionable tasks: 29 executed, 1 up-to-date

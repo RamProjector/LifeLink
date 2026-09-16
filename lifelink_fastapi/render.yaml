@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: lifelink-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: LIFELINK_DATABASE_URL
+        sync: false
+      - key: LIFELINK_AUTH_REQUIRED
+        value: "true"
+      - key: DB_POOL_SIZE
+        value: "3"
+      - key: DB_MAX_OVERFLOW
+        value: "5"

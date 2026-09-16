@@ -1,0 +1,243 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Any
+from uuid import uuid4
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+
+from .db_models import (
+    BloodTypeEnum,
+    Donor as DonorRow,
+    EmergencyRequest as EmergencyRequestRow,
+    RequestMatch as RequestMatchRow,
+    RequestStatusEnum,
+)
+from .main import (
+    Donor,
+    DonorRepository,
+    EmergencyRequestIn,
+    MatchExplanation,
+    DonorMatch,
+    RequestRecord,
+    RequestStore,
+    RequestStatus,
+)
+
+
+MATCHING_VERSION = "v1-explainable-weighted"
+
+
+class SqlAlchemyDonorRepository(DonorRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def list_active_donors(self) -> list[Donor]:
+        result = await self.session.scalars(
+            select(DonorRow).where(
+                DonorRow.available.is_(True),
+                DonorRow.verified.is_(True),
+            )
+        )
+        rows = result.all()
+        return [
+            Donor(
+                donor_id=row.id,
+                display_name=row.display_name,
+                blood_type=row.blood_type.value,
+                latitude=float(row.latitude),
+                longitude=float(row.longitude),
+                available=row.available,
+                availability_updated_at=row.availability_updated_at,
+                verified=row.verified,
+                service_radius_km=float(row.service_radius_km),
+                estimated_response_probability=float(row.estimated_response_probability),
+            )
+            for row in rows
+        ]
+
+
+class SqlAlchemyRequestStore(RequestStore):
+    """Async persistence adapter.
+
+    The original endpoint is synchronous, so an application using this adapter
+    should make the route async. The methods below are intentionally explicit
+    rather than hiding async I/O behind sync wrappers.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def get_by_idempotency_key_async(self, key: str) -> RequestRecord | None:
+        result = await self.session.scalar(
+            select(EmergencyRequestRow)
+            .options(joinedload(EmergencyRequestRow.matches).joinedload(RequestMatchRow.donor))
+            .where(EmergencyRequestRow.idempotency_key == key)
+        )
+        return self._to_record(result) if result else None
+
+    async def get_by_id_async(self, request_id: str) -> RequestRecord | None:
+        result = await self.session.scalar(
+            select(EmergencyRequestRow)
+            .options(joinedload(EmergencyRequestRow.matches).joinedload(RequestMatchRow.donor))
+            .where(EmergencyRequestRow.id == request_id)
+        )
+        return self._to_record(result) if result else None
+
+    async def save_async(self, record: RequestRecord) -> None:
+        existing = await self.session.get(EmergencyRequestRow, record.request_id)
+        if existing is None:
+            existing = EmergencyRequestRow(
+                id=record.request_id,
+                requester_id=record.payload.requester_id,
+                facility_id=record.payload.location.facility_id,
+                blood_type=record.payload.blood_type.value,
+                units=record.payload.units,
+                urgency=record.payload.urgency.value,
+                response_deadline=record.payload.response_deadline,
+                contact_method=record.payload.contact_method.value,
+                note=record.payload.note,
+                genuine_request_confirmed=record.payload.genuine_request_confirmed,
+                sharing_consent_confirmed=record.payload.sharing_consent_confirmed,
+                idempotency_key=record.payload.idempotency_key,
+                status=record.status.value,
+                matching_version=MATCHING_VERSION,
+                created_at=record.created_at,
+            )
+            self.session.add(existing)
+        else:
+            existing.status = record.status.value
+            existing.response_deadline = record.expires_at
+
+        # Only add matches not already persisted. The unique constraint protects retries.
+        existing_match_ids = set()
+        if existing.id:
+            match_ids = await self.session.scalars(
+                select(RequestMatchRow.donor_id).where(RequestMatchRow.request_id == record.request_id)
+            )
+            existing_match_ids = set(match_ids.all())
+
+        for rank, match in enumerate(record.matches, start=1):
+            if match.donor_id in existing_match_ids:
+                continue
+            self.session.add(
+                RequestMatchRow(
+                    id=f"match_{uuid4().hex}",
+                    request_id=record.request_id,
+                    donor_id=match.donor_id,
+                    rank=rank,
+                    score=Decimal(str(match.score)),
+                    distance_km=Decimal(str(match.distance_km)),
+                    estimated_travel_minutes=match.estimated_travel_minutes,
+                    status="ranked",
+                    explanation=match.explanation.model_dump(mode="json"),
+                )
+            )
+        await self.session.commit()
+
+    async def set_manual_broadcast_async(self, request_id: str) -> RequestRecord:
+        row = await self.session.get(EmergencyRequestRow, request_id)
+        if row is None:
+            raise KeyError(request_id)
+        row.status = RequestStatusEnum.MANUAL_BROADCAST.value
+        await self.session.commit()
+        refreshed = await self.get_by_id_async(request_id)
+        if refreshed is None:
+            raise KeyError(request_id)
+        return refreshed
+
+    async def set_cancelled_async(self, request_id: str) -> RequestRecord:
+        row = await self.session.get(EmergencyRequestRow, request_id)
+        if row is None:
+            raise KeyError(request_id)
+        row.status = RequestStatusEnum.CANCELLED.value
+        await self.session.commit()
+        refreshed = await self.get_by_id_async(request_id)
+        if refreshed is None:
+            raise KeyError(request_id)
+        return refreshed
+
+    async def contact_selected_donors_async(self, request_id: str, donor_ids: list[str]) -> RequestRecord:
+        row = await self.session.get(EmergencyRequestRow, request_id)
+        if row is None:
+            raise KeyError(request_id)
+        allowed = {match.donor_id for match in row.matches}
+        if any(donor_id not in allowed for donor_id in donor_ids):
+            raise ValueError("One or more selected donors are not eligible for this request")
+        for match in row.matches:
+            if match.donor_id in donor_ids:
+                match.status = "contact_requested"
+        await self.session.commit()
+        refreshed = await self.get_by_id_async(request_id)
+        if refreshed is None:
+            raise KeyError(request_id)
+        return refreshed
+
+    @staticmethod
+    def _to_record(row: EmergencyRequestRow) -> RequestRecord:
+        payload = EmergencyRequestIn(
+            requester_id=row.requester_id,
+            blood_type=row.blood_type.value,
+            units=row.units,
+            urgency=row.urgency.value,
+            response_deadline=row.response_deadline,
+            location={
+                "facility_id": row.facility_id,
+                "facility_name": row.facility.name if row.facility else row.facility_id,
+                "area": row.facility.area if row.facility else "",
+                "latitude": float(row.facility.latitude) if row.facility else 0,
+                "longitude": float(row.facility.longitude) if row.facility else 0,
+                "verified": row.facility.verified if row.facility else False,
+            },
+            contact_method=row.contact_method.value,
+            note=row.note,
+            genuine_request_confirmed=row.genuine_request_confirmed,
+            sharing_consent_confirmed=row.sharing_consent_confirmed,
+            ai_matching_enabled=True,
+            idempotency_key=row.idempotency_key,
+        )
+        matches = [
+            DonorMatch(
+                donor_id=match.donor_id,
+                display_name=match.donor.display_name,
+                blood_type=match.donor.blood_type.value,
+                distance_km=float(match.distance_km),
+                estimated_travel_minutes=match.estimated_travel_minutes,
+                score=float(match.score),
+                explanation=MatchExplanation.model_validate(match.explanation),
+            )
+            for match in sorted(row.matches, key=lambda item: item.rank)
+            if match.donor is not None
+        ]
+        return RequestRecord(
+            request_id=row.id,
+            payload=payload,
+            status=RequestStatus(row.status.value),
+            created_at=row.created_at,
+            expires_at=row.response_deadline,
+            matches=matches,
+        )
+
+
+async def create_request_record(
+    session: AsyncSession,
+    payload: EmergencyRequestIn,
+    matches: list[DonorMatch],
+    request_id: str,
+    status: RequestStatus = RequestStatus.AWAITING_RESPONSES,
+) -> RequestRecord:
+    """Convenience function used by an async endpoint after matching."""
+    store = SqlAlchemyRequestStore(session)
+    record = RequestRecord(
+        request_id=request_id,
+        payload=payload,
+        status=status,
+        created_at=datetime.now(timezone.utc),
+        expires_at=payload.response_deadline,
+        matches=matches,
+    )
+    await store.save_async(record)
+    return record
