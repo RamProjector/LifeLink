@@ -30,7 +30,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: android-actions/setup-android@v3
       - run: yes | sdkmanager --licenses >/dev/null || true
       - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
