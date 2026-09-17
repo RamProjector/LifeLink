@@ -10,6 +10,10 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.PUT
 import retrofit2.http.PATCH
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+import java.util.TimeZone
 
 interface LifeLinkApi {
     @POST("v1/emergency-requests")
@@ -63,11 +67,11 @@ data class EmergencyRequestRequest(
             bloodType = draft.bloodType?.label ?: "UNKNOWN",
             units = draft.units,
             urgency = draft.urgency.name.lowercase(),
-            responseDeadline = draft.responseDeadline,
+            responseDeadline = normalizeDeadline(draft),
             location = LocationRequest(
-                facilityId = draft.facility?.id.orEmpty(),
-                facilityName = draft.facility?.name.orEmpty(),
-                area = draft.facility?.area.orEmpty(),
+                facilityId = draft.facility?.id,
+                facilityName = draft.facility?.name ?: "Requester location",
+                area = draft.facility?.area ?: "Approximate area",
                 latitude = draft.requesterLatitude ?: 14.6466,
                 longitude = draft.requesterLongitude ?: 121.0437,
                 precisionMeters = draft.locationPrecisionMeters,
@@ -83,8 +87,18 @@ data class EmergencyRequestRequest(
     }
 }
 
+private fun normalizeDeadline(draft: EmergencyRequestDraft): String {
+    val value = draft.responseDeadline.trim()
+    if (value.matches(Regex("\\d{4}-\\d{2}-\\d{2}T.*"))) return value
+    val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+    calendar.add(Calendar.MINUTE, if (draft.urgency.name == "CRITICAL") 90 else 24 * 60)
+    return SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }.format(calendar.time)
+}
+
 data class LocationRequest(
-    @SerializedName("facility_id") val facilityId: String,
+    @SerializedName("facility_id") val facilityId: String?,
     @SerializedName("facility_name") val facilityName: String,
     val area: String,
     val latitude: Double,

@@ -17,7 +17,7 @@ object RetrofitProvider {
      */
     fun create(
         baseUrl: String = BuildConfig.LIFELINK_API_BASE_URL.ifBlank { DEFAULT_BASE_URL },
-        tokenProvider: () -> String? = { null }
+        tokenProvider: () -> String? = { BuildConfig.LIFELINK_API_TOKEN.takeIf { it.isNotBlank() } }
     ): LifeLinkApi {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
