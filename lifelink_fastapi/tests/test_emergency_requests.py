@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 
 from app.main import app, request_store
+from app.security import Principal
 
 
 client = TestClient(app)
@@ -88,12 +89,11 @@ def test_unknown_blood_type_uses_manual_fallback():
     assert "blood type" in response.json()["reason"].lower()
 
 
-def test_unverified_facility_is_rejected():
+def test_gps_request_does_not_require_verified_facility():
     payload = make_payload(idempotency_key="idempotency-key-0005")
     payload["location"]["verified"] = False
     response = client.post("/v1/emergency-requests", json=payload)
-    assert response.status_code == 422
-    assert "verified facility" in response.json()["detail"]
+    assert response.status_code == 201
 
 
 def test_missing_consent_is_rejected():
@@ -143,6 +143,7 @@ def test_contact_endpoint_rejects_donor_not_in_matches():
 
 def test_authenticated_contact_requires_request_ownership(monkeypatch):
     monkeypatch.setenv("LIFELINK_AUTH_REQUIRED", "true")
+    monkeypatch.setattr("app.security._verify_supabase_token", lambda token: Principal(subject=token))
     payload = make_payload(idempotency_key="idempotency-key-0010")
     created = client.post(
         "/v1/emergency-requests",

@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 
 from app.main import app, request_store
+from app.security import Principal
 
 client = TestClient(app)
 
@@ -32,6 +33,7 @@ def request_payload(key: str = "donor-request-key-0001"):
 
 def test_donor_can_register_and_change_availability(monkeypatch):
     monkeypatch.setenv("LIFELINK_AUTH_REQUIRED", "true")
+    monkeypatch.setattr("app.security._verify_supabase_token", lambda token: Principal(subject=token))
     unauthorized = client.put(
         "/v1/donors/donor-new",
         json={
@@ -67,6 +69,7 @@ def test_donor_can_register_and_change_availability(monkeypatch):
 
 def test_authenticated_donor_cannot_mutate_another_profile(monkeypatch):
     monkeypatch.setenv("LIFELINK_AUTH_REQUIRED", "true")
+    monkeypatch.setattr("app.security._verify_supabase_token", lambda token: Principal(subject=token))
     response = client.patch(
         "/v1/donors/donor-dana/availability",
         json={"availability": "offline"},
