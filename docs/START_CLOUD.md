@@ -38,6 +38,21 @@ uvicorn app.main_postgres:app --reload --host 0.0.0.0 --port 8000
 
 The API converts `sslmode=require` to the asyncpg-compatible SSL parameter. Never commit the real connection string or password.
 
+## Supabase Auth configuration
+
+The Android client now uses Supabase Auth email/password sessions and sends the resulting access JWT to Render. Set these Render environment variables before enabling authenticated requests:
+
+```text
+LIFELINK_AUTH_REQUIRED=true
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+SUPABASE_JWT_AUDIENCE=authenticated
+SUPABASE_JWT_ISSUER=https://YOUR_PROJECT.supabase.co/auth/v1
+```
+
+For GitHub Actions, add repository **Actions variables/secrets** named `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The publishable key is safe for the Android client; never add a Supabase service-role key or JWT signing secret to the repository or APK.
+
+The Android app will show a sign-in/create-account screen when no Supabase session exists. Build-time values are supplied with `-PsupabaseUrl=...` and `-PsupabasePublishableKey=...`, or automatically by the GitHub Actions workflow from the repository configuration.
+
 ## Important distinction
 
 Supabase hosts the database. It does not automatically host this FastAPI application. The Android app must connect to the public URL of the FastAPI server.

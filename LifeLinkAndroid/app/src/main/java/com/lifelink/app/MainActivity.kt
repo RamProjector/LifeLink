@@ -14,6 +14,10 @@ import com.lifelink.app.feature.emergencyrequest.EmergencyRequestViewModel
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestViewModelFactory
 import com.lifelink.app.feature.donor.DonorViewModel
 import com.lifelink.app.feature.donor.DonorViewModelFactory
+import com.lifelink.app.feature.auth.AuthScreen
+import com.lifelink.app.feature.auth.AuthState
+import com.lifelink.app.feature.auth.AuthViewModel
+import com.lifelink.app.feature.auth.AuthViewModelFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,6 +27,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             LifeLinkTheme {
                 RequestNotificationPermissionIfNeeded()
+                val authViewModel: AuthViewModel = viewModel(
+                    factory = AuthViewModelFactory(app.container.authRepository)
+                )
+                val authState by authViewModel.state.collectAsStateWithLifecycle()
+                if (authState !is AuthState.SignedIn) {
+                    AuthScreen(authState, authViewModel::signIn, authViewModel::signUp)
+                    return@LifeLinkTheme
+                }
                 val viewModel: EmergencyRequestViewModel = viewModel(
                     factory = EmergencyRequestViewModelFactory(app.container.emergencyRequestRepository)
                 )

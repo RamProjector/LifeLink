@@ -57,6 +57,8 @@ async def create_emergency_request_postgres(
     principal: Principal = Depends(get_principal),
 ):
     validate_business_rules(payload)
+    if principal.subject != "development-user" and principal.subject != payload.requester_id:
+        raise HTTPException(status_code=403, detail="requester_id must match the authenticated user")
     if idempotency_header and idempotency_header != payload.idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key header must match payload.idempotency_key.")
 
@@ -211,6 +213,8 @@ async def register_donor_postgres(
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(get_principal),
 ):
+    if principal.subject != "development-user" and principal.subject != donor_id:
+        raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
     if donor_id != payload.donor_id:
         raise HTTPException(status_code=400, detail="Path donor_id must match payload donor_id")
     row = await SqlAlchemyDonorStore(session).upsert_profile(donor_id, payload)
@@ -236,6 +240,8 @@ async def update_donor_availability_postgres(
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(get_principal),
 ):
+    if principal.subject != "development-user" and principal.subject != donor_id:
+        raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
     try:
         row = await SqlAlchemyDonorStore(session).set_availability(donor_id, payload.availability)
     except KeyError:
@@ -256,7 +262,10 @@ async def update_donor_availability_postgres(
 async def donor_request_inbox_postgres(
     donor_id: str,
     session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_principal),
 ):
+    if principal.subject != "development-user" and principal.subject != donor_id:
+        raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
     items = []
     for request, match in await SqlAlchemyDonorStore(session).inbox(donor_id):
         items.append(DonorInboxItem(
@@ -281,6 +290,8 @@ async def donor_response_postgres(
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(get_principal),
 ):
+    if principal.subject != "development-user" and principal.subject != donor_id:
+        raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
     try:
         match = await SqlAlchemyDonorStore(session).respond(donor_id, request_id, payload)
     except KeyError:

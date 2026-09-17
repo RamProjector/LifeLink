@@ -39,7 +39,8 @@ class EmergencyRequestRepositoryImpl(
     private val pendingSubmissionDao: PendingSubmissionDao,
     private val activeRequestDao: ActiveRequestDao,
     private val api: LifeLinkApi,
-    private val workManager: WorkManager
+    private val workManager: WorkManager,
+    private val requesterIdProvider: () -> String? = { null }
 ) : EmergencyRequestRepository {
     override suspend fun saveDraft(draft: EmergencyRequestDraft) = draftDao.upsert(draft.toEntity())
 
@@ -63,7 +64,7 @@ class EmergencyRequestRepositoryImpl(
 
     override suspend fun submit(draft: EmergencyRequestDraft): SubmitResult = withContext(Dispatchers.IO) {
         try {
-            val response = api.submitEmergencyRequest(draft.id, EmergencyRequestRequest.from(draft))
+            val response = api.submitEmergencyRequest(draft.id, EmergencyRequestRequest.from(draft, requesterIdProvider()))
             if (!response.isSuccessful) {
                 SubmitResult.Error("The server rejected the request (${response.code()}). Check the details and try again.")
             } else {
@@ -147,6 +148,7 @@ class EmergencyRequestRepositoryImpl(
 }
 
 class LifeLinkAppContainer(
+    val authRepository: com.lifelink.app.core.auth.SupabaseAuthRepository,
     val emergencyRequestRepository: EmergencyRequestRepository,
     val donorRepository: DonorRepository
 )

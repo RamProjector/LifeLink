@@ -16,6 +16,14 @@ android {
         .orElse(providers.environmentVariable("LIFELINK_API_TOKEN"))
         .orElse("development-user")
         .get()
+    val supabaseUrl = providers.gradleProperty("supabaseUrl")
+        .orElse(providers.environmentVariable("SUPABASE_URL"))
+        .orElse("")
+        .get()
+    val supabasePublishableKey = providers.gradleProperty("supabasePublishableKey")
+        .orElse(providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY"))
+        .orElse("")
+        .get()
 
     defaultConfig {
         applicationId = "com.lifelink.app"
@@ -27,6 +35,8 @@ android {
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "LIFELINK_API_BASE_URL", "\"${apiBaseUrl.replace("\\\"", "\\\\\"")}\"")
         buildConfigField("String", "LIFELINK_API_TOKEN", "\"${apiToken.replace("\\\"", "\\\\\"")}\"")
+        buildConfigField("String", "SUPABASE_URL", "\"${supabaseUrl.replace("\\\"", "\\\\\"")}\"")
+        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${supabasePublishableKey.replace("\\\"", "\\\\\"")}\"")
     }
 
     buildTypes {

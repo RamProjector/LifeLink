@@ -62,8 +62,8 @@ data class EmergencyRequestRequest(
     @SerializedName("idempotency_key") val idempotencyKey: String
 ) {
     companion object {
-        fun from(draft: EmergencyRequestDraft): EmergencyRequestRequest = EmergencyRequestRequest(
-            requesterId = "demo-coordinator",
+        fun from(draft: EmergencyRequestDraft, requesterId: String? = null): EmergencyRequestRequest = EmergencyRequestRequest(
+            requesterId = requesterId ?: "demo-coordinator",
             bloodType = draft.bloodType?.label ?: "UNKNOWN",
             units = draft.units,
             urgency = draft.urgency.name.lowercase(),

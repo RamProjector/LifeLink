@@ -1,0 +1,76 @@
+package com.lifelink.app.core.auth
+
+import com.google.gson.annotations.SerializedName
+import com.lifelink.app.BuildConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import retrofit2.Response
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.Body
+import retrofit2.http.Header
+import retrofit2.http.POST
+import retrofit2.http.Query
+
+class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
+    private val api: SupabaseAuthApi? = BuildConfig.SUPABASE_URL.takeIf { it.isNotBlank() }?.let { baseUrl ->
+        Retrofit.Builder()
+            .baseUrl(if (baseUrl.endsWith('/')) baseUrl else "$baseUrl/")
+            .client(OkHttpClient.Builder().build())
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(SupabaseAuthApi::class.java)
+    }
+
+    val session = sessionStore.session
+
+    suspend fun signUp(email: String, password: String): Result<AuthSession> = authenticate {
+        api?.signUp(BuildConfig.SUPABASE_PUBLISHABLE_KEY, AuthRequest(email, password)) ?: error("Supabase URL is not configured")
+    }
+
+    suspend fun signIn(email: String, password: String): Result<AuthSession> = authenticate {
+        api?.signIn(BuildConfig.SUPABASE_PUBLISHABLE_KEY, AuthRequest(email, password))
+            ?: error("Supabase URL is not configured")
+    }
+
+    fun signOut() = sessionStore.clear()
+
+    private suspend fun authenticate(call: suspend () -> Response<SupabaseAuthResponse>): Result<AuthSession> = withContext(Dispatchers.IO) {
+        runCatching {
+            if (BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
+            val response = call()
+            if (!response.isSuccessful) error(response.errorBody()?.string().orEmpty().ifBlank { "Authentication failed (${response.code()})" })
+            val body = response.body() ?: error("Supabase returned an empty session")
+            val user = body.user ?: error("Supabase did not return a user")
+            val accessToken = body.accessToken?.takeIf { it.isNotBlank() }
+                ?: error("Account created. Confirm your email, then sign in.")
+            AuthSession(accessToken, body.refreshToken.orEmpty(), user.id, user.email.orEmpty()).also(sessionStore::save)
+        }
+    }
+}
+
+private interface SupabaseAuthApi {
+    @POST("auth/v1/signup")
+    suspend fun signUp(
+        @Header("apikey") publishableKey: String,
+        @Body request: AuthRequest
+    ): Response<SupabaseAuthResponse>
+
+    @POST("auth/v1/token")
+    suspend fun signIn(
+        @Header("apikey") publishableKey: String,
+        @Body request: AuthRequest,
+        @Query("grant_type") grantType: String = "password"
+    ): Response<SupabaseAuthResponse>
+}
+
+data class AuthRequest(val email: String, val password: String)
+
+data class SupabaseAuthResponse(
+    @SerializedName("access_token") val accessToken: String?,
+    @SerializedName("refresh_token") val refreshToken: String?,
+    val user: SupabaseUser?
+)
+
+data class SupabaseUser(val id: String, val email: String?)

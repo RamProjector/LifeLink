@@ -9,6 +9,12 @@ services:
         sync: false
       - key: LIFELINK_AUTH_REQUIRED
         value: "true"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_JWT_AUDIENCE
+        value: "authenticated"
+      - key: SUPABASE_JWT_ISSUER
+        sync: false
       - key: DB_POOL_SIZE
         value: "3"
       - key: DB_MAX_OVERFLOW
