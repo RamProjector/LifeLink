@@ -28,8 +28,9 @@ permissions:
 
 env:
   API_BASE_URL: ${{ inputs.api_base_url || 'https://lifelink-api-uzje.onrender.com/' }}
-  SUPABASE_URL_VALUE: ${{ inputs.supabase_url || secrets.SUPABASE_URL }}
-  SUPABASE_KEY_VALUE: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+  SUPABASE_URL_VALUE: ${{ inputs.supabase_url || 'https://nphbhlxnujmylhubzmne.supabase.co' }}
+  # Publishable client key: safe to bundle into a mobile application.
+  SUPABASE_KEY_VALUE: 'sb_publishable_0BnXY2k96nRr0k0zaZvMgQ_IQYSlyQu'
 
 concurrency:
   group: android-build-${{ github.ref }}
