@@ -187,3 +187,7 @@ The Android API URL was made configurable at build time using `-PlifelinkApiBase
 ## Audit9 — Release and security defaults
 
 The cloud audit compared every Android API declaration with the FastAPI route inventory. It also changed the PostgreSQL adapter to fail closed when `LIFELINK_AUTH_REQUIRED` is omitted, reducing the risk of accidentally exposing a mutable cloud API. A release Android build using an HTTPS API endpoint was verified successfully.
+
+## Audit10 — Repository hygiene and CI security
+
+The live cloud repository was reviewed for tracked secrets, generated directories, and unnecessary build logs. The workflow now uses least-privilege read-only contents permission and cancels superseded runs, which is a practical CI hardening pattern for public or private repositories.

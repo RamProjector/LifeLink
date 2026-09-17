@@ -178,3 +178,9 @@ On a machine with Android Studio and an emulator, run:
 ```
 
 Then capture screenshots for coordinator home, emergency request steps, active request, donor profile, donor inbox, learn, and profile. Re-score each screen after checking 320dp width, large font scale, dark mode, offline mode, keyboard behavior, and TalkBack labels.
+
+## Audit10 — GitHub repository hygiene and CI hardening
+
+The live private GitHub repositories were audited after synchronization. Tracked source-name scans found no environment files, key files, private-key files, or credential patterns. The repository tree was cleaned of historical build-round logs that were not required to build or operate the application.
+
+Both GitHub Actions workflows now request only `contents: read` permissions and cancel superseded runs for the same branch. Backend, Android, and cloud Docker validation remain the intended checks. The first live workflow runs passed after the Android SDK setup was corrected; this audit adds least-privilege and duplicate-run protections for future pushes.
