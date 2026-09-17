@@ -1,0 +1,75 @@
+name: Build Android APKs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'LifeLinkAndroid/**'
+      - '.github/workflows/android-build.yml'
+  pull_request:
+    paths:
+      - 'LifeLinkAndroid/**'
+      - '.github/workflows/android-build.yml'
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: 'LifeLink API base URL'
+        required: false
+        default: 'https://lifelink-api-uzje.onrender.com/'
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  API_BASE_URL: ${{ inputs.api_base_url || 'https://lifelink-api-uzje.onrender.com/' }}
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build debug and release APKs
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: LifeLinkAndroid
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug -PlifelinkApiBaseUrl="$API_BASE_URL" --no-daemon --stacktrace
+
+      - name: Build release APK
+        run: ./gradlew assembleRelease -PlifelinkApiBaseUrl="$API_BASE_URL" --no-daemon --stacktrace
+
+      - name: Rename APKs
+        run: |
+          mkdir -p ../android-artifacts
+          cp app/build/outputs/apk/debug/app-debug.apk ../android-artifacts/lifelink-debug.apk
+          cp app/build/outputs/apk/release/app-release-unsigned.apk ../android-artifacts/lifelink-release-unsigned.apk
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifelink-android-apks-${{ github.sha }}
+          path: android-artifacts/*.apk
+          if-no-files-found: error
+          retention-days: 14

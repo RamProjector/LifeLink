@@ -81,6 +81,10 @@ cd LifeLinkAndroid
 ./gradlew assembleDebug -PlifelinkApiBaseUrl=https://lifelink-api-uzje.onrender.com/
 ```
 
+The repository also includes a **Build Android APKs** GitHub Actions workflow. It builds both a debug APK and an unsigned release APK on pushes to `main`, pull requests that modify `LifeLinkAndroid`, or manual workflow dispatch. Download the results from the workflow's **Artifacts** section. The manual dispatch form allows a different API base URL to be supplied for staging or local testing.
+
+The release artifact is intentionally unsigned. Before distributing it through an app store or to end users, configure a protected Android signing key in GitHub Actions and sign the release with the same key used for future updates.
+
 The production Android client must also provide a verified bearer token when `LIFELINK_AUTH_REQUIRED=true`. Until Firebase/JWT verification is connected, use `LIFELINK_AUTH_REQUIRED=false` only for controlled development testing; do not use that setting for a public emergency service.
 
 Render Free services sleep after 15 minutes without inbound traffic and take about a minute to wake up. Render also provides a monthly free-instance-hour allowance and can suspend free services if usage limits are exceeded. It is suitable for an MVP or testing, not guaranteed production availability. See the [official Render free-service limits](https://render.com/docs/free).
