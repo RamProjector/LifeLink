@@ -57,12 +57,13 @@ class RequestStatus(str, Enum):
 class RequestLocation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    facility_id: str = Field(min_length=1, max_length=128)
-    facility_name: str = Field(min_length=1, max_length=200)
-    area: str = Field(min_length=1, max_length=120)
+    facility_id: str | None = Field(default=None, max_length=128)
+    facility_name: str = Field(default="Requester location", max_length=200)
+    area: str = Field(default="Approximate area", max_length=120)
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
-    verified: bool
+    precision_meters: int = Field(default=100, ge=10, le=10000)
+    verified: bool = False
 
 
 class EmergencyRequestIn(BaseModel):
@@ -442,7 +443,7 @@ def score_donor(request: EmergencyRequestIn, donor: Donor, now: datetime) -> Don
     factors = [
         f"Blood type {donor.blood_type.value} is eligible for {request.blood_type.value}",
         f"Estimated travel time is {travel_minutes} minutes",
-        f"Donor is approximately {distance_km:.1f} km from the facility",
+        f"Donor is approximately {distance_km:.1f} km from the request location",
         "Availability was recently confirmed",
         "Donor verification is complete",
     ]
@@ -463,11 +464,6 @@ def score_donor(request: EmergencyRequestIn, donor: Donor, now: datetime) -> Don
 
 
 def validate_business_rules(payload: EmergencyRequestIn) -> None:
-    if not payload.location.verified:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Requests must target a verified facility.",
-        )
     if not payload.genuine_request_confirmed or not payload.sharing_consent_confirmed:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

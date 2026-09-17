@@ -68,8 +68,9 @@ data class EmergencyRequestRequest(
                 facilityId = draft.facility?.id.orEmpty(),
                 facilityName = draft.facility?.name.orEmpty(),
                 area = draft.facility?.area.orEmpty(),
-                latitude = 14.6466,
-                longitude = 121.0437,
+                latitude = draft.requesterLatitude ?: 14.6466,
+                longitude = draft.requesterLongitude ?: 121.0437,
+                precisionMeters = draft.locationPrecisionMeters,
                 verified = draft.facility?.verified == true
             ),
             contactMethod = draft.contactMethod.name.lowercase(),
@@ -88,6 +89,7 @@ data class LocationRequest(
     val area: String,
     val latitude: Double,
     val longitude: Double,
+    @SerializedName("precision_meters") val precisionMeters: Int = 100,
     val verified: Boolean
 )
 

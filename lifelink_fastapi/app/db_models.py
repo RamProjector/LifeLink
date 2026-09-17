@@ -138,7 +138,10 @@ class EmergencyRequest(Base):
 
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
     requester_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    facility_id: Mapped[str] = mapped_column(ForeignKey("facilities.id"), nullable=False)
+    facility_id: Mapped[str | None] = mapped_column(ForeignKey("facilities.id"), nullable=True)
+    requester_latitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
+    requester_longitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
+    location_precision_meters: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     blood_type: Mapped[BloodTypeEnum] = mapped_column(
         SqlEnum(BloodTypeEnum, name="blood_type_enum", native_enum=True), nullable=False
     )
@@ -163,7 +166,7 @@ class EmergencyRequest(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    facility: Mapped[Facility] = relationship(back_populates="requests")
+    facility: Mapped[Facility | None] = relationship(back_populates="requests")
     matches: Mapped[list[RequestMatch]] = relationship(
         back_populates="request", cascade="all, delete-orphan"
     )

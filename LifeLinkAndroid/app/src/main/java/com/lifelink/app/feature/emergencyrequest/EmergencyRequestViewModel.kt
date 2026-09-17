@@ -55,6 +55,7 @@ sealed interface EmergencyRequestAction {
     data object Retry : EmergencyRequestAction
     data class ToggleDonorSelection(val donorId: String) : EmergencyRequestAction
     data object ContactSelectedDonors : EmergencyRequestAction
+    data class SetGpsLocation(val latitude: Double, val longitude: Double, val precisionMeters: Int) : EmergencyRequestAction
 }
 
 class EmergencyRequestViewModel(
@@ -103,6 +104,14 @@ class EmergencyRequestViewModel(
             EmergencyRequestAction.Retry -> submit()
             is EmergencyRequestAction.ToggleDonorSelection -> toggleDonor(action.donorId)
             EmergencyRequestAction.ContactSelectedDonors -> contactSelectedDonors()
+            is EmergencyRequestAction.SetGpsLocation -> updateDraft {
+                it.copy(
+                    requesterLatitude = action.latitude,
+                    requesterLongitude = action.longitude,
+                    locationPrecisionMeters = action.precisionMeters,
+                    facility = null
+                )
+            }
         }
     }
 
@@ -230,7 +239,7 @@ class EmergencyRequestViewModel(
             else -> null
         }
         RequestStep.URGENCY -> if (draft.responseDeadline.isBlank()) "Choose a response deadline." else null
-        RequestStep.LOCATION -> if (draft.facility?.verified != true) "Choose a verified facility." else null
+        RequestStep.LOCATION -> if (draft.requesterLatitude == null || draft.requesterLongitude == null) "Capture your approximate location or choose a manual location." else null
         RequestStep.CONTACT -> when {
             !draft.genuineRequestConfirmed -> "Confirm this is a genuine request for a verified facility."
             !draft.sharingConsentConfirmed -> "Confirm that request details may be shared with eligible donors."

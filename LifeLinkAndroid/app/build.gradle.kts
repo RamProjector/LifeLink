@@ -10,7 +10,7 @@ android {
     compileSdk = 35
     val apiBaseUrl = providers.gradleProperty("lifelinkApiBaseUrl")
         .orElse(providers.environmentVariable("LIFELINK_API_BASE_URL"))
-        .orElse("http://10.0.2.2:8000/")
+        .orElse("https://lifelink-api-uzje.onrender.com/")
         .get()
 
     defaultConfig {
@@ -61,6 +61,7 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")

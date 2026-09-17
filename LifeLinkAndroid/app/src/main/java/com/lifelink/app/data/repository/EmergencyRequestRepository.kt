@@ -156,6 +156,8 @@ private fun EmergencyRequestDraft.toEntity() = EmergencyRequestDraftEntity(
     urgency = urgency.name, responseDeadline = responseDeadline, note = note,
     facilityId = facility?.id, facilityName = facility?.name, facilityArea = facility?.area,
     facilityVerified = facility?.verified ?: false, contactMethod = contactMethod.name,
+    requesterLatitude = requesterLatitude, requesterLongitude = requesterLongitude,
+    locationPrecisionMeters = locationPrecisionMeters,
     genuineRequestConfirmed = genuineRequestConfirmed, sharingConsentConfirmed = sharingConsentConfirmed,
     aiMatchingEnabled = aiMatchingEnabled,
     updatedAtEpochMillis = System.currentTimeMillis()
@@ -165,6 +167,8 @@ private fun EmergencyRequestDraftEntity.toDomain() = EmergencyRequestDraft(
     id = id, bloodType = bloodType?.let { runCatching { com.lifelink.app.domain.BloodType.valueOf(it) }.getOrNull() }, units = units, typeUnknown = typeUnknown,
     urgency = enumValueOf<Urgency>(urgency), responseDeadline = responseDeadline, note = note,
     facility = facilityId?.let { Facility(it, facilityName.orEmpty(), facilityArea.orEmpty(), facilityVerified) },
+    requesterLatitude = requesterLatitude, requesterLongitude = requesterLongitude,
+    locationPrecisionMeters = locationPrecisionMeters,
     contactMethod = enumValueOf<ContactMethod>(contactMethod), genuineRequestConfirmed = genuineRequestConfirmed,
     sharingConsentConfirmed = sharingConsentConfirmed, aiMatchingEnabled = aiMatchingEnabled
 )

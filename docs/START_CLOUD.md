@@ -15,6 +15,15 @@ psql "postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require" \
   -f sql/001_initial_schema.sql
 ```
 
+5. Apply the GPS-first request-location migration:
+
+```bash
+psql "postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require" \
+  -f sql/002_gps_request_location.sql
+```
+
+Facility discovery is intentionally deferred. Requests now use a private approximate requester location for donor matching; facility metadata remains optional for future use.
+
 ## Start the cloud-connected API
 
 ```bash
@@ -64,6 +73,15 @@ DB_MAX_OVERFLOW=5
 
 7. Deploy and copy the HTTPS URL Render gives you.
 8. Configure the Android app to use that FastAPI URL.
+
+The current deployed service URL is `https://lifelink-api-uzje.onrender.com/`. Build the Android client with:
+
+```bash
+cd LifeLinkAndroid
+./gradlew assembleDebug -PlifelinkApiBaseUrl=https://lifelink-api-uzje.onrender.com/
+```
+
+The production Android client must also provide a verified bearer token when `LIFELINK_AUTH_REQUIRED=true`. Until Firebase/JWT verification is connected, use `LIFELINK_AUTH_REQUIRED=false` only for controlled development testing; do not use that setting for a public emergency service.
 
 Render Free services sleep after 15 minutes without inbound traffic and take about a minute to wake up. Render also provides a monthly free-instance-hour allowance and can suspend free services if usage limits are exceeded. It is suitable for an MVP or testing, not guaranteed production availability. See the [official Render free-service limits](https://render.com/docs/free).
 

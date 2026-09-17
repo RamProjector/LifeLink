@@ -46,8 +46,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -63,6 +65,8 @@ import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.Facility
 import com.lifelink.app.domain.RequestStep
 import com.lifelink.app.domain.Urgency
+import com.lifelink.app.core.location.LocationProvider
+import kotlinx.coroutines.launch
 
 @Composable
 fun LifeLinkApp(state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -> Unit) {
@@ -194,14 +198,22 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
 }
 
 @Composable private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { }
-    val facilities = listOf(Facility("st-lukes", "St. Luke’s Medical Center", "Quezon City"), Facility("pgh", "Philippine General Hospital", "Manila"), Facility("makati-med", "Makati Medical Center", "Makati"))
+    ) { permissions ->
+        if (permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true || permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
+            scope.launch {
+                LocationProvider(context).currentLocation()?.let { location ->
+                    onAction(EmergencyRequestAction.SetGpsLocation(location.latitude, location.longitude, location.precisionMeters))
+                }
+            }
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
-        Heading("Where should donors go?", "Use a hospital or approved facility.")
-        InfoCard("Facility search", "Choose an approved destination to estimate donor travel time.", MaterialTheme.colorScheme.secondary)
-        facilities.forEach { facility -> FacilityRow(facility, draft.facility == facility) { onAction(EmergencyRequestAction.UpdateDraft { it.copy(facility = facility) }) } }
+        Heading("Where are you requesting help?", "Your approximate location is used only to find nearby eligible donors.")
+        InfoCard("Privacy-first GPS", "Your precise coordinates are used for matching and are not shown to donors.", MaterialTheme.colorScheme.secondary)
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
             onClick = {
@@ -212,9 +224,14 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
                     )
                 )
             }
-        ) { Text("Use current facility location") }
-        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFECE9E2))) { Box(Modifier.fillMaxWidth().height(130.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.LocationOn, "Approximate destination", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp)); Text("Approximate destination preview", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
-        Text("Exact patient location is never shown to donors.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        ) { Text(if (draft.requesterLatitude == null) "Use my current location" else "Update current location") }
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFECE9E2))) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Default.LocationOn, "Request location", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                Text(if (draft.requesterLatitude == null) "Location not captured" else "Approximate location captured", fontWeight = FontWeight.SemiBold)
+                Text("Donors see distance and availability—not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            }
+        }
     }
 }
 
