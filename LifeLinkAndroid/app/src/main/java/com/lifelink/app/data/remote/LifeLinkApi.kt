@@ -16,6 +16,12 @@ import java.util.Locale
 import java.util.TimeZone
 
 interface LifeLinkApi {
+    @PUT("v1/profile")
+    suspend fun upsertProfile(@Body profile: ProfileRequest): Response<ProfileResponse>
+
+    @GET("v1/profile")
+    suspend fun getProfile(): Response<ProfileResponse>
+
     @POST("v1/emergency-requests")
     suspend fun submitEmergencyRequest(
         @Header("Idempotency-Key") idempotencyKey: String,
@@ -46,6 +52,18 @@ interface LifeLinkApi {
     @POST("v1/donors/{donorId}/requests/{requestId}/response")
     suspend fun respondToDonorRequest(@Path("donorId") donorId: String, @Path("requestId") requestId: String, @Body response: DonorResponseRequest): Response<DonorResponseResponse>
 }
+
+data class ProfileRequest(
+    val role: String,
+    @SerializedName("display_name") val displayName: String? = null
+)
+
+data class ProfileResponse(
+    @SerializedName("user_id") val userId: String,
+    val email: String,
+    val role: String,
+    @SerializedName("display_name") val displayName: String? = null
+)
 
 data class EmergencyRequestRequest(
     @SerializedName("requester_id") val requesterId: String,

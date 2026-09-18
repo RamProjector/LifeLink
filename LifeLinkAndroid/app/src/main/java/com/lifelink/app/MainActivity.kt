@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -24,6 +25,9 @@ import com.lifelink.app.feature.auth.AuthViewModelFactory
 import com.lifelink.app.feature.auth.RoleSelectionScreen
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.auth.UserRoleStore
+import com.lifelink.app.data.remote.ProfileRequest
+import com.lifelink.app.data.remote.RetrofitProvider
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,9 +46,22 @@ class MainActivity : ComponentActivity() {
                     return@LifeLinkTheme
                 }
                 val roleStore = remember { UserRoleStore(this@MainActivity) }
+                val roleSyncScope = rememberCoroutineScope()
                 var role by remember { mutableStateOf(roleStore.get()) }
                 if (role == null) {
-                    RoleSelectionScreen { selectedRole -> roleStore.save(selectedRole); role = selectedRole }
+                    RoleSelectionScreen { selectedRole ->
+                        roleStore.save(selectedRole)
+                        role = selectedRole
+                        roleSyncScope.launch {
+                            val session = (authState as? AuthState.SignedIn)?.session
+                            if (session != null) {
+                                runCatching {
+                                    RetrofitProvider.create { session.accessToken }
+                                        .upsertProfile(ProfileRequest(selectedRole.name.lowercase()))
+                                }
+                            }
+                        }
+                    }
                     return@LifeLinkTheme
                 }
                 val viewModel: EmergencyRequestViewModel = viewModel(

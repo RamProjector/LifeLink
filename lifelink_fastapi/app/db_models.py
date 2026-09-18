@@ -71,6 +71,11 @@ class MatchStatusEnum(str, Enum):
     WITHDRAWN = "withdrawn"
 
 
+class LifeLinkRoleEnum(str, Enum):
+    REQUESTER = "requester"
+    DONOR = "donor"
+
+
 class GeographyPoint(UserDefinedType):
     """PostGIS geography(Point, 4326) type.
 
@@ -130,6 +135,21 @@ class Donor(Base):
     __table_args__ = (
         Index("ix_donors_active_blood_type", "available", "verified", "blood_type"),
         Index("ix_donors_availability_updated_at", "availability_updated_at"),
+    )
+
+
+class LifeLinkProfile(Base):
+    __tablename__ = "lifelink_profiles"
+
+    user_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, default="")
+    role: Mapped[LifeLinkRoleEnum] = mapped_column(
+        SqlEnum(LifeLinkRoleEnum, name="lifelink_role_enum", native_enum=True), nullable=False
+    )
+    display_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
 

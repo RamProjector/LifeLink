@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # The in-memory demo remains anonymous by default, but a PostgreSQL deployment
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 os.environ.setdefault("LIFELINK_AUTH_REQUIRED", "true")
 
 from .db import get_db_session
+from .db_models import LifeLinkProfile, LifeLinkRoleEnum
 from .main import (
     EmergencyRequestIn,
     EmergencyRequestOut,
@@ -43,6 +45,56 @@ from .main import Donor
 from .security import Principal, get_principal
 
 app = FastAPI(title="LifeLink Matching Service — PostgreSQL")
+
+
+class ProfileIn(BaseModel):
+    role: str = Field(pattern="^(requester|donor)$")
+    display_name: str | None = Field(default=None, max_length=160)
+
+
+class ProfileOut(BaseModel):
+    user_id: str
+    email: str
+    role: str
+    display_name: str | None = None
+
+
+@app.put("/v1/profile", response_model=ProfileOut)
+async def upsert_profile(
+    payload: ProfileIn,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_principal),
+):
+    if principal.subject == "development-user":
+        raise HTTPException(status_code=401, detail="An authenticated user is required")
+    row = await session.get(LifeLinkProfile, principal.subject)
+    if row is None:
+        row = LifeLinkProfile(
+            user_id=principal.subject,
+            email=principal.email or "",
+            role=LifeLinkRoleEnum(payload.role),
+            display_name=payload.display_name,
+        )
+        session.add(row)
+    else:
+        row.email = principal.email or row.email
+        row.role = LifeLinkRoleEnum(payload.role)
+        row.display_name = payload.display_name
+    await session.commit()
+    return ProfileOut(user_id=row.user_id, email=row.email, role=row.role.value, display_name=row.display_name)
+
+
+@app.get("/v1/profile", response_model=ProfileOut)
+async def get_profile(
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_principal),
+):
+    if principal.subject == "development-user":
+        raise HTTPException(status_code=401, detail="An authenticated user is required")
+    row = await session.get(LifeLinkProfile, principal.subject)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return ProfileOut(user_id=row.user_id, email=row.email, role=row.role.value, display_name=row.display_name)
 
 
 @app.get("/health")
