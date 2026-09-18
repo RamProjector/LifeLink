@@ -19,6 +19,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import java.util.regex.Pattern
+
+private val emailPattern = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$")
 
 @Composable
 fun AuthScreen(state: AuthState, onSignIn: (String, String) -> Unit, onSignUp: (String, String) -> Unit) {
@@ -39,12 +42,12 @@ fun AuthScreen(state: AuthState, onSignIn: (String, String) -> Unit, onSignUp: (
         if (busy) CircularProgressIndicator()
         else Button(
             onClick = { if (createAccount) onSignUp(email.trim(), password) else onSignIn(email.trim(), password) },
-            enabled = email.contains("@") && password.length >= 6,
+            enabled = emailPattern.matcher(email.trim()).matches() && password.length >= 6,
             modifier = Modifier.fillMaxWidth()
         ) { Text(if (createAccount) "Create account" else "Sign in") }
         OutlinedButton(onClick = { createAccount = !createAccount }, modifier = Modifier.fillMaxWidth()) {
             Text(if (createAccount) "I already have an account" else "Create a new account")
         }
-        Text("Your account is used to protect requests, donor profiles, and contact actions.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Use a complete email such as name@gmail.com. Your account is used to protect requests, donor profiles, and contact actions.", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
