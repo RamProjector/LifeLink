@@ -12,7 +12,10 @@ data class DonorProfile(
     val area: String = "",
     val serviceRadiusKm: Int = 10,
     val availability: DonorAvailability = DonorAvailability.OFFLINE,
-    val verified: Boolean = false
+    val verified: Boolean = false,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val locationPrecisionMeters: Int = 500
 )
 
 data class DonorRequest(

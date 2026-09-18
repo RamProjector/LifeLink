@@ -15,7 +15,10 @@ data class DonorProfileEntity(
     val area: String,
     val serviceRadiusKm: Int,
     val availability: String,
-    val verified: Boolean
+    val verified: Boolean,
+    val latitude: Double?,
+    val longitude: Double?,
+    val locationPrecisionMeters: Int
 )
 
 @Entity(tableName = "donor_requests")

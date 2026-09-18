@@ -1,5 +1,9 @@
 package com.lifelink.app.feature.donor
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +28,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,11 +37,20 @@ import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
+import com.lifelink.app.core.location.LocationProvider
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: () -> Unit) {
     var profileExpanded by remember { mutableStateOf(state.profile.displayName.isBlank()) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val locationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true || permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
+            scope.launch { LocationProvider(context).currentLocation()?.let { onAction(DonorAction.SetLocation(it.latitude, it.longitude, it.precisionMeters)) } }
+        }
+    }
     Scaffold(topBar = { TopAppBar(title = { Text("Donor mode") }) }) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp),
@@ -52,7 +67,13 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                     Text(if (profileExpanded) "Hide donor profile" else "Edit donor profile")
                 }
             }
-            if (profileExpanded) item { ProfileCard(state.profile, onAction) }
+            if (profileExpanded) item {
+                ProfileCard(state.profile, onAction) {
+                    if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                        scope.launch { LocationProvider(context).currentLocation()?.let { onAction(DonorAction.SetLocation(it.latitude, it.longitude, it.precisionMeters)) } }
+                    } else locationLauncher.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
+                }
+            }
             item { Text("Requests near you", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             if (state.requests.isEmpty()) item { Text("No eligible requests right now.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(state.requests, key = { it.requestId }) { request -> RequestCard(request, onAction) }
@@ -74,13 +95,18 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
     }
 }
 
-@Composable private fun ProfileCard(profile: DonorProfile, onAction: (DonorAction) -> Unit) {
+@Composable private fun ProfileCard(profile: DonorProfile, onAction: (DonorAction) -> Unit, onCaptureLocation: () -> Unit) {
     var name by remember(profile.displayName) { mutableStateOf(profile.displayName) }
     var area by remember(profile.area) { mutableStateOf(profile.area) }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
             OutlinedTextField(area, { area = it }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
+            Text(
+                if (profile.latitude == null) "Location not captured" else "Approximate GPS location captured (±${profile.locationPrecisionMeters} m)",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Button(onClick = onCaptureLocation, modifier = Modifier.fillMaxWidth()) { Text("Use my current location") }
             Button(onClick = { onAction(DonorAction.UpdateProfile(profile.copy(displayName = name, area = area))) }, Modifier.fillMaxWidth()) { Text("Save profile") }
         }
     }

@@ -24,10 +24,13 @@ class DonorRepositoryImpl(private val dao: DonorDao, private val api: LifeLinkAp
     override fun observeRequests(): Flow<List<DonorRequest>> = dao.observeRequests().map { list -> list.map { it.toDomain() } }
     override suspend fun saveProfile(profile: DonorProfile) {
         withContext(Dispatchers.IO) {
+        require(profile.latitude != null && profile.longitude != null) { "Capture your approximate location before saving your donor profile." }
         dao.upsertProfile(profile.toEntity())
         api?.registerDonor(
-            profile.donorId,
-            DonorProfileRequest(profile.donorId, profile.displayName, profile.bloodType?.label ?: "UNKNOWN", 14.6466, 121.0437, profile.serviceRadiusKm.toDouble(), profile.verified)
+            profile.donorId, DonorProfileRequest(
+                profile.donorId, profile.displayName, profile.bloodType?.label ?: "UNKNOWN",
+                profile.latitude, profile.longitude, profile.serviceRadiusKm.toDouble(), profile.verified
+            )
         )
         api?.updateDonorAvailability(profile.donorId, DonorAvailabilityRequest(profile.availability.name.lowercase()))
         }
@@ -62,6 +65,6 @@ class DonorRepositoryImpl(private val dao: DonorDao, private val api: LifeLinkAp
     }
 }
 
-private fun DonorProfile.toEntity() = DonorProfileEntity(donorId, displayName, bloodType?.name, area, serviceRadiusKm, availability.name, verified)
-private fun DonorProfileEntity.toDomain() = DonorProfile(donorId, displayName, bloodType?.let { runCatching { BloodType.valueOf(it) }.getOrNull() }, area, serviceRadiusKm, runCatching { DonorAvailability.valueOf(availability) }.getOrDefault(DonorAvailability.OFFLINE), verified)
+private fun DonorProfile.toEntity() = DonorProfileEntity(donorId, displayName, bloodType?.name, area, serviceRadiusKm, availability.name, verified, latitude, longitude, locationPrecisionMeters)
+private fun DonorProfileEntity.toDomain() = DonorProfile(donorId, displayName, bloodType?.let { runCatching { BloodType.valueOf(it) }.getOrNull() }, area, serviceRadiusKm, runCatching { DonorAvailability.valueOf(availability) }.getOrDefault(DonorAvailability.OFFLINE), verified, latitude, longitude, locationPrecisionMeters)
 private fun DonorRequestEntity.toDomain() = DonorRequest(requestId, bloodType, units, urgency, facilityName, area, distanceKm, response?.let { runCatching { DonorResponse.valueOf(it) }.getOrNull() })
