@@ -6,6 +6,7 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # The in-memory demo remains anonymous by default, but a PostgreSQL deployment
@@ -47,6 +48,19 @@ app = FastAPI(title="LifeLink Matching Service — PostgreSQL")
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "service": "lifelink-matching-postgres"}
+
+
+@app.get("/auth/confirmed", response_class=HTMLResponse)
+async def auth_confirmed() -> str:
+    """Landing page for Supabase email confirmation links."""
+    return """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LifeLink email confirmed</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:3rem 1.5rem;background:#fff8f8;color:#241a1c}main{max-width:30rem;margin:auto;background:#fff;padding:2rem;border-radius:1rem;box-shadow:0 8px 30px #3b171714}h1{color:#bd123f}p{line-height:1.6}strong{color:#8b1232}</style>
+</head><body><main><h1>Email confirmed</h1>
+<p>Your LifeLink account email has been confirmed.</p>
+<p>Return to the LifeLink Android app and choose <strong>Sign in</strong> using the email and password you registered with.</p>
+</main></body></html>"""
 
 
 @app.post("/v1/emergency-requests", response_model=EmergencyRequestOut | ManualFallbackOut, status_code=201)
