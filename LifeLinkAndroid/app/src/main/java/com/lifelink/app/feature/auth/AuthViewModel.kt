@@ -3,6 +3,7 @@ package com.lifelink.app.feature.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.lifelink.app.core.auth.AuthResult
 import com.lifelink.app.core.auth.AuthSession
 import com.lifelink.app.core.auth.SupabaseAuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +15,7 @@ sealed interface AuthState {
     data object Loading : AuthState
     data object SignedOut : AuthState
     data class SignedIn(val session: AuthSession) : AuthState
+    data object EmailConfirmationRequired : AuthState
     data class Error(val message: String) : AuthState
 }
 
@@ -24,7 +26,8 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
     init {
         viewModelScope.launch {
             repository.session.collect { session ->
-                _state.value = if (session == null) AuthState.SignedOut else AuthState.SignedIn(session)
+                if (session != null) _state.value = AuthState.SignedIn(session)
+                else if (_state.value !is AuthState.EmailConfirmationRequired) _state.value = AuthState.SignedOut
             }
         }
     }
@@ -33,10 +36,15 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
     fun signUp(email: String, password: String) = authenticate { repository.signUp(email, password) }
     fun signOut() = repository.signOut()
 
-    private fun authenticate(action: suspend () -> Result<AuthSession>) {
+    private fun authenticate(action: suspend () -> Result<AuthResult>) {
         viewModelScope.launch {
             _state.value = AuthState.Loading
-            action().onFailure { _state.value = AuthState.Error(it.message ?: "Authentication failed") }
+            action().onSuccess { result ->
+                _state.value = when (result) {
+                    is AuthResult.SignedIn -> AuthState.SignedIn(result.session)
+                    AuthResult.EmailConfirmationRequired -> AuthState.EmailConfirmationRequired
+                }
+            }.onFailure { _state.value = AuthState.Error(it.message ?: "Authentication failed") }
         }
     }
 }

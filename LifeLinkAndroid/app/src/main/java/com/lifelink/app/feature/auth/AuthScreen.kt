@@ -39,6 +39,12 @@ fun AuthScreen(state: AuthState, onSignIn: (String, String) -> Unit, onSignUp: (
         OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Email") }, singleLine = true)
         OutlinedTextField(password, { password = it }, Modifier.fillMaxWidth(), label = { Text("Password") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
         if (state is AuthState.Error) Text(state.message, color = MaterialTheme.colorScheme.error)
+        if (state is AuthState.EmailConfirmationRequired) {
+            Text(
+                "Account created. Check your email and click the Supabase confirmation link, then select Sign in.",
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
         if (busy) CircularProgressIndicator()
         else Button(
             onClick = { if (createAccount) onSignUp(email.trim(), password) else onSignIn(email.trim(), password) },

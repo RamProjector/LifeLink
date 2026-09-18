@@ -25,29 +25,55 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
 
     val session = sessionStore.session
 
-    suspend fun signUp(email: String, password: String): Result<AuthSession> = authenticate {
-        api?.signUp(BuildConfig.SUPABASE_PUBLISHABLE_KEY, AuthRequest(email, password)) ?: error("Supabase URL is not configured")
+    suspend fun signUp(email: String, password: String): Result<AuthResult> = authenticate {
+        api?.signUp(BuildConfig.SUPABASE_PUBLISHABLE_KEY, AuthRequest(email, password))
+            ?: error("Supabase URL is not configured")
     }
 
-    suspend fun signIn(email: String, password: String): Result<AuthSession> = authenticate {
+    suspend fun signIn(email: String, password: String): Result<AuthResult> = authenticate {
         api?.signIn(BuildConfig.SUPABASE_PUBLISHABLE_KEY, AuthRequest(email, password))
             ?: error("Supabase URL is not configured")
     }
 
     fun signOut() = sessionStore.clear()
 
-    private suspend fun authenticate(call: suspend () -> Response<SupabaseAuthResponse>): Result<AuthSession> = withContext(Dispatchers.IO) {
+    private suspend fun authenticate(call: suspend () -> Response<SupabaseAuthResponse>): Result<AuthResult> = withContext(Dispatchers.IO) {
         runCatching {
-            if (BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
+            if (BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) {
+                error("Add the Supabase URL and publishable key to the Android build")
+            }
             val response = call()
-            if (!response.isSuccessful) error(response.errorBody()?.string().orEmpty().ifBlank { "Authentication failed (${response.code()})" })
-            val body = response.body() ?: error("Supabase returned an empty session")
-            val user = body.user ?: error("Supabase did not return a user")
+            if (!response.isSuccessful) {
+                error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+            }
+            val body = response.body() ?: error("Supabase returned an empty response")
+            val user = body.user
             val accessToken = body.accessToken?.takeIf { it.isNotBlank() }
-                ?: error("Account created. Confirm your email, then sign in.")
-            AuthSession(accessToken, body.refreshToken.orEmpty(), user.id, user.email.orEmpty()).also(sessionStore::save)
+            if (user == null || accessToken == null) {
+                AuthResult.EmailConfirmationRequired
+            } else {
+                AuthSession(accessToken, body.refreshToken.orEmpty(), user.id, user.email.orEmpty())
+                    .also(sessionStore::save)
+                AuthResult.SignedIn(sessionStore.session.value!!)
+            }
         }
     }
+
+    private fun readableAuthError(raw: String, statusCode: Int): String {
+        val message = Regex("\\\"msg\\\"\\s*:\\s*\\\"([^\\\"]+)").find(raw)?.groupValues?.get(1)
+            ?: Regex("\\\"message\\\"\\s*:\\s*\\\"([^\\\"]+)").find(raw)?.groupValues?.get(1)
+        return when {
+            statusCode == 429 -> "Too many attempts. Please wait a few minutes and try again."
+            message?.contains("already registered", ignoreCase = true) == true -> "This email already has an account. Select Sign in."
+            message?.contains("invalid", ignoreCase = true) == true -> "Please enter a valid email address."
+            else -> message ?: "Authentication failed ($statusCode). Please try again."
+        }
+    }
+}
+
+sealed interface AuthResult {
+    data class SignedIn(val session: AuthSession) : AuthResult
+    data object EmailConfirmationRequired : AuthResult
 }
 
 private interface SupabaseAuthApi {
