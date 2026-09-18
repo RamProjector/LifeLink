@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.domain.DonorAvailability
+import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.feature.activeRequest.ActiveRequestScreen
 import com.lifelink.app.feature.donor.DonorAction
 import com.lifelink.app.feature.donor.DonorScreen
@@ -46,7 +47,8 @@ fun LifeLinkShell(
     state: EmergencyRequestUiState,
     onAction: (EmergencyRequestAction) -> Unit,
     donorState: DonorUiState,
-    onDonorAction: (DonorAction) -> Unit
+    onDonorAction: (DonorAction) -> Unit,
+    role: UserRole
 ) {
     var showRequest by rememberSaveable { mutableStateOf(false) }
     var showActive by rememberSaveable { mutableStateOf(false) }
@@ -77,7 +79,7 @@ fun LifeLinkShell(
     ) { padding ->
         Surface(Modifier.fillMaxSize().padding(padding)) {
             when (tab) {
-                ShellTab.HOME -> HomeContent(state, donorState, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true })
+                ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true })
                 ShellTab.LEARN -> LearnContent()
                 ShellTab.PROFILE -> ProfileContent()
             }
@@ -88,6 +90,7 @@ fun LifeLinkShell(
 @Composable private fun HomeContent(
     state: EmergencyRequestUiState,
     donorState: DonorUiState,
+    role: UserRole,
     onCreate: () -> Unit,
     onActive: () -> Unit,
     onDonor: () -> Unit
@@ -96,14 +99,19 @@ fun LifeLinkShell(
         Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Good morning, Mr. Reyes", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("Verified coordinator", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer)) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(Icons.Default.Favorite, "LifeLink support", tint = androidx.compose.material3.MaterialTheme.colorScheme.primary)
-                Text("Need blood urgently?", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("Create a verified request and notify only eligible donors in range.")
-                Button(onClick = onCreate, Modifier.fillMaxWidth()) { Text("Create emergency request") }
+        Text(if (role == UserRole.DONOR) "Ready to help nearby" else "Find eligible donors nearby", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(if (role == UserRole.DONOR) "Manage your donor profile and availability." else "Create a request and connect with donors who choose to respond.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        if (role == UserRole.DONOR) {
+            Button(onClick = onDonor, Modifier.fillMaxWidth()) { Text("Open donor dashboard") }
+        }
+        if (role == UserRole.REQUESTER) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(Icons.Default.Favorite, "LifeLink support", tint = androidx.compose.material3.MaterialTheme.colorScheme.primary)
+                    Text("Need blood urgently?", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Create a request and notify only eligible donors in range.")
+                    Button(onClick = onCreate, Modifier.fillMaxWidth()) { Text("Create emergency request") }
+                }
             }
         }
         state.activeRequest?.let { active ->
@@ -115,11 +123,10 @@ fun LifeLinkShell(
                 }
             }
         }
-        Card(Modifier.fillMaxWidth()) {
+        if (role == UserRole.REQUESTER) Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Want to help someone nearby?", fontWeight = FontWeight.Bold)
-                Text("Switch to donor mode to manage availability and respond to requests.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = onDonor) { Text("Open donor mode") }
+                Text("Choose the donor role from your profile to manage availability and respond to requests.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

@@ -57,6 +57,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lifelink.app.domain.BloodType
@@ -200,6 +202,8 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
 @Composable private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var manualLatitude by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(draft.requesterLatitude?.toString().orEmpty()) }
+    var manualLongitude by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(draft.requesterLongitude?.toString().orEmpty()) }
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -225,6 +229,35 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
                 )
             }
         ) { Text(if (draft.requesterLatitude == null) "Use my current location" else "Update current location") }
+        Text("Or enter an approximate location manually", fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedTextField(
+                value = manualLatitude,
+                onValueChange = { manualLatitude = it },
+                modifier = Modifier.weight(1f),
+                label = { Text("Latitude") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+            OutlinedTextField(
+                value = manualLongitude,
+                onValueChange = { manualLongitude = it },
+                modifier = Modifier.weight(1f),
+                label = { Text("Longitude") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+        }
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = {
+                val latitude = manualLatitude.toDoubleOrNull()
+                val longitude = manualLongitude.toDoubleOrNull()
+                if (latitude != null && longitude != null && latitude in -90.0..90.0 && longitude in -180.0..180.0) {
+                    onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+                }
+            }
+        ) { Text("Use this approximate location") }
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFECE9E2))) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Default.LocationOn, "Request location", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
@@ -237,11 +270,11 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
 
 @Composable private fun ContactStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Heading("How should responses work?", "Choose how verified donors can contact the coordinator.")
+        Heading("How should responses work?", "Choose how eligible donors can contact you after they accept.")
         Text("Preferred contact", fontWeight = FontWeight.SemiBold)
         ContactMethod.entries.forEach { method -> SelectableRow(method.label, draft.contactMethod == method) { onAction(EmergencyRequestAction.UpdateDraft { it.copy(contactMethod = method) }) } }
-        InfoCard("Coordinator contact", "+63 9••• •••• 21\nShown only after a donor confirms.", MaterialTheme.colorScheme.secondary)
-        CheckRow(draft.genuineRequestConfirmed, "I confirm this is a genuine blood request for a verified facility.") { checked -> onAction(EmergencyRequestAction.UpdateDraft { draftValue -> draftValue.copy(genuineRequestConfirmed = checked) }) }
+        InfoCard("Contact privacy", "Your contact details stay private until a donor accepts your request.", MaterialTheme.colorScheme.secondary)
+        CheckRow(draft.genuineRequestConfirmed, "I confirm this is a genuine blood request.") { checked -> onAction(EmergencyRequestAction.UpdateDraft { draftValue -> draftValue.copy(genuineRequestConfirmed = checked) }) }
         CheckRow(draft.sharingConsentConfirmed, "I agree to share the listed request details with eligible donors for this request.") { checked -> onAction(EmergencyRequestAction.UpdateDraft { draftValue -> draftValue.copy(sharingConsentConfirmed = checked) }) }
     }
 }

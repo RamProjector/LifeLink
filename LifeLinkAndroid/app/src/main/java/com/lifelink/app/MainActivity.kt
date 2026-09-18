@@ -5,6 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
@@ -18,6 +21,9 @@ import com.lifelink.app.feature.auth.AuthScreen
 import com.lifelink.app.feature.auth.AuthState
 import com.lifelink.app.feature.auth.AuthViewModel
 import com.lifelink.app.feature.auth.AuthViewModelFactory
+import com.lifelink.app.feature.auth.RoleSelectionScreen
+import com.lifelink.app.core.auth.UserRole
+import com.lifelink.app.core.auth.UserRoleStore
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,6 +41,12 @@ class MainActivity : ComponentActivity() {
                     AuthScreen(authState, authViewModel::signIn, authViewModel::signUp)
                     return@LifeLinkTheme
                 }
+                val roleStore = remember { UserRoleStore(this@MainActivity) }
+                var role by remember { mutableStateOf(roleStore.get()) }
+                if (role == null) {
+                    RoleSelectionScreen { selectedRole -> roleStore.save(selectedRole); role = selectedRole }
+                    return@LifeLinkTheme
+                }
                 val viewModel: EmergencyRequestViewModel = viewModel(
                     factory = EmergencyRequestViewModelFactory(app.container.emergencyRequestRepository)
                 )
@@ -47,7 +59,8 @@ class MainActivity : ComponentActivity() {
                     state = state,
                     onAction = viewModel::onAction,
                     donorState = donorState,
-                    onDonorAction = donorViewModel::onAction
+                    onDonorAction = donorViewModel::onAction,
+                    role = role ?: UserRole.REQUESTER
                 )
             }
         }
