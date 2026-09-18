@@ -46,7 +46,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -202,8 +206,8 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
 @Composable private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var manualLatitude by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(draft.requesterLatitude?.toString().orEmpty()) }
-    var manualLongitude by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(draft.requesterLongitude?.toString().orEmpty()) }
+    var manualLatitude by remember { mutableStateOf(draft.requesterLatitude?.toString().orEmpty()) }
+    var manualLongitude by remember { mutableStateOf(draft.requesterLongitude?.toString().orEmpty()) }
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
