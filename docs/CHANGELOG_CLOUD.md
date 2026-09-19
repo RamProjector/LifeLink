@@ -71,3 +71,7 @@ Added an interactive Leaflet/OpenStreetMap picker to the Android emergency-reque
 ## Operational verification follow-up — 2026-09-19
 
 Rechecked the deployed Render service after its documented cold-start concern. `/health` returned HTTP 200 with `{"status":"ok","service":"lifelink-matching-postgres"}` after a 45-second wake-up, and `/openapi.json` was available. The local sandbox does not currently expose the Android SDK or Python test dependencies; CI remains the authoritative full verification environment until those tools are restored locally.
+
+## GPS reliability and map-centering improvement — 2026-09-19
+
+Applied Android location guidance to the shared GPS provider and requester flow. One-shot fixes now use a bounded high-accuracy request with a 30-second cached-location limit, a 15-second timeout, coroutine cancellation, and validation of the reported accuracy. When location permission is already granted, opening the requester location step automatically obtains one current fix and centers the map without forcing a new permission prompt. The map picker, manual latitude/longitude fields, and approximate-location privacy boundary remain available as fallbacks. See [`GPS_RESEARCH_AND_IMPLEMENTATION.md`](GPS_RESEARCH_AND_IMPLEMENTATION.md) for the research and next recommended `SettingsClient` iteration.

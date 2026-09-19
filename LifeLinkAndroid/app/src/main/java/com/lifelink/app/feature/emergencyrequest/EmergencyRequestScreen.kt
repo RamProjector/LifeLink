@@ -1,6 +1,7 @@
 package com.lifelink.app.feature.emergencyrequest
 
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -50,6 +51,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,6 +80,7 @@ import com.lifelink.app.domain.RequestStep
 import com.lifelink.app.domain.Urgency
 import com.lifelink.app.core.location.LocationProvider
 import kotlinx.coroutines.launch
+import androidx.core.content.ContextCompat
 
 @Composable
 fun LifeLinkApp(state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -> Unit) {
@@ -272,6 +275,20 @@ window.setMarker=function(lat,lon){marker.setLatLng([lat,lon]);map.panTo([lat,lo
             }
         }
     }
+    LaunchedEffect(Unit) {
+        val hasLocationPermission = ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (draft.requesterLatitude == null && hasLocationPermission) {
+            LocationProvider(context).currentLocation()?.let { location ->
+                onAction(EmergencyRequestAction.SetGpsLocation(location.latitude, location.longitude, location.precisionMeters))
+            }
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
         Heading("Where are you requesting help?", "Your approximate location is used only to find nearby eligible donors.")
         InfoCard("Privacy-first GPS", "Your precise coordinates are used for matching and are not shown to donors.", MaterialTheme.colorScheme.secondary)
@@ -290,7 +307,7 @@ window.setMarker=function(lat,lon){marker.setLatLng([lat,lon]);map.panTo([lat,lo
         LocationMapPicker(draft) { latitude, longitude ->
             onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
         }
-        Text("The pin is visible only to you. Donors receive an approximate matching distance, not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        Text("When location access is already allowed, the map centers on your current position automatically. The pin is visible only to you; donors receive an approximate matching distance, not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         Text("Or enter an approximate location manually", fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(

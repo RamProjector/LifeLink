@@ -2,9 +2,12 @@ package com.lifelink.app.core.location
 
 import android.annotation.SuppressLint
 import android.content.Context
+import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.math.roundToInt
 import kotlin.coroutines.resume
 
 class LocationProvider(context: Context) {
@@ -12,11 +15,31 @@ class LocationProvider(context: Context) {
 
     @SuppressLint("MissingPermission")
     suspend fun currentLocation(): DeviceLocation? = suspendCancellableCoroutine { continuation ->
-        client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+        val cancellation = CancellationTokenSource()
+        val request = CurrentLocationRequest.Builder()
+            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+            .setMaxUpdateAgeMillis(MAX_CACHED_LOCATION_AGE_MILLIS)
+            .setDurationMillis(LOCATION_TIMEOUT_MILLIS)
+            .build()
+        continuation.invokeOnCancellation { cancellation.cancel() }
+        client.getCurrentLocation(request, cancellation.token)
             .addOnSuccessListener { location ->
-                continuation.resume(location?.let { DeviceLocation(it.latitude, it.longitude, it.accuracy.toInt().coerceIn(10, 10000)) })
+                if (!continuation.isActive) return@addOnSuccessListener
+                continuation.resume(location?.toDeviceLocation())
             }
-            .addOnFailureListener { continuation.resume(null) }
+            .addOnFailureListener {
+                if (continuation.isActive) continuation.resume(null)
+            }
+    }
+
+    private fun android.location.Location.toDeviceLocation(): DeviceLocation? {
+        val accuracy = accuracy.takeIf { it.isFinite() && it > 0f }?.roundToInt() ?: return null
+        return DeviceLocation(latitude, longitude, accuracy.coerceIn(1, 10_000))
+    }
+
+    private companion object {
+        const val LOCATION_TIMEOUT_MILLIS = 15_000L
+        const val MAX_CACHED_LOCATION_AGE_MILLIS = 30_000L
     }
 }
 
