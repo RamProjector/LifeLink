@@ -101,3 +101,7 @@ Replaced the requester and donor WebView map previews with a native Compose-rend
 ## Supabase access-token refresh — 2026-09-20
 
 Investigated the requester screenshot showing `401 Unauthorized` during emergency-request submission. The Android client was attaching the persisted Supabase access token correctly, but it had no refresh-token path after that access token expired. Added a Supabase refresh-token call and one transparent API retry on 401 for requester, donor, and profile API clients. The implementation is compile-verified locally; no SQL migration or Render route change is required.
+
+## Coordinate picker clarification — 2026-09-20
+
+The native fallback is explicitly an **offline coordinate picker**, not a street map. Corrected its gesture handling to use the project-compatible drag detector so the pin can be moved reliably. A real street map remains a separate provider-integration decision; Google Maps requires an API key and billing configuration, while MapLibre requires a compliant vector-tile/style provider.

@@ -3,7 +3,6 @@ package com.lifelink.app.core.location
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,11 +23,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import kotlin.math.max
-import kotlin.math.min
 
 /**
- * Offline-safe approximate coordinate picker. It deliberately renders natively,
- * so it does not depend on WebView, a JavaScript CDN, map tiles, or an API key.
+ * Offline-safe approximate coordinate picker. This is not a street map; it
+ * deliberately renders natively so it does not depend on WebView or map tiles.
  */
 @Composable
 fun NativeLocationPicker(
@@ -37,7 +35,7 @@ fun NativeLocationPicker(
     onLocationSelected: (Double, Double) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var fraction by remember(latitude, longitude) { mutableStateOf(Offset(.5f, .5f)) }
+    var fraction by remember { mutableStateOf(Offset(.5f, .5f)) }
     fun select(position: Offset, width: Float, height: Float) {
         val x = (position.x / max(width, 1f)).coerceIn(0f, 1f)
         val y = (position.y / max(height, 1f)).coerceIn(0f, 1f)
@@ -52,11 +50,10 @@ fun NativeLocationPicker(
     ) {
         Canvas(
             modifier = Modifier.fillMaxSize()
-                .pointerInput(latitude, longitude) {
-                    detectTapGestures { select(it, size.width.toFloat(), size.height.toFloat()) }
-                }
-                .pointerInput(latitude, longitude) {
-                    detectDragGestures { change, _ ->
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragStart = { position -> select(position, size.width.toFloat(), size.height.toFloat()) }
+                    ) { change, _ ->
                         select(change.position, size.width.toFloat(), size.height.toFloat())
                     }
                 }
@@ -82,7 +79,7 @@ fun NativeLocationPicker(
             drawCircle(Color.White, radius = 3.dp.toPx(), center = pin)
         }
         Text(
-            "Tap or drag the pin to choose an approximate location",
+            "Offline coordinate picker · tap or drag the pin",
             modifier = Modifier.padding(8.dp),
             color = Color(0xFF24352B),
             style = MaterialTheme.typography.bodyMedium
