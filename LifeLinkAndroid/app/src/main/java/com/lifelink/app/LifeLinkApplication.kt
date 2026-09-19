@@ -10,13 +10,8 @@ import com.lifelink.app.data.remote.RetrofitProvider
 import com.lifelink.app.core.auth.AuthSessionStore
 import com.lifelink.app.core.auth.SupabaseAuthRepository
 import com.lifelink.app.core.notifications.LifeLinkNotifications
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 
 class LifeLinkApplication : Application() {
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     lateinit var container: LifeLinkAppContainer
         private set
 
@@ -35,9 +30,11 @@ class LifeLinkApplication : Application() {
                 workManager = WorkManager.getInstance(this),
                 requesterIdProvider = authSessionStore::userId
             ),
-            donorRepository = DonorRepositoryImpl(database.donorDao(), RetrofitProvider.create(tokenProvider = authSessionStore::accessToken)).also { repository ->
-                applicationScope.launch { repository.seedDemoRequests() }
-            }
+            donorRepository = DonorRepositoryImpl(
+                dao = database.donorDao(),
+                api = RetrofitProvider.create(tokenProvider = authSessionStore::accessToken),
+                donorIdProvider = authSessionStore::userId
+            )
         )
     }
 }

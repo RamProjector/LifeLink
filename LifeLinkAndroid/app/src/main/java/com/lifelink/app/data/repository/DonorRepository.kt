@@ -19,27 +19,37 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-class DonorRepositoryImpl(private val dao: DonorDao, private val api: LifeLinkApi? = null) : DonorRepository {
-    override fun observeProfile(): Flow<DonorProfile> = dao.observeProfile().map { it?.toDomain() ?: DonorProfile() }
+class DonorRepositoryImpl(
+    private val dao: DonorDao,
+    private val api: LifeLinkApi? = null,
+    private val donorIdProvider: () -> String? = { null }
+) : DonorRepository {
+    private fun donorId(): String = donorIdProvider()?.takeIf { it.isNotBlank() } ?: error("Sign in before using donor mode.")
+
+    override fun observeProfile(): Flow<DonorProfile> = dao.observeProfile(donorId()).map { it?.toDomain() ?: DonorProfile(donorId = donorId()) }
     override fun observeRequests(): Flow<List<DonorRequest>> = dao.observeRequests().map { list -> list.map { it.toDomain() } }
     override suspend fun saveProfile(profile: DonorProfile) {
         withContext(Dispatchers.IO) {
-        require(profile.latitude != null && profile.longitude != null) { "Capture your approximate location before saving your donor profile." }
-        dao.upsertProfile(profile.toEntity())
-        api?.registerDonor(
-            profile.donorId, DonorProfileRequest(
-                profile.donorId, profile.displayName, profile.bloodType?.label ?: "UNKNOWN",
-                profile.latitude, profile.longitude, profile.serviceRadiusKm.toDouble(), profile.verified
+        val ownerId = donorId()
+        val effectiveProfile = profile.copy(donorId = ownerId)
+        require(effectiveProfile.latitude != null && effectiveProfile.longitude != null) { "Capture your approximate location before saving your donor profile." }
+        api?.let { remote ->
+            val response = remote.registerDonor(
+                ownerId, DonorProfileRequest(
+                ownerId, effectiveProfile.displayName, effectiveProfile.bloodType?.label ?: "UNKNOWN",
+                effectiveProfile.latitude, effectiveProfile.longitude, effectiveProfile.serviceRadiusKm.toDouble(), effectiveProfile.verified
+                )
             )
-        )
-        api?.updateDonorAvailability(profile.donorId, DonorAvailabilityRequest(profile.availability.name.lowercase()))
+            check(response.isSuccessful) { "Profile could not be saved on the server (${response.code()})." }
+            val availability = remote.updateDonorAvailability(ownerId, DonorAvailabilityRequest(effectiveProfile.availability.name.lowercase()))
+            check(availability.isSuccessful) { "Availability could not be updated (${availability.code()})." }
+        }
+        dao.upsertProfile(effectiveProfile.toEntity())
         }
     }
     override suspend fun refresh() = withContext(Dispatchers.IO) {
         val remote = api ?: return@withContext
-        val profile = dao.observeProfile().first()
-        // The local profile is the source of identity; a later authenticated build
-        // should obtain donor_id from the signed-in account instead.
+        val profile = dao.observeProfile(donorId()).first()
         if (profile != null) {
             remote.donorRequests(profile.donorId).body().orEmpty().forEach { request ->
                 dao.upsertRequest(DonorRequestEntity(request.requestId, request.bloodType, request.units, request.urgency, request.facilityName, request.area, request.distanceKm, request.status.takeUnless { it == "not_responded" }))
@@ -49,7 +59,7 @@ class DonorRepositoryImpl(private val dao: DonorDao, private val api: LifeLinkAp
 
     override suspend fun respond(requestId: String, response: DonorResponse): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            val local = dao.observeProfile().first()
+            val local = dao.observeProfile(donorId()).first()
             val remote = api
             if (local != null && remote != null) {
                 val result = remote.respondToDonorRequest(local.donorId, requestId, DonorResponseRequest(response.name.lowercase()))

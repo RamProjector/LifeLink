@@ -81,7 +81,7 @@ data class EmergencyRequestRequest(
 ) {
     companion object {
         fun from(draft: EmergencyRequestDraft, requesterId: String? = null): EmergencyRequestRequest = EmergencyRequestRequest(
-            requesterId = requesterId ?: "demo-coordinator",
+            requesterId = requireNotNull(requesterId) { "An authenticated requester is required." },
             bloodType = draft.bloodType?.label ?: "UNKNOWN",
             units = draft.units,
             urgency = draft.urgency.name.lowercase(),
@@ -90,8 +90,8 @@ data class EmergencyRequestRequest(
                 facilityId = draft.facility?.id,
                 facilityName = draft.facility?.name ?: "Requester location",
                 area = draft.facility?.area ?: "Approximate area",
-                latitude = draft.requesterLatitude ?: 14.6466,
-                longitude = draft.requesterLongitude ?: 121.0437,
+                latitude = requireNotNull(draft.requesterLatitude) { "Requester location is required." },
+                longitude = requireNotNull(draft.requesterLongitude) { "Requester location is required." },
                 precisionMeters = draft.locationPrecisionMeters,
                 verified = draft.facility?.verified == true
             ),

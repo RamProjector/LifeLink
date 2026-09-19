@@ -35,8 +35,8 @@ data class DonorRequestEntity(
 
 @Dao
 interface DonorDao {
-    @Query("SELECT * FROM donor_profiles WHERE donorId = 'local-donor' LIMIT 1")
-    fun observeProfile(): Flow<DonorProfileEntity?>
+    @Query("SELECT * FROM donor_profiles WHERE donorId = :donorId LIMIT 1")
+    fun observeProfile(donorId: String): Flow<DonorProfileEntity?>
 
     @Query("SELECT * FROM donor_requests ORDER BY urgency DESC")
     fun observeRequests(): Flow<List<DonorRequestEntity>>
