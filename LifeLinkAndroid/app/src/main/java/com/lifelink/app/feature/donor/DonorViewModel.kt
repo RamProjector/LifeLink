@@ -69,7 +69,12 @@ class DonorViewModel(private val repository: DonorRepository) : ViewModel() {
             _state.value = _state.value.copy(saving = true)
             runCatching { repository.saveProfile(profile) }
                 .onSuccess { _state.value = _state.value.copy(saving = false, message = "Profile saved") }
-                .onFailure { _state.value = _state.value.copy(saving = false, message = "Profile could not be saved") }
+                .onFailure { error ->
+                    _state.value = _state.value.copy(
+                        saving = false,
+                        message = error.message ?: "Profile could not be saved. Check your connection and try again."
+                    )
+                }
         }
     }
 

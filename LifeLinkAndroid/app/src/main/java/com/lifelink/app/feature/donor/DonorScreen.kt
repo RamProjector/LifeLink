@@ -23,6 +23,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,7 +54,12 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
             scope.launch { LocationProvider(context).currentLocation()?.let { onAction(DonorAction.SetLocation(it.latitude, it.longitude, it.precisionMeters)) } }
         }
     }
-    Scaffold(topBar = { TopAppBar(title = { Text("Donor mode") }) }) { padding ->
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text("Donor mode") },
+            navigationIcon = { IconButton(onClick = onBack) { Icon(androidx.compose.material.icons.automirrored.filled.ArrowBack, "Back") } }
+        )
+    }) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -62,6 +70,7 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                 Text("Your availability controls which verified requests you see.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             item { AvailabilityCard(state.profile, onAction) }
+            state.message?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) } }
             item {
                 Button(onClick = { profileExpanded = !profileExpanded }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (profileExpanded) "Hide donor profile" else "Edit donor profile")

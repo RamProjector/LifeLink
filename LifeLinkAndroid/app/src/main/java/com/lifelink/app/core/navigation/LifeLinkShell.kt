@@ -81,7 +81,7 @@ fun LifeLinkShell(
             when (tab) {
                 ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true })
                 ShellTab.LEARN -> LearnContent()
-                ShellTab.PROFILE -> ProfileContent()
+                ShellTab.PROFILE -> ProfileContent(role)
             }
         }
     }
@@ -135,16 +135,17 @@ fun LifeLinkShell(
 @Composable private fun LearnContent() {
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Learn", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("LifeLink helps verified coordinators connect urgent blood requests with eligible, available donors.")
+        Text("LifeLink helps requesters connect with eligible, available donors nearby.")
         Text("Never share patient-identifying information in request notes. Confirm details with the blood bank.")
     }
 }
 
-@Composable private fun ProfileContent() {
+@Composable private fun ProfileContent(role: UserRole) {
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Profile", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("Verified coordinator", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
+        Text(if (role == UserRole.DONOR) "Donor account" else "Requester account", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
+        Text(if (role == UserRole.DONOR) "Your approximate location is used only for proximity matching." else "Your exact request location is used only for matching and is not shown to donors.")
         Text("Privacy and consent settings")
-        Text("Authentication and identity verification are required before production release.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Use the role-specific dashboard to update your profile, availability, or request details.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
