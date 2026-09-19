@@ -59,7 +59,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: () -> Unit) {
-    var profileExpanded by remember { mutableStateOf(state.profile.displayName.isBlank()) }
+    var profileExpanded by remember { mutableStateOf(true) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var locationCaptureRequest by remember { mutableStateOf(0) }
@@ -118,7 +118,7 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
             locationMessage?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) } }
             item {
                 Button(onClick = { profileExpanded = !profileExpanded }, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (profileExpanded) "Hide donor profile" else "Edit donor profile")
+                    Text(if (profileExpanded) "Hide donor profile and map" else "Show donor profile and map")
                 }
             }
             if (profileExpanded) item {

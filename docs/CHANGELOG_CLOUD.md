@@ -91,3 +91,5 @@ The project owner confirmed that `001_initial_schema.sql`, `002_gps_request_loca
 ## Donor location controls — 2026-09-19
 
 Added donor-profile location parity without a database migration. Donors can now capture or update their current location, tap the map, drag an approximate pin, or enter latitude and longitude manually. The profile shows the saved accuracy and clearly explains that requesters receive distance and travel estimates rather than donor coordinates. Existing donor matching fields and the three applied SQL migrations remain unchanged.
+
+The donor profile and map are now expanded by default so the location feature is visible when entering donor mode. The toggle is labeled `Show/Hide donor profile and map` for explicit discoverability.
