@@ -1,5 +1,9 @@
 package com.lifelink.app.feature.emergencyrequest
 
+import android.annotation.SuppressLint
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -203,6 +208,54 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
     }
 }
 
+@Composable
+@SuppressLint("SetJavaScriptEnabled")
+private fun LocationMapPicker(
+    draft: EmergencyRequestDraft,
+    onLocationSelected: (Double, Double) -> Unit
+) {
+    val selectedLatitude = draft.requesterLatitude ?: 14.5995
+    val selectedLongitude = draft.requesterLongitude ?: 120.9842
+    AndroidView(
+        modifier = Modifier.fillMaxWidth().height(260.dp),
+        factory = { context ->
+            WebView(context).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                webViewClient = WebViewClient()
+                addJavascriptInterface(object {
+                    @JavascriptInterface
+                    fun selectLocation(latitude: Double, longitude: Double) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            onLocationSelected(latitude, longitude)
+                        }
+                    }
+                }, "LifeLinkBridge")
+                loadDataWithBaseURL("https://unpkg.com/", mapHtml(selectedLatitude, selectedLongitude), "text/html", "UTF-8", null)
+            }
+        },
+        update = { webView ->
+            webView.evaluateJavascript("window.setMarker($selectedLatitude, $selectedLongitude);", null)
+        }
+    )
+}
+
+private fun mapHtml(latitude: Double, longitude: Double): String = """
+<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>html,body,#map{height:100%;margin:0} .hint{position:absolute;z-index:500;top:8px;left:8px;right:8px;padding:8px 10px;background:#fff;border-radius:8px;font:14px sans-serif;box-shadow:0 1px 5px #0003}</style></head>
+<body><div id="map"></div><div class="hint">Tap the map or drag the pin to choose an approximate location</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
+const map=L.map('map').setView([$latitude,$longitude],15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+let marker=L.marker([$latitude,$longitude],{draggable:true}).addTo(map);
+function choose(lat,lon){marker.setLatLng([lat,lon]);LifeLinkBridge.selectLocation(lat,lon);}
+map.on('click',e=>choose(e.latlng.lat,e.latlng.lng));
+marker.on('dragend',()=>{const p=marker.getLatLng();choose(p.lat,p.lng);});
+window.setMarker=function(lat,lon){marker.setLatLng([lat,lon]);map.panTo([lat,lon]);};
+</script></body></html>
+""".trimIndent()
+
 @Composable private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -233,6 +286,11 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
                 )
             }
         ) { Text(if (draft.requesterLatitude == null) "Use my current location" else "Update current location") }
+        Text("Choose on map", fontWeight = FontWeight.SemiBold)
+        LocationMapPicker(draft) { latitude, longitude ->
+            onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+        }
+        Text("The pin is visible only to you. Donors receive an approximate matching distance, not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         Text("Or enter an approximate location manually", fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(
