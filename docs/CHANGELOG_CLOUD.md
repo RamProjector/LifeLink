@@ -97,3 +97,7 @@ The donor profile and map are now expanded by default so the location feature is
 ## WebView map rendering fallback — 2026-09-19
 
 Replaced the requester and donor WebView map previews with a native Compose-rendered interactive coordinate picker. This prevents a blank white map when Android WebView cannot render third-party map assets. The visible grid, location pin, coordinate readout, tap selection, and draggable pin work without WebView, external JavaScript, map tiles, or an API key; the existing privacy boundary and manual coordinate fallbacks remain unchanged.
+
+## Supabase access-token refresh — 2026-09-20
+
+Investigated the requester screenshot showing `401 Unauthorized` during emergency-request submission. The Android client was attaching the persisted Supabase access token correctly, but it had no refresh-token path after that access token expired. Added a Supabase refresh-token call and one transparent API retry on 401 for requester, donor, and profile API clients. The implementation is compile-verified locally; no SQL migration or Render route change is required.

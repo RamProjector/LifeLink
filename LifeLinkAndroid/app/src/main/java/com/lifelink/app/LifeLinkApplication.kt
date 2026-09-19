@@ -19,20 +19,21 @@ class LifeLinkApplication : Application() {
         super.onCreate()
         LifeLinkNotifications.createChannels(this)
         val authSessionStore = AuthSessionStore(this)
+        val authRepository = SupabaseAuthRepository(authSessionStore)
         val database = LifeLinkDatabase.getInstance(this)
         container = LifeLinkAppContainer(
-            authRepository = SupabaseAuthRepository(authSessionStore),
+            authRepository = authRepository,
             emergencyRequestRepository = EmergencyRequestRepositoryImpl(
                 draftDao = database.emergencyRequestDraftDao(),
                 pendingSubmissionDao = database.pendingSubmissionDao(),
                 activeRequestDao = database.activeRequestDao(),
-                api = RetrofitProvider.create(tokenProvider = authSessionStore::accessToken),
+                api = RetrofitProvider.create(tokenProvider = authSessionStore::accessToken, onUnauthorized = authRepository::refreshAccessToken),
                 workManager = WorkManager.getInstance(this),
                 requesterIdProvider = authSessionStore::userId
             ),
             donorRepository = DonorRepositoryImpl(
                 dao = database.donorDao(),
-                api = RetrofitProvider.create(tokenProvider = authSessionStore::accessToken),
+                api = RetrofitProvider.create(tokenProvider = authSessionStore::accessToken, onUnauthorized = authRepository::refreshAccessToken),
                 donorIdProvider = authSessionStore::userId
             )
         )

@@ -6,6 +6,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
 
 object RetrofitProvider {
@@ -17,7 +18,8 @@ object RetrofitProvider {
      */
     fun create(
         baseUrl: String = BuildConfig.LIFELINK_API_BASE_URL.ifBlank { DEFAULT_BASE_URL },
-        tokenProvider: () -> String? = { BuildConfig.LIFELINK_API_TOKEN.takeIf { it.isNotBlank() } }
+        tokenProvider: () -> String? = { BuildConfig.LIFELINK_API_TOKEN.takeIf { it.isNotBlank() } },
+        onUnauthorized: (suspend () -> String?)? = null
     ): LifeLinkApi {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
@@ -26,7 +28,17 @@ object RetrofitProvider {
             val request = chain.request().newBuilder().apply {
                 tokenProvider()?.takeIf { it.isNotBlank() }?.let { header("Authorization", "Bearer $it") }
             }.build()
-            chain.proceed(request)
+            val response = chain.proceed(request)
+            if (response.code != 401 || onUnauthorized == null) return@Interceptor response
+            val refreshedToken = runBlocking { onUnauthorized.invoke() }
+                ?.takeIf { it.isNotBlank() }
+                ?: return@Interceptor response
+            response.close()
+            chain.proceed(
+                chain.request().newBuilder()
+                    .header("Authorization", "Bearer $refreshedToken")
+                    .build()
+            )
         }
         val client = OkHttpClient.Builder()
             .addInterceptor(authInterceptor)

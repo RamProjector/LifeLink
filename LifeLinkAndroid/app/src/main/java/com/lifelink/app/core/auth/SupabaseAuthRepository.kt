@@ -35,6 +35,26 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
             ?: error("Supabase URL is not configured")
     }
 
+    suspend fun refreshAccessToken(): String? = withContext(Dispatchers.IO) {
+        val current = sessionStore.session.value ?: return@withContext null
+        if (current.refreshToken.isBlank()) return@withContext null
+        runCatching {
+            val response = api?.refresh(BuildConfig.SUPABASE_PUBLISHABLE_KEY, RefreshRequest(current.refreshToken))
+                ?: return@runCatching null
+            if (!response.isSuccessful) return@runCatching null
+            val body = response.body() ?: return@runCatching null
+            val accessToken = body.accessToken?.takeIf { it.isNotBlank() } ?: return@runCatching null
+            val refreshed = AuthSession(
+                accessToken = accessToken,
+                refreshToken = body.refreshToken?.takeIf { it.isNotBlank() } ?: current.refreshToken,
+                userId = body.user?.id ?: current.userId,
+                email = body.user?.email ?: current.email
+            )
+            sessionStore.save(refreshed)
+            accessToken
+        }.getOrNull()
+    }
+
     fun signOut() = sessionStore.clear()
 
     private suspend fun authenticate(call: suspend () -> Response<SupabaseAuthResponse>): Result<AuthResult> = withContext(Dispatchers.IO) {
@@ -89,9 +109,17 @@ private interface SupabaseAuthApi {
         @Body request: AuthRequest,
         @Query("grant_type") grantType: String = "password"
     ): Response<SupabaseAuthResponse>
+
+    @POST("auth/v1/token")
+    suspend fun refresh(
+        @Header("apikey") publishableKey: String,
+        @Body request: RefreshRequest,
+        @Query("grant_type") grantType: String = "refresh_token"
+    ): Response<SupabaseAuthResponse>
 }
 
 data class AuthRequest(val email: String, val password: String)
+data class RefreshRequest(@SerializedName("refresh_token") val refreshToken: String)
 
 data class SupabaseAuthResponse(
     @SerializedName("access_token") val accessToken: String?,

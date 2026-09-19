@@ -18,7 +18,7 @@ The current Render API endpoint is documented as `https://lifelink-api-uzje.onre
 
 ## Current application capabilities
 
-The Android client currently includes Supabase email/password authentication, email-confirmation handling, requester/donor onboarding, authenticated donor identity, GPS capture, interactive requester and donor map pickers, manual latitude/longitude fallbacks, automatic requester map centering when permission is available, device location-settings resolution, bounded and cancellable one-shot location requests, emergency-request submission, GPS-assisted matching, donor cards, an optional privacy-safe donor distance-band map summary, donor location accuracy display and update controls, donor selection and contact requests, offline submission retry, active-request status polling, manual broadcast fallback, and request cancellation.
+The Android client currently includes Supabase email/password authentication, email-confirmation handling, persisted sessions with refresh-token renewal and one-retry handling for expired access tokens, requester/donor onboarding, authenticated donor identity, GPS capture, interactive requester and donor map pickers, manual latitude/longitude fallbacks, automatic requester map centering when permission is available, device location-settings resolution, bounded and cancellable one-shot location requests, emergency-request submission, GPS-assisted matching, donor cards, an optional privacy-safe donor distance-band map summary, donor location accuracy display and update controls, donor selection and contact requests, offline submission retry, active-request status polling, manual broadcast fallback, and request cancellation.
 
 The FastAPI service includes PostgreSQL/PostGIS support, Supabase JWT verification, ownership checks, blood compatibility validation, explainable distance matching, donor availability, request matching, contact-request operations, and Render deployment configuration.
 
@@ -28,7 +28,7 @@ The API may use exact coordinates internally for matching, but donor coordinates
 
 ## Remaining work
 
-The following items are not confirmed as production-complete: donor location freshness timestamps and stale-location policy, push notifications and deep links, password recovery and confirmation resend, complete contact-status lifecycle, rate limiting, audit logging, abuse reporting, signed Android release configuration, crash reporting, and real-device accessibility/performance validation.
+The following items are not confirmed as production-complete: donor location freshness timestamps and stale-location policy, push notifications and deep links, password recovery and confirmation resend, complete contact-status lifecycle, rate limiting, audit logging, abuse reporting, signed Android release configuration, crash reporting, and real-device accessibility/performance validation. A previous 401 screenshot was traced to the missing client-side access-token refresh path; the refresh-and-retry fix is now compile-verified and queued for the next APK.
 
 These are implementation or operational follow-ups. They do not imply that the three current SQL migrations are missing.
 

@@ -56,7 +56,10 @@ class MainActivity : ComponentActivity() {
                             val session = (authState as? AuthState.SignedIn)?.session
                             if (session != null) {
                                 runCatching {
-                                    RetrofitProvider.create { session.accessToken }
+                                    RetrofitProvider.create(
+                                        tokenProvider = { app.container.authRepository.session.value?.accessToken ?: session.accessToken },
+                                        onUnauthorized = app.container.authRepository::refreshAccessToken
+                                    )
                                         .upsertProfile(ProfileRequest(selectedRole.name.lowercase()))
                                 }
                             }
