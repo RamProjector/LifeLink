@@ -1,14 +1,21 @@
 package com.lifelink.app.feature.donor
 
+import android.annotation.SuppressLint
+import android.app.Activity
 import android.Manifest
 import android.content.pm.PackageManager
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,6 +25,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -28,20 +36,24 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import com.google.android.gms.common.api.ResolvableApiException
+import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
-import com.lifelink.app.core.location.LocationProvider
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,10 +62,41 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
     var profileExpanded by remember { mutableStateOf(state.profile.displayName.isBlank()) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var locationCaptureRequest by remember { mutableStateOf(0) }
+    var locationMessage by remember { mutableStateOf<String?>(null) }
+    val settingsResolutionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) locationCaptureRequest++
+        else locationMessage = "Location services remain off. Use the map or manual coordinates instead."
+    }
     val locationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
         if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true || permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
-            scope.launch { LocationProvider(context).currentLocation()?.let { onAction(DonorAction.SetLocation(it.latitude, it.longitude, it.precisionMeters)) } }
-        }
+            locationCaptureRequest++
+        } else locationMessage = "Location permission was not granted. Use the map or manual coordinates instead."
+    }
+    LaunchedEffect(locationCaptureRequest) {
+        if (locationCaptureRequest == 0) return@LaunchedEffect
+        val provider = LocationProvider(context)
+        locationMessage = "Checking device location settings…"
+        provider.checkLocationSettings(
+            onReady = {
+                scope.launch {
+                    locationMessage = "Finding your current location…"
+                    provider.currentLocation()?.let { location ->
+                        onAction(DonorAction.SetLocation(location.latitude, location.longitude, location.precisionMeters))
+                        locationMessage = "Location captured. Save your profile to update matching."
+                    } ?: run { locationMessage = "Could not get a current fix. Try again or choose a location manually." }
+                }
+            },
+            onNeedsResolution = { error: ResolvableApiException ->
+                locationMessage = "Turn on device location to capture your current position."
+                runCatching {
+                    settingsResolutionLauncher.launch(IntentSenderRequest.Builder(error.resolution).build())
+                }.onFailure { locationMessage = "Location settings could not be opened. Use the map or manual coordinates instead." }
+            },
+            onFailure = { locationMessage = "Device location is unavailable. Use the map or manual coordinates instead." }
+        )
     }
     Scaffold(topBar = {
         TopAppBar(
@@ -72,17 +115,24 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
             }
             item { AvailabilityCard(state.profile, onAction) }
             state.message?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) } }
+            locationMessage?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) } }
             item {
                 Button(onClick = { profileExpanded = !profileExpanded }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (profileExpanded) "Hide donor profile" else "Edit donor profile")
                 }
             }
             if (profileExpanded) item {
-                ProfileCard(state.profile, onAction) {
-                    if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                        scope.launch { LocationProvider(context).currentLocation()?.let { onAction(DonorAction.SetLocation(it.latitude, it.longitude, it.precisionMeters)) } }
-                    } else locationLauncher.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
-                }
+                ProfileCard(
+                    profile = state.profile,
+                    onAction = onAction,
+                    onCaptureLocation = {
+                        val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                        if (hasPermission) locationCaptureRequest++
+                        else locationLauncher.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
+                    },
+                    onLocationSelected = { latitude, longitude -> onAction(DonorAction.SetLocation(latitude, longitude, 500)) }
+                )
             }
             item { Text("Requests near you", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             if (state.requests.isEmpty()) item { Text("No eligible requests right now.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -105,22 +155,86 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
     }
 }
 
-@Composable private fun ProfileCard(profile: DonorProfile, onAction: (DonorAction) -> Unit, onCaptureLocation: () -> Unit) {
+@Composable
+private fun ProfileCard(
+    profile: DonorProfile,
+    onAction: (DonorAction) -> Unit,
+    onCaptureLocation: () -> Unit,
+    onLocationSelected: (Double, Double) -> Unit
+) {
     var name by remember(profile.displayName) { mutableStateOf(profile.displayName) }
     var area by remember(profile.area) { mutableStateOf(profile.area) }
+    var manualLatitude by remember(profile.latitude) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
+    var manualLongitude by remember(profile.longitude) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
             OutlinedTextField(area, { area = it }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
             Text(
-                if (profile.latitude == null) "Location not captured" else "Approximate GPS location captured (±${profile.locationPrecisionMeters} m)",
+                if (profile.latitude == null) "Location not captured" else "Approximate location saved for matching (±${profile.locationPrecisionMeters} m)",
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Button(onClick = onCaptureLocation, modifier = Modifier.fillMaxWidth()) { Text("Use my current location") }
+            Button(onClick = onCaptureLocation, modifier = Modifier.fillMaxWidth()) { Text(if (profile.latitude == null) "Use my current location" else "Update current location") }
+            Text("Choose or adjust your approximate donor location", fontWeight = FontWeight.SemiBold)
+            DonorLocationMap(profile.latitude, profile.longitude, onLocationSelected)
+            Text("Only you can see this pin. Requesters receive distance and travel estimates, not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(manualLatitude, { manualLatitude = it }, Modifier.weight(1f), label = { Text("Latitude") }, singleLine = true)
+                OutlinedTextField(manualLongitude, { manualLongitude = it }, Modifier.weight(1f), label = { Text("Longitude") }, singleLine = true)
+            }
+            OutlinedButton(
+                onClick = {
+                    val latitude = manualLatitude.toDoubleOrNull()
+                    val longitude = manualLongitude.toDoubleOrNull()
+                    if (latitude != null && longitude != null && latitude in -90.0..90.0 && longitude in -180.0..180.0) onLocationSelected(latitude, longitude)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Use this approximate location") }
             Button(onClick = { onAction(DonorAction.UpdateProfile(profile.copy(displayName = name, area = area))) }, Modifier.fillMaxWidth()) { Text("Save profile") }
         }
     }
 }
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSelected: (Double, Double) -> Unit) {
+    val selectedLatitude = latitude ?: 14.5995
+    val selectedLongitude = longitude ?: 120.9842
+    AndroidView(
+        modifier = Modifier.fillMaxWidth().height(260.dp),
+        factory = { context ->
+            WebView(context).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                webViewClient = WebViewClient()
+                addJavascriptInterface(object {
+                    @JavascriptInterface
+                    fun selectLocation(newLatitude: Double, newLongitude: Double) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post { onLocationSelected(newLatitude, newLongitude) }
+                    }
+                }, "LifeLinkBridge")
+                loadDataWithBaseURL("https://unpkg.com/", donorLocationMapHtml(selectedLatitude, selectedLongitude), "text/html", "UTF-8", null)
+            }
+        },
+        update = { webView -> webView.evaluateJavascript("window.setMarker($selectedLatitude, $selectedLongitude);", null) }
+    )
+}
+
+private fun donorLocationMapHtml(latitude: Double, longitude: Double): String = """
+<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>html,body,#map{height:100%;margin:0}.hint{position:absolute;z-index:500;top:8px;left:8px;right:8px;padding:8px 10px;background:#fff;border-radius:8px;font:14px sans-serif;box-shadow:0 1px 5px #0003}</style></head>
+<body><div id="map"></div><div class="hint">Tap the map or drag the pin to choose an approximate location</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
+const map=L.map('map').setView([$latitude,$longitude],15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+let marker=L.marker([$latitude,$longitude],{draggable:true}).addTo(map);
+function choose(lat,lon){marker.setLatLng([lat,lon]);LifeLinkBridge.selectLocation(lat,lon);}
+map.on('click',e=>choose(e.latlng.lat,e.latlng.lng));
+marker.on('dragend',()=>{const p=marker.getLatLng();choose(p.lat,p.lng);});
+window.setMarker=function(lat,lon){marker.setLatLng([lat,lon]);map.panTo([lat,lon]);};
+</script></body></html>
+""".trimIndent()
 
 @Composable private fun RequestCard(request: DonorRequest, onAction: (DonorAction) -> Unit) {
     Card(Modifier.fillMaxWidth()) {

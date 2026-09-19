@@ -87,3 +87,7 @@ Added an optional map summary to the post-submit donor results. The list remains
 ## Live migration state confirmed — 2026-09-19
 
 The project owner confirmed that `001_initial_schema.sql`, `002_gps_request_location.sql`, and `003_roles_profiles_contacts.sql` have all been applied to the live Supabase database in order. This state is recorded in [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for continuity across future maintenance chats; no credentials or sensitive deployment values are stored there.
+
+## Donor location controls — 2026-09-19
+
+Added donor-profile location parity without a database migration. Donors can now capture or update their current location, tap the map, drag an approximate pin, or enter latitude and longitude manually. The profile shows the saved accuracy and clearly explains that requesters receive distance and travel estimates rather than donor coordinates. Existing donor matching fields and the three applied SQL migrations remain unchanged.
