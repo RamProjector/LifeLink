@@ -1,11 +1,7 @@
 package com.lifelink.app.feature.emergencyrequest
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.pm.PackageManager
-import android.webkit.JavascriptInterface
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -63,7 +59,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -82,7 +77,8 @@ import com.lifelink.app.domain.Facility
 import com.lifelink.app.domain.RequestStep
 import com.lifelink.app.domain.Urgency
 import com.lifelink.app.core.location.LocationProvider
-import com.lifelink.app.core.location.NativeLocationPicker
+import com.lifelink.app.core.location.MapLibreLocationPicker
+import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.google.android.gms.common.api.ResolvableApiException
 import kotlinx.coroutines.launch
 import androidx.core.content.ContextCompat
@@ -198,58 +194,14 @@ private fun PrivacySafeDonorMap(
     withinTenKm: Int,
     beyondTenKm: Int
 ) {
-    AndroidView(
-        modifier = Modifier.fillMaxWidth().height(280.dp),
-        factory = { context ->
-            WebView(context).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                webViewClient = WebViewClient()
-                loadDataWithBaseURL(
-                    "https://unpkg.com/",
-                    donorMapHtml(latitude, longitude, withinFiveKm, withinTenKm, beyondTenKm),
-                    "text/html",
-                    "UTF-8",
-                    null
-                )
-            }
-        },
-        update = { webView ->
-            webView.evaluateJavascript(
-                "window.updateDonorSummary($withinFiveKm, $withinTenKm, $beyondTenKm);",
-                null
-            )
-        }
-    )
+    MapLibrePrivacySafeDonorMap(latitude, longitude)
+    Text("Within 5 km: $withinFiveKm · 5–10 km: $withinTenKm · Beyond 10 km: $beyondTenKm", style = MaterialTheme.typography.bodySmall)
     Text(
         "Map summary only: circles show distance bands and donor counts. No donor names or exact donor locations are shown.",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall
     )
 }
-
-private fun donorMapHtml(
-    latitude: Double,
-    longitude: Double,
-    withinFiveKm: Int,
-    withinTenKm: Int,
-    beyondTenKm: Int
-): String = """
-<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>html,body,#map{height:100%;margin:0}.legend{position:absolute;z-index:500;top:8px;left:8px;right:8px;padding:9px 10px;background:#fff;border-radius:8px;font:13px sans-serif;box-shadow:0 1px 5px #0003}</style></head>
-<body><div id="map"></div><div class="legend" id="legend">Anonymous donor proximity summary</div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
-const center=[$latitude,$longitude];
-const map=L.map('map').setView(center,12);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:16,attribution:'© OpenStreetMap'}).addTo(map);
-L.marker(center).addTo(map).bindTooltip('Your request location',{permanent:true,direction:'top'});
-const rings=[L.circle(center,{radius:5000,color:'#B3261E',fillColor:'#B3261E',fillOpacity:.10}),L.circle(center,{radius:10000,color:'#8D6E63',fillColor:'#8D6E63',fillOpacity:.08})];
-rings.forEach(r=>r.addTo(map));
-function updateDonorSummary(a,b,c){document.getElementById('legend').textContent='Within 5 km: '+a+' · 5–10 km: '+b+' · Beyond 10 km: '+c;}
-updateDonorSummary($withinFiveKm,$withinTenKm,$beyondTenKm);
-</script></body></html>
-""".trimIndent()
 
 @Composable private fun Progress(step: Int, total: Int) {
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -296,28 +248,14 @@ updateDonorSummary($withinFiveKm,$withinTenKm,$beyondTenKm);
 }
 
 @Composable
-@SuppressLint("SetJavaScriptEnabled")
 private fun LocationMapPicker(
     draft: EmergencyRequestDraft,
     onLocationSelected: (Double, Double) -> Unit
 ) {
     val selectedLatitude = draft.requesterLatitude ?: 14.5995
     val selectedLongitude = draft.requesterLongitude ?: 120.9842
-    NativeLocationPicker(selectedLatitude, selectedLongitude, onLocationSelected)
+    MapLibreLocationPicker(selectedLatitude, selectedLongitude, onLocationSelected)
 }
-
-private fun mapHtml(latitude: Double, longitude: Double): String = """
-<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-html,body,#map{height:100%;margin:0;overflow:hidden}#map{position:relative;background-color:#e7efe9;background-image:linear-gradient(#c6d8cc 1px,transparent 1px),linear-gradient(90deg,#c6d8cc 1px,transparent 1px);background-size:42px 42px;font:13px sans-serif;color:#24352b}.hint{position:absolute;z-index:3;top:8px;left:8px;right:8px;padding:8px 10px;background:#fff;border-radius:8px;box-shadow:0 1px 5px #0003}.center{position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px;border:2px solid #fff;border-radius:50%;background:#567866;box-shadow:0 0 0 1px #567866}.pin{position:absolute;z-index:2;left:50%;top:50%;width:22px;height:22px;margin:-11px;border:3px solid #fff;border-radius:50% 50% 50% 0;background:#b71942;box-shadow:0 2px 5px #0005;transform:rotate(-45deg);touch-action:none}.pin:after{content:'';position:absolute;left:6px;top:6px;width:6px;height:6px;border-radius:50%;background:#fff}.label{position:absolute;bottom:8px;left:8px;padding:6px 8px;background:#ffffffcc;border-radius:6px}.road{position:absolute;background:#fff8;width:100%;height:3px;top:62%;transform:rotate(-12deg)}.road2{position:absolute;background:#fff8;width:100%;height:3px;top:36%;transform:rotate(18deg)}
-</style></head><body><div id="map"><div class="road"></div><div class="road2"></div><div class="center"></div><div id="pin" class="pin" aria-label="Selected approximate location"></div><div class="hint">Tap the map or drag the pin to choose an approximate location</div><div class="label" id="coords">Selected location: $latitude, $longitude</div></div>
-<script>
-const map=document.getElementById('map'),pin=document.getElementById('pin'),coords=document.getElementById('coords');let lat=$latitude,lon=$longitude,dragging=false;
-function emit(x,y){const r=map.getBoundingClientRect();const nextLat=lat+(r.height/2-y)/r.height*.10;const nextLon=lon+(x-r.width/2)/r.width*.14;lat=Math.max(-90,Math.min(90,nextLat));lon=Math.max(-180,Math.min(180,nextLon));pin.style.left=(x/r.width*100)+'%';pin.style.top=(y/r.height*100)+'%';coords.textContent='Selected location: '+lat.toFixed(5)+', '+lon.toFixed(5);LifeLinkBridge.selectLocation(lat,lon);}
-map.addEventListener('click',e=>{if(!dragging)emit(e.offsetX,e.offsetY);dragging=false;});pin.addEventListener('pointerdown',e=>{dragging=true;pin.setPointerCapture(e.pointerId);});pin.addEventListener('pointermove',e=>{if(dragging){const r=map.getBoundingClientRect();emit(e.clientX-r.left,e.clientY-r.top);}});pin.addEventListener('pointerup',()=>{dragging=false;});
-window.setMarker=function(newLat,newLon){lat=newLat;lon=newLon;pin.style.left='50%';pin.style.top='50%';coords.textContent='Selected location: '+lat.toFixed(5)+', '+lon.toFixed(5);};
-</script></body></html>
-""".trimIndent()
 
 @Composable private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     val context = LocalContext.current

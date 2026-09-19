@@ -42,11 +42,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.google.android.gms.common.api.ResolvableApiException
 import com.lifelink.app.core.location.LocationProvider
-import com.lifelink.app.core.location.NativeLocationPicker
+import com.lifelink.app.core.location.MapLibreLocationPicker
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRequest
@@ -196,15 +195,8 @@ private fun ProfileCard(
 private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSelected: (Double, Double) -> Unit) {
     val selectedLatitude = latitude ?: 14.5995
     val selectedLongitude = longitude ?: 120.9842
-    NativeLocationPicker(selectedLatitude, selectedLongitude, onLocationSelected)
+    MapLibreLocationPicker(selectedLatitude, selectedLongitude, onLocationSelected)
 }
-
-private fun donorLocationMapHtml(latitude: Double, longitude: Double): String = """
-<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>html,body,#map{height:100%;margin:0;overflow:hidden}#map{position:relative;background-color:#e7efe9;background-image:linear-gradient(#c6d8cc 1px,transparent 1px),linear-gradient(90deg,#c6d8cc 1px,transparent 1px);background-size:42px 42px;font:13px sans-serif;color:#24352b}.hint{position:absolute;z-index:3;top:8px;left:8px;right:8px;padding:8px 10px;background:#fff;border-radius:8px;box-shadow:0 1px 5px #0003}.pin{position:absolute;z-index:2;left:50%;top:50%;width:22px;height:22px;margin:-11px;border:3px solid #fff;border-radius:50% 50% 50% 0;background:#b71942;box-shadow:0 2px 5px #0005;transform:rotate(-45deg);touch-action:none}.pin:after{content:'';position:absolute;left:6px;top:6px;width:6px;height:6px;border-radius:50%;background:#fff}.label{position:absolute;bottom:8px;left:8px;padding:6px 8px;background:#ffffffcc;border-radius:6px}</style></head>
-<body><div id="map"><div id="pin" class="pin"></div><div class="hint">Tap the map or drag the pin to choose an approximate location</div><div class="label" id="coords">Selected location: $latitude, $longitude</div></div>
-<script>const map=document.getElementById('map'),pin=document.getElementById('pin'),coords=document.getElementById('coords');let lat=$latitude,lon=$longitude,dragging=false;function emit(x,y){const r=map.getBoundingClientRect();lat=Math.max(-90,Math.min(90,lat+(r.height/2-y)/r.height*.10));lon=Math.max(-180,Math.min(180,lon+(x-r.width/2)/r.width*.14));pin.style.left=(x/r.width*100)+'%';pin.style.top=(y/r.height*100)+'%';coords.textContent='Selected location: '+lat.toFixed(5)+', '+lon.toFixed(5);LifeLinkBridge.selectLocation(lat,lon);}map.addEventListener('click',e=>{if(!dragging)emit(e.offsetX,e.offsetY);dragging=false;});pin.addEventListener('pointerdown',e=>{dragging=true;pin.setPointerCapture(e.pointerId);});pin.addEventListener('pointermove',e=>{if(dragging){const r=map.getBoundingClientRect();emit(e.clientX-r.left,e.clientY-r.top);}});pin.addEventListener('pointerup',()=>{dragging=false;});window.setMarker=function(newLat,newLon){lat=newLat;lon=newLon;pin.style.left='50%';pin.style.top='50%';coords.textContent='Selected location: '+lat.toFixed(5)+', '+lon.toFixed(5);};</script></body></html>
-""".trimIndent()
 
 @Composable private fun RequestCard(request: DonorRequest, onAction: (DonorAction) -> Unit) {
     Card(Modifier.fillMaxWidth()) {

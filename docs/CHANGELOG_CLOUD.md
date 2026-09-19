@@ -105,3 +105,7 @@ Investigated the requester screenshot showing `401 Unauthorized` during emergenc
 ## Coordinate picker clarification — 2026-09-20
 
 The native fallback is explicitly an **offline coordinate picker**, not a street map. Corrected its gesture handling to use the project-compatible drag detector so the pin can be moved reliably. A real street map remains a separate provider-integration decision; Google Maps requires an API key and billing configuration, while MapLibre requires a compliant vector-tile/style provider.
+
+## Real native maps — 2026-09-20
+
+Replaced the offline coordinate-picker placeholder and all remaining WebView map surfaces with MapLibre Native Android (`org.maplibre.gl:android-sdk:11.8.0`). The requester and donor location screens now render real street-level vector maps using OpenFreeMap's documented Liberty style (`https://tiles.openfreemap.org/styles/liberty`). Tapping or long-pressing the map moves the private selected-location marker; normal MapLibre pan and zoom gestures remain available. The requester donor-distance summary now also uses a native MapLibre map and does not expose donor pins or coordinates.
