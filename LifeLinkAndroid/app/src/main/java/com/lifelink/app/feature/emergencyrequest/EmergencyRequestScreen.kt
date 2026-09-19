@@ -82,6 +82,7 @@ import com.lifelink.app.domain.Facility
 import com.lifelink.app.domain.RequestStep
 import com.lifelink.app.domain.Urgency
 import com.lifelink.app.core.location.LocationProvider
+import com.lifelink.app.core.location.NativeLocationPicker
 import com.google.android.gms.common.api.ResolvableApiException
 import kotlinx.coroutines.launch
 import androidx.core.content.ContextCompat
@@ -302,28 +303,7 @@ private fun LocationMapPicker(
 ) {
     val selectedLatitude = draft.requesterLatitude ?: 14.5995
     val selectedLongitude = draft.requesterLongitude ?: 120.9842
-    AndroidView(
-        modifier = Modifier.fillMaxWidth().height(260.dp),
-        factory = { context ->
-            WebView(context).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                webViewClient = WebViewClient()
-                addJavascriptInterface(object {
-                    @JavascriptInterface
-                    fun selectLocation(latitude: Double, longitude: Double) {
-                        android.os.Handler(android.os.Looper.getMainLooper()).post {
-                            onLocationSelected(latitude, longitude)
-                        }
-                    }
-                }, "LifeLinkBridge")
-                loadDataWithBaseURL("https://unpkg.com/", mapHtml(selectedLatitude, selectedLongitude), "text/html", "UTF-8", null)
-            }
-        },
-        update = { webView ->
-            webView.evaluateJavascript("window.setMarker($selectedLatitude, $selectedLongitude);", null)
-        }
-    )
+    NativeLocationPicker(selectedLatitude, selectedLongitude, onLocationSelected)
 }
 
 private fun mapHtml(latitude: Double, longitude: Double): String = """

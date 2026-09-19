@@ -1,12 +1,8 @@
 package com.lifelink.app.feature.donor
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.Manifest
 import android.content.pm.PackageManager
-import android.webkit.JavascriptInterface
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -50,6 +46,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.google.android.gms.common.api.ResolvableApiException
 import com.lifelink.app.core.location.LocationProvider
+import com.lifelink.app.core.location.NativeLocationPicker
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRequest
@@ -195,29 +192,11 @@ private fun ProfileCard(
     }
 }
 
-@SuppressLint("SetJavaScriptEnabled")
 @Composable
 private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSelected: (Double, Double) -> Unit) {
     val selectedLatitude = latitude ?: 14.5995
     val selectedLongitude = longitude ?: 120.9842
-    AndroidView(
-        modifier = Modifier.fillMaxWidth().height(260.dp),
-        factory = { context ->
-            WebView(context).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                webViewClient = WebViewClient()
-                addJavascriptInterface(object {
-                    @JavascriptInterface
-                    fun selectLocation(newLatitude: Double, newLongitude: Double) {
-                        android.os.Handler(android.os.Looper.getMainLooper()).post { onLocationSelected(newLatitude, newLongitude) }
-                    }
-                }, "LifeLinkBridge")
-                loadDataWithBaseURL("https://unpkg.com/", donorLocationMapHtml(selectedLatitude, selectedLongitude), "text/html", "UTF-8", null)
-            }
-        },
-        update = { webView -> webView.evaluateJavascript("window.setMarker($selectedLatitude, $selectedLongitude);", null) }
-    )
+    NativeLocationPicker(selectedLatitude, selectedLongitude, onLocationSelected)
 }
 
 private fun donorLocationMapHtml(latitude: Double, longitude: Double): String = """

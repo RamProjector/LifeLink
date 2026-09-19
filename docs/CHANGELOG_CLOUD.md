@@ -96,4 +96,4 @@ The donor profile and map are now expanded by default so the location feature is
 
 ## WebView map rendering fallback — 2026-09-19
 
-Replaced the requester and donor map previews' dependency on remotely loaded Leaflet scripts and tiles with a self-contained interactive map canvas. This prevents a blank white map when Android WebView cannot load third-party map assets. The visible grid, location pin, coordinate readout, tap selection, and draggable pin work without an external JavaScript or tile dependency; the existing privacy boundary and manual coordinate fallbacks remain unchanged.
+Replaced the requester and donor WebView map previews with a native Compose-rendered interactive coordinate picker. This prevents a blank white map when Android WebView cannot render third-party map assets. The visible grid, location pin, coordinate readout, tap selection, and draggable pin work without WebView, external JavaScript, map tiles, or an API key; the existing privacy boundary and manual coordinate fallbacks remain unchanged.
