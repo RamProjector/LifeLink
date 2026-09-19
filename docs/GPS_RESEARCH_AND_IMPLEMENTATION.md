@@ -31,6 +31,12 @@ The update deliberately keeps the manual fallback. Approximate location is suffi
 
 The next GPS improvement should apply the same `SettingsClient` resolution flow to the donor profile capture action. The UI should also distinguish permission denied, location services disabled, timeout, and no-fix outcomes so that users know whether to enable settings, wait briefly, or choose the map/manual fallback.
 
+## Donor map privacy boundary
+
+The matching response exposes distance and travel time but not donor coordinates. The requester flow now offers an optional map summary that draws the request location and anonymous five-kilometer and ten-kilometer distance bands. It shows donor counts per band, while the donor list remains the only place where a requester can review and select a donor. This preserves the geographic value of GPS without allowing a requester to infer an individual donor's home, workplace, or exact position.
+
+The map intentionally does not place one marker per donor. A future map expansion should retain an anonymity threshold and avoid exposing names, exact coordinates, or precision that could be combined across repeated searches to triangulate a donor.
+
 For donors, location should remain an explicit profile action rather than continuous tracking. A donor's saved location should have a visible freshness timestamp and an option to clear it. Matching should treat an old location as unavailable or lower-confidence instead of implying that the donor is currently nearby.
 
 ## Validation boundary

@@ -79,3 +79,7 @@ Applied Android location guidance to the shared GPS provider and requester flow.
 ## Device location-settings resolution — 2026-09-19
 
 Added a `SettingsClient` check before requester GPS capture. If Android can resolve disabled location settings, LifeLink opens the system dialog and retries after the user accepts. If the user declines or the device cannot resolve the settings, the UI preserves the map and manual-coordinate fallbacks with an explanatory message. Donor-profile capture remains the next parity update.
+
+## Privacy-safe donor map summary — 2026-09-19
+
+Added an optional map summary to the post-submit donor results. The list remains the default and actionable view. The map centers on the requester location and shows anonymous donor counts within 5 km, between 5–10 km, and beyond 10 km. It does not receive or display donor coordinates, names, or individual pins, so GPS remains useful without exposing donor whereabouts.

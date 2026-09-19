@@ -38,6 +38,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -144,8 +145,26 @@ fun EmergencyRequestScreen(state: EmergencyRequestUiState, onAction: (EmergencyR
 
 @Composable
 private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -> Unit) {
+    var showMap by remember { mutableStateOf(false) }
+    val donorsWithinFiveKm = state.discoveredDonors.count { it.distanceKm <= 5.0 }
+    val donorsWithinTenKm = state.discoveredDonors.count { it.distanceKm > 5.0 && it.distanceKm <= 10.0 }
+    val donorsBeyondTenKm = state.discoveredDonors.count { it.distanceKm > 10.0 }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Heading("Choose donors to contact", "LifeLink only contacts donors you select. Screening and final eligibility happen outside the app.")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Results", fontWeight = FontWeight.SemiBold)
+            FilterChip(selected = showMap, onClick = { showMap = !showMap }, label = { Text(if (showMap) "Hide map" else "Show map summary") })
+        }
+        if (showMap) {
+            val latitude = state.draft.requesterLatitude
+            val longitude = state.draft.requesterLongitude
+            if (latitude != null && longitude != null) {
+                PrivacySafeDonorMap(latitude, longitude, donorsWithinFiveKm, donorsWithinTenKm, donorsBeyondTenKm)
+            } else {
+                InfoCard("Map summary unavailable", "The request location is not available. Review the donor list below.", MaterialTheme.colorScheme.secondary)
+            }
+        }
+        Text("Donor list", fontWeight = FontWeight.SemiBold)
         state.discoveredDonors.forEach { donor ->
             Card(
                 modifier = Modifier.fillMaxWidth().clickable { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) },
@@ -169,6 +188,67 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
         Text("This is a discovery and contact aid, not medical screening.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
     }
 }
+
+@Composable
+private fun PrivacySafeDonorMap(
+    latitude: Double,
+    longitude: Double,
+    withinFiveKm: Int,
+    withinTenKm: Int,
+    beyondTenKm: Int
+) {
+    AndroidView(
+        modifier = Modifier.fillMaxWidth().height(280.dp),
+        factory = { context ->
+            WebView(context).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                webViewClient = WebViewClient()
+                loadDataWithBaseURL(
+                    "https://unpkg.com/",
+                    donorMapHtml(latitude, longitude, withinFiveKm, withinTenKm, beyondTenKm),
+                    "text/html",
+                    "UTF-8",
+                    null
+                )
+            }
+        },
+        update = { webView ->
+            webView.evaluateJavascript(
+                "window.updateDonorSummary($withinFiveKm, $withinTenKm, $beyondTenKm);",
+                null
+            )
+        }
+    )
+    Text(
+        "Map summary only: circles show distance bands and donor counts. No donor names or exact donor locations are shown.",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall
+    )
+}
+
+private fun donorMapHtml(
+    latitude: Double,
+    longitude: Double,
+    withinFiveKm: Int,
+    withinTenKm: Int,
+    beyondTenKm: Int
+): String = """
+<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>html,body,#map{height:100%;margin:0}.legend{position:absolute;z-index:500;top:8px;left:8px;right:8px;padding:9px 10px;background:#fff;border-radius:8px;font:13px sans-serif;box-shadow:0 1px 5px #0003}</style></head>
+<body><div id="map"></div><div class="legend" id="legend">Anonymous donor proximity summary</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
+const center=[$latitude,$longitude];
+const map=L.map('map').setView(center,12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:16,attribution:'© OpenStreetMap'}).addTo(map);
+L.marker(center).addTo(map).bindTooltip('Your request location',{permanent:true,direction:'top'});
+const rings=[L.circle(center,{radius:5000,color:'#B3261E',fillColor:'#B3261E',fillOpacity:.10}),L.circle(center,{radius:10000,color:'#8D6E63',fillColor:'#8D6E63',fillOpacity:.08})];
+rings.forEach(r=>r.addTo(map));
+function updateDonorSummary(a,b,c){document.getElementById('legend').textContent='Within 5 km: '+a+' · 5–10 km: '+b+' · Beyond 10 km: '+c;}
+updateDonorSummary($withinFiveKm,$withinTenKm,$beyondTenKm);
+</script></body></html>
+""".trimIndent()
 
 @Composable private fun Progress(step: Int, total: Int) {
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
