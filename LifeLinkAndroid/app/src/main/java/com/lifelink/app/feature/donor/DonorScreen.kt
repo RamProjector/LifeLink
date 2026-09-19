@@ -23,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,7 +58,7 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
     Scaffold(topBar = {
         TopAppBar(
             title = { Text("Donor mode") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(androidx.compose.material.icons.automirrored.filled.ArrowBack, "Back") } }
+            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }
         )
     }) { padding ->
         LazyColumn(
