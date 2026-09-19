@@ -83,3 +83,7 @@ Added a `SettingsClient` check before requester GPS capture. If Android can reso
 ## Privacy-safe donor map summary — 2026-09-19
 
 Added an optional map summary to the post-submit donor results. The list remains the default and actionable view. The map centers on the requester location and shows anonymous donor counts within 5 km, between 5–10 km, and beyond 10 km. It does not receive or display donor coordinates, names, or individual pins, so GPS remains useful without exposing donor whereabouts.
+
+## Live migration state confirmed — 2026-09-19
+
+The project owner confirmed that `001_initial_schema.sql`, `002_gps_request_location.sql`, and `003_roles_profiles_contacts.sql` have all been applied to the live Supabase database in order. This state is recorded in [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for continuity across future maintenance chats; no credentials or sensitive deployment values are stored there.

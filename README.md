@@ -54,7 +54,7 @@ The cloud-configured development APK is in `artifacts/app-debug-cloud-configured
 
 ## Documentation
 
-Start with [`docs/START_CLOUD.md`](docs/START_CLOUD.md). The concise milestone record is [`docs/CHANGELOG_CLOUD.md`](docs/CHANGELOG_CLOUD.md), and the student-oriented explanation is [`docs/HISTORY_CLOUD.md`](docs/HISTORY_CLOUD.md).
+Start with [`docs/START_CLOUD.md`](docs/START_CLOUD.md). For the confirmed live migration and implementation state, read [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md). The concise milestone record is [`docs/CHANGELOG_CLOUD.md`](docs/CHANGELOG_CLOUD.md), and the student-oriented explanation is [`docs/HISTORY_CLOUD.md`](docs/HISTORY_CLOUD.md).
 
 ## Security
 
