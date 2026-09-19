@@ -23,11 +23,13 @@ Location requests should have a bounded duration and should stop when no longer 
 
 The requester location screen now performs a one-shot location lookup when it becomes visible if the app already has coarse or fine location permission and the draft has no saved coordinates. The resulting location updates the existing draft and causes the map pin to move to the user's position. The app does not trigger a surprise permission dialog merely because the map was opened. Users without permission can still use the existing location button, map pin, or latitude and longitude fields.
 
+The requester flow now checks the device's location settings before each automatic or button-triggered fix. If Android reports that the required settings can be resolved, LifeLink opens the system resolution dialog and retries after the user accepts. If the user declines or the device cannot resolve the settings, the screen explains that map and manual-coordinate selection remain available.
+
 The update deliberately keeps the manual fallback. Approximate location is sufficient for LifeLink's donor matching purpose, and Android may intentionally obfuscate a coarse location. Exact coordinates remain visible only to the user and are not exposed in donor-facing data.
 
 ## Recommended next iteration
 
-The next GPS improvement should add a `SettingsClient` check before requesting a fix. If the device's location settings are disabled or cannot satisfy the request, LifeLink should offer the system resolution dialog and then retry once. The UI should distinguish permission denied, location services disabled, timeout, and no-fix outcomes so that users know whether to enable settings, wait briefly, or choose the map/manual fallback.
+The next GPS improvement should apply the same `SettingsClient` resolution flow to the donor profile capture action. The UI should also distinguish permission denied, location services disabled, timeout, and no-fix outcomes so that users know whether to enable settings, wait briefly, or choose the map/manual fallback.
 
 For donors, location should remain an explicit profile action rather than continuous tracking. A donor's saved location should have a visible freshness timestamp and an option to clear it. Matching should treat an old location as unavailable or lower-confidence instead of implying that the donor is currently nearby.
 

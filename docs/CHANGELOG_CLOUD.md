@@ -75,3 +75,7 @@ Rechecked the deployed Render service after its documented cold-start concern. `
 ## GPS reliability and map-centering improvement — 2026-09-19
 
 Applied Android location guidance to the shared GPS provider and requester flow. One-shot fixes now use a bounded high-accuracy request with a 30-second cached-location limit, a 15-second timeout, coroutine cancellation, and validation of the reported accuracy. When location permission is already granted, opening the requester location step automatically obtains one current fix and centers the map without forcing a new permission prompt. The map picker, manual latitude/longitude fields, and approximate-location privacy boundary remain available as fallbacks. See [`GPS_RESEARCH_AND_IMPLEMENTATION.md`](GPS_RESEARCH_AND_IMPLEMENTATION.md) for the research and next recommended `SettingsClient` iteration.
+
+## Device location-settings resolution — 2026-09-19
+
+Added a `SettingsClient` check before requester GPS capture. If Android can resolve disabled location settings, LifeLink opens the system dialog and retries after the user accepts. If the user declines or the device cannot resolve the settings, the UI preserves the map and manual-coordinate fallbacks with an explanatory message. Donor-profile capture remains the next parity update.

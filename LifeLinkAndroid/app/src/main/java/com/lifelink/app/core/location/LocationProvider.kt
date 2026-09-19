@@ -3,8 +3,11 @@ package com.lifelink.app.core.location
 import android.annotation.SuppressLint
 import android.content.Context
 import com.google.android.gms.location.CurrentLocationRequest
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationSettingsRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.math.roundToInt
@@ -12,6 +15,25 @@ import kotlin.coroutines.resume
 
 class LocationProvider(context: Context) {
     private val client = LocationServices.getFusedLocationProviderClient(context)
+    private val settingsClient = LocationServices.getSettingsClient(context)
+
+    fun checkLocationSettings(
+        onReady: () -> Unit,
+        onNeedsResolution: (ResolvableApiException) -> Unit,
+        onFailure: () -> Unit
+    ) {
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, LOCATION_TIMEOUT_MILLIS)
+            .setDurationMillis(LOCATION_TIMEOUT_MILLIS)
+            .build()
+        val settings = LocationSettingsRequest.Builder()
+            .addLocationRequest(request)
+            .build()
+        settingsClient.checkLocationSettings(settings)
+            .addOnSuccessListener { onReady() }
+            .addOnFailureListener { error ->
+                if (error is ResolvableApiException) onNeedsResolution(error) else onFailure()
+            }
+    }
 
     @SuppressLint("MissingPermission")
     suspend fun currentLocation(): DeviceLocation? = suspendCancellableCoroutine { continuation ->

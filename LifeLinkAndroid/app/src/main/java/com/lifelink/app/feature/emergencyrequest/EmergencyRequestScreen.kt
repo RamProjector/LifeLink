@@ -1,6 +1,7 @@
 package com.lifelink.app.feature.emergencyrequest
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.pm.PackageManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -58,6 +59,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -79,6 +81,7 @@ import com.lifelink.app.domain.Facility
 import com.lifelink.app.domain.RequestStep
 import com.lifelink.app.domain.Urgency
 import com.lifelink.app.core.location.LocationProvider
+import com.google.android.gms.common.api.ResolvableApiException
 import kotlinx.coroutines.launch
 import androidx.core.content.ContextCompat
 
@@ -262,17 +265,24 @@ window.setMarker=function(lat,lon){marker.setLatLng([lat,lon]);map.panTo([lat,lo
 @Composable private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var locationCaptureRequest by remember { mutableStateOf(0) }
+    var locationMessage by remember { mutableStateOf<String?>(null) }
+    val settingsResolutionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            locationCaptureRequest++
+        } else {
+            locationMessage = "Location services remain off. You can choose a point on the map or enter coordinates manually."
+        }
+    }
     var manualLatitude by remember { mutableStateOf(draft.requesterLatitude?.toString().orEmpty()) }
     var manualLongitude by remember { mutableStateOf(draft.requesterLongitude?.toString().orEmpty()) }
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         if (permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true || permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
-            scope.launch {
-                LocationProvider(context).currentLocation()?.let { location ->
-                    onAction(EmergencyRequestAction.SetGpsLocation(location.latitude, location.longitude, location.precisionMeters))
-                }
-            }
+            locationCaptureRequest++
         }
     }
     LaunchedEffect(Unit) {
@@ -283,15 +293,37 @@ window.setMarker=function(lat,lon){marker.setLatLng([lat,lon]);map.panTo([lat,lo
             context,
             android.Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
-        if (draft.requesterLatitude == null && hasLocationPermission) {
-            LocationProvider(context).currentLocation()?.let { location ->
-                onAction(EmergencyRequestAction.SetGpsLocation(location.latitude, location.longitude, location.precisionMeters))
-            }
-        }
+        if (draft.requesterLatitude == null && hasLocationPermission) locationCaptureRequest++
+    }
+    LaunchedEffect(locationCaptureRequest) {
+        if (locationCaptureRequest == 0) return@LaunchedEffect
+        val provider = LocationProvider(context)
+        locationMessage = "Checking device location settings…"
+        provider.checkLocationSettings(
+            onReady = {
+                scope.launch {
+                    locationMessage = "Finding your current location…"
+                    provider.currentLocation()?.let { location ->
+                        onAction(EmergencyRequestAction.SetGpsLocation(location.latitude, location.longitude, location.precisionMeters))
+                        locationMessage = null
+                    } ?: run { locationMessage = "Could not get a current fix. Try again or choose a location manually." }
+                }
+            },
+            onNeedsResolution = { error: ResolvableApiException ->
+                locationMessage = "Turn on device location to center the map automatically."
+                runCatching {
+                    settingsResolutionLauncher.launch(IntentSenderRequest.Builder(error.resolution).build())
+                }.onFailure {
+                    locationMessage = "Location settings could not be opened. Choose a location manually."
+                }
+            },
+            onFailure = { locationMessage = "Device location is unavailable. Choose a location manually." }
+        )
     }
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
         Heading("Where are you requesting help?", "Your approximate location is used only to find nearby eligible donors.")
         InfoCard("Privacy-first GPS", "Your precise coordinates are used for matching and are not shown to donors.", MaterialTheme.colorScheme.secondary)
+        locationMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
             onClick = {
