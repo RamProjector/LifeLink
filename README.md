@@ -58,7 +58,7 @@ Start with [`docs/START_CLOUD.md`](docs/START_CLOUD.md). The concise milestone r
 
 ## Security
 
-The PostgreSQL adapter fails closed on authentication when `LIFELINK_AUTH_REQUIRED` is omitted. The current bearer-token implementation is a development seam and must be replaced with verified JWT/Firebase/Supabase Auth validation before public production use. See [`SECURITY.md`](SECURITY.md).
+The PostgreSQL adapter fails closed on authentication when `LIFELINK_AUTH_REQUIRED` is omitted. Hosted authentication verifies Supabase JWTs and applies ownership checks; rate limiting, audit logging, signed release configuration, and operational/privacy review are still required before public production use. See [`SECURITY.md`](SECURITY.md).
 
 ## License
 

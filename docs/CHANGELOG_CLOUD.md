@@ -59,3 +59,15 @@ Compared Android and FastAPI route inventories, confirmed cloud-package hygiene,
 ## Audit10 — GitHub repository hygiene and CI hardening — 2026-09-17
 
 Removed obsolete build-round logs from the repository tree and added least-privilege `contents: read` permissions plus concurrency cancellation to the GitHub Actions workflow. Credential-name and generated-state scans remained clean.
+
+## Role-backed cloud continuation — 2026-09-18
+
+Added Supabase email/password authentication with local input validation, hosted email-confirmation handling, persisted requester/donor onboarding, authenticated donor identity, donor GPS capture, and a role-specific product plan. Requesters can use GPS or enter an approximate location, while donor matching continues to keep exact coordinates private. The role/profile/contact migration is `lifelink_fastapi/sql/003_roles_profiles_contacts.sql` and must be applied after the first two migrations.
+
+## Requester map picker — 2026-09-19
+
+Added an interactive Leaflet/OpenStreetMap picker to the Android emergency-request location step. Tapping the map or dragging the pin stores an approximate requester location through the existing GPS request model; the selected coordinates remain private and are used only for matching. The latest GitHub Actions validation and Android APK build completed successfully for commit `6140256`.
+
+## Operational verification follow-up — 2026-09-19
+
+Rechecked the deployed Render service after its documented cold-start concern. `/health` returned HTTP 200 with `{"status":"ok","service":"lifelink-matching-postgres"}` after a 45-second wake-up, and `/openapi.json` was available. The local sandbox does not currently expose the Android SDK or Python test dependencies; CI remains the authoritative full verification environment until those tools are restored locally.
