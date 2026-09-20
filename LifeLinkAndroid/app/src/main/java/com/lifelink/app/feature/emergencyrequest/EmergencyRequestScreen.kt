@@ -2,6 +2,7 @@ package com.lifelink.app.feature.emergencyrequest
 
 import android.app.Activity
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -95,6 +96,11 @@ fun EmergencyRequestScreen(
     onAction: (EmergencyRequestAction) -> Unit,
     onExit: () -> Unit = {}
 ) {
+    val handleBack = {
+        if (state.step == RequestStep.BLOOD_NEED || state.step == RequestStep.RESULTS) onExit()
+        else onAction(EmergencyRequestAction.Back)
+    }
+    BackHandler(onBack = handleBack)
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -102,8 +108,7 @@ fun EmergencyRequestScreen(
                 title = { Text(if (state.step == RequestStep.REVIEW) "Review request" else "Create request", fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (state.step == RequestStep.BLOOD_NEED || state.step == RequestStep.RESULTS) onExit()
-                        else onAction(EmergencyRequestAction.Back)
+                        handleBack()
                     }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)

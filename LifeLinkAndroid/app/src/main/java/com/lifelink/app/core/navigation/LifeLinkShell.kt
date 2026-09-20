@@ -173,10 +173,21 @@ fun LifeLinkShell(
 }
 
 @Composable private fun LearnContent() {
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Learn", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("LifeLink helps requesters connect with eligible, available donors nearby.")
-        Text("Never share patient-identifying information in request notes. Confirm details with the blood bank.")
+        Text("LifeLink helps requesters connect with eligible, available donors nearby.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        LearnCard("How matching works", "LifeLink checks blood-type eligibility, donor availability, service radius, approximate distance, travel time, and urgency. A match is not medical approval; confirm compatibility with a blood-bank professional.")
+        LearnCard("Location privacy", "Use current location or choose a point on the map. Exact requester and donor coordinates are used for matching but are not shown to the other person. LifeLink does not track anyone in the background.")
+        LearnCard("Respond safely", "Contact requests stay pending until a donor responds. Share contact details only after acceptance, confirm the meeting place through the app, and use a verified blood bank or hospital for screening.")
+    }
+}
+
+@Composable private fun LearnCard(title: String, body: String) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, fontWeight = FontWeight.Bold)
+            Text(body, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
