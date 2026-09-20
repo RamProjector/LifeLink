@@ -109,3 +109,9 @@ The native fallback is explicitly an **offline coordinate picker**, not a street
 ## Real native maps — 2026-09-20
 
 Replaced the offline coordinate-picker placeholder and all remaining WebView map surfaces with MapLibre Native Android (`org.maplibre.gl:android-sdk:11.8.0`). The requester and donor location screens now render real street-level vector maps using OpenFreeMap's documented Liberty style (`https://tiles.openfreemap.org/styles/liberty`). Tapping or long-pressing the map moves the private selected-location marker; normal MapLibre pan and zoom gestures remain available. The requester donor-distance summary now also uses a native MapLibre map and does not expose donor pins or coordinates.
+
+## GPS centering and location-picker research — 2026-09-20
+
+Investigated the report that the preview stayed centered on Manila. The cause was an implicit Manila fallback combined with an asynchronous MapLibre style callback that could reapply the initial camera after a real GPS result arrived. Removed the implicit requester fallback, made the style callback read the latest coordinates, updated markers in place, and added a visible confirmation showing the reported GPS accuracy after centering.
+
+The sourced improvement plan is recorded in `docs/LOCATION_PICKING_RESEARCH_AND_PLAN.md`. Its next priorities are typed location quality and source states, explicit approximate-versus-precise permission handling, in-flight cancellation and retry states, map loading/error/recenter controls, and a review-screen summary of source, freshness, uncertainty, and privacy.

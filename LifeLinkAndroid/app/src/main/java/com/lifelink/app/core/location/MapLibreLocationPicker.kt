@@ -4,7 +4,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -25,13 +29,15 @@ private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/li
  */
 @Composable
 fun MapLibreLocationPicker(
-    latitude: Double,
-    longitude: Double,
+    latitude: Double?,
+    longitude: Double?,
     onLocationSelected: (Double, Double) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val initialPosition = remember { LatLng(latitude, longitude) }
+    val latestLatitude by rememberUpdatedState(latitude)
+    val latestLongitude by rememberUpdatedState(longitude)
+    var marker by remember { mutableStateOf<Marker?>(null) }
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
         MapView(context).also { it.onCreate(null) }
@@ -53,18 +59,17 @@ fun MapLibreLocationPicker(
             mapView.apply {
                 getMapAsync { map ->
                     map.setStyle(OPEN_FREE_MAP_STYLE) {
+                        val currentPosition = latestLatitude?.let { lat -> latestLongitude?.let { lon -> LatLng(lat, lon) } }
                         map.cameraPosition = CameraPosition.Builder()
-                            .target(initialPosition)
-                            .zoom(15.0)
+                            .target(currentPosition ?: LatLng(0.0, 0.0))
+                            .zoom(if (currentPosition == null) 2.0 else 15.0)
                             .build()
-                        var marker: Marker? = map.addMarker(
-                            MarkerOptions().position(initialPosition).title("Selected approximate location")
-                        )
+                        marker = currentPosition?.let {
+                            map.addMarker(MarkerOptions().position(it).title("Selected approximate location"))
+                        }
                         fun select(position: LatLng) {
-                            marker?.let { map.removeMarker(it) }
-                            marker = map.addMarker(
-                                MarkerOptions().position(position).title("Selected approximate location")
-                            )
+                            marker?.let { it.position = position; map.updateMarker(it) }
+                                ?: run { marker = map.addMarker(MarkerOptions().position(position).title("Selected approximate location")) }
                             onLocationSelected(position.latitude, position.longitude)
                         }
                         map.addOnMapClickListener { position ->
@@ -81,11 +86,14 @@ fun MapLibreLocationPicker(
         },
         update = { view ->
             view.getMapAsync { map ->
-                val target = LatLng(latitude, longitude)
-                map.cameraPosition = CameraPosition.Builder()
-                    .target(target)
-                    .zoom(map.cameraPosition.zoom.coerceAtLeast(12.0))
-                    .build()
+                val target = latitude?.let { lat -> longitude?.let { lon -> LatLng(lat, lon) } }
+                if (target != null) {
+                    marker?.let { it.position = target; map.updateMarker(it) }
+                    map.cameraPosition = CameraPosition.Builder()
+                        .target(target)
+                        .zoom(map.cameraPosition.zoom.coerceAtLeast(12.0))
+                        .build()
+                }
             }
         }
     )

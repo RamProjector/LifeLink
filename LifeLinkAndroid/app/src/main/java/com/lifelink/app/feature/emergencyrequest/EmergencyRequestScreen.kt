@@ -252,9 +252,7 @@ private fun LocationMapPicker(
     draft: EmergencyRequestDraft,
     onLocationSelected: (Double, Double) -> Unit
 ) {
-    val selectedLatitude = draft.requesterLatitude ?: 14.5995
-    val selectedLongitude = draft.requesterLongitude ?: 120.9842
-    MapLibreLocationPicker(selectedLatitude, selectedLongitude, onLocationSelected)
+    MapLibreLocationPicker(draft.requesterLatitude, draft.requesterLongitude, onLocationSelected)
 }
 
 @Composable private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
@@ -300,7 +298,7 @@ private fun LocationMapPicker(
                     locationMessage = "Finding your current location…"
                     provider.currentLocation()?.let { location ->
                         onAction(EmergencyRequestAction.SetGpsLocation(location.latitude, location.longitude, location.precisionMeters))
-                        locationMessage = null
+                        locationMessage = "Map centered on your current location (accuracy ±${location.precisionMeters} m)."
                     } ?: run { locationMessage = "Could not get a current fix. Try again or choose a location manually." }
                 }
             },
