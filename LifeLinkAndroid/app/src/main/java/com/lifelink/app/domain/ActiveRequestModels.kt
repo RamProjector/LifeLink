@@ -4,6 +4,7 @@ enum class ActiveRequestStatus(val label: String) {
     AWAITING_RESPONSES("Waiting for donor responses"),
     MATCHING("Finding eligible donors"),
     MANUAL_BROADCAST("Manual broadcast pending"),
+    PARTIALLY_FULFILLED("Partially fulfilled"),
     FULFILLED("Request fulfilled"),
     EXPIRED("Request expired"),
     CANCELLED("Request cancelled")

@@ -46,6 +46,21 @@ data class RequesterContact(
     val contactEmail: String? = null
 )
 
+data class RequestHistoryItem(
+    val requestId: String,
+    val status: ActiveRequestStatus,
+    val createdAt: String? = null,
+    val expiresAt: String? = null,
+    val bloodType: String? = null,
+    val units: Int? = null,
+    val urgency: String? = null,
+    val facilityName: String? = null,
+    val area: String? = null,
+    val notificationsCreated: Int = 0,
+    val matchesResponded: Int = 0,
+    val contactStatuses: List<String> = emptyList()
+)
+
 sealed interface SubmitResult {
     data class MatchingStarted(val requestId: String, val donors: List<DiscoveredDonor> = emptyList()) : SubmitResult
     data class ContactRequested(val requestId: String, val donorIds: List<String>) : SubmitResult
@@ -65,5 +80,6 @@ interface EmergencyRequestRepository {
     suspend fun cancelRequest(requestId: String): SubmitResult
     fun observeActiveRequest(): Flow<ActiveRequestSnapshot?>
     fun observeRequestHistory(): Flow<List<ActiveRequestSnapshot>>
+    suspend fun refreshRequestHistory(): List<RequestHistoryItem>
     suspend fun refreshActiveRequest(requestId: String): ActiveRequestSnapshot?
 }

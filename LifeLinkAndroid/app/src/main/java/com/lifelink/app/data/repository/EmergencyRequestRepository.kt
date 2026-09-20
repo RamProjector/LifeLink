@@ -29,6 +29,7 @@ import com.lifelink.app.domain.Facility
 import com.lifelink.app.domain.SubmitResult
 import com.lifelink.app.domain.Urgency
 import com.lifelink.app.domain.RequesterContact
+import com.lifelink.app.domain.RequestHistoryItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -52,6 +53,27 @@ class EmergencyRequestRepositoryImpl(
 
     override fun observeRequestHistory(): Flow<List<ActiveRequestSnapshot>> =
         activeRequestDao.observeAll().map { requests -> requests.map { it.toDomain() } }
+
+    override suspend fun refreshRequestHistory(): List<RequestHistoryItem> = withContext(Dispatchers.IO) {
+        val response = api.requestHistory()
+        if (!response.isSuccessful) throw IOException("Request history could not be loaded (${response.code()}).")
+        response.body().orEmpty().map { item ->
+            RequestHistoryItem(
+                requestId = item.requestId,
+                status = runCatching { ActiveRequestStatus.valueOf(item.status.uppercase()) }.getOrDefault(ActiveRequestStatus.MATCHING),
+                createdAt = item.createdAt,
+                expiresAt = item.expiresAt,
+                bloodType = item.bloodType,
+                units = item.units,
+                urgency = item.urgency,
+                facilityName = item.facilityName,
+                area = item.area,
+                notificationsCreated = item.notificationsCreated,
+                matchesResponded = item.matchesResponded,
+                contactStatuses = item.contactStatuses
+            )
+        }
+    }
 
     override suspend fun refreshActiveRequest(requestId: String): ActiveRequestSnapshot? = withContext(Dispatchers.IO) {
         try {

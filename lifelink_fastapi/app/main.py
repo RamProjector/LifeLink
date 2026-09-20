@@ -163,6 +163,21 @@ class RequestActionOut(BaseModel):
     reason: str | None = None
 
 
+class RequestHistoryItemOut(BaseModel):
+    request_id: str
+    status: RequestStatus
+    created_at: datetime
+    expires_at: datetime
+    blood_type: BloodType
+    units: int
+    urgency: Urgency
+    facility_name: str
+    area: str
+    notifications_created: int
+    matches_responded: int
+    contact_statuses: list[str] = Field(default_factory=list)
+
+
 class ContactSelectedDonorsIn(BaseModel):
     donor_ids: list[str] = Field(min_length=1, max_length=10)
 
@@ -187,6 +202,8 @@ class RequestStore(Protocol):
 
     def save(self, record: RequestRecord) -> None: ...
 
+    def list_by_requester(self, requester_id: str, limit: int = 50) -> list[RequestRecord]: ...
+
 
 class DonorRepository(Protocol):
     def list_active_donors(self) -> list[Donor]: ...
@@ -204,6 +221,10 @@ class InMemoryRequestStore:
     def save(self, record: RequestRecord) -> None:
         self.records[record.request_id] = record
         self.by_idempotency[record.payload.idempotency_key] = record.request_id
+
+    def list_by_requester(self, requester_id: str, limit: int = 50) -> list[RequestRecord]:
+        records = [record for record in self.records.values() if record.payload.requester_id == requester_id]
+        return sorted(records, key=lambda record: record.created_at, reverse=True)[:limit]
 
 
 class DemoDonorRepository:
@@ -603,6 +624,36 @@ def manual_broadcast(
             "area": record.payload.location.area,
         },
     )
+
+
+@app.get("/v1/emergency-requests", response_model=list[RequestHistoryItemOut])
+def list_emergency_request_history(
+    principal: Principal = Depends(get_principal),
+) -> list[RequestHistoryItemOut]:
+    records = (
+        sorted(request_store.records.values(), key=lambda record: record.created_at, reverse=True)[:50]
+        if principal.subject == "development-user"
+        else request_store.list_by_requester(principal.subject)
+    )
+    return [
+        RequestHistoryItemOut(
+            request_id=record.request_id,
+            status=record.status,
+            created_at=record.created_at,
+            expires_at=record.expires_at,
+            blood_type=record.payload.blood_type,
+            units=record.payload.units,
+            urgency=record.payload.urgency,
+            facility_name=record.payload.location.facility_name,
+            area=record.payload.location.area,
+            notifications_created=len(record.matches),
+            matches_responded=sum(
+                1 for (request_id, _), value in match_statuses.items()
+                if request_id == record.request_id and value.get("response") in {"accepted", "declined", "arrived"}
+            ),
+        )
+        for record in records
+    ]
 
 
 @app.get("/v1/emergency-requests/{request_id}", response_model=EmergencyRequestStatusOut)

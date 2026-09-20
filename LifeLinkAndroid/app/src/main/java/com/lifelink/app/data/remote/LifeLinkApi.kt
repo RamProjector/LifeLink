@@ -43,6 +43,9 @@ interface LifeLinkApi {
     @GET("v1/emergency-requests/{requestId}/contacts")
     suspend fun requesterContacts(@Path("requestId") requestId: String): Response<List<RequesterContactResponse>>
 
+    @GET("v1/emergency-requests")
+    suspend fun requestHistory(): Response<List<RequestHistoryResponse>>
+
     @PUT("v1/donors/{donorId}")
     suspend fun registerDonor(@Path("donorId") donorId: String, @Body profile: DonorProfileRequest): Response<DonorProfileResponse>
 
@@ -155,6 +158,21 @@ data class RequesterContactResponse(
     val status: String,
     @SerializedName("accepted_at") val acceptedAt: String? = null,
     @SerializedName("contact_email") val contactEmail: String? = null
+)
+
+data class RequestHistoryResponse(
+    @SerializedName("request_id") val requestId: String,
+    val status: String,
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("expires_at") val expiresAt: String,
+    @SerializedName("blood_type") val bloodType: String,
+    val units: Int,
+    val urgency: String,
+    @SerializedName("facility_name") val facilityName: String,
+    val area: String,
+    @SerializedName("notifications_created") val notificationsCreated: Int = 0,
+    @SerializedName("matches_responded") val matchesResponded: Int = 0,
+    @SerializedName("contact_statuses") val contactStatuses: List<String> = emptyList()
 )
 
 data class ManualBroadcastResponse(

@@ -69,6 +69,19 @@ def test_idempotency_returns_same_request():
     assert first.json()["request_id"] == second.json()["request_id"]
 
 
+def test_request_history_returns_owned_summary_without_coordinates():
+    payload = make_payload(idempotency_key="idempotency-key-history-01")
+    created = client.post("/v1/emergency-requests", json=payload).json()
+    response = client.get("/v1/emergency-requests")
+    assert response.status_code == 200
+    item = next(entry for entry in response.json() if entry["request_id"] == created["request_id"])
+    assert item["blood_type"] == "O-"
+    assert item["status"] == "awaiting_responses"
+    assert item["notifications_created"] >= 1
+    assert "latitude" not in item
+    assert "longitude" not in item
+
+
 def test_mismatched_idempotency_header_is_rejected():
     response = client.post(
         "/v1/emergency-requests",

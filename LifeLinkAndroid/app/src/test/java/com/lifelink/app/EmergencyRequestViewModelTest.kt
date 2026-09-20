@@ -6,6 +6,7 @@ import com.lifelink.app.domain.Facility
 import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.SubmitResult
 import com.lifelink.app.domain.RequesterContact
+import com.lifelink.app.domain.RequestHistoryItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
@@ -114,5 +115,6 @@ private class FakeRepository(
     override suspend fun refreshContacts(requestId: String): List<RequesterContact> = emptyList()
     override fun observeActiveRequest(): Flow<ActiveRequestSnapshot?> = flowOf(null)
     override fun observeRequestHistory(): Flow<List<ActiveRequestSnapshot>> = flowOf(emptyList())
+    override suspend fun refreshRequestHistory(): List<RequestHistoryItem> = emptyList()
     override suspend fun refreshActiveRequest(requestId: String): ActiveRequestSnapshot? = null
 }

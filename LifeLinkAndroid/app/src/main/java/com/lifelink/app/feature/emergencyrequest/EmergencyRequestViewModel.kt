@@ -10,6 +10,7 @@ import com.lifelink.app.domain.SubmitResult
 import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.DiscoveredDonor
 import com.lifelink.app.domain.RequesterContact
+import com.lifelink.app.domain.RequestHistoryItem
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,7 +41,8 @@ data class EmergencyRequestUiState(
     val selectedDonorIds: Set<String> = emptySet(),
     val contactRequestSent: Boolean = false,
     val contacts: List<RequesterContact> = emptyList(),
-    val requestHistory: List<ActiveRequestSnapshot> = emptyList()
+    val requestHistory: List<RequestHistoryItem> = emptyList(),
+    val historyRefreshing: Boolean = false
 )
 
 sealed interface EmergencyRequestAction {
@@ -54,6 +56,7 @@ sealed interface EmergencyRequestAction {
     data object DismissCriticalSubmit : EmergencyRequestAction
     data object SendManualBroadcast : EmergencyRequestAction
     data object RefreshStatus : EmergencyRequestAction
+    data object RefreshHistory : EmergencyRequestAction
     data object CancelRequest : EmergencyRequestAction
     data object Retry : EmergencyRequestAction
     data class ToggleDonorSelection(val donorId: String) : EmergencyRequestAction
@@ -77,9 +80,19 @@ class EmergencyRequestViewModel(
         }
         viewModelScope.launch {
             repository.observeRequestHistory().collect { history ->
-                _uiState.update { it.copy(requestHistory = history) }
+                _uiState.update { state ->
+                    if (state.requestHistory.isNotEmpty()) state else state.copy(requestHistory = history.map { snapshot ->
+                        RequestHistoryItem(
+                            requestId = snapshot.requestId,
+                            status = snapshot.status,
+                            notificationsCreated = snapshot.notificationsCreated,
+                            matchesResponded = snapshot.matchesResponded
+                        )
+                    })
+                }
             }
         }
+        refreshHistory()
         if (enablePolling) {
             viewModelScope.launch {
                 while (true) {
@@ -110,6 +123,7 @@ class EmergencyRequestViewModel(
             EmergencyRequestAction.DismissCriticalSubmit -> _uiState.update { it.copy(criticalConfirmationVisible = false) }
             EmergencyRequestAction.SendManualBroadcast -> sendManualBroadcast()
             EmergencyRequestAction.RefreshStatus -> refreshStatus()
+            EmergencyRequestAction.RefreshHistory -> refreshHistory()
             EmergencyRequestAction.CancelRequest -> cancelRequest()
             EmergencyRequestAction.Retry -> submit()
             is EmergencyRequestAction.ToggleDonorSelection -> toggleDonor(action.donorId)
@@ -233,6 +247,15 @@ class EmergencyRequestViewModel(
             runCatching { repository.refreshActiveRequest(requestId) }
                 .onFailure { _uiState.update { it.copy(submission = SubmissionState.Error("Status could not be refreshed. Try again.")) } }
             _uiState.update { it.copy(statusRefreshing = false) }
+        }
+    }
+
+    private fun refreshHistory() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(historyRefreshing = true) }
+            runCatching { repository.refreshRequestHistory() }
+                .onSuccess { history -> _uiState.update { it.copy(requestHistory = history) } }
+            _uiState.update { it.copy(historyRefreshing = false) }
         }
     }
 

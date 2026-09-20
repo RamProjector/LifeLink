@@ -26,6 +26,7 @@ from .main import (
     ContactSelectedDonorsOut,
     ManualFallbackOut,
     RequestStatus,
+    RequestHistoryItemOut,
     score_donor,
     validate_business_rules,
 )
@@ -254,6 +255,35 @@ async def manual_broadcast_postgres(
             "area": record.payload.location.area,
         },
     )
+
+
+@app.get("/v1/emergency-requests", response_model=list[RequestHistoryItemOut])
+async def list_emergency_request_history(
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_principal),
+):
+    if principal.subject == "development-user":
+        return []
+    store = SqlAlchemyRequestStore(session)
+    records = await store.list_by_requester_async(principal.subject)
+    items: list[RequestHistoryItemOut] = []
+    for record in records:
+        contacts = await store.requester_contacts_async(record.request_id, principal.subject)
+        items.append(RequestHistoryItemOut(
+            request_id=record.request_id,
+            status=record.status,
+            created_at=record.created_at,
+            expires_at=record.expires_at,
+            blood_type=record.payload.blood_type,
+            units=record.payload.units,
+            urgency=record.payload.urgency,
+            facility_name=record.payload.location.facility_name,
+            area=record.payload.location.area,
+            notifications_created=len(record.matches),
+            matches_responded=sum(1 for contact in contacts if contact["status"] in {"accepted", "declined"}),
+            contact_statuses=[contact["status"] for contact in contacts],
+        ))
+    return items
 
 
 @app.get("/v1/emergency-requests/{request_id}", response_model=EmergencyRequestStatusOut)

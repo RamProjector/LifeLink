@@ -89,6 +89,16 @@ class SqlAlchemyRequestStore(RequestStore):
         )
         return self._to_record(result) if result else None
 
+    async def list_by_requester_async(self, requester_id: str, limit: int = 50) -> list[RequestRecord]:
+        result = await self.session.scalars(
+            select(EmergencyRequestRow)
+            .options(joinedload(EmergencyRequestRow.matches).joinedload(RequestMatchRow.donor))
+            .where(EmergencyRequestRow.requester_id == requester_id)
+            .order_by(EmergencyRequestRow.created_at.desc())
+            .limit(limit)
+        )
+        return [self._to_record(row) for row in result.unique().all()]
+
     async def save_async(self, record: RequestRecord) -> None:
         existing = await self.session.get(EmergencyRequestRow, record.request_id)
         if existing is None:

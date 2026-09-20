@@ -32,7 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.domain.DonorAvailability
-import com.lifelink.app.domain.ActiveRequestSnapshot
+import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.feature.activeRequest.ActiveRequestScreen
 import com.lifelink.app.feature.donor.DonorAction
@@ -125,7 +125,10 @@ fun LifeLinkShell(
             }
         }
         if (state.requestHistory.isNotEmpty()) {
-            Text("Request history", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Request history", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                TextButton(onClick = { onAction(EmergencyRequestAction.RefreshHistory) }, enabled = !state.historyRefreshing) { Text(if (state.historyRefreshing) "Refreshing…" else "Refresh") }
+            }
             state.requestHistory.forEach { request -> RequestHistoryCard(request) }
         }
         Button(onClick = onCreate, Modifier.fillMaxWidth()) { Text("Create emergency request") }
@@ -133,7 +136,7 @@ fun LifeLinkShell(
 }
 
 @Composable
-private fun RequestHistoryCard(request: ActiveRequestSnapshot) {
+private fun RequestHistoryCard(request: RequestHistoryItem) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -141,7 +144,10 @@ private fun RequestHistoryCard(request: ActiveRequestSnapshot) {
                 Text(if (request.isTerminal) "Past" else "Active", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
             }
             Text("Request ${request.requestId.take(12)}", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${request.bloodType ?: "Request"} · ${request.units?.let { "$it unit${if (it == 1) "" else "s"}" } ?: "Details unavailable"}", style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
             Text("${request.matchesResponded} donor response${if (request.matchesResponded == 1) "" else "s"} · ${request.notificationsCreated} notified", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            request.facilityName?.let { Text("$it${request.area?.let { area -> " · $area" } ?: ""}", style = androidx.compose.material3.MaterialTheme.typography.bodySmall) }
+            if (request.contactStatuses.isNotEmpty()) Text("Contacts: ${request.contactStatuses.joinToString()}", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
             request.reason?.let { Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall) }
         }
     }
