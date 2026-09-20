@@ -23,6 +23,7 @@ import com.lifelink.app.domain.ContactMethod
 import com.lifelink.app.domain.DonorRepository
 import com.lifelink.app.domain.DiscoveredDonor
 import com.lifelink.app.data.remote.ContactSelectedDonorsRequest
+import com.lifelink.app.data.remote.ContactStatusUpdateRequest
 import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.EmergencyRequestRepository
 import com.lifelink.app.domain.Facility
