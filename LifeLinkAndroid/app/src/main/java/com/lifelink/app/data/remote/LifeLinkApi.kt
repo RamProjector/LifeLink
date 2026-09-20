@@ -49,6 +49,12 @@ interface LifeLinkApi {
     @PATCH("v1/emergency-requests/{requestId}/contacts/{donorId}")
     suspend fun updateContactStatus(@Path("requestId") requestId: String, @Path("donorId") donorId: String, @Body request: ContactStatusUpdateRequest): Response<RequesterContactResponse>
 
+    @POST("v1/emergency-requests/{requestId}/contacts/{donorId}/report")
+    suspend fun reportContact(@Path("requestId") requestId: String, @Path("donorId") donorId: String, @Body request: ContactModerationRequest): Response<ContactModerationResponse>
+
+    @POST("v1/emergency-requests/{requestId}/contacts/{donorId}/block")
+    suspend fun blockContact(@Path("requestId") requestId: String, @Path("donorId") donorId: String): Response<ContactModerationResponse>
+
     @GET("v1/emergency-requests")
     suspend fun requestHistory(): Response<List<RequestHistoryResponse>>
 
@@ -167,6 +173,8 @@ data class RequesterContactResponse(
 )
 
 data class ContactStatusUpdateRequest(val status: String)
+data class ContactModerationRequest(val reason: String = "")
+data class ContactModerationResponse(@SerializedName("request_id") val requestId: String, @SerializedName("donor_id") val donorId: String, val action: String)
 
 data class RequestHistoryResponse(
     @SerializedName("request_id") val requestId: String,

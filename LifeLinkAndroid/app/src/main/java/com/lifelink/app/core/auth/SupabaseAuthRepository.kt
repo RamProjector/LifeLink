@@ -3,6 +3,8 @@ package com.lifelink.app.core.auth
 import com.google.gson.annotations.SerializedName
 import com.lifelink.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import retrofit2.Response
@@ -14,6 +16,8 @@ import retrofit2.http.POST
 import retrofit2.http.Query
 
 class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
+    private val _sessionExpired = MutableStateFlow(false)
+    val sessionExpired = _sessionExpired.asStateFlow()
     private val api: SupabaseAuthApi? = BuildConfig.SUPABASE_URL.takeIf { it.isNotBlank() }?.let { baseUrl ->
         Retrofit.Builder()
             .baseUrl(if (baseUrl.endsWith('/')) baseUrl else "$baseUrl/")
@@ -48,7 +52,7 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
     suspend fun refreshAccessToken(): String? = withContext(Dispatchers.IO) {
         val current = sessionStore.session.value ?: return@withContext null
         if (current.refreshToken.isBlank()) return@withContext null
-        runCatching {
+        val refreshed = runCatching {
             val response = api?.refresh(BuildConfig.SUPABASE_PUBLISHABLE_KEY, RefreshRequest(current.refreshToken))
                 ?: return@runCatching null
             if (!response.isSuccessful) return@runCatching null
@@ -63,6 +67,11 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
             sessionStore.save(refreshed)
             accessToken
         }.getOrNull()
+        if (refreshed == null) {
+            sessionStore.clear()
+            _sessionExpired.value = true
+        }
+        refreshed
     }
 
     fun signOut() = sessionStore.clear()

@@ -73,6 +73,17 @@ class ContactStatusUpdateIn(BaseModel):
     status: str = Field(pattern="^(contact_shared|meeting_arranged|fulfilled|cancelled)$")
 
 
+class ContactModerationIn(BaseModel):
+    reason: str = Field(default="", max_length=500)
+
+
+class ContactModerationOut(BaseModel):
+    request_id: str
+    donor_id: str
+    action: str
+    accepted: bool = True
+
+
 @app.put("/v1/profile", response_model=ProfileOut)
 async def upsert_profile(
     payload: ProfileIn,
@@ -267,6 +278,49 @@ async def update_requester_contact_status(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     contacts = await store.requester_contacts_async(request_id, record.payload.requester_id)
     return RequesterContactOut(**next(contact for contact in contacts if contact["donor_id"] == donor_id))
+
+
+@app.post("/v1/emergency-requests/{request_id}/contacts/{donor_id}/report", response_model=ContactModerationOut)
+async def report_requester_contact(
+    request_id: str,
+    donor_id: str,
+    payload: ContactModerationIn,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_principal),
+):
+    store = SqlAlchemyRequestStore(session)
+    record = await store.get_by_id_async(request_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
+        raise HTTPException(status_code=403, detail="Not allowed to report this contact")
+    contacts = await store.requester_contacts_async(request_id, record.payload.requester_id)
+    if not any(contact["donor_id"] == donor_id for contact in contacts):
+        raise HTTPException(status_code=404, detail="Contact not found")
+    enforce_rate_limit(f"contact-report:{principal.subject}", 10, 300)
+    await store.record_audit_async(principal.subject, "contact_reported", request_id, donor_id, {"reason": payload.reason})
+    return ContactModerationOut(request_id=request_id, donor_id=donor_id, action="reported")
+
+
+@app.post("/v1/emergency-requests/{request_id}/contacts/{donor_id}/block", response_model=ContactModerationOut)
+async def block_requester_contact(
+    request_id: str,
+    donor_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_principal),
+):
+    store = SqlAlchemyRequestStore(session)
+    record = await store.get_by_id_async(request_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
+        raise HTTPException(status_code=403, detail="Not allowed to block this contact")
+    contacts = await store.requester_contacts_async(request_id, record.payload.requester_id)
+    if not any(contact["donor_id"] == donor_id for contact in contacts):
+        raise HTTPException(status_code=404, detail="Contact not found")
+    enforce_rate_limit(f"contact-block:{principal.subject}", 10, 300)
+    await store.record_audit_async(principal.subject, "contact_blocked", request_id, donor_id)
+    return ContactModerationOut(request_id=request_id, donor_id=donor_id, action="blocked")
 
 
 @app.post("/v1/emergency-requests/{request_id}/manual-broadcast", response_model=ManualFallbackOut)

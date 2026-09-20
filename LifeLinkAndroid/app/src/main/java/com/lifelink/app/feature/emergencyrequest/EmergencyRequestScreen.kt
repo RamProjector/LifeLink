@@ -284,6 +284,10 @@ private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContac
                     "fulfilled" -> Text("Fulfilled", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                 }
                 if (contact.status.lowercase() in setOf("accepted", "contact_shared", "meeting_arranged")) TextButton(onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "cancelled")) }) { Text("Cancel contact") }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { onAction(EmergencyRequestAction.ReportContact(contact.donorId)) }) { Text("Report") }
+                    TextButton(onClick = { onAction(EmergencyRequestAction.BlockContact(contact.donorId)) }) { Text("Block") }
+                }
             } else {
                 Text("Waiting for the donor to respond. No contact details are visible yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

@@ -78,6 +78,8 @@ interface EmergencyRequestRepository {
     suspend fun contactSelectedDonors(requestId: String, donorIds: List<String>): SubmitResult
     suspend fun refreshContacts(requestId: String): List<RequesterContact>
     suspend fun updateContactStatus(requestId: String, donorId: String, status: String): RequesterContact
+    suspend fun reportContact(requestId: String, donorId: String, reason: String): String
+    suspend fun blockContact(requestId: String, donorId: String): String
     suspend fun sendManualBroadcast(requestId: String): SubmitResult
     suspend fun cancelRequest(requestId: String): SubmitResult
     suspend fun fulfillRequest(requestId: String): SubmitResult

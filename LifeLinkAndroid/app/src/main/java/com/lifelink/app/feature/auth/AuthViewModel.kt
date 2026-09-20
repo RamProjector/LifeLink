@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 sealed interface AuthState {
     data object Loading : AuthState
     data object SignedOut : AuthState
+    data object SessionExpired : AuthState
     data class SignedIn(val session: AuthSession) : AuthState
     data object EmailConfirmationRequired : AuthState
     data class Message(val text: String, val isError: Boolean = false) : AuthState
@@ -29,6 +30,11 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
             repository.session.collect { session ->
                 if (session != null) _state.value = AuthState.SignedIn(session)
                 else if (_state.value !is AuthState.EmailConfirmationRequired) _state.value = AuthState.SignedOut
+            }
+        }
+        viewModelScope.launch {
+            repository.sessionExpired.collect { expired ->
+                if (expired) _state.value = AuthState.SessionExpired
             }
         }
     }

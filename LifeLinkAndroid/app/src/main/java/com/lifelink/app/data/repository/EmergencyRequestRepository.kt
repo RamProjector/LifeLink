@@ -160,6 +160,18 @@ class EmergencyRequestRepositoryImpl(
         response.body()!!.let { RequesterContact(it.donorId, it.displayName, it.status, it.acceptedAt, it.contactEmail) }
     }
 
+    override suspend fun reportContact(requestId: String, donorId: String, reason: String): String = withContext(Dispatchers.IO) {
+        val response = api.reportContact(requestId, donorId, ContactModerationRequest(reason))
+        if (!response.isSuccessful) throw IOException("Contact could not be reported (${response.code()}).")
+        response.body()?.action ?: "reported"
+    }
+
+    override suspend fun blockContact(requestId: String, donorId: String): String = withContext(Dispatchers.IO) {
+        val response = api.blockContact(requestId, donorId)
+        if (!response.isSuccessful) throw IOException("Contact could not be blocked (${response.code()}).")
+        response.body()?.action ?: "blocked"
+    }
+
     override suspend fun cancelRequest(requestId: String): SubmitResult = withContext(Dispatchers.IO) {
         try {
             val response = api.cancelEmergencyRequest(requestId)

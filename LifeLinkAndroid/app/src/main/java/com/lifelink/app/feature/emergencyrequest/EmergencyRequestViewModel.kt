@@ -63,6 +63,8 @@ sealed interface EmergencyRequestAction {
     data class ToggleDonorSelection(val donorId: String) : EmergencyRequestAction
     data object ContactSelectedDonors : EmergencyRequestAction
     data class UpdateContactStatus(val donorId: String, val status: String) : EmergencyRequestAction
+    data class ReportContact(val donorId: String, val reason: String = "") : EmergencyRequestAction
+    data class BlockContact(val donorId: String) : EmergencyRequestAction
     data class SetGpsLocation(val latitude: Double, val longitude: Double, val precisionMeters: Int) : EmergencyRequestAction
 }
 
@@ -132,6 +134,8 @@ class EmergencyRequestViewModel(
             is EmergencyRequestAction.ToggleDonorSelection -> toggleDonor(action.donorId)
             EmergencyRequestAction.ContactSelectedDonors -> contactSelectedDonors()
             is EmergencyRequestAction.UpdateContactStatus -> updateContactStatus(action.donorId, action.status)
+            is EmergencyRequestAction.ReportContact -> moderateContact(action.donorId) { requestId, donorId -> repository.reportContact(requestId, donorId, action.reason) }
+            is EmergencyRequestAction.BlockContact -> moderateContact(action.donorId) { requestId, donorId -> repository.blockContact(requestId, donorId) }
             is EmergencyRequestAction.SetGpsLocation -> updateDraft {
                 it.copy(
                     requesterLatitude = action.latitude,
@@ -262,6 +266,15 @@ class EmergencyRequestViewModel(
             runCatching { repository.refreshActiveRequest(requestId) }
                 .onFailure { _uiState.update { it.copy(submission = SubmissionState.Error("Status could not be refreshed. Try again.")) } }
             _uiState.update { it.copy(statusRefreshing = false) }
+        }
+    }
+
+    private fun moderateContact(donorId: String, action: suspend (String, String) -> String) {
+        val requestId = (_uiState.value.submission as? SubmissionState.Matching)?.requestId ?: _uiState.value.activeRequest?.requestId ?: return
+        viewModelScope.launch {
+            runCatching { action(requestId, donorId) }
+                .onSuccess { result -> _uiState.update { it.copy(submission = SubmissionState.Error("Contact $result. Further contact is disabled until reviewed.")) } }
+                .onFailure { error -> _uiState.update { it.copy(submission = SubmissionState.Error(error.message ?: "Contact safety action could not be completed.")) } }
         }
     }
 

@@ -152,6 +152,7 @@ fun AuthScreen(
                     when (state) {
                         is AuthState.Error -> MessageCard(state.message, isError = true)
                         is AuthState.Message -> MessageCard(state.text, isError = state.isError)
+                        AuthState.SessionExpired -> MessageCard("Your session expired. Please sign in again to protect your requests and contact details.", isError = true)
                         AuthState.EmailConfirmationRequired -> MessageCard(
                             "Account created. Check your inbox and click the confirmation link, then choose Sign in.",
                             isError = false
