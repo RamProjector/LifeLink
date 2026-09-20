@@ -34,6 +34,7 @@ fun MapLibreLocationPicker(
     latitude: Double?,
     longitude: Double?,
     onLocationSelected: (Double, Double) -> Unit,
+    recenterRequest: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -42,6 +43,7 @@ fun MapLibreLocationPicker(
     var marker by remember { mutableStateOf<Marker?>(null) }
     var appliedLatitude by remember { mutableStateOf<Double?>(null) }
     var appliedLongitude by remember { mutableStateOf<Double?>(null) }
+    var appliedRecenterRequest by remember { mutableStateOf(-1) }
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
         MapView(context).also { it.onCreate(null) }
@@ -77,6 +79,7 @@ fun MapLibreLocationPicker(
                             .build()
                         appliedLatitude = latestLatitude
                         appliedLongitude = latestLongitude
+                        appliedRecenterRequest = recenterRequest
                         marker = currentPosition?.let {
                             map.addMarker(MarkerOptions().position(it).title("Selected approximate location"))
                         }
@@ -102,9 +105,10 @@ fun MapLibreLocationPicker(
         update = { view ->
             view.getMapAsync { map ->
                 val target = latitude?.let { lat -> longitude?.let { lon -> LatLng(lat, lon) } }
-                if (target != null && (appliedLatitude != latitude || appliedLongitude != longitude)) {
+                if (target != null && (appliedLatitude != latitude || appliedLongitude != longitude || appliedRecenterRequest != recenterRequest)) {
                     appliedLatitude = latitude
                     appliedLongitude = longitude
+                    appliedRecenterRequest = recenterRequest
                     marker?.let { it.position = target; map.updateMarker(it) }
                     map.cameraPosition = CameraPosition.Builder()
                         .target(target)

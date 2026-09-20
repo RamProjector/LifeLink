@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddAlert
+import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.School
@@ -40,7 +41,7 @@ import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestScreen
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
 
-private enum class ShellTab { HOME, LEARN, PROFILE }
+private enum class ShellTab { HOME, REQUESTS, LEARN, PROFILE }
 
 @Composable
 fun LifeLinkShell(
@@ -56,7 +57,7 @@ fun LifeLinkShell(
     var tab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
 
     if (showRequest) {
-        EmergencyRequestScreen(state = state, onAction = onAction)
+        EmergencyRequestScreen(state = state, onAction = onAction, onExit = { showRequest = false; tab = ShellTab.REQUESTS })
         return
     }
     if (showActive && state.activeRequest != null) {
@@ -72,6 +73,7 @@ fun LifeLinkShell(
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(tab == ShellTab.HOME, { tab = ShellTab.HOME }, icon = { Icon(Icons.Default.AddAlert, "Home") }, label = { Text("Home") })
+                NavigationBarItem(tab == ShellTab.REQUESTS, { tab = ShellTab.REQUESTS }, icon = { Icon(Icons.Default.Assignment, "Requests") }, label = { Text("Requests") })
                 NavigationBarItem(tab == ShellTab.LEARN, { tab = ShellTab.LEARN }, icon = { Icon(Icons.Default.School, "Learn") }, label = { Text("Learn") })
                 NavigationBarItem(tab == ShellTab.PROFILE, { tab = ShellTab.PROFILE }, icon = { Icon(Icons.Default.Person, "Profile") }, label = { Text("Profile") })
             }
@@ -80,10 +82,48 @@ fun LifeLinkShell(
         Surface(Modifier.fillMaxSize().padding(padding)) {
             when (tab) {
                 ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true })
+                ShellTab.REQUESTS -> RequestsContent(state, onCreate = { showRequest = true }, onOpen = { showRequest = true }, onActive = { showActive = true })
                 ShellTab.LEARN -> LearnContent()
                 ShellTab.PROFILE -> ProfileContent(role)
             }
         }
+    }
+}
+
+@Composable private fun RequestsContent(
+    state: EmergencyRequestUiState,
+    onCreate: () -> Unit,
+    onOpen: () -> Unit,
+    onActive: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("Requests", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text("Create a request, review matching donors, and follow responses in one place.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        if (state.step == com.lifelink.app.domain.RequestStep.RESULTS && state.submission is com.lifelink.app.feature.emergencyrequest.SubmissionState.Matching) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Matching results ready", fontWeight = FontWeight.Bold)
+                    Text("Review nearby donors and manage contact requests.")
+                    Button(onClick = onOpen, Modifier.fillMaxWidth()) { Text("Open matching results") }
+                }
+            }
+        } else if (state.activeRequest != null) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Active request", fontWeight = FontWeight.Bold)
+                    Text(state.activeRequest.status.label)
+                    TextButton(onClick = onActive) { Text("View live status") }
+                }
+            }
+        } else {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("No active request", fontWeight = FontWeight.Bold)
+                    Text("Start a request when you need help finding eligible donors nearby.")
+                }
+            }
+        }
+        Button(onClick = onCreate, Modifier.fillMaxWidth()) { Text("Create emergency request") }
     }
 }
 

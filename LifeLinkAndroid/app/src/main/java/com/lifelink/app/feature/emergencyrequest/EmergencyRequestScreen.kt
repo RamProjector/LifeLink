@@ -90,13 +90,22 @@ fun LifeLinkApp(state: EmergencyRequestUiState, onAction: (EmergencyRequestActio
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EmergencyRequestScreen(state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -> Unit) {
+fun EmergencyRequestScreen(
+    state: EmergencyRequestUiState,
+    onAction: (EmergencyRequestAction) -> Unit,
+    onExit: () -> Unit = {}
+) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text(if (state.step == RequestStep.REVIEW) "Review request" else "Create request", fontWeight = FontWeight.SemiBold) },
-                navigationIcon = { IconButton(onClick = { onAction(EmergencyRequestAction.Back) }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        if (state.step == RequestStep.BLOOD_NEED || state.step == RequestStep.RESULTS) onExit()
+                        else onAction(EmergencyRequestAction.Back)
+                    }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
@@ -264,10 +273,11 @@ private fun PrivacySafeDonorMap(
 private fun LocationMapPicker(
     draft: EmergencyRequestDraft,
     onLocationSelected: (Double, Double) -> Unit,
+    recenterRequest: Int = 0,
     modifier: Modifier = Modifier
 ) {
     if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
-        MapLibreLocationPicker(draft.requesterLatitude, draft.requesterLongitude, onLocationSelected, modifier)
+        MapLibreLocationPicker(draft.requesterLatitude, draft.requesterLongitude, onLocationSelected, recenterRequest, modifier)
     } else {
         Card(
             modifier = Modifier.fillMaxWidth().height(260.dp),
@@ -358,11 +368,12 @@ private fun LocationMapPicker(
                     )
                 )
             }
-        ) { Text(if (draft.requesterLatitude == null) "Use my current location" else "Update current location") }
+        ) { Text(if (draft.requesterLatitude == null) "Show my location" else "Show my location again") }
         Text("Choose on map", fontWeight = FontWeight.SemiBold)
         LocationMapPicker(
             draft = draft,
-            onLocationSelected = { latitude, longitude -> onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500)) }
+            onLocationSelected = { latitude, longitude -> onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500)) },
+            recenterRequest = locationCaptureRequest
         )
         if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
             OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { fullMapVisible = true }) {
