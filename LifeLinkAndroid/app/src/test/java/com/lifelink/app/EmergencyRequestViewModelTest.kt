@@ -115,6 +115,8 @@ private class FakeRepository(
     override suspend fun fulfillRequest(requestId: String): SubmitResult = SubmitResult.Fulfilled(requestId)
     override suspend fun refreshContacts(requestId: String): List<RequesterContact> = emptyList()
     override suspend fun updateContactStatus(requestId: String, donorId: String, status: String): RequesterContact = RequesterContact(donorId, "Donor", status)
+    override suspend fun reportContact(requestId: String, donorId: String, reason: String): String = "reported"
+    override suspend fun blockContact(requestId: String, donorId: String): String = "blocked"
     override fun observeActiveRequest(): Flow<ActiveRequestSnapshot?> = flowOf(null)
     override fun observeRequestHistory(): Flow<List<ActiveRequestSnapshot>> = flowOf(emptyList())
     override suspend fun refreshRequestHistory(): List<RequestHistoryItem> = emptyList()
