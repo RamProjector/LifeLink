@@ -44,6 +44,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -96,11 +100,33 @@ fun EmergencyRequestScreen(
     onAction: (EmergencyRequestAction) -> Unit,
     onExit: () -> Unit = {}
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
     val handleBack = {
         if (state.step == RequestStep.BLOOD_NEED || state.step == RequestStep.RESULTS) onExit()
         else onAction(EmergencyRequestAction.Back)
     }
     BackHandler(onBack = handleBack)
+    LaunchedEffect(state.submission, state.contactRequestSent) {
+        val feedback = when (val submission = state.submission) {
+            is SubmissionState.Error -> submission.message to "Retry"
+            is SubmissionState.Matching -> "Request submitted. Matching donors nearby…" to null
+            is SubmissionState.ManualFallback -> "No automatic matches yet. You can broadcast to the wider eligible audience." to "Broadcast"
+            is SubmissionState.QueuedOffline -> "Saved offline. It will sync when connection returns." to null
+            else -> null
+        }
+        if (feedback != null) {
+            val result = snackbarHostState.showSnackbar(
+                message = feedback.first,
+                actionLabel = feedback.second,
+                duration = if (feedback.second == null) SnackbarDuration.Short else SnackbarDuration.Indefinite
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                if (feedback.second == "Retry") onAction(EmergencyRequestAction.Retry)
+                if (feedback.second == "Broadcast") onAction(EmergencyRequestAction.SendManualBroadcast)
+            }
+        }
+        if (state.contactRequestSent) snackbarHostState.showSnackbar("Contact request sent")
+    }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -123,8 +149,14 @@ fun EmergencyRequestScreen(
                     onSave = { onAction(EmergencyRequestAction.SaveDraft) }
                 )
             }
-        }
-    ) { padding ->
+            },
+            snackbarHost = {
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier.navigationBarsPadding().padding(horizontal = 12.dp)
+                )
+            }
+        ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
@@ -141,17 +173,7 @@ fun EmergencyRequestScreen(
                     RequestStep.RESULTS -> DonorPicker(state, onAction)
                 }
             }
-            val submission = state.submission
-            if (submission is SubmissionState.Error) item { ErrorBanner(submission.message, onRetry = { onAction(EmergencyRequestAction.Retry) }) }
-            if (submission is SubmissionState.Matching) item { SuccessBanner("Request submitted. Finding eligible donors…") }
             if (state.step != RequestStep.RESULTS && state.discoveredDonors.isNotEmpty()) item { DonorPicker(state, onAction) }
-            if (submission is SubmissionState.QueuedOffline) item { SuccessBanner("Saved offline. It will sync when connection returns.") }
-            if (submission is SubmissionState.ManualFallback) item {
-                ManualFallbackBanner(
-                    reason = submission.reason,
-                    onSend = { onAction(EmergencyRequestAction.SendManualBroadcast) }
-                )
-            }
         }
     }
     if (state.criticalConfirmationVisible) CriticalSheet(state.draft, onAction)
