@@ -62,6 +62,7 @@ sealed interface EmergencyRequestAction {
     data object Retry : EmergencyRequestAction
     data class ToggleDonorSelection(val donorId: String) : EmergencyRequestAction
     data object ContactSelectedDonors : EmergencyRequestAction
+    data class UpdateContactStatus(val donorId: String, val status: String) : EmergencyRequestAction
     data class SetGpsLocation(val latitude: Double, val longitude: Double, val precisionMeters: Int) : EmergencyRequestAction
 }
 
@@ -130,6 +131,7 @@ class EmergencyRequestViewModel(
             EmergencyRequestAction.Retry -> submit()
             is EmergencyRequestAction.ToggleDonorSelection -> toggleDonor(action.donorId)
             EmergencyRequestAction.ContactSelectedDonors -> contactSelectedDonors()
+            is EmergencyRequestAction.UpdateContactStatus -> updateContactStatus(action.donorId, action.status)
             is EmergencyRequestAction.SetGpsLocation -> updateDraft {
                 it.copy(
                     requesterLatitude = action.latitude,
@@ -241,6 +243,15 @@ class EmergencyRequestViewModel(
                 is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
                 else -> Unit
             }
+        }
+    }
+
+    private fun updateContactStatus(donorId: String, status: String) {
+        val requestId = (_uiState.value.submission as? SubmissionState.Matching)?.requestId ?: _uiState.value.activeRequest?.requestId ?: return
+        viewModelScope.launch {
+            runCatching { repository.updateContactStatus(requestId, donorId, status) }
+                .onSuccess { updated -> _uiState.update { state -> state.copy(contacts = state.contacts.map { if (it.donorId == donorId) updated else it }) } }
+                .onFailure { error -> _uiState.update { it.copy(submission = SubmissionState.Error(error.message ?: "Contact status could not be updated.")) } }
         }
     }
 

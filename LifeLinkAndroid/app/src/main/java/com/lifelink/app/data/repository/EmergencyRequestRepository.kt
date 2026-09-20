@@ -153,6 +153,12 @@ class EmergencyRequestRepositoryImpl(
         }
     }
 
+    override suspend fun updateContactStatus(requestId: String, donorId: String, status: String): RequesterContact = withContext(Dispatchers.IO) {
+        val response = api.updateContactStatus(requestId, donorId, ContactStatusUpdateRequest(status))
+        if (!response.isSuccessful || response.body() == null) throw IOException("Contact status could not be updated (${response.code()}).")
+        response.body()!!.let { RequesterContact(it.donorId, it.displayName, it.status, it.acceptedAt, it.contactEmail) }
+    }
+
     override suspend fun cancelRequest(requestId: String): SubmitResult = withContext(Dispatchers.IO) {
         try {
             val response = api.cancelEmergencyRequest(requestId)

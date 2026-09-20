@@ -243,9 +243,37 @@ class SqlAlchemyRequestStore(RequestStore):
                 "display_name": donor.display_name,
                 "status": contact.status,
                 "accepted_at": contact.accepted_at,
-                "contact_email": profile.email if contact.status == "accepted" and profile else None,
+                "contact_email": profile.email if contact.status in {"accepted", "contact_shared", "meeting_arranged", "fulfilled"} and profile else None,
             })
         return items
+
+    async def update_contact_status_async(self, request_id: str, donor_id: str, requester_id: str, status: str) -> dict[str, Any]:
+        allowed = {"contact_shared", "meeting_arranged", "fulfilled", "cancelled"}
+        if status not in allowed:
+            raise ValueError("Unsupported contact lifecycle status")
+        contact = await self.session.scalar(select(DonorContactRequest).where(
+            DonorContactRequest.request_id == request_id,
+            DonorContactRequest.donor_id == donor_id,
+            DonorContactRequest.requester_id == requester_id,
+        ))
+        if contact is None:
+            raise KeyError(request_id)
+        transitions = {
+            "accepted": {"contact_shared", "cancelled"},
+            "contact_shared": {"meeting_arranged", "fulfilled", "cancelled"},
+            "meeting_arranged": {"fulfilled", "cancelled"},
+            "fulfilled": set(),
+            "cancelled": set(),
+        }
+        if status not in transitions.get(contact.status, set()):
+            raise ValueError(f"Cannot move contact from {contact.status} to {status}")
+        now = datetime.now(timezone.utc)
+        contact.status = status
+        contact.updated_at = now
+        if status == "contact_shared":
+            contact.contact_shared_at = now
+        await self.session.commit()
+        return {"donor_id": donor_id, "status": status, "accepted_at": contact.accepted_at}
 
     @staticmethod
     def _to_record(row: EmergencyRequestRow) -> RequestRecord:

@@ -68,6 +68,10 @@ class RequesterContactOut(BaseModel):
     contact_email: str | None = None
 
 
+class ContactStatusUpdateIn(BaseModel):
+    status: str = Field(pattern="^(contact_shared|meeting_arranged|fulfilled|cancelled)$")
+
+
 @app.put("/v1/profile", response_model=ProfileOut)
 async def upsert_profile(
     payload: ProfileIn,
@@ -234,6 +238,30 @@ async def requester_contacts_postgres(
     if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
         raise HTTPException(status_code=403, detail="Not allowed to view contacts for this request")
     return [RequesterContactOut(**item) for item in await store.requester_contacts_async(request_id, record.payload.requester_id)]
+
+
+@app.patch("/v1/emergency-requests/{request_id}/contacts/{donor_id}", response_model=RequesterContactOut)
+async def update_requester_contact_status(
+    request_id: str,
+    donor_id: str,
+    payload: ContactStatusUpdateIn,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_principal),
+):
+    store = SqlAlchemyRequestStore(session)
+    record = await store.get_by_id_async(request_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
+        raise HTTPException(status_code=403, detail="Not allowed to update this contact")
+    try:
+        item = await store.update_contact_status_async(request_id, donor_id, record.payload.requester_id, payload.status)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Contact not found") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    contacts = await store.requester_contacts_async(request_id, record.payload.requester_id)
+    return RequesterContactOut(**next(contact for contact in contacts if contact["donor_id"] == donor_id))
 
 
 @app.post("/v1/emergency-requests/{request_id}/manual-broadcast", response_model=ManualFallbackOut)

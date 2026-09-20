@@ -46,6 +46,9 @@ interface LifeLinkApi {
     @GET("v1/emergency-requests/{requestId}/contacts")
     suspend fun requesterContacts(@Path("requestId") requestId: String): Response<List<RequesterContactResponse>>
 
+    @PATCH("v1/emergency-requests/{requestId}/contacts/{donorId}")
+    suspend fun updateContactStatus(@Path("requestId") requestId: String, @Path("donorId") donorId: String, @Body request: ContactStatusUpdateRequest): Response<RequesterContactResponse>
+
     @GET("v1/emergency-requests")
     suspend fun requestHistory(): Response<List<RequestHistoryResponse>>
 
@@ -162,6 +165,8 @@ data class RequesterContactResponse(
     @SerializedName("accepted_at") val acceptedAt: String? = null,
     @SerializedName("contact_email") val contactEmail: String? = null
 )
+
+data class ContactStatusUpdateRequest(val status: String)
 
 data class RequestHistoryResponse(
     @SerializedName("request_id") val requestId: String,

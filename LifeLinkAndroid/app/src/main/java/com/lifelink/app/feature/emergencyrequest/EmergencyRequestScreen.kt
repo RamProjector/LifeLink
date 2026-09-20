@@ -194,7 +194,7 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
         Heading("Donor results", "Select eligible donors to contact. Their exact locations remain private.")
         if (state.contacts.isNotEmpty()) {
             Text("Donor contact", fontWeight = FontWeight.SemiBold)
-            state.contacts.forEach { contact -> AcceptedContactCard(contact) }
+            state.contacts.forEach { contact -> AcceptedContactCard(contact, onAction) }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Results", fontWeight = FontWeight.SemiBold)
@@ -252,8 +252,8 @@ private fun PrivacySafeDonorMap(
 }
 
 @Composable
-private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContact) {
-    val accepted = contact.status.equals("accepted", ignoreCase = true)
+private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContact, onAction: (EmergencyRequestAction) -> Unit) {
+    val accepted = contact.status.lowercase() in setOf("accepted", "contact_shared", "meeting_arranged", "fulfilled")
     val statusLabel = contact.status.replace('_', ' ').replaceFirstChar { it.uppercase() }
     val context = LocalContext.current
     Card(
@@ -277,7 +277,13 @@ private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContac
                         Text("Contact donor · $email")
                     }
                 }
-                Text("Contact shared · Meeting not yet arranged", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                when (contact.status.lowercase()) {
+                    "accepted" -> OutlinedButton(onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "contact_shared")) }, modifier = Modifier.fillMaxWidth()) { Text("Mark contact shared") }
+                    "contact_shared" -> OutlinedButton(onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "meeting_arranged")) }, modifier = Modifier.fillMaxWidth()) { Text("Mark meeting arranged") }
+                    "meeting_arranged" -> OutlinedButton(onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "fulfilled")) }, modifier = Modifier.fillMaxWidth()) { Text("Mark fulfilled") }
+                    "fulfilled" -> Text("Fulfilled", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                }
+                if (contact.status.lowercase() in setOf("accepted", "contact_shared", "meeting_arranged")) TextButton(onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "cancelled")) }) { Text("Cancel contact") }
             } else {
                 Text("Waiting for the donor to respond. No contact details are visible yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
