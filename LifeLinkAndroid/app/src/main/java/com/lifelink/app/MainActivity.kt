@@ -80,7 +80,8 @@ class MainActivity : ComponentActivity() {
                     onAction = viewModel::onAction,
                     donorState = donorState,
                     onDonorAction = donorViewModel::onAction,
-                    role = role ?: UserRole.REQUESTER
+                    role = role ?: UserRole.REQUESTER,
+                    onSignOut = authViewModel::signOut
                 )
             }
         }

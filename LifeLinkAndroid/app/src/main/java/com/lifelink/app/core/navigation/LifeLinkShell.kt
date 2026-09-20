@@ -50,7 +50,8 @@ fun LifeLinkShell(
     onAction: (EmergencyRequestAction) -> Unit,
     donorState: DonorUiState,
     onDonorAction: (DonorAction) -> Unit,
-    role: UserRole
+    role: UserRole,
+    onSignOut: () -> Unit
 ) {
     var showRequest by rememberSaveable { mutableStateOf(false) }
     var showActive by rememberSaveable { mutableStateOf(false) }
@@ -85,7 +86,7 @@ fun LifeLinkShell(
                 ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true })
                 ShellTab.REQUESTS -> RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = { showRequest = true }, onActive = { showActive = true })
                 ShellTab.LEARN -> LearnContent()
-                ShellTab.PROFILE -> ProfileContent(role)
+                ShellTab.PROFILE -> ProfileContent(role, onSignOut)
             }
         }
     }
@@ -217,12 +218,13 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     }
 }
 
-@Composable private fun ProfileContent(role: UserRole) {
+@Composable private fun ProfileContent(role: UserRole, onSignOut: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Profile", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(if (role == UserRole.DONOR) "Donor account" else "Requester account", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
         Text(if (role == UserRole.DONOR) "Your approximate location is used only for proximity matching." else "Your exact request location is used only for matching and is not shown to donors.")
         Text("Privacy and consent settings")
         Text("Use the role-specific dashboard to update your profile, availability, or request details.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        androidx.compose.material3.OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
     }
 }
