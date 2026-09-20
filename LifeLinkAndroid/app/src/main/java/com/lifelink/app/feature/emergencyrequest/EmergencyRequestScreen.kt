@@ -1,6 +1,8 @@
 package com.lifelink.app.feature.emergencyrequest
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -188,14 +191,8 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Heading("Donor results", "Select eligible donors to contact. Their exact locations remain private.")
         if (state.contacts.isNotEmpty()) {
-            InfoCard(
-                "Contact request status",
-                state.contacts.joinToString("\n") { contact ->
-                    val contactLine = if (contact.status.equals("accepted", ignoreCase = true) && contact.contactEmail != null) "Accepted · ${contact.contactEmail}" else contact.status.replaceFirstChar { it.uppercase() }
-                    "${contact.displayName}: $contactLine"
-                },
-                MaterialTheme.colorScheme.secondary
-            )
+            Text("Donor contact", fontWeight = FontWeight.SemiBold)
+            state.contacts.forEach { contact -> AcceptedContactCard(contact) }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Results", fontWeight = FontWeight.SemiBold)
@@ -252,6 +249,40 @@ private fun PrivacySafeDonorMap(
     )
 }
 
+@Composable
+private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContact) {
+    val accepted = contact.status.equals("accepted", ignoreCase = true)
+    val statusLabel = contact.status.replace('_', ' ').replaceFirstChar { it.uppercase() }
+    val context = LocalContext.current
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (accepted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(contact.displayName, fontWeight = FontWeight.Bold)
+                Text(statusLabel, color = if (accepted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (accepted) {
+                contact.acceptedAt?.let { Text("Accepted $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                Text("Contact details are shared only after donor consent.", style = MaterialTheme.typography.bodySmall)
+                contact.contactEmail?.let { email ->
+                    OutlinedButton(onClick = {
+                        runCatching { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$email"))) }
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Contact donor · $email")
+                    }
+                }
+                Text("Contact shared · Meeting not yet arranged", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Text("Waiting for the donor to respond. No contact details are visible yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
 @Composable private fun Progress(step: Int, total: Int) {
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Text("${step + 1} of $total", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
@@ -303,8 +334,39 @@ private fun LocationMapPicker(
     recenterRequest: Int = 0,
     modifier: Modifier = Modifier
 ) {
+    var mapLoading by remember { mutableStateOf(true) }
+    var mapError by remember { mutableStateOf<String?>(null) }
+    var retryRequest by remember { mutableStateOf(0) }
     if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
-        MapLibreLocationPicker(draft.requesterLatitude, draft.requesterLongitude, onLocationSelected, recenterRequest, modifier)
+        Box(modifier.fillMaxWidth()) {
+            MapLibreLocationPicker(
+                draft.requesterLatitude,
+                draft.requesterLongitude,
+                onLocationSelected,
+                recenterRequest + retryRequest,
+                onLoadingChanged = { mapLoading = it; if (it) mapError = null },
+                onMapError = { mapLoading = false; mapError = it },
+                modifier = modifier
+            )
+            if (mapLoading) {
+                Surface(Modifier.align(Alignment.TopCenter).padding(12.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), shape = MaterialTheme.shapes.medium) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Text("Loading map…", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+            mapError?.let { error ->
+                Card(Modifier.align(Alignment.Center).padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                        OutlinedButton(onClick = { retryRequest++ }) { Text("Retry map") }
+                    }
+                }
+            }
+            OutlinedButton(onClick = { retryRequest++ }, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)) { Text("Recenter") }
+        }
+        Text(if (retryRequest > 0) "Pin selected manually or recentered from the latest location." else "Using the current selected location. Tap or long-press to move the pin.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
         Card(
             modifier = Modifier.fillMaxWidth().height(260.dp),
@@ -441,6 +503,7 @@ private fun LocationMapPicker(
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Default.LocationOn, "Request location", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
                 Text(if (draft.requesterLatitude == null) "Location not captured" else "Approximate location captured", fontWeight = FontWeight.SemiBold)
+                if (draft.requesterLatitude != null) Text("Using a selected pin · accuracy about ${draft.locationPrecisionMeters} m", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Donors see distance and availability—not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
         }

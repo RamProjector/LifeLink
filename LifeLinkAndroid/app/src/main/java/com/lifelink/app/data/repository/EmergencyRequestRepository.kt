@@ -50,6 +50,9 @@ class EmergencyRequestRepositoryImpl(
     override fun observeActiveRequest(): Flow<ActiveRequestSnapshot?> =
         activeRequestDao.observeLatest().map { it?.toDomain() }
 
+    override fun observeRequestHistory(): Flow<List<ActiveRequestSnapshot>> =
+        activeRequestDao.observeAll().map { requests -> requests.map { it.toDomain() } }
+
     override suspend fun refreshActiveRequest(requestId: String): ActiveRequestSnapshot? = withContext(Dispatchers.IO) {
         try {
             val response = api.getEmergencyRequest(requestId)

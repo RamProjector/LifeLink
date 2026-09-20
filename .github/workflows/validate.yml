@@ -37,10 +37,24 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+          cache: gradle
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platforms;android-35 build-tools;35.0.0'
-      - run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+      - name: Run Android unit tests, lint, and debug build
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon --stacktrace
+      - name: Upload Android validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-validation-reports-${{ github.sha }}
+          path: |
+            LifeLinkAndroid/app/build/reports/**
+            LifeLinkAndroid/app/build/test-results/**
+          if-no-files-found: ignore
+          retention-days: 14
 
   dockerfile:
     runs-on: ubuntu-latest

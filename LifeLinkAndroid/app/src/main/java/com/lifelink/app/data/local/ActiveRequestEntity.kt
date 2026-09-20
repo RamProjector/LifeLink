@@ -24,6 +24,9 @@ interface ActiveRequestDao {
     @Query("SELECT * FROM active_requests ORDER BY lastUpdatedEpochMillis DESC LIMIT 1")
     fun observeLatest(): Flow<ActiveRequestEntity?>
 
+    @Query("SELECT * FROM active_requests ORDER BY lastUpdatedEpochMillis DESC")
+    fun observeAll(): Flow<List<ActiveRequestEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(request: ActiveRequestEntity)
 

@@ -62,6 +62,9 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      - name: Run Android unit tests and lint
+        run: ./gradlew testDebugUnitTest lintDebug --no-daemon --stacktrace
+
       - name: Build debug APK
         run: ./gradlew assembleDebug -PlifelinkApiBaseUrl="$API_BASE_URL" -PsupabaseUrl="$SUPABASE_URL_VALUE" -PsupabasePublishableKey="$SUPABASE_KEY_VALUE" --no-daemon --stacktrace
 

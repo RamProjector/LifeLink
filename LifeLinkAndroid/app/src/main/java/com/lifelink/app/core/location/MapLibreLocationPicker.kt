@@ -35,6 +35,8 @@ fun MapLibreLocationPicker(
     longitude: Double?,
     onLocationSelected: (Double, Double) -> Unit,
     recenterRequest: Int = 0,
+    onLoadingChanged: (Boolean) -> Unit = {},
+    onMapError: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -71,7 +73,10 @@ fun MapLibreLocationPicker(
                     false
                 }
                 getMapAsync { map ->
+                    onLoadingChanged(true)
+                    map.addOnDidFailLoadingMapListener { onMapError("Map tiles could not be loaded. Check your connection and retry.") }
                     map.setStyle(OPEN_FREE_MAP_STYLE) {
+                        onLoadingChanged(false)
                         val currentPosition = latestLatitude?.let { lat -> latestLongitude?.let { lon -> LatLng(lat, lon) } }
                         map.cameraPosition = CameraPosition.Builder()
                             .target(currentPosition ?: LatLng(0.0, 0.0))

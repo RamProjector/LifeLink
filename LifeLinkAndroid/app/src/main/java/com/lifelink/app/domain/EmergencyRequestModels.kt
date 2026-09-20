@@ -64,5 +64,6 @@ interface EmergencyRequestRepository {
     suspend fun sendManualBroadcast(requestId: String): SubmitResult
     suspend fun cancelRequest(requestId: String): SubmitResult
     fun observeActiveRequest(): Flow<ActiveRequestSnapshot?>
+    fun observeRequestHistory(): Flow<List<ActiveRequestSnapshot>>
     suspend fun refreshActiveRequest(requestId: String): ActiveRequestSnapshot?
 }

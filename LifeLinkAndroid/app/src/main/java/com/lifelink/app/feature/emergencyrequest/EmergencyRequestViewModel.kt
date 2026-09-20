@@ -39,7 +39,8 @@ data class EmergencyRequestUiState(
     val discoveredDonors: List<DiscoveredDonor> = emptyList(),
     val selectedDonorIds: Set<String> = emptySet(),
     val contactRequestSent: Boolean = false,
-    val contacts: List<RequesterContact> = emptyList()
+    val contacts: List<RequesterContact> = emptyList(),
+    val requestHistory: List<ActiveRequestSnapshot> = emptyList()
 )
 
 sealed interface EmergencyRequestAction {
@@ -72,6 +73,11 @@ class EmergencyRequestViewModel(
         viewModelScope.launch {
             repository.observeActiveRequest().collect { active ->
                 _uiState.update { it.copy(activeRequest = active) }
+            }
+        }
+        viewModelScope.launch {
+            repository.observeRequestHistory().collect { history ->
+                _uiState.update { it.copy(requestHistory = history) }
             }
         }
         if (enablePolling) {
