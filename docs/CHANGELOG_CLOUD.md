@@ -127,3 +127,9 @@ The requester map previously rendered a nullable location as `(0, 0)`, which is 
 The location picker now temporarily disallows the surrounding `LazyColumn` from intercepting MapLibre touch gestures, so map panning and zooming work without the page scroll competing for the same drag. Camera updates are applied only when the selected coordinates change, preserving a user’s map position during Compose recomposition. A full-screen location-picker sheet is available for easier map inspection and marker placement.
 
 Submission feedback remains card-based rather than relying on a short-lived toast: errors include a retry action, and successful submission/sync states use a prominent status card. Donor results remain list-first with an optional privacy-safe map summary. The list is the actionable surface because donors can be selected and contacted there; the map intentionally does not expose individual donor pins or coordinates. There is no separate donor map page yet—the current combined results surface appears below the submission state in the request flow.
+
+## Proposal contact lifecycle — 2026-09-20
+
+Completed the proposal-aligned requester-to-donor contact loop. The PostgreSQL adapter now maps the existing `donor_contact_requests` table, creates pending contact records when a requester selects donors, and updates those records when a donor accepts or declines. Requesters can retrieve their own contact statuses, and accepted donor email is disclosed only after acceptance. Donor inbox responses now read and update the persisted contact state.
+
+The Android client now enters a dedicated donor-results state after successful submission. It shows the actionable donor list, optional privacy-safe map summary, contact selection, and pending/accepted/declined status cards. Android compilation passes and the backend suite passes with 15 tests. The post-update roadmap is documented in `docs/POST_UPDATE_IMPROVEMENT_SCOPE.md`.

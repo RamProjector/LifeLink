@@ -15,6 +15,8 @@ from .db_models import (
     EmergencyRequest as EmergencyRequestRow,
     RequestMatch as RequestMatchRow,
     RequestStatusEnum,
+    DonorContactRequest,
+    LifeLinkProfile,
 )
 from .main import (
     Donor,
@@ -170,14 +172,55 @@ class SqlAlchemyRequestStore(RequestStore):
         allowed = {match.donor_id for match in row.matches}
         if any(donor_id not in allowed for donor_id in donor_ids):
             raise ValueError("One or more selected donors are not eligible for this request")
+        now = datetime.now(timezone.utc)
         for match in row.matches:
             if match.donor_id in donor_ids:
-                match.status = "contact_requested"
+                match.status = "notified"
+                match.notified_at = now
+                contact = await self.session.scalar(
+                    select(DonorContactRequest).where(
+                        DonorContactRequest.request_id == request_id,
+                        DonorContactRequest.donor_id == match.donor_id,
+                    )
+                )
+                if contact is None:
+                    self.session.add(DonorContactRequest(
+                        id=f"contact_{uuid4().hex}",
+                        request_id=request_id,
+                        donor_id=match.donor_id,
+                        requester_id=row.requester_id,
+                        status="pending",
+                    ))
+                elif contact.status not in {"accepted", "cancelled"}:
+                    contact.status = "pending"
+                    contact.updated_at = now
         await self.session.commit()
         refreshed = await self.get_by_id_async(request_id)
         if refreshed is None:
             raise KeyError(request_id)
         return refreshed
+
+    async def requester_contacts_async(self, request_id: str, requester_id: str) -> list[dict[str, Any]]:
+        result = await self.session.execute(
+            select(DonorContactRequest, DonorRow, LifeLinkProfile)
+            .join(DonorRow, DonorRow.id == DonorContactRequest.donor_id)
+            .outerjoin(LifeLinkProfile, LifeLinkProfile.user_id == DonorRow.user_id)
+            .where(
+                DonorContactRequest.request_id == request_id,
+                DonorContactRequest.requester_id == requester_id,
+            )
+            .order_by(DonorContactRequest.created_at.asc())
+        )
+        items: list[dict[str, Any]] = []
+        for contact, donor, profile in result.all():
+            items.append({
+                "donor_id": donor.id,
+                "display_name": donor.display_name,
+                "status": contact.status,
+                "accepted_at": contact.accepted_at,
+                "contact_email": profile.email if contact.status == "accepted" and profile else None,
+            })
+        return items
 
     @staticmethod
     def _to_record(row: EmergencyRequestRow) -> RequestRecord:

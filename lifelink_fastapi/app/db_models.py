@@ -116,6 +116,7 @@ class Donor(Base):
     __tablename__ = "donors"
 
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True)
     display_name: Mapped[str] = mapped_column(String(160), nullable=False)
     blood_type: Mapped[BloodTypeEnum] = mapped_column(
         SqlEnum(BloodTypeEnum, name="blood_type_enum", native_enum=True, values_callable=enum_values), nullable=False
@@ -227,6 +228,26 @@ class RequestMatch(Base):
         UniqueConstraint("request_id", "donor_id", name="uq_request_matches_request_donor"),
         Index("ix_request_matches_request_rank", "request_id", "rank"),
         Index("ix_request_matches_donor_status", "donor_id", "status"),
+    )
+
+
+class DonorContactRequest(Base):
+    __tablename__ = "donor_contact_requests"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    request_id: Mapped[str] = mapped_column(ForeignKey("emergency_requests.id", ondelete="CASCADE"), nullable=False)
+    donor_id: Mapped[str] = mapped_column(ForeignKey("donors.id", ondelete="CASCADE"), nullable=False)
+    requester_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending")
+    contact_shared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("request_id", "donor_id", name="uq_donor_contact_requests_request_donor"),
+        Index("ix_donor_contact_requests_donor_status", "donor_id", "status"),
+        Index("ix_donor_contact_requests_request_status", "request_id", "status"),
     )
 
 

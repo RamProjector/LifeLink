@@ -9,6 +9,7 @@ import com.lifelink.app.domain.RequestStep
 import com.lifelink.app.domain.SubmitResult
 import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.DiscoveredDonor
+import com.lifelink.app.domain.RequesterContact
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,7 +38,8 @@ data class EmergencyRequestUiState(
     val statusRefreshing: Boolean = false,
     val discoveredDonors: List<DiscoveredDonor> = emptyList(),
     val selectedDonorIds: Set<String> = emptySet(),
-    val contactRequestSent: Boolean = false
+    val contactRequestSent: Boolean = false,
+    val contacts: List<RequesterContact> = emptyList()
 )
 
 sealed interface EmergencyRequestAction {
@@ -79,6 +81,8 @@ class EmergencyRequestViewModel(
                     val current = _uiState.value.activeRequest
                     if (current != null && !current.isTerminal) {
                         runCatching { repository.refreshActiveRequest(current.requestId) }
+                        runCatching { repository.refreshContacts(current.requestId) }
+                            .onSuccess { contacts -> _uiState.update { it.copy(contacts = contacts) } }
                     }
                 }
             }
@@ -165,7 +169,10 @@ class EmergencyRequestViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(submission = SubmissionState.Submitting) }
             when (val result = repository.submit(draft)) {
-                is SubmitResult.MatchingStarted -> _uiState.update { it.copy(submission = SubmissionState.Matching(result.requestId), discoveredDonors = result.donors) }
+                is SubmitResult.MatchingStarted -> {
+                    val contacts = runCatching { repository.refreshContacts(result.requestId) }.getOrDefault(emptyList())
+                    _uiState.update { it.copy(step = RequestStep.RESULTS, submission = SubmissionState.Matching(result.requestId), discoveredDonors = result.donors, contacts = contacts) }
+                }
                 is SubmitResult.ContactRequested -> _uiState.update { it.copy(contactRequestSent = true) }
                 is SubmitResult.ManualFallback -> _uiState.update { it.copy(submission = SubmissionState.ManualFallback(result.requestId, result.reason)) }
                 is SubmitResult.Cancelled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
@@ -203,7 +210,10 @@ class EmergencyRequestViewModel(
         if (state.selectedDonorIds.isEmpty()) return
         viewModelScope.launch {
             when (val result = repository.contactSelectedDonors(requestId, state.selectedDonorIds.toList())) {
-                is SubmitResult.ContactRequested -> _uiState.update { it.copy(contactRequestSent = true) }
+                is SubmitResult.ContactRequested -> {
+                    val contacts = runCatching { repository.refreshContacts(requestId) }.getOrDefault(emptyList())
+                    _uiState.update { it.copy(contactRequestSent = true, contacts = contacts) }
+                }
                 is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
                 else -> Unit
             }
@@ -246,6 +256,7 @@ class EmergencyRequestViewModel(
             else -> null
         }
         RequestStep.REVIEW -> null
+        RequestStep.RESULTS -> null
     }
 
     private fun validateFullDraft(draft: EmergencyRequestDraft): String? = RequestStep.entries.firstNotNullOfOrNull { validateStep(it, draft) }

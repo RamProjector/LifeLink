@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from .db_models import Donor as DonorRow, EmergencyRequest as RequestRow, MatchStatusEnum, RequestMatch as MatchRow
+from .db_models import Donor as DonorRow, DonorContactRequest, EmergencyRequest as RequestRow, MatchStatusEnum, RequestMatch as MatchRow
 from .donor_api import DonorAvailability, DonorProfileIn, DonorResponseIn
 
 
@@ -22,6 +22,7 @@ class SqlAlchemyDonorStore:
         if row is None:
             row = DonorRow(
                 id=donor_id,
+                user_id=donor_id,
                 display_name=payload.display_name,
                 blood_type=payload.blood_type.value,
                 latitude=Decimal(str(payload.latitude)),
@@ -34,6 +35,7 @@ class SqlAlchemyDonorStore:
             )
             self.session.add(row)
         else:
+            row.user_id = donor_id
             row.display_name = payload.display_name
             row.blood_type = payload.blood_type.value
             row.latitude = Decimal(str(payload.latitude))
@@ -53,10 +55,14 @@ class SqlAlchemyDonorStore:
         await self.session.commit()
         return row
 
-    async def inbox(self, donor_id: str) -> list[tuple[RequestRow, MatchRow]]:
+    async def inbox(self, donor_id: str) -> list[tuple[RequestRow, MatchRow, DonorContactRequest | None]]:
         result = await self.session.execute(
-            select(RequestRow, MatchRow)
+            select(RequestRow, MatchRow, DonorContactRequest)
             .join(MatchRow, MatchRow.request_id == RequestRow.id)
+            .outerjoin(
+                DonorContactRequest,
+                (DonorContactRequest.request_id == RequestRow.id) & (DonorContactRequest.donor_id == donor_id),
+            )
             .options(joinedload(RequestRow.facility))
             .where(MatchRow.donor_id == donor_id)
             .order_by(RequestRow.created_at.desc())
@@ -75,6 +81,19 @@ class SqlAlchemyDonorStore:
             "declined": MatchStatusEnum.DECLINED.value,
             "arrived": MatchStatusEnum.CONFIRMED.value,
         }[response.response]
-        match.responded_at = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+        match.responded_at = now
+        contact = await self.session.scalar(
+            select(DonorContactRequest).where(
+                DonorContactRequest.request_id == request_id,
+                DonorContactRequest.donor_id == donor_id,
+            )
+        )
+        if contact is not None:
+            contact.status = response.response
+            contact.updated_at = now
+            if response.response == "accepted":
+                contact.accepted_at = now
+                contact.contact_shared_at = now
         await self.session.commit()
         return match

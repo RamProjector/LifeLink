@@ -59,6 +59,14 @@ class ProfileOut(BaseModel):
     display_name: str | None = None
 
 
+class RequesterContactOut(BaseModel):
+    donor_id: str
+    display_name: str
+    status: str
+    accepted_at: datetime | None = None
+    contact_email: str | None = None
+
+
 @app.put("/v1/profile", response_model=ProfileOut)
 async def upsert_profile(
     payload: ProfileIn,
@@ -210,6 +218,21 @@ async def contact_selected_donors_postgres(
     return ContactSelectedDonorsOut(request_id=request_id, donor_ids=payload.donor_ids)
 
 
+@app.get("/v1/emergency-requests/{request_id}/contacts", response_model=list[RequesterContactOut])
+async def requester_contacts_postgres(
+    request_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_principal),
+):
+    store = SqlAlchemyRequestStore(session)
+    record = await store.get_by_id_async(request_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
+        raise HTTPException(status_code=403, detail="Not allowed to view contacts for this request")
+    return [RequesterContactOut(**item) for item in await store.requester_contacts_async(request_id, record.payload.requester_id)]
+
+
 @app.post("/v1/emergency-requests/{request_id}/manual-broadcast", response_model=ManualFallbackOut)
 async def manual_broadcast_postgres(
     request_id: str,
@@ -333,7 +356,7 @@ async def donor_request_inbox_postgres(
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
     items = []
-    for request, match in await SqlAlchemyDonorStore(session).inbox(donor_id):
+    for request, match, contact in await SqlAlchemyDonorStore(session).inbox(donor_id):
         items.append(DonorInboxItem(
             request_id=request.id,
             blood_type=request.blood_type.value,
@@ -342,7 +365,7 @@ async def donor_request_inbox_postgres(
             facility_name=request.facility.name if request.facility else "Approximate request area",
             area=request.facility.area if request.facility else "Location shared after acceptance",
             distance_km=float(match.distance_km),
-            status=match.status.value,
+            status=contact.status if contact is not None else match.status.value,
             responded_at=match.responded_at,
         ))
     return items

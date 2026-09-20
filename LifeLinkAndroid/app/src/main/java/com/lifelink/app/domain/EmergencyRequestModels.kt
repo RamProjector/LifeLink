@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.Flow
 enum class BloodType(val label: String) { A_POS("A+"), A_NEG("A−"), B_POS("B+"), B_NEG("B−"), AB_POS("AB+"), AB_NEG("AB−"), O_POS("O+"), O_NEG("O−") }
 enum class Urgency(val label: String, val description: String) { CRITICAL("Critical", "Needed within 2 hours"), URGENT("Urgent", "Needed today"), PLANNED("Planned", "Needed within 24 hours") }
 enum class ContactMethod(val label: String) { IN_APP("In-app message"), PHONE("Verified coordinator call") }
-enum class RequestStep(val index: Int) { BLOOD_NEED(0), URGENCY(1), LOCATION(2), CONTACT(3), REVIEW(4) }
+enum class RequestStep(val index: Int) { BLOOD_NEED(0), URGENCY(1), LOCATION(2), CONTACT(3), REVIEW(4), RESULTS(5) }
 
 data class Facility(val id: String, val name: String, val area: String, val verified: Boolean = true)
 
@@ -38,6 +38,14 @@ data class DiscoveredDonor(
     val explanation: List<String> = emptyList()
 )
 
+data class RequesterContact(
+    val donorId: String,
+    val displayName: String,
+    val status: String,
+    val acceptedAt: String? = null,
+    val contactEmail: String? = null
+)
+
 sealed interface SubmitResult {
     data class MatchingStarted(val requestId: String, val donors: List<DiscoveredDonor> = emptyList()) : SubmitResult
     data class ContactRequested(val requestId: String, val donorIds: List<String>) : SubmitResult
@@ -52,6 +60,7 @@ interface EmergencyRequestRepository {
     suspend fun loadDraft(id: String): EmergencyRequestDraft?
     suspend fun submit(draft: EmergencyRequestDraft): SubmitResult
     suspend fun contactSelectedDonors(requestId: String, donorIds: List<String>): SubmitResult
+    suspend fun refreshContacts(requestId: String): List<RequesterContact>
     suspend fun sendManualBroadcast(requestId: String): SubmitResult
     suspend fun cancelRequest(requestId: String): SubmitResult
     fun observeActiveRequest(): Flow<ActiveRequestSnapshot?>

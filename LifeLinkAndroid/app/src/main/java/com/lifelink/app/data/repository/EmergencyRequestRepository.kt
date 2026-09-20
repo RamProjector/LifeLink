@@ -28,6 +28,7 @@ import com.lifelink.app.domain.EmergencyRequestRepository
 import com.lifelink.app.domain.Facility
 import com.lifelink.app.domain.SubmitResult
 import com.lifelink.app.domain.Urgency
+import com.lifelink.app.domain.RequesterContact
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -116,6 +117,14 @@ class EmergencyRequestRepositoryImpl(
             SubmitResult.Error("You’re offline. No donor contact request was sent.")
         } catch (_: Exception) {
             SubmitResult.Error("Selected donors could not be contacted. Please retry.")
+        }
+    }
+
+    override suspend fun refreshContacts(requestId: String): List<RequesterContact> = withContext(Dispatchers.IO) {
+        val response = api.requesterContacts(requestId)
+        if (!response.isSuccessful) return@withContext emptyList()
+        response.body().orEmpty().map {
+            RequesterContact(it.donorId, it.displayName, it.status, it.acceptedAt, it.contactEmail)
         }
     }
 

@@ -40,6 +40,9 @@ interface LifeLinkApi {
     @POST("v1/emergency-requests/{requestId}/contact")
     suspend fun contactSelectedDonors(@Path("requestId") requestId: String, @Body request: ContactSelectedDonorsRequest): Response<ContactSelectedDonorsResponse>
 
+    @GET("v1/emergency-requests/{requestId}/contacts")
+    suspend fun requesterContacts(@Path("requestId") requestId: String): Response<List<RequesterContactResponse>>
+
     @PUT("v1/donors/{donorId}")
     suspend fun registerDonor(@Path("donorId") donorId: String, @Body profile: DonorProfileRequest): Response<DonorProfileResponse>
 
@@ -146,6 +149,13 @@ data class DonorMatchResponse(
 data class MatchExplanationResponse(val factors: List<String> = emptyList())
 data class ContactSelectedDonorsRequest(@SerializedName("donor_ids") val donorIds: List<String>)
 data class ContactSelectedDonorsResponse(@SerializedName("request_id") val requestId: String, @SerializedName("donor_ids") val donorIds: List<String>, val status: String)
+data class RequesterContactResponse(
+    @SerializedName("donor_id") val donorId: String,
+    @SerializedName("display_name") val displayName: String,
+    val status: String,
+    @SerializedName("accepted_at") val acceptedAt: String? = null,
+    @SerializedName("contact_email") val contactEmail: String? = null
+)
 
 data class ManualBroadcastResponse(
     @SerializedName("request_id") val requestId: String,

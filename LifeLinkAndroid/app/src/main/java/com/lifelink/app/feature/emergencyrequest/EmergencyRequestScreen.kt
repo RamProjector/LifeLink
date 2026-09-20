@@ -101,12 +101,14 @@ fun EmergencyRequestScreen(state: EmergencyRequestUiState, onAction: (EmergencyR
             )
         },
         bottomBar = {
-            BottomBar(
-                state = state,
-                onContinue = { onAction(EmergencyRequestAction.Continue) },
-                onSubmit = { onAction(EmergencyRequestAction.Submit) },
-                onSave = { onAction(EmergencyRequestAction.SaveDraft) }
-            )
+            if (state.step != RequestStep.RESULTS) {
+                BottomBar(
+                    state = state,
+                    onContinue = { onAction(EmergencyRequestAction.Continue) },
+                    onSubmit = { onAction(EmergencyRequestAction.Submit) },
+                    onSave = { onAction(EmergencyRequestAction.SaveDraft) }
+                )
+            }
         }
     ) { padding ->
         LazyColumn(
@@ -122,12 +124,13 @@ fun EmergencyRequestScreen(state: EmergencyRequestUiState, onAction: (EmergencyR
                     RequestStep.LOCATION -> LocationStep(state.draft, onAction)
                     RequestStep.CONTACT -> ContactStep(state.draft, onAction)
                     RequestStep.REVIEW -> ReviewStep(state.draft, onAction)
+                    RequestStep.RESULTS -> DonorPicker(state, onAction)
                 }
             }
             val submission = state.submission
             if (submission is SubmissionState.Error) item { ErrorBanner(submission.message, onRetry = { onAction(EmergencyRequestAction.Retry) }) }
             if (submission is SubmissionState.Matching) item { SuccessBanner("Request submitted. Finding eligible donors…") }
-            if (state.discoveredDonors.isNotEmpty()) item { DonorPicker(state, onAction) }
+            if (state.step != RequestStep.RESULTS && state.discoveredDonors.isNotEmpty()) item { DonorPicker(state, onAction) }
             if (submission is SubmissionState.QueuedOffline) item { SuccessBanner("Saved offline. It will sync when connection returns.") }
             if (submission is SubmissionState.ManualFallback) item {
                 ManualFallbackBanner(
@@ -147,7 +150,17 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
     val donorsWithinTenKm = state.discoveredDonors.count { it.distanceKm > 5.0 && it.distanceKm <= 10.0 }
     val donorsBeyondTenKm = state.discoveredDonors.count { it.distanceKm > 10.0 }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Heading("Choose donors to contact", "LifeLink only contacts donors you select. Screening and final eligibility happen outside the app.")
+        Heading("Donor results", "Select eligible donors to contact. Their exact locations remain private.")
+        if (state.contacts.isNotEmpty()) {
+            InfoCard(
+                "Contact request status",
+                state.contacts.joinToString("\n") { contact ->
+                    val contactLine = if (contact.status.equals("accepted", ignoreCase = true) && contact.contactEmail != null) "Accepted · ${contact.contactEmail}" else contact.status.replaceFirstChar { it.uppercase() }
+                    "${contact.displayName}: $contactLine"
+                },
+                MaterialTheme.colorScheme.secondary
+            )
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Results", fontWeight = FontWeight.SemiBold)
             FilterChip(selected = showMap, onClick = { showMap = !showMap }, label = { Text(if (showMap) "Hide map" else "Show map summary") })
