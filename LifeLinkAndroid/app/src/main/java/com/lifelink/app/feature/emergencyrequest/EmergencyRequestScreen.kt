@@ -59,6 +59,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -88,6 +89,7 @@ import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.core.location.MapLibreLocationPicker
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.google.android.gms.common.api.ResolvableApiException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.core.content.ContextCompat
 
@@ -337,17 +339,28 @@ private fun LocationMapPicker(
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf<String?>(null) }
     var retryRequest by remember { mutableStateOf(0) }
+    LaunchedEffect(retryRequest, mapLoading) {
+        if (mapLoading) {
+            delay(12_000)
+            if (mapLoading) {
+                mapLoading = false
+                mapError = "Map tiles are taking too long to load. Check your connection and retry."
+            }
+        }
+    }
     if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
         Box(modifier.fillMaxWidth()) {
-            MapLibreLocationPicker(
-                draft.requesterLatitude,
-                draft.requesterLongitude,
-                onLocationSelected,
-                recenterRequest + retryRequest,
-                onLoadingChanged = { mapLoading = it; if (it) mapError = null },
-                onMapError = { mapLoading = false; mapError = it },
-                modifier = modifier
-            )
+            key(retryRequest) {
+                MapLibreLocationPicker(
+                    draft.requesterLatitude,
+                    draft.requesterLongitude,
+                    onLocationSelected,
+                    recenterRequest + retryRequest,
+                    onLoadingChanged = { mapLoading = it; if (it) mapError = null },
+                    onMapError = { mapLoading = false; mapError = it },
+                    modifier = modifier
+                )
+            }
             if (mapLoading) {
                 Surface(Modifier.align(Alignment.TopCenter).padding(12.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), shape = MaterialTheme.shapes.medium) {
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
