@@ -115,3 +115,9 @@ Replaced the offline coordinate-picker placeholder and all remaining WebView map
 Investigated the report that the preview stayed centered on Manila. The cause was an implicit Manila fallback combined with an asynchronous MapLibre style callback that could reapply the initial camera after a real GPS result arrived. Removed the implicit requester fallback, made the style callback read the latest coordinates, updated markers in place, and added a visible confirmation showing the reported GPS accuracy after centering.
 
 The sourced improvement plan is recorded in `docs/LOCATION_PICKING_RESEARCH_AND_PLAN.md`. Its next priorities are typed location quality and source states, explicit approximate-versus-precise permission handling, in-flight cancellation and retry states, map loading/error/recenter controls, and a review-screen summary of source, freshness, uncertainty, and privacy.
+
+## Submission 500 and Africa preview correction — 2026-09-20
+
+Investigated the report that login succeeded but request submission returned HTTP 500. The PostgreSQL adapter used SQLAlchemy native enums without a `values_callable`, so SQLAlchemy could persist Python member names such as `O_POS` and `AWAITING_RESPONSES` while the Supabase migrations define values such as `O+` and `awaiting_responses`. Updated every mapped enum to persist the migration values. The backend test suite passes with 15 tests.
+
+The requester map previously rendered a nullable location as `(0, 0)`, which is in the Gulf of Guinea and appeared as Africa. The requester screen now shows a neutral location prompt until GPS or a user-selected/manual coordinate exists; it no longer renders a geographic map at `(0, 0)`.

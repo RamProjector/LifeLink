@@ -252,7 +252,22 @@ private fun LocationMapPicker(
     draft: EmergencyRequestDraft,
     onLocationSelected: (Double, Double) -> Unit
 ) {
-    MapLibreLocationPicker(draft.requesterLatitude, draft.requesterLongitude, onLocationSelected)
+    if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
+        MapLibreLocationPicker(draft.requesterLatitude, draft.requesterLongitude, onLocationSelected)
+    } else {
+        Card(
+            modifier = Modifier.fillMaxWidth().height(260.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    "Map preview appears after you capture or choose a location.",
+                    modifier = Modifier.padding(24.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }
 
 @Composable private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {

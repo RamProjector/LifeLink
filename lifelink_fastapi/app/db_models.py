@@ -76,6 +76,11 @@ class LifeLinkRoleEnum(str, Enum):
     DONOR = "donor"
 
 
+def enum_values(enum_cls: type[Enum]) -> list[str]:
+    """Persist the SQL migration values, not Python enum member names."""
+    return [member.value for member in enum_cls]
+
+
 class GeographyPoint(UserDefinedType):
     """PostGIS geography(Point, 4326) type.
 
@@ -113,7 +118,7 @@ class Donor(Base):
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
     display_name: Mapped[str] = mapped_column(String(160), nullable=False)
     blood_type: Mapped[BloodTypeEnum] = mapped_column(
-        SqlEnum(BloodTypeEnum, name="blood_type_enum", native_enum=True), nullable=False
+        SqlEnum(BloodTypeEnum, name="blood_type_enum", native_enum=True, values_callable=enum_values), nullable=False
     )
     latitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
     longitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
@@ -144,7 +149,7 @@ class LifeLinkProfile(Base):
     user_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     email: Mapped[str] = mapped_column(String(320), nullable=False, default="")
     role: Mapped[LifeLinkRoleEnum] = mapped_column(
-        SqlEnum(LifeLinkRoleEnum, name="lifelink_role_enum", native_enum=True), nullable=False
+        SqlEnum(LifeLinkRoleEnum, name="lifelink_role_enum", native_enum=True, values_callable=enum_values), nullable=False
     )
     display_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -163,22 +168,22 @@ class EmergencyRequest(Base):
     requester_longitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
     location_precision_meters: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     blood_type: Mapped[BloodTypeEnum] = mapped_column(
-        SqlEnum(BloodTypeEnum, name="blood_type_enum", native_enum=True), nullable=False
+        SqlEnum(BloodTypeEnum, name="blood_type_enum", native_enum=True, values_callable=enum_values), nullable=False
     )
     units: Mapped[int] = mapped_column(Integer, nullable=False)
     urgency: Mapped[UrgencyEnum] = mapped_column(
-        SqlEnum(UrgencyEnum, name="urgency_enum", native_enum=True), nullable=False
+        SqlEnum(UrgencyEnum, name="urgency_enum", native_enum=True, values_callable=enum_values), nullable=False
     )
     response_deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     contact_method: Mapped[ContactMethodEnum] = mapped_column(
-        SqlEnum(ContactMethodEnum, name="contact_method_enum", native_enum=True), nullable=False
+        SqlEnum(ContactMethodEnum, name="contact_method_enum", native_enum=True, values_callable=enum_values), nullable=False
     )
     note: Mapped[str] = mapped_column(Text, nullable=False, default="")
     genuine_request_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False)
     sharing_consent_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False)
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     status: Mapped[RequestStatusEnum] = mapped_column(
-        SqlEnum(RequestStatusEnum, name="request_status_enum", native_enum=True), nullable=False
+        SqlEnum(RequestStatusEnum, name="request_status_enum", native_enum=True, values_callable=enum_values), nullable=False
     )
     matching_version: Mapped[str] = mapped_column(String(64), nullable=False, default="v1-explainable-weighted")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -208,7 +213,7 @@ class RequestMatch(Base):
     distance_km: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
     estimated_travel_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[MatchStatusEnum] = mapped_column(
-        SqlEnum(MatchStatusEnum, name="match_status_enum", native_enum=True), nullable=False
+        SqlEnum(MatchStatusEnum, name="match_status_enum", native_enum=True, values_callable=enum_values), nullable=False
     )
     explanation: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
