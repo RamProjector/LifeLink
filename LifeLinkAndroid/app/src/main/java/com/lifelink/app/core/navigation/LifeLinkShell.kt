@@ -83,7 +83,7 @@ fun LifeLinkShell(
         Surface(Modifier.fillMaxSize().padding(padding)) {
             when (tab) {
                 ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true })
-                ShellTab.REQUESTS -> RequestsContent(state, onCreate = { showRequest = true }, onOpen = { showRequest = true }, onActive = { showActive = true })
+                ShellTab.REQUESTS -> RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = { showRequest = true }, onActive = { showActive = true })
                 ShellTab.LEARN -> LearnContent()
                 ShellTab.PROFILE -> ProfileContent(role)
             }
@@ -93,6 +93,7 @@ fun LifeLinkShell(
 
 @Composable private fun RequestsContent(
     state: EmergencyRequestUiState,
+    onAction: (EmergencyRequestAction) -> Unit,
     onCreate: () -> Unit,
     onOpen: () -> Unit,
     onActive: () -> Unit
@@ -141,14 +142,13 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(request.status.label, fontWeight = FontWeight.SemiBold)
-                Text(if (request.isTerminal) "Past" else "Active", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
+                Text(if (request.status in setOf(com.lifelink.app.domain.ActiveRequestStatus.FULFILLED, com.lifelink.app.domain.ActiveRequestStatus.EXPIRED, com.lifelink.app.domain.ActiveRequestStatus.CANCELLED)) "Past" else "Active", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
             }
             Text("Request ${request.requestId.take(12)}", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
             Text("${request.bloodType ?: "Request"} · ${request.units?.let { "$it unit${if (it == 1) "" else "s"}" } ?: "Details unavailable"}", style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
             Text("${request.matchesResponded} donor response${if (request.matchesResponded == 1) "" else "s"} · ${request.notificationsCreated} notified", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
             request.facilityName?.let { Text("$it${request.area?.let { area -> " · $area" } ?: ""}", style = androidx.compose.material3.MaterialTheme.typography.bodySmall) }
             if (request.contactStatuses.isNotEmpty()) Text("Contacts: ${request.contactStatuses.joinToString()}", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-            request.reason?.let { Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall) }
         }
     }
 }
