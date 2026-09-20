@@ -29,6 +29,7 @@ from .main import (
     RequestStore,
     RequestStatus,
 )
+from .expiry import is_request_expired
 
 
 MATCHING_VERSION = "v1-explainable-weighted"
@@ -106,7 +107,16 @@ class SqlAlchemyRequestStore(RequestStore):
             .options(joinedload(EmergencyRequestRow.matches).joinedload(RequestMatchRow.donor))
             .where(EmergencyRequestRow.id == request_id)
         )
+        if result is not None:
+            await self._expire_if_needed(result)
         return self._to_record(result) if result else None
+
+    async def _expire_if_needed(self, row: EmergencyRequestRow) -> bool:
+        if is_request_expired(row.status.value, row.response_deadline):
+            row.status = RequestStatusEnum.EXPIRED.value
+            await self.session.commit()
+            return True
+        return False
 
     async def list_by_requester_async(self, requester_id: str, limit: int = 50) -> list[RequestRecord]:
         result = await self.session.scalars(
@@ -176,6 +186,8 @@ class SqlAlchemyRequestStore(RequestStore):
         row = await self.session.get(EmergencyRequestRow, request_id)
         if row is None:
             raise KeyError(request_id)
+        if await self._expire_if_needed(row):
+            raise ValueError("This request has expired and cannot be broadcast")
         row.status = RequestStatusEnum.MANUAL_BROADCAST.value
         await self.session.commit()
         refreshed = await self.get_by_id_async(request_id)
@@ -198,6 +210,8 @@ class SqlAlchemyRequestStore(RequestStore):
         row = await self.session.get(EmergencyRequestRow, request_id)
         if row is None:
             raise KeyError(request_id)
+        if await self._expire_if_needed(row):
+            raise ValueError("An expired request cannot be fulfilled")
         if row.status.value in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.EXPIRED.value}:
             raise ValueError("A cancelled or expired request cannot be fulfilled")
         row.status = RequestStatusEnum.FULFILLED.value
@@ -211,6 +225,8 @@ class SqlAlchemyRequestStore(RequestStore):
         row = await self.session.get(EmergencyRequestRow, request_id)
         if row is None:
             raise KeyError(request_id)
+        if await self._expire_if_needed(row):
+            raise ValueError("This request has expired and cannot accept contact requests")
         if row.status.value in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.EXPIRED.value, RequestStatusEnum.FULFILLED.value}:
             raise ValueError("This request is no longer accepting contact requests")
         allowed = {match.donor_id for match in row.matches}
@@ -270,6 +286,13 @@ class SqlAlchemyRequestStore(RequestStore):
         allowed = {"contact_shared", "meeting_arranged", "fulfilled", "cancelled"}
         if status not in allowed:
             raise ValueError("Unsupported contact lifecycle status")
+        request = await self.session.get(EmergencyRequestRow, request_id)
+        if request is None:
+            raise KeyError(request_id)
+        if await self._expire_if_needed(request):
+            raise ValueError("This request has expired; contact actions are closed")
+        if request.status.value in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.FULFILLED.value}:
+            raise ValueError("This request is terminal; contact actions are closed")
         contact = await self.session.scalar(select(DonorContactRequest).where(
             DonorContactRequest.request_id == request_id,
             DonorContactRequest.donor_id == donor_id,

@@ -10,6 +10,7 @@ from sqlalchemy.orm import joinedload
 
 from .db_models import Donor as DonorRow, DonorContactRequest, EmergencyRequest as RequestRow, MatchStatusEnum, RequestMatch as MatchRow
 from .donor_api import DonorAvailability, DonorProfileIn, DonorResponseIn
+from .expiry import is_request_expired
 
 
 class SqlAlchemyDonorStore:
@@ -77,7 +78,13 @@ class SqlAlchemyDonorStore:
         if match is None:
             raise KeyError(request_id)
         request = await self.session.get(RequestRow, request_id)
-        if request is None or request.status.value in {"cancelled", "expired", "fulfilled"}:
+        if request is None:
+            raise KeyError(request_id)
+        if is_request_expired(request.status.value, request.response_deadline):
+            request.status = "expired"
+            await self.session.commit()
+            raise ValueError("This request has expired and is no longer accepting donor responses")
+        if request.status.value in {"cancelled", "expired", "fulfilled"}:
             raise ValueError("This request is no longer accepting donor responses")
         match.status = {
             "accepted": MatchStatusEnum.CONFIRMED.value,
