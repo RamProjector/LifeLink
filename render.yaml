@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: lifelink-api
+    runtime: docker
+    rootDir: lifelink_fastapi
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: LIFELINK_DATABASE_URL
+        sync: false
+      - key: LIFELINK_AUTH_REQUIRED
+        value: "true"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_JWT_AUDIENCE
+        value: "authenticated"
+      - key: SUPABASE_JWT_ISSUER
+        sync: false
+      - key: DB_POOL_SIZE
+        value: "3"
+      - key: DB_MAX_OVERFLOW
+        value: "5"
