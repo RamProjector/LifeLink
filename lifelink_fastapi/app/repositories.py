@@ -17,6 +17,7 @@ from .db_models import (
     RequestStatusEnum,
     DonorContactRequest,
     LifeLinkProfile,
+    AuditEvent,
 )
 from .main import (
     Donor,
@@ -72,6 +73,24 @@ class SqlAlchemyRequestStore(RequestStore):
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def record_audit_async(
+        self,
+        actor_id: str,
+        action: str,
+        request_id: str | None = None,
+        donor_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.session.add(AuditEvent(
+            id=f"audit_{uuid4().hex}",
+            actor_id=actor_id,
+            action=action,
+            request_id=request_id,
+            donor_id=donor_id,
+            event_metadata=metadata or {},
+        ))
+        await self.session.commit()
 
     async def get_by_idempotency_key_async(self, key: str) -> RequestRecord | None:
         result = await self.session.scalar(
@@ -273,6 +292,7 @@ class SqlAlchemyRequestStore(RequestStore):
         if status == "contact_shared":
             contact.contact_shared_at = now
         await self.session.commit()
+        await self.record_audit_async(requester_id, f"contact_{status}", request_id, donor_id)
         return {"donor_id": donor_id, "status": status, "accepted_at": contact.accepted_at}
 
     @staticmethod

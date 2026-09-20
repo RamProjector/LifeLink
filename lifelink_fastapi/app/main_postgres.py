@@ -44,6 +44,7 @@ from .donor_api import (
 from .donor_repositories import SqlAlchemyDonorStore
 from .main import Donor
 from .security import Principal, get_principal
+from .rate_limit import enforce_rate_limit
 
 app = FastAPI(title="LifeLink Matching Service — PostgreSQL")
 
@@ -138,6 +139,7 @@ async def create_emergency_request_postgres(
     validate_business_rules(payload)
     if principal.subject != "development-user" and principal.subject != payload.requester_id:
         raise HTTPException(status_code=403, detail="requester_id must match the authenticated user")
+    enforce_rate_limit(f"request-create:{principal.subject}", 5, 300)
     if idempotency_header and idempotency_header != payload.idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key header must match payload.idempotency_key.")
 
@@ -216,12 +218,14 @@ async def contact_selected_donors_postgres(
         raise HTTPException(status_code=404, detail="Request not found")
     if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
         raise HTTPException(status_code=403, detail="Not allowed to contact donors for this request")
+    enforce_rate_limit(f"contact-request:{principal.subject}", 20, 300)
     try:
         await store.contact_selected_donors_async(request_id, payload.donor_ids)
     except KeyError:
         raise HTTPException(status_code=404, detail="Request not found") from None
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await store.record_audit_async(principal.subject, "contact_requested", request_id, metadata={"donor_count": len(payload.donor_ids)})
     return ContactSelectedDonorsOut(request_id=request_id, donor_ids=payload.donor_ids)
 
 
@@ -254,6 +258,7 @@ async def update_requester_contact_status(
         raise HTTPException(status_code=404, detail="Request not found")
     if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
         raise HTTPException(status_code=403, detail="Not allowed to update this contact")
+    enforce_rate_limit(f"contact-status:{principal.subject}", 30, 300)
     try:
         item = await store.update_contact_status_async(request_id, donor_id, record.payload.requester_id, payload.status)
     except KeyError:
@@ -353,6 +358,7 @@ async def cancel_emergency_request(
         record = await store.set_cancelled_async(request_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Request not found") from None
+    await store.record_audit_async(principal.subject, "request_cancelled", request_id)
     return RequestActionOut(
         request_id=record.request_id,
         status=record.status,
@@ -376,6 +382,7 @@ async def fulfill_emergency_request(
         record = await store.set_fulfilled_async(request_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await store.record_audit_async(principal.subject, "request_fulfilled", request_id)
     return RequestActionOut(request_id=record.request_id, status=record.status, reason="Marked fulfilled by requester")
 
 
@@ -469,6 +476,9 @@ async def donor_response_postgres(
         match = await SqlAlchemyDonorStore(session).respond(donor_id, request_id, payload)
     except KeyError:
         raise HTTPException(status_code=403, detail="Donor is not eligible for this request") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await SqlAlchemyRequestStore(session).record_audit_async(principal.subject, f"donor_response_{payload.response}", request_id, donor_id)
     return DonorResponseOut(
         request_id=request_id,
         donor_id=donor_id,

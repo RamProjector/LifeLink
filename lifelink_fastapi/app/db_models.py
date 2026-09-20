@@ -251,6 +251,18 @@ class DonorContactRequest(Base):
     )
 
 
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    actor_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    donor_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    event_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class PendingSubmission(Base):
     __tablename__ = "pending_submissions"
 
