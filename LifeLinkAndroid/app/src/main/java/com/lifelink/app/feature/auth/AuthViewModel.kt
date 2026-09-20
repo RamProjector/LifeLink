@@ -16,6 +16,7 @@ sealed interface AuthState {
     data object SignedOut : AuthState
     data class SignedIn(val session: AuthSession) : AuthState
     data object EmailConfirmationRequired : AuthState
+    data class Message(val text: String, val isError: Boolean = false) : AuthState
     data class Error(val message: String) : AuthState
 }
 
@@ -35,6 +36,16 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
     fun signIn(email: String, password: String) = authenticate { repository.signIn(email, password) }
     fun signUp(email: String, password: String) = authenticate { repository.signUp(email, password) }
     fun signOut() = repository.signOut()
+    fun requestPasswordReset(email: String) = runRecovery(email) { repository.requestPasswordReset(email) }
+    fun resendConfirmation(email: String) = runRecovery(email) { repository.resendConfirmation(email) }
+
+    private fun runRecovery(email: String, action: suspend () -> Result<Unit>) {
+        viewModelScope.launch {
+            _state.value = AuthState.Loading
+            action().onSuccess { _state.value = AuthState.Message("Check your inbox for the next step.") }
+                .onFailure { _state.value = AuthState.Message(it.message ?: "Authentication email could not be sent.", true) }
+        }
+    }
 
     private fun authenticate(action: suspend () -> Result<AuthResult>) {
         viewModelScope.launch {

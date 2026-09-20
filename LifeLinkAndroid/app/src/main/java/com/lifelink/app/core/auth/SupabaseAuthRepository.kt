@@ -35,6 +35,16 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
             ?: error("Supabase URL is not configured")
     }
 
+    suspend fun requestPasswordReset(email: String): Result<Unit> = simpleAuthAction {
+        api?.recover(BuildConfig.SUPABASE_PUBLISHABLE_KEY, EmailRequest(email))
+            ?: error("Supabase URL is not configured")
+    }
+
+    suspend fun resendConfirmation(email: String): Result<Unit> = simpleAuthAction {
+        api?.resend(BuildConfig.SUPABASE_PUBLISHABLE_KEY, ResendRequest("signup", email))
+            ?: error("Supabase URL is not configured")
+    }
+
     suspend fun refreshAccessToken(): String? = withContext(Dispatchers.IO) {
         val current = sessionStore.session.value ?: return@withContext null
         if (current.refreshToken.isBlank()) return@withContext null
@@ -79,6 +89,14 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
         }
     }
 
+    private suspend fun simpleAuthAction(call: suspend () -> Response<Unit>): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            if (BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
+            val response = call()
+            if (!response.isSuccessful) error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+        }
+    }
+
     private fun readableAuthError(raw: String, statusCode: Int): String {
         val message = Regex("\\\"msg\\\"\\s*:\\s*\\\"([^\\\"]+)").find(raw)?.groupValues?.get(1)
             ?: Regex("\\\"message\\\"\\s*:\\s*\\\"([^\\\"]+)").find(raw)?.groupValues?.get(1)
@@ -116,10 +134,18 @@ private interface SupabaseAuthApi {
         @Body request: RefreshRequest,
         @Query("grant_type") grantType: String = "refresh_token"
     ): Response<SupabaseAuthResponse>
+
+    @POST("auth/v1/recover")
+    suspend fun recover(@Header("apikey") publishableKey: String, @Body request: EmailRequest): Response<Unit>
+
+    @POST("auth/v1/resend")
+    suspend fun resend(@Header("apikey") publishableKey: String, @Body request: ResendRequest): Response<Unit>
 }
 
 data class AuthRequest(val email: String, val password: String)
 data class RefreshRequest(@SerializedName("refresh_token") val refreshToken: String)
+data class EmailRequest(val email: String)
+data class ResendRequest(val type: String, val email: String)
 
 data class SupabaseAuthResponse(
     @SerializedName("access_token") val accessToken: String?,

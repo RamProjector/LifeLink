@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
                 )
                 val authState by authViewModel.state.collectAsStateWithLifecycle()
                 if (authState !is AuthState.SignedIn) {
-                    AuthScreen(authState, authViewModel::signIn, authViewModel::signUp)
+                    AuthScreen(authState, authViewModel::signIn, authViewModel::signUp, authViewModel::requestPasswordReset, authViewModel::resendConfirmation)
                     return@LifeLinkTheme
                 }
                 val roleStore = remember { UserRoleStore(this@MainActivity) }
