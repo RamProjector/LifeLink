@@ -5,6 +5,7 @@ import com.lifelink.app.domain.EmergencyRequestRepository
 import com.lifelink.app.domain.Facility
 import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.SubmitResult
+import com.lifelink.app.domain.RequesterContact
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
@@ -110,6 +111,7 @@ private class FakeRepository(
     }
     override suspend fun sendManualBroadcast(requestId: String): SubmitResult = SubmitResult.MatchingStarted(requestId)
     override suspend fun cancelRequest(requestId: String): SubmitResult = SubmitResult.Cancelled(requestId)
+    override suspend fun refreshContacts(requestId: String): List<RequesterContact> = emptyList()
     override fun observeActiveRequest(): Flow<ActiveRequestSnapshot?> = flowOf(null)
     override suspend fun refreshActiveRequest(requestId: String): ActiveRequestSnapshot? = null
 }
