@@ -1,7 +1,9 @@
 package com.lifelink.app.core.location
 
+import android.view.MotionEvent
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -38,6 +40,8 @@ fun MapLibreLocationPicker(
     val latestLatitude by rememberUpdatedState(latitude)
     val latestLongitude by rememberUpdatedState(longitude)
     var marker by remember { mutableStateOf<Marker?>(null) }
+    var appliedLatitude by remember { mutableStateOf<Double?>(null) }
+    var appliedLongitude by remember { mutableStateOf<Double?>(null) }
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
         MapView(context).also { it.onCreate(null) }
@@ -54,9 +58,16 @@ fun MapLibreLocationPicker(
     }
 
     AndroidView(
-        modifier = modifier.fillMaxWidth().height(260.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 260.dp),
         factory = {
             mapView.apply {
+                setOnTouchListener { view, event ->
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> view.parent?.requestDisallowInterceptTouchEvent(true)
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> view.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                    false
+                }
                 getMapAsync { map ->
                     map.setStyle(OPEN_FREE_MAP_STYLE) {
                         val currentPosition = latestLatitude?.let { lat -> latestLongitude?.let { lon -> LatLng(lat, lon) } }
@@ -64,10 +75,14 @@ fun MapLibreLocationPicker(
                             .target(currentPosition ?: LatLng(0.0, 0.0))
                             .zoom(if (currentPosition == null) 2.0 else 15.0)
                             .build()
+                        appliedLatitude = latestLatitude
+                        appliedLongitude = latestLongitude
                         marker = currentPosition?.let {
                             map.addMarker(MarkerOptions().position(it).title("Selected approximate location"))
                         }
                         fun select(position: LatLng) {
+                            appliedLatitude = position.latitude
+                            appliedLongitude = position.longitude
                             marker?.let { it.position = position; map.updateMarker(it) }
                                 ?: run { marker = map.addMarker(MarkerOptions().position(position).title("Selected approximate location")) }
                             onLocationSelected(position.latitude, position.longitude)
@@ -87,7 +102,9 @@ fun MapLibreLocationPicker(
         update = { view ->
             view.getMapAsync { map ->
                 val target = latitude?.let { lat -> longitude?.let { lon -> LatLng(lat, lon) } }
-                if (target != null) {
+                if (target != null && (appliedLatitude != latitude || appliedLongitude != longitude)) {
+                    appliedLatitude = latitude
+                    appliedLongitude = longitude
                     marker?.let { it.position = target; map.updateMarker(it) }
                     map.cameraPosition = CameraPosition.Builder()
                         .target(target)

@@ -250,10 +250,11 @@ private fun PrivacySafeDonorMap(
 @Composable
 private fun LocationMapPicker(
     draft: EmergencyRequestDraft,
-    onLocationSelected: (Double, Double) -> Unit
+    onLocationSelected: (Double, Double) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
-        MapLibreLocationPicker(draft.requesterLatitude, draft.requesterLongitude, onLocationSelected)
+        MapLibreLocationPicker(draft.requesterLatitude, draft.requesterLongitude, onLocationSelected, modifier)
     } else {
         Card(
             modifier = Modifier.fillMaxWidth().height(260.dp),
@@ -270,11 +271,13 @@ private fun LocationMapPicker(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var locationCaptureRequest by remember { mutableStateOf(0) }
     var locationMessage by remember { mutableStateOf<String?>(null) }
+    var fullMapVisible by remember { mutableStateOf(false) }
     val settingsResolutionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -344,8 +347,14 @@ private fun LocationMapPicker(
             }
         ) { Text(if (draft.requesterLatitude == null) "Use my current location" else "Update current location") }
         Text("Choose on map", fontWeight = FontWeight.SemiBold)
-        LocationMapPicker(draft) { latitude, longitude ->
-            onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+        LocationMapPicker(
+            draft = draft,
+            onLocationSelected = { latitude, longitude -> onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500)) }
+        )
+        if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
+            OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { fullMapVisible = true }) {
+                Text("Open full map")
+            }
         }
         Text("When location access is already allowed, the map centers on your current position automatically. The pin is visible only to you; donors receive an approximate matching distance, not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         Text("Or enter an approximate location manually", fontWeight = FontWeight.SemiBold)
@@ -382,6 +391,23 @@ private fun LocationMapPicker(
                 Icon(Icons.Default.LocationOn, "Request location", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
                 Text(if (draft.requesterLatitude == null) "Location not captured" else "Approximate location captured", fontWeight = FontWeight.SemiBold)
                 Text("Donors see distance and availability—not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+    if (fullMapVisible && draft.requesterLatitude != null && draft.requesterLongitude != null) {
+        ModalBottomSheet(onDismissRequest = { fullMapVisible = false }) {
+            Column(
+                Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Choose an approximate location", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("Pan and zoom the map, then tap or long-press to move the private marker.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                LocationMapPicker(
+                    draft = draft,
+                    onLocationSelected = { latitude, longitude -> onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500)) },
+                    modifier = Modifier.height(520.dp)
+                )
+                OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { fullMapVisible = false }) { Text("Done") }
             }
         }
     }
@@ -427,8 +453,29 @@ private fun LocationMapPicker(
 @Composable private fun FacilityRow(facility: Facility, selected: Boolean, onClick: () -> Unit) { Surface(Modifier.fillMaxWidth().clickable(role = Role.RadioButton, onClick = onClick).semantics { role = Role.RadioButton }, color = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.White, shape = MaterialTheme.shapes.medium, border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline)) { Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.LocationOn, "Facility location", tint = MaterialTheme.colorScheme.secondary); Column(Modifier.padding(start = 10.dp).weight(1f)) { Text(facility.name, fontWeight = FontWeight.SemiBold); Text(facility.area, color = MaterialTheme.colorScheme.onSurfaceVariant) }; if (facility.verified) Icon(Icons.Default.Check, "Verified facility", tint = MaterialTheme.colorScheme.secondary) } } }
 @Composable private fun SelectableRow(label: String, selected: Boolean, onClick: () -> Unit) { Surface(Modifier.fillMaxWidth().clickable(role = Role.RadioButton, onClick = onClick).semantics { role = Role.RadioButton }, color = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.White, shape = MaterialTheme.shapes.medium, border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline)) { Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected, onClick); Text(label, fontWeight = FontWeight.Medium) } } }
 @Composable private fun Summary(title: String, value: String, step: Int, onAction: (EmergencyRequestAction) -> Unit) { Column { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) { Column(Modifier.weight(1f)) { Text(title, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium); Text(value, fontWeight = FontWeight.Medium) }; TextButton(onClick = { onAction(EmergencyRequestAction.EditStep(RequestStep.entries[step])) }) { Text("Edit") } }; HorizontalDivider(color = MaterialTheme.colorScheme.outline) } }
-@Composable private fun ErrorBanner(message: String, onRetry: () -> Unit) { Surface(Modifier.fillMaxWidth(), color = Color(0xFFFFF4E5), shape = MaterialTheme.shapes.medium) { Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) { Text(message, Modifier.weight(1f), color = Color(0xFF7A4A00), style = MaterialTheme.typography.bodySmall); TextButton(onClick = onRetry) { Text("Retry") } } } }
-@Composable private fun SuccessBanner(message: String) { Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.medium) { Text(message, Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onSecondaryContainer) } }
+@Composable private fun ErrorBanner(message: String, onRetry: () -> Unit) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF4E5))) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Warning, "Error", tint = Color(0xFF7A4A00), modifier = Modifier.size(28.dp))
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                Text("Something needs attention", fontWeight = FontWeight.SemiBold, color = Color(0xFF7A4A00))
+                Text(message, color = Color(0xFF7A4A00), style = MaterialTheme.typography.bodySmall)
+            }
+            TextButton(onClick = onRetry) { Text("Retry") }
+        }
+    }
+}
+@Composable private fun SuccessBanner(message: String) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Check, "Success", tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(28.dp))
+            Column(Modifier.padding(start = 10.dp)) {
+                Text("LifeLink update", fontWeight = FontWeight.SemiBold)
+                Text(message, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            }
+        }
+    }
+}
 @Composable private fun ManualFallbackBanner(reason: String, onSend: () -> Unit) { Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.medium) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("Automatic matching is unavailable", fontWeight = FontWeight.SemiBold); Text(reason, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall); Text("A manual broadcast may reach more eligible donors.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall); Button(onClick = onSend) { Text("Send manual broadcast") } } } }
 @Composable private fun TextField(value: String, onValueChange: (String) -> Unit, label: String, placeholder: String, minLines: Int = 1, supporting: String? = null) { OutlinedTextField(value, onValueChange, Modifier.fillMaxWidth(), label = { Text(label) }, placeholder = { Text(placeholder) }, minLines = minLines, singleLine = minLines == 1, supportingText = supporting?.let { { Text(it) } }, trailingIcon = if (label.contains("deadline")) ({ Icon(Icons.Default.KeyboardArrowDown, null) }) else null, shape = MaterialTheme.shapes.medium) }
 

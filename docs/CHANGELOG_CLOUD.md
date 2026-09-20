@@ -121,3 +121,9 @@ The sourced improvement plan is recorded in `docs/LOCATION_PICKING_RESEARCH_AND_
 Investigated the report that login succeeded but request submission returned HTTP 500. The PostgreSQL adapter used SQLAlchemy native enums without a `values_callable`, so SQLAlchemy could persist Python member names such as `O_POS` and `AWAITING_RESPONSES` while the Supabase migrations define values such as `O+` and `awaiting_responses`. Updated every mapped enum to persist the migration values. The backend test suite passes with 15 tests.
 
 The requester map previously rendered a nullable location as `(0, 0)`, which is in the Gulf of Guinea and appeared as Africa. The requester screen now shows a neutral location prompt until GPS or a user-selected/manual coordinate exists; it no longer renders a geographic map at `(0, 0)`.
+
+## Location and donor-results UX — 2026-09-20
+
+The location picker now temporarily disallows the surrounding `LazyColumn` from intercepting MapLibre touch gestures, so map panning and zooming work without the page scroll competing for the same drag. Camera updates are applied only when the selected coordinates change, preserving a user’s map position during Compose recomposition. A full-screen location-picker sheet is available for easier map inspection and marker placement.
+
+Submission feedback remains card-based rather than relying on a short-lived toast: errors include a retry action, and successful submission/sync states use a prominent status card. Donor results remain list-first with an optional privacy-safe map summary. The list is the actionable surface because donors can be selected and contacted there; the map intentionally does not expose individual donor pins or coordinates. There is no separate donor map page yet—the current combined results surface appears below the submission state in the request flow.
