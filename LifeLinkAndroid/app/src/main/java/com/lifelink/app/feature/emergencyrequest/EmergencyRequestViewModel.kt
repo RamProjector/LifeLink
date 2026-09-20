@@ -58,6 +58,7 @@ sealed interface EmergencyRequestAction {
     data object RefreshStatus : EmergencyRequestAction
     data object RefreshHistory : EmergencyRequestAction
     data object CancelRequest : EmergencyRequestAction
+    data object FulfillRequest : EmergencyRequestAction
     data object Retry : EmergencyRequestAction
     data class ToggleDonorSelection(val donorId: String) : EmergencyRequestAction
     data object ContactSelectedDonors : EmergencyRequestAction
@@ -125,6 +126,7 @@ class EmergencyRequestViewModel(
             EmergencyRequestAction.RefreshStatus -> refreshStatus()
             EmergencyRequestAction.RefreshHistory -> refreshHistory()
             EmergencyRequestAction.CancelRequest -> cancelRequest()
+            EmergencyRequestAction.FulfillRequest -> fulfillRequest()
             EmergencyRequestAction.Retry -> submit()
             is EmergencyRequestAction.ToggleDonorSelection -> toggleDonor(action.donorId)
             EmergencyRequestAction.ContactSelectedDonors -> contactSelectedDonors()
@@ -196,6 +198,7 @@ class EmergencyRequestViewModel(
                 is SubmitResult.ContactRequested -> _uiState.update { it.copy(contactRequestSent = true) }
                 is SubmitResult.ManualFallback -> _uiState.update { it.copy(submission = SubmissionState.ManualFallback(result.requestId, result.reason)) }
                 is SubmitResult.Cancelled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
+                is SubmitResult.Fulfilled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
                 is SubmitResult.OfflineQueued -> _uiState.update { it.copy(submission = SubmissionState.QueuedOffline(result.draftId)) }
                 is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
             }
@@ -212,6 +215,7 @@ class EmergencyRequestViewModel(
                 is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
                 is SubmitResult.ManualFallback -> _uiState.update { it.copy(submission = SubmissionState.ManualFallback(result.requestId, result.reason)) }
                 is SubmitResult.Cancelled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
+                is SubmitResult.Fulfilled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
                 is SubmitResult.OfflineQueued -> _uiState.update { it.copy(submission = SubmissionState.Error("You’re offline. No broadcast was sent.")) }
             }
         }
@@ -267,6 +271,18 @@ class EmergencyRequestViewModel(
                 is SubmitResult.Cancelled -> _uiState.update { it.copy(statusRefreshing = false) }
                 is SubmitResult.Error -> _uiState.update { it.copy(statusRefreshing = false, submission = SubmissionState.Error(result.message)) }
                 else -> _uiState.update { it.copy(statusRefreshing = false, submission = SubmissionState.Error("Unexpected cancellation response.")) }
+            }
+        }
+    }
+
+    private fun fulfillRequest() {
+        val requestId = _uiState.value.activeRequest?.requestId ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(statusRefreshing = true) }
+            when (val result = repository.fulfillRequest(requestId)) {
+                is SubmitResult.Fulfilled -> _uiState.update { it.copy(statusRefreshing = false) }
+                is SubmitResult.Error -> _uiState.update { it.copy(statusRefreshing = false, submission = SubmissionState.Error(result.message)) }
+                else -> _uiState.update { it.copy(statusRefreshing = false, submission = SubmissionState.Error("Unexpected fulfillment response.")) }
             }
         }
     }

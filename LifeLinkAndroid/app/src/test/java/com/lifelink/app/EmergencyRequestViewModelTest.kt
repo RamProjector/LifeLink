@@ -112,6 +112,7 @@ private class FakeRepository(
     }
     override suspend fun sendManualBroadcast(requestId: String): SubmitResult = SubmitResult.MatchingStarted(requestId)
     override suspend fun cancelRequest(requestId: String): SubmitResult = SubmitResult.Cancelled(requestId)
+    override suspend fun fulfillRequest(requestId: String): SubmitResult = SubmitResult.Fulfilled(requestId)
     override suspend fun refreshContacts(requestId: String): List<RequesterContact> = emptyList()
     override fun observeActiveRequest(): Flow<ActiveRequestSnapshot?> = flowOf(null)
     override fun observeRequestHistory(): Flow<List<ActiveRequestSnapshot>> = flowOf(emptyList())

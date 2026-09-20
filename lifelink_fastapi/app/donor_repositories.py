@@ -76,6 +76,9 @@ class SqlAlchemyDonorStore:
         match = result.scalar_one_or_none()
         if match is None:
             raise KeyError(request_id)
+        request = await self.session.get(RequestRow, request_id)
+        if request is None or request.status.value in {"cancelled", "expired", "fulfilled"}:
+            raise ValueError("This request is no longer accepting donor responses")
         match.status = {
             "accepted": MatchStatusEnum.CONFIRMED.value,
             "declined": MatchStatusEnum.DECLINED.value,

@@ -61,6 +61,7 @@ fun ActiveRequestScreen(
                 Button(onClick = { onAction(EmergencyRequestAction.SendManualBroadcast) }) { Text("Send manual broadcast") }
             }
             if (!active.isTerminal) {
+                Button(onClick = { onAction(EmergencyRequestAction.FulfillRequest) }, enabled = !state.statusRefreshing) { Text("Mark fulfilled") }
                 TextButton(onClick = { showCancelConfirmation = true }) { Text("Cancel request") }
             }
             Text("Status refreshes automatically while this request is active.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)

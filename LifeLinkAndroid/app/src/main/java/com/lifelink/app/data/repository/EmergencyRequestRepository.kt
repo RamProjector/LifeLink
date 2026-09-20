@@ -173,6 +173,20 @@ class EmergencyRequestRepositoryImpl(
         }
     }
 
+    override suspend fun fulfillRequest(requestId: String): SubmitResult = withContext(Dispatchers.IO) {
+        try {
+            val response = api.fulfillEmergencyRequest(requestId)
+            if (response.isSuccessful) {
+                activeRequestDao.upsert(ActiveRequestSnapshot(requestId, ActiveRequestStatus.FULFILLED, reason = response.body()?.reason).toEntity())
+                SubmitResult.Fulfilled(requestId)
+            } else SubmitResult.Error("The request could not be marked fulfilled (${response.code()}).")
+        } catch (_: IOException) {
+            SubmitResult.Error("You’re offline. The request is still active.")
+        } catch (_: Exception) {
+            SubmitResult.Error("The request could not be marked fulfilled. Please retry.")
+        }
+    }
+
     private suspend fun queueForRetry(draft: EmergencyRequestDraft) {
         pendingSubmissionDao.upsert(PendingSubmissionEntity(id = draft.id, payloadJson = Gson().toJson(draft)))
         val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()

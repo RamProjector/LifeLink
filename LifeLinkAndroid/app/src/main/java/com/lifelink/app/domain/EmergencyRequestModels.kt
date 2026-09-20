@@ -66,6 +66,7 @@ sealed interface SubmitResult {
     data class ContactRequested(val requestId: String, val donorIds: List<String>) : SubmitResult
     data class ManualFallback(val requestId: String, val reason: String) : SubmitResult
     data class Cancelled(val requestId: String) : SubmitResult
+    data class Fulfilled(val requestId: String) : SubmitResult
     data class OfflineQueued(val draftId: String) : SubmitResult
     data class Error(val message: String) : SubmitResult
 }
@@ -78,6 +79,7 @@ interface EmergencyRequestRepository {
     suspend fun refreshContacts(requestId: String): List<RequesterContact>
     suspend fun sendManualBroadcast(requestId: String): SubmitResult
     suspend fun cancelRequest(requestId: String): SubmitResult
+    suspend fun fulfillRequest(requestId: String): SubmitResult
     fun observeActiveRequest(): Flow<ActiveRequestSnapshot?>
     fun observeRequestHistory(): Flow<List<ActiveRequestSnapshot>>
     suspend fun refreshRequestHistory(): List<RequestHistoryItem>

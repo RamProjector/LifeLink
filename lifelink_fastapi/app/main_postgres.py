@@ -214,6 +214,8 @@ async def contact_selected_donors_postgres(
         raise HTTPException(status_code=403, detail="Not allowed to contact donors for this request")
     try:
         await store.contact_selected_donors_async(request_id, payload.donor_ids)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Request not found") from None
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return ContactSelectedDonorsOut(request_id=request_id, donor_ids=payload.donor_ids)
@@ -314,6 +316,11 @@ async def cancel_emergency_request(
     principal: Principal = Depends(get_principal),
 ):
     store = SqlAlchemyRequestStore(session)
+    record = await store.get_by_id_async(request_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
+        raise HTTPException(status_code=403, detail="Not allowed to cancel this request")
     try:
         record = await store.set_cancelled_async(request_id)
     except KeyError:
@@ -323,6 +330,25 @@ async def cancel_emergency_request(
         status=record.status,
         reason="Cancelled by coordinator",
     )
+
+
+@app.post("/v1/emergency-requests/{request_id}/fulfill", response_model=RequestActionOut)
+async def fulfill_emergency_request(
+    request_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_principal),
+):
+    store = SqlAlchemyRequestStore(session)
+    record = await store.get_by_id_async(request_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
+        raise HTTPException(status_code=403, detail="Not allowed to fulfill this request")
+    try:
+        record = await store.set_fulfilled_async(request_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RequestActionOut(request_id=record.request_id, status=record.status, reason="Marked fulfilled by requester")
 
 
 @app.put("/v1/donors/{donor_id}", response_model=DonorProfileOut)

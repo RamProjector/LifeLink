@@ -175,10 +175,25 @@ class SqlAlchemyRequestStore(RequestStore):
             raise KeyError(request_id)
         return refreshed
 
+    async def set_fulfilled_async(self, request_id: str) -> RequestRecord:
+        row = await self.session.get(EmergencyRequestRow, request_id)
+        if row is None:
+            raise KeyError(request_id)
+        if row.status.value in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.EXPIRED.value}:
+            raise ValueError("A cancelled or expired request cannot be fulfilled")
+        row.status = RequestStatusEnum.FULFILLED.value
+        await self.session.commit()
+        refreshed = await self.get_by_id_async(request_id)
+        if refreshed is None:
+            raise KeyError(request_id)
+        return refreshed
+
     async def contact_selected_donors_async(self, request_id: str, donor_ids: list[str]) -> RequestRecord:
         row = await self.session.get(EmergencyRequestRow, request_id)
         if row is None:
             raise KeyError(request_id)
+        if row.status.value in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.EXPIRED.value, RequestStatusEnum.FULFILLED.value}:
+            raise ValueError("This request is no longer accepting contact requests")
         allowed = {match.donor_id for match in row.matches}
         if any(donor_id not in allowed for donor_id in donor_ids):
             raise ValueError("One or more selected donors are not eligible for this request")

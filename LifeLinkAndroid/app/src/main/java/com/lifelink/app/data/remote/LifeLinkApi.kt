@@ -37,6 +37,9 @@ interface LifeLinkApi {
     @POST("v1/emergency-requests/{requestId}/cancel")
     suspend fun cancelEmergencyRequest(@Path("requestId") requestId: String): Response<RequestActionResponse>
 
+    @POST("v1/emergency-requests/{requestId}/fulfill")
+    suspend fun fulfillEmergencyRequest(@Path("requestId") requestId: String): Response<RequestActionResponse>
+
     @POST("v1/emergency-requests/{requestId}/contact")
     suspend fun contactSelectedDonors(@Path("requestId") requestId: String, @Body request: ContactSelectedDonorsRequest): Response<ContactSelectedDonorsResponse>
 

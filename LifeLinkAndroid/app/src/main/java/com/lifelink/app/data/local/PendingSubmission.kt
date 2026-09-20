@@ -59,6 +59,7 @@ class PendingSubmissionWorker(
                 Result.failure()
             }
             is SubmitResult.Cancelled -> Result.success()
+            is SubmitResult.Fulfilled -> Result.success()
             is SubmitResult.OfflineQueued -> Result.retry()
             is SubmitResult.Error -> Result.failure()
         }
