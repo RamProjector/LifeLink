@@ -14,6 +14,10 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    env:
+      # The unit tests use the in-memory development app and intentionally omit JWTs.
+      # Render production keeps LIFELINK_AUTH_REQUIRED=true in render.yaml.
+      LIFELINK_AUTH_REQUIRED: 'false'
     defaults:
       run:
         working-directory: lifelink_fastapi
