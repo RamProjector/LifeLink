@@ -7,6 +7,7 @@ import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.SubmitResult
 import com.lifelink.app.domain.RequesterContact
 import com.lifelink.app.domain.RequestHistoryItem
+import com.lifelink.app.data.remote.EmergencyRequestRequest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
@@ -45,6 +46,19 @@ class EmergencyRequestViewModelTest {
         val viewModel = EmergencyRequestViewModel(FakeRepository(), enablePolling = false)
         viewModel.onAction(EmergencyRequestAction.Continue)
         assertTrue(viewModel.uiState.value.submission is SubmissionState.Error)
+    }
+
+    @Test
+    fun negative_blood_type_uses_api_ascii_hyphen() {
+        val request = EmergencyRequestRequest.from(
+            EmergencyRequestDraft(
+                bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                requesterLatitude = 14.6466,
+                requesterLongitude = 121.0437
+            ),
+            requesterId = "user-1"
+        )
+        assertEquals("O-", request.bloodType)
     }
 
     @Test

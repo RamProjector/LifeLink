@@ -100,7 +100,8 @@ data class EmergencyRequestRequest(
     companion object {
         fun from(draft: EmergencyRequestDraft, requesterId: String? = null): EmergencyRequestRequest = EmergencyRequestRequest(
             requesterId = requireNotNull(requesterId) { "An authenticated requester is required." },
-            bloodType = draft.bloodType?.label ?: "UNKNOWN",
+            // UI labels use a typographic minus (−); the API enum uses ASCII hyphen (-).
+            bloodType = draft.bloodType?.label?.replace('−', '-') ?: "UNKNOWN",
             units = draft.units,
             urgency = draft.urgency.name.lowercase(),
             responseDeadline = normalizeDeadline(draft),
