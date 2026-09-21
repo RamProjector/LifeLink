@@ -50,6 +50,7 @@ import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
+import com.lifelink.app.domain.BloodType
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -160,12 +161,32 @@ private fun ProfileCard(
 ) {
     var name by remember(profile.displayName) { mutableStateOf(profile.displayName) }
     var area by remember(profile.area) { mutableStateOf(profile.area) }
+    var bloodType by remember(profile.bloodType) { mutableStateOf(profile.bloodType) }
+    var serviceRadius by remember(profile.serviceRadiusKm) { mutableStateOf(profile.serviceRadiusKm.toString()) }
     var manualLatitude by remember(profile.latitude) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
     var manualLongitude by remember(profile.longitude) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
             OutlinedTextField(area, { area = it }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
+            Text("Blood type", fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                BloodType.values().forEach { option ->
+                    FilterChip(
+                        selected = bloodType == option,
+                        onClick = { bloodType = option },
+                        label = { Text(option.label) }
+                    )
+                }
+            }
+            OutlinedTextField(
+                value = serviceRadius,
+                onValueChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Service radius (km)") },
+                supportingText = { Text("Requests outside this radius are not shown in your inbox.") },
+                singleLine = true
+            )
             Text(
                 if (profile.latitude == null) "Location not captured" else "Approximate location saved for matching (±${profile.locationPrecisionMeters} m)",
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -186,7 +207,22 @@ private fun ProfileCard(
                 },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Use this approximate location") }
-            Button(onClick = { onAction(DonorAction.UpdateProfile(profile.copy(displayName = name, area = area))) }, Modifier.fillMaxWidth()) { Text("Save profile") }
+            Button(
+                onClick = {
+                    onAction(
+                        DonorAction.UpdateProfile(
+                            profile.copy(
+                                displayName = name,
+                                area = area,
+                                bloodType = bloodType,
+                                serviceRadiusKm = serviceRadius.toIntOrNull() ?: profile.serviceRadiusKm
+                            )
+                        )
+                    )
+                },
+                enabled = name.trim().length >= 2 && bloodType != null && serviceRadius.toIntOrNull() in 1..100,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Save profile") }
         }
     }
 }

@@ -32,11 +32,14 @@ class DonorRepositoryImpl(
         withContext(Dispatchers.IO) {
         val ownerId = donorId()
         val effectiveProfile = profile.copy(donorId = ownerId)
+        require(effectiveProfile.displayName.trim().length >= 2) { "Add a display name before saving your donor profile." }
+        require(effectiveProfile.bloodType != null) { "Select your blood type before saving your donor profile." }
         require(effectiveProfile.latitude != null && effectiveProfile.longitude != null) { "Capture your approximate location before saving your donor profile." }
+        require(effectiveProfile.serviceRadiusKm in 1..100) { "Service radius must be between 1 and 100 km." }
         api?.let { remote ->
             val response = remote.registerDonor(
                 ownerId, DonorProfileRequest(
-                ownerId, effectiveProfile.displayName, effectiveProfile.bloodType?.label ?: "UNKNOWN",
+                ownerId, effectiveProfile.displayName.trim(), effectiveProfile.bloodType?.label?.replace('−', '-') ?: "UNKNOWN",
                 effectiveProfile.latitude, effectiveProfile.longitude, effectiveProfile.serviceRadiusKm.toDouble(), effectiveProfile.verified
                 )
             )
