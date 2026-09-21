@@ -46,7 +46,7 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
     }
 
     fun parseRecoveryCallback(uri: Uri): Result<RecoveryCallback> = runCatching {
-        require(uri.scheme == "lifelink" && uri.host == "auth" && uri.path == "/callback") { "This is not a LifeLink recovery link." }
+        require(uri.scheme == "lifelink" && uri.host == "auth" && uri.path.orEmpty().trimEnd('/') == "/callback") { "This is not a LifeLink recovery link." }
         val type = uri.getQueryParameter("type") ?: uri.getFragmentParameter("type")
         require(type == "recovery") { "This link is not a password-reset link." }
         val accessToken = uri.getQueryParameter("access_token") ?: uri.getFragmentParameter("access_token")
