@@ -454,10 +454,10 @@ private fun LocationMapPicker(
     var retryRequest by remember { mutableStateOf(0) }
     LaunchedEffect(retryRequest, mapLoading) {
         if (mapLoading) {
-            delay(12_000)
+            delay(30_000)
             if (mapLoading) {
                 mapLoading = false
-                mapError = "Map tiles are taking too long to load. Check your connection and retry."
+                mapError = "Map preview is unavailable right now. Your location is still captured; retry the preview or use the full map."
             }
         }
     }
@@ -486,7 +486,7 @@ private fun LocationMapPicker(
                 Card(Modifier.align(Alignment.Center).padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
-                OutlinedButton(onClick = { mapError = null; mapLoading = true; retryRequest++ }) { Text("Retry map") }
+                        OutlinedButton(onClick = { mapError = null; mapLoading = true; retryRequest++ }) { Text("Retry map") }
                     }
                 }
             }

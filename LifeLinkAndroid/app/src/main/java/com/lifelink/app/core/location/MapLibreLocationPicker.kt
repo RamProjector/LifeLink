@@ -65,6 +65,10 @@ fun MapLibreLocationPicker(
         modifier = modifier.fillMaxWidth().heightIn(min = 260.dp),
         factory = {
             mapView.apply {
+                addOnDidFailLoadingMapListener {
+                    onLoadingChanged(false)
+                    onMapError("Map tiles could not be loaded. Your location is still saved; retry the preview or use the full map.")
+                }
                 setOnTouchListener { view, event ->
                     when (event.actionMasked) {
                         MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> view.parent?.requestDisallowInterceptTouchEvent(true)
