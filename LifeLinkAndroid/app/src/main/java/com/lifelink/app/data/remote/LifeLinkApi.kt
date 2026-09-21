@@ -16,6 +16,9 @@ import java.util.Locale
 import java.util.TimeZone
 
 interface LifeLinkApi {
+    @GET("health")
+    suspend fun health(): Response<Map<String, String>>
+
     @PUT("v1/profile")
     suspend fun upsertProfile(@Body profile: ProfileRequest): Response<ProfileResponse>
 

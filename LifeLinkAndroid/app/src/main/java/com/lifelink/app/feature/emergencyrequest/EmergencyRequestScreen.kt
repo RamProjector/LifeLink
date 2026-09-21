@@ -418,7 +418,6 @@ private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContac
         }
         Text("Units needed", fontWeight = FontWeight.SemiBold)
         QuantityStepper(draft.units) { units -> onAction(EmergencyRequestAction.UpdateDraft { it.copy(units = units) }) }
-        InfoCard("Why we ask", "Blood-type eligibility is rule-based and checked before geographic prioritization.")
     }
 }
 
@@ -571,8 +570,6 @@ private fun LocationMapPicker(
     }
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
         Heading("Where are you requesting help?", "Your approximate location is used only to find nearby eligible donors.")
-        InfoCard("Privacy-first GPS", "Your precise coordinates are used for matching and are not shown to donors.", MaterialTheme.colorScheme.secondary)
-        InfoCard("Map preview uses internet", "The preview loads map tiles online. GPS capture and manual coordinates remain available even when the preview cannot load.", MaterialTheme.colorScheme.secondary)
         locationMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
@@ -597,7 +594,6 @@ private fun LocationMapPicker(
                 Text("Open full map")
             }
         }
-        Text("When location access is already allowed, the map centers on your current position automatically. The pin is visible only to you; donors receive an approximate matching distance, not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         Text("Or enter an approximate location manually", fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(
@@ -632,7 +628,6 @@ private fun LocationMapPicker(
                 Icon(Icons.Default.LocationOn, "Request location", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
                 Text(if (draft.requesterLatitude == null) "Location not captured" else "Approximate location captured", fontWeight = FontWeight.SemiBold)
                 if (draft.requesterLatitude != null) Text("Using a selected pin · accuracy about ${draft.locationPrecisionMeters} m", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Donors see distance and availability—not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -660,7 +655,6 @@ private fun LocationMapPicker(
         Heading("How should responses work?", "Choose how eligible donors can contact you after they accept.")
         Text("Preferred contact", fontWeight = FontWeight.SemiBold)
         ContactMethod.entries.forEach { method -> SelectableRow(method.label, draft.contactMethod == method) { onAction(EmergencyRequestAction.UpdateDraft { it.copy(contactMethod = method) }) } }
-        InfoCard("Contact privacy", "Your contact details stay private until a donor accepts your request.", MaterialTheme.colorScheme.secondary)
         CheckRow(draft.genuineRequestConfirmed, "I confirm this is a genuine blood request.") { checked -> onAction(EmergencyRequestAction.UpdateDraft { draftValue -> draftValue.copy(genuineRequestConfirmed = checked) }) }
         CheckRow(draft.sharingConsentConfirmed, "I agree to share the listed request details with eligible donors for this request.") { checked -> onAction(EmergencyRequestAction.UpdateDraft { draftValue -> draftValue.copy(sharingConsentConfirmed = checked) }) }
     }
@@ -679,7 +673,6 @@ private fun LocationMapPicker(
             label = "Use AI-assisted donor ranking",
             supporting = "When enabled, LifeLink weighs distance, travel estimate, availability, verification, urgency, and response likelihood. When disabled, results are sorted by GPS distance only."
         ) { enabled -> onAction(EmergencyRequestAction.UpdateDraft { it.copy(aiMatchingEnabled = enabled) }) }
-        InfoCard("Matching will consider", "✓ Blood-type eligibility\n✓ Distance and estimated travel time\n✓ Availability and verification\n✓ Request urgency", MaterialTheme.colorScheme.secondary)
     }
 }
 
