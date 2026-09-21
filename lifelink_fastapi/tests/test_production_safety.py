@@ -1,6 +1,8 @@
 from fastapi import HTTPException
+from datetime import datetime, timezone
 
 from app.rate_limit import enforce_rate_limit
+from app.main_postgres import RequesterContactOut
 
 
 def test_rate_limit_rejects_after_threshold():
@@ -13,3 +15,20 @@ def test_rate_limit_rejects_after_threshold():
         assert exc.status_code == 429
     else:
         raise AssertionError("Expected the third request to be rate limited")
+
+
+def test_contact_response_preserves_lifecycle_timestamps():
+    accepted_at = datetime.now(timezone.utc)
+    shared_at = datetime.now(timezone.utc)
+    response = RequesterContactOut(
+        donor_id="donor-1",
+        display_name="Donor",
+        status="contact_shared",
+        accepted_at=accepted_at,
+        contact_shared_at=shared_at,
+        updated_at=shared_at,
+        contact_email="donor@example.test",
+    )
+
+    assert response.contact_shared_at == shared_at
+    assert response.updated_at == shared_at

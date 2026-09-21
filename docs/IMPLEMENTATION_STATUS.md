@@ -1,18 +1,20 @@
 # LifeLink Implementation Status
 
-**Status date:** 20 September 2026
+**Status date:** 21 September 2026
 **Repository:** `RamProjector/LifeLink`  
 **Source of live-state confirmation:** repository verification plus user confirmation in the project chat.
 
 ## Confirmed deployment state
 
-All three current Supabase SQL migrations have been applied to the live Supabase database, in order:
+All five current Supabase SQL migrations have been applied to the live Supabase database, in order:
 
 1. `lifelink_fastapi/sql/001_initial_schema.sql`
 2. `lifelink_fastapi/sql/002_gps_request_location.sql`
 3. `lifelink_fastapi/sql/003_roles_profiles_contacts.sql`
+4. `lifelink_fastapi/sql/004_contact_lifecycle.sql`
+5. `lifelink_fastapi/sql/005_audit_events.sql`
 
-This means the live database is expected to support the initial schema, GPS-based requester locations, authenticated requester/donor roles, profiles, and controlled contact-request records. Future chats should not ask to reapply these migrations unless the live database is recreated or migration state is independently found to be inconsistent.
+This means the live database is expected to support the initial schema, GPS-based requester locations, authenticated requester/donor roles, profiles, controlled contact-request records, expanded contact lifecycle states, and append-only audit events. Future chats should not ask to reapply these migrations unless the live database is recreated or migration state is independently found to be inconsistent.
 
 The current Render API endpoint is documented as `https://lifelink-api-uzje.onrender.com/`. A live check previously returned HTTP 200 from `/health` and successfully served `/openapi.json`. Render free-tier cold starts can make the first request slow.
 
@@ -28,9 +30,9 @@ The API may use exact coordinates internally for matching, but donor coordinates
 
 ## Remaining work
 
-The following items are not confirmed as production-complete: real-device and live-deployment verification of the contact lifecycle, contact cancellation and expiry enforcement, typed location-source and freshness contract, precise-versus-approximate permission UX, in-flight location cancellation and classified retry states, MapLibre loading/error/recenter controls, donor location freshness timestamps and stale-location policy, in-app conversation or controlled phone handoff, push notifications and deep links, password recovery and confirmation resend, rate limiting, audit logging, abuse reporting, signed Android release configuration, crash reporting, and real-device accessibility/performance validation. A previous 401 screenshot was traced to the missing client-side access-token refresh path; the refresh-and-retry fix is now compile-verified. The requester map no longer renders `(0, 0)` when no location has been captured. The prioritized follow-up scope is recorded in `docs/POST_UPDATE_IMPROVEMENT_SCOPE.md`.
+The following items are not confirmed as production-complete: real-device and live-deployment verification of the contact lifecycle, contact cancellation and expiry enforcement, typed location-source and freshness contract, precise-versus-approximate permission UX, in-flight location cancellation and classified retry states, donor location freshness timestamps and stale-location policy, in-app conversation or controlled phone handoff, push notifications and deep links, abuse reporting, signed Android release configuration, crash reporting, and real-device accessibility/performance validation. Rate-limiting and audit-event infrastructure are implemented and their migrations are applied, but endpoint-level and live-production verification remain required. A previous 401 screenshot was traced to the missing client-side access-token refresh path; the refresh-and-retry fix is now compile-verified. The requester map no longer renders `(0, 0)` when no location has been captured. The prioritized follow-up scope is recorded in `docs/POST_UPDATE_IMPROVEMENT_SCOPE.md`.
 
-These are implementation or operational follow-ups. They do not imply that the three current SQL migrations are missing.
+These are implementation or operational follow-ups. They do not imply that the five current SQL migrations are missing.
 
 ## Security note
 

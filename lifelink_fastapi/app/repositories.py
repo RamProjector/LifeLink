@@ -278,6 +278,8 @@ class SqlAlchemyRequestStore(RequestStore):
                 "display_name": donor.display_name,
                 "status": contact.status,
                 "accepted_at": contact.accepted_at,
+                "contact_shared_at": contact.contact_shared_at,
+                "updated_at": contact.updated_at,
                 "contact_email": profile.email if contact.status in {"accepted", "contact_shared", "meeting_arranged", "fulfilled"} and profile else None,
             })
         return items

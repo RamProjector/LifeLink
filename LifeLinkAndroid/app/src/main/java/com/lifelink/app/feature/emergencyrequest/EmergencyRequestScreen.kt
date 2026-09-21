@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -63,6 +64,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -186,7 +188,7 @@ fun EmergencyRequestScreen(
 
 @Composable
 private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -> Unit) {
-    var showMap by remember { mutableStateOf(false) }
+    var showMap by rememberSaveable { mutableStateOf(false) }
     val donorsWithinFiveKm = state.discoveredDonors.count { it.distanceKm <= 5.0 }
     val donorsWithinTenKm = state.discoveredDonors.count { it.distanceKm > 5.0 && it.distanceKm <= 10.0 }
     val donorsBeyondTenKm = state.discoveredDonors.count { it.distanceKm > 10.0 }
@@ -198,7 +200,10 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Results", fontWeight = FontWeight.SemiBold)
-            FilterChip(selected = showMap, onClick = { showMap = !showMap }, label = { Text(if (showMap) "Hide map" else "Show map summary") })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = !showMap, onClick = { showMap = false }, label = { Text("Donors") })
+                FilterChip(selected = showMap, onClick = { showMap = true }, label = { Text("Map") })
+            }
         }
         if (showMap) {
             val latitude = state.draft.requesterLatitude
@@ -206,29 +211,35 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
             if (latitude != null && longitude != null) {
                 PrivacySafeDonorMap(latitude, longitude, donorsWithinFiveKm, donorsWithinTenKm, donorsBeyondTenKm)
             } else {
-                InfoCard("Map summary unavailable", "The request location is not available. Review the donor list below.", MaterialTheme.colorScheme.secondary)
+                InfoCard("Map summary unavailable", "The request location is not available. Switch to Donors to review available results.", MaterialTheme.colorScheme.secondary)
             }
+            Text("Switch to Donors to select people and send contact requests.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text("Donor list", fontWeight = FontWeight.SemiBold)
-        state.discoveredDonors.forEach { donor ->
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) },
-                colors = CardDefaults.cardColors(containerColor = if (donor.donorId in state.selectedDonorIds) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
-            ) {
-                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = donor.donorId in state.selectedDonorIds, onCheckedChange = { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) })
-                    Column(Modifier.padding(start = 8.dp)) {
-                        Text(donor.displayName, fontWeight = FontWeight.SemiBold)
-                        Text("${donor.bloodType} · ${"%.1f".format(donor.distanceKm)} km · about ${donor.travelMinutes} min", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        donor.explanation.firstOrNull()?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (!showMap) {
+            Text("Donor list", fontWeight = FontWeight.SemiBold)
+            if (state.discoveredDonors.isEmpty()) {
+                InfoCard("No eligible donors yet", "No donor cards are available for this request right now. Keep the request active and check the request status again later.", MaterialTheme.colorScheme.secondary)
+            }
+            state.discoveredDonors.forEach { donor ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().clickable { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) },
+                    colors = CardDefaults.cardColors(containerColor = if (donor.donorId in state.selectedDonorIds) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
+                ) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = donor.donorId in state.selectedDonorIds, onCheckedChange = { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) })
+                        Column(Modifier.padding(start = 8.dp)) {
+                            Text(donor.displayName, fontWeight = FontWeight.SemiBold)
+                            Text("${donor.bloodType} · ${"%.1f".format(donor.distanceKm)} km · about ${donor.travelMinutes} min", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            donor.explanation.firstOrNull()?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        }
                     }
                 }
             }
-        }
-        if (state.contactRequestSent) {
-            SuccessBanner("Contact request sent to ${state.selectedDonorIds.size} selected donor(s).")
-        } else {
-            Button(onClick = { onAction(EmergencyRequestAction.ContactSelectedDonors) }, enabled = state.selectedDonorIds.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Contact selected donors") }
+            if (state.contactRequestSent) {
+                SuccessBanner("Contact request sent to ${state.selectedDonorIds.size} selected donor(s).")
+            } else {
+                Button(onClick = { onAction(EmergencyRequestAction.ContactSelectedDonors) }, enabled = state.selectedDonorIds.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Contact selected donors") }
+            }
         }
         Text("This is a discovery and contact aid, not medical screening.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
     }
@@ -253,9 +264,15 @@ private fun PrivacySafeDonorMap(
 
 @Composable
 private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContact, onAction: (EmergencyRequestAction) -> Unit) {
-    val accepted = contact.status.lowercase() in setOf("accepted", "contact_shared", "meeting_arranged", "fulfilled")
-    val statusLabel = contact.status.replace('_', ' ').replaceFirstChar { it.uppercase() }
+    val status = contact.status.lowercase()
+    val accepted = status in setOf("accepted", "contact_shared", "meeting_arranged", "fulfilled")
+    val statusLabel = status.replace('_', ' ').replaceFirstChar { it.uppercase() }
     val context = LocalContext.current
+    var reportDialogVisible by remember { mutableStateOf(false) }
+    var blockDialogVisible by remember { mutableStateOf(false) }
+    var cancelDialogVisible by remember { mutableStateOf(false) }
+    var fulfillDialogVisible by remember { mutableStateOf(false) }
+    var reportReason by remember { mutableStateOf("") }
     Card(
         Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -269,6 +286,7 @@ private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContac
             }
             if (accepted) {
                 contact.acceptedAt?.let { Text("Accepted $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                contact.contactSharedAt?.let { Text("Contact shared $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 Text("Contact details are shared only after donor consent.", style = MaterialTheme.typography.bodySmall)
                 contact.contactEmail?.let { email ->
                     OutlinedButton(onClick = {
@@ -277,21 +295,100 @@ private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContac
                         Text("Contact donor · $email")
                     }
                 }
-                when (contact.status.lowercase()) {
+                when (status) {
                     "accepted" -> OutlinedButton(onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "contact_shared")) }, modifier = Modifier.fillMaxWidth()) { Text("Mark contact shared") }
                     "contact_shared" -> OutlinedButton(onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "meeting_arranged")) }, modifier = Modifier.fillMaxWidth()) { Text("Mark meeting arranged") }
-                    "meeting_arranged" -> OutlinedButton(onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "fulfilled")) }, modifier = Modifier.fillMaxWidth()) { Text("Mark fulfilled") }
+                    "meeting_arranged" -> OutlinedButton(onClick = { fulfillDialogVisible = true }, modifier = Modifier.fillMaxWidth()) { Text("Mark fulfilled") }
                     "fulfilled" -> Text("Fulfilled", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                 }
-                if (contact.status.lowercase() in setOf("accepted", "contact_shared", "meeting_arranged")) TextButton(onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "cancelled")) }) { Text("Cancel contact") }
+                if (status in setOf("accepted", "contact_shared", "meeting_arranged")) TextButton(onClick = { cancelDialogVisible = true }) { Text("Cancel contact") }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { onAction(EmergencyRequestAction.ReportContact(contact.donorId)) }) { Text("Report") }
-                    TextButton(onClick = { onAction(EmergencyRequestAction.BlockContact(contact.donorId)) }) { Text("Block") }
+                    TextButton(onClick = { reportDialogVisible = true }) { Text("Report") }
+                    TextButton(onClick = { blockDialogVisible = true }) { Text("Block") }
                 }
             } else {
-                Text("Waiting for the donor to respond. No contact details are visible yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    when (status) {
+                        "declined" -> "The donor declined this request. No contact details were shared."
+                        "cancelled" -> "This contact request was cancelled. No further contact actions are available."
+                        "expired" -> "This contact request expired. No further contact actions are available."
+                        else -> "Waiting for the donor to respond. No contact details are visible yet."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
+    }
+
+    if (reportDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { reportDialogVisible = false },
+            title = { Text("Report donor") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Tell us what happened. Do not include medical records or unrelated personal information.")
+                    OutlinedTextField(
+                        value = reportReason,
+                        onValueChange = { if (it.length <= 500) reportReason = it },
+                        label = { Text("Reason") },
+                        supportingText = { Text("${reportReason.length}/500") },
+                        minLines = 3,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onAction(EmergencyRequestAction.ReportContact(contact.donorId, reportReason.trim()))
+                    reportDialogVisible = false
+                    reportReason = ""
+                }) { Text("Send report") }
+            },
+            dismissButton = { TextButton(onClick = { reportDialogVisible = false }) { Text("Cancel") } }
+        )
+    }
+    if (blockDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { blockDialogVisible = false },
+            title = { Text("Block donor?") },
+            text = { Text("Blocking stops further contact actions for this donor in this request. You can also report the interaction if it was unsafe.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onAction(EmergencyRequestAction.BlockContact(contact.donorId))
+                    blockDialogVisible = false
+                }) { Text("Block donor") }
+            },
+            dismissButton = { TextButton(onClick = { blockDialogVisible = false }) { Text("Cancel") } }
+        )
+    }
+    if (cancelDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { cancelDialogVisible = false },
+            title = { Text("Cancel contact request?") },
+            text = { Text("This ends the contact workflow for this donor. No further contact details or lifecycle actions will be shared.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "cancelled"))
+                    cancelDialogVisible = false
+                }) { Text("Cancel contact") }
+            },
+            dismissButton = { TextButton(onClick = { cancelDialogVisible = false }) { Text("Keep contact") } }
+        )
+    }
+    if (fulfillDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { fulfillDialogVisible = false },
+            title = { Text("Mark request fulfilled?") },
+            text = { Text("Use this after the donor interaction is complete and the blood need has been handled through the appropriate medical facility.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "fulfilled"))
+                    fulfillDialogVisible = false
+                }) { Text("Mark fulfilled") }
+            },
+            dismissButton = { TextButton(onClick = { fulfillDialogVisible = false }) { Text("Not yet") } }
+        )
     }
 }
 
@@ -310,11 +407,10 @@ private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContac
         Heading("What blood is needed?", "Select the type and amount required.")
         Text("Blood type", fontWeight = FontWeight.SemiBold)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            BloodType.entries.forEach { type -> Chip(type.label, draft.bloodType == type && !draft.typeUnknown) { onAction(EmergencyRequestAction.UpdateDraft { it.copy(bloodType = type, typeUnknown = false) }) } }
+            BloodType.entries.forEach { type -> Chip(type.label, draft.bloodType == type) { onAction(EmergencyRequestAction.UpdateDraft { it.copy(bloodType = type, typeUnknown = false) }) } }
         }
         Text("Units needed", fontWeight = FontWeight.SemiBold)
         QuantityStepper(draft.units) { units -> onAction(EmergencyRequestAction.UpdateDraft { it.copy(units = units) }) }
-        CheckRow(draft.typeUnknown, "I’m not sure of the exact type", "A blood-bank professional must verify compatibility before a response is accepted.") { checked -> onAction(EmergencyRequestAction.UpdateDraft { it.copy(typeUnknown = checked, bloodType = if (checked) null else it.bloodType) }) }
         InfoCard("Why we ask", "Blood-type eligibility is rule-based and checked before geographic prioritization.")
     }
 }

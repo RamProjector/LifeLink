@@ -66,6 +66,8 @@ class RequesterContactOut(BaseModel):
     display_name: str
     status: str
     accepted_at: datetime | None = None
+    contact_shared_at: datetime | None = None
+    updated_at: datetime | None = None
     contact_email: str | None = None
 
 
@@ -330,10 +332,17 @@ async def manual_broadcast_postgres(
     principal: Principal = Depends(get_principal),
 ):
     store = SqlAlchemyRequestStore(session)
+    record = await store.get_by_id_async(request_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
+        raise HTTPException(status_code=403, detail="Not allowed to broadcast this request")
+    enforce_rate_limit(f"manual-broadcast:{principal.subject}", 5, 300)
     try:
         record = await store.set_manual_broadcast_async(request_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Request not found") from None
+    await store.record_audit_async(principal.subject, "request_manual_broadcast", request_id)
 
     return ManualFallbackOut(
         request_id=request_id,
@@ -379,10 +388,13 @@ async def list_emergency_request_history(
 async def get_emergency_request_status(
     request_id: str,
     session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_principal),
 ):
     record = await SqlAlchemyRequestStore(session).get_by_id_async(request_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Request not found")
+    if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
+        raise HTTPException(status_code=403, detail="Not allowed to view this request")
     return EmergencyRequestStatusOut(
         request_id=record.request_id,
         status=record.status,

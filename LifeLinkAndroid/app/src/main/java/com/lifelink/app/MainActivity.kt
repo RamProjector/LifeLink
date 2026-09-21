@@ -81,6 +81,8 @@ class MainActivity : ComponentActivity() {
                     donorState = donorState,
                     onDonorAction = donorViewModel::onAction,
                     role = role ?: UserRole.REQUESTER,
+                    accountEmail = (authState as? AuthState.SignedIn)?.session?.email.orEmpty(),
+                    accountUserId = (authState as? AuthState.SignedIn)?.session?.userId.orEmpty(),
                     onSignOut = authViewModel::signOut
                 )
             }

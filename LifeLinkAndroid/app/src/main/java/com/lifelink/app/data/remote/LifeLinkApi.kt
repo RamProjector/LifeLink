@@ -169,6 +169,8 @@ data class RequesterContactResponse(
     @SerializedName("display_name") val displayName: String,
     val status: String,
     @SerializedName("accepted_at") val acceptedAt: String? = null,
+    @SerializedName("contact_shared_at") val contactSharedAt: String? = null,
+    @SerializedName("updated_at") val updatedAt: String? = null,
     @SerializedName("contact_email") val contactEmail: String? = null
 )
 

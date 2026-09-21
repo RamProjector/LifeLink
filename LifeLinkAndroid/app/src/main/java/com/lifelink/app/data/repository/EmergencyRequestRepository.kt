@@ -151,14 +151,14 @@ class EmergencyRequestRepositoryImpl(
         val response = api.requesterContacts(requestId)
         if (!response.isSuccessful) return@withContext emptyList()
         response.body().orEmpty().map {
-            RequesterContact(it.donorId, it.displayName, it.status, it.acceptedAt, it.contactEmail)
+            RequesterContact(it.donorId, it.displayName, it.status, it.acceptedAt, it.contactSharedAt, it.updatedAt, it.contactEmail)
         }
     }
 
     override suspend fun updateContactStatus(requestId: String, donorId: String, status: String): RequesterContact = withContext(Dispatchers.IO) {
         val response = api.updateContactStatus(requestId, donorId, ContactStatusUpdateRequest(status))
         if (!response.isSuccessful || response.body() == null) throw IOException("Contact status could not be updated (${response.code()}).")
-        response.body()!!.let { RequesterContact(it.donorId, it.displayName, it.status, it.acceptedAt, it.contactEmail) }
+        response.body()!!.let { RequesterContact(it.donorId, it.displayName, it.status, it.acceptedAt, it.contactSharedAt, it.updatedAt, it.contactEmail) }
     }
 
     override suspend fun reportContact(requestId: String, donorId: String, reason: String): String = withContext(Dispatchers.IO) {

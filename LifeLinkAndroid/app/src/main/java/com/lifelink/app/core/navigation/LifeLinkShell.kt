@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddAlert
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -51,6 +53,8 @@ fun LifeLinkShell(
     donorState: DonorUiState,
     onDonorAction: (DonorAction) -> Unit,
     role: UserRole,
+    accountEmail: String,
+    accountUserId: String,
     onSignOut: () -> Unit
 ) {
     var showRequest by rememberSaveable { mutableStateOf(false) }
@@ -76,7 +80,7 @@ fun LifeLinkShell(
             NavigationBar {
                 NavigationBarItem(tab == ShellTab.HOME, { tab = ShellTab.HOME }, icon = { Icon(Icons.Default.AddAlert, "Home") }, label = { Text("Home") })
                 NavigationBarItem(tab == ShellTab.REQUESTS, { tab = ShellTab.REQUESTS }, icon = { Icon(Icons.Default.Assignment, "Requests") }, label = { Text("Requests") })
-                NavigationBarItem(tab == ShellTab.LEARN, { tab = ShellTab.LEARN }, icon = { Icon(Icons.Default.School, "Learn") }, label = { Text("Learn") })
+                NavigationBarItem(tab == ShellTab.LEARN, { tab = ShellTab.LEARN }, icon = { Icon(Icons.Default.Info, "Info") }, label = { Text("Info") })
                 NavigationBarItem(tab == ShellTab.PROFILE, { tab = ShellTab.PROFILE }, icon = { Icon(Icons.Default.Person, "Profile") }, label = { Text("Profile") })
             }
         }
@@ -86,7 +90,7 @@ fun LifeLinkShell(
                 ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true })
                 ShellTab.REQUESTS -> RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = { showRequest = true }, onActive = { showActive = true })
                 ShellTab.LEARN -> LearnContent()
-                ShellTab.PROFILE -> ProfileContent(role, onSignOut)
+                ShellTab.PROFILE -> ProfileContent(role, accountEmail, accountUserId, onSignOut)
             }
         }
     }
@@ -200,12 +204,16 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
 }
 
 @Composable private fun LearnContent() {
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Learn", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("LifeLink helps requesters connect with eligible, available donors nearby.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-        LearnCard("How matching works", "LifeLink checks blood-type eligibility, donor availability, service radius, approximate distance, travel time, and urgency. A match is not medical approval; confirm compatibility with a blood-bank professional.")
-        LearnCard("Location privacy", "Use current location or choose a point on the map. Exact requester and donor coordinates are used for matching but are not shown to the other person. LifeLink does not track anyone in the background.")
-        LearnCard("Respond safely", "Contact requests stay pending until a donor responds. Share contact details only after acceptance, confirm the meeting place through the app, and use a verified blood bank or hospital for screening.")
+    Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("LifeLink info", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text("A direct requester-to-donor discovery and contact aid for urgent blood needs.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        LearnCard("How LifeLink works", "Requesters share the blood type, units, urgency, and an approximate location. LifeLink finds eligible, available donors nearby. Donors choose whether to accept or decline a contact request.")
+        LearnCard("How matching works", "Matching considers blood-type compatibility, donor availability, service radius, approximate distance, travel estimate, and urgency. A match is not medical approval; confirm compatibility with a blood-bank professional.")
+        LearnCard("Location privacy", "Current or manually selected location is used for matching. Exact requester and donor coordinates are not shown to the other person. LifeLink does not track anyone in the background, and requester maps never show individual donor pins.")
+        LearnCard("Contact and consent", "Contact requests remain pending until a donor responds. Contact details are disclosed only after donor acceptance and server authorization. You can mark contact shared, meeting arranged, fulfilled, or cancelled.")
+        LearnCard("Respond safely", "Use a verified blood bank or hospital for screening and collection. Do not share patient names, diagnoses, medical records, passwords, or payment information in LifeLink notes or messages. Report or block unsafe interactions.")
+        LearnCard("What LifeLink is not", "LifeLink is not a hospital, blood bank, emergency dispatcher, medical screening service, or guarantee that a donor can provide blood. For immediate danger, contact local emergency services and a qualified medical facility.")
+        Text("LifeLink Cloud · MVP", style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -218,13 +226,34 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     }
 }
 
-@Composable private fun ProfileContent(role: UserRole, onSignOut: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+@Composable private fun ProfileContent(role: UserRole, accountEmail: String, accountUserId: String, onSignOut: () -> Unit) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Profile", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(if (role == UserRole.DONOR) "Donor account" else "Requester account", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
-        Text(if (role == UserRole.DONOR) "Your approximate location is used only for proximity matching." else "Your exact request location is used only for matching and is not shown to donors.")
-        Text("Privacy and consent settings")
-        Text("Use the role-specific dashboard to update your profile, availability, or request details.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Account and privacy controls", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(accountEmail.ifBlank { "Authenticated LifeLink account" }, fontWeight = FontWeight.Bold)
+                Text(if (role == UserRole.DONOR) "Donor account" else "Requester account", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
+                if (accountUserId.isNotBlank()) Text("Account ID · ${accountUserId.take(8)}…", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Location privacy", fontWeight = FontWeight.Bold)
+                Text(
+                    if (role == UserRole.DONOR) "Your approximate donor location is used for distance matching. Requesters see distance and travel estimates, not your coordinates."
+                    else "Your request location is used for matching. Donors do not see your exact coordinates.",
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Safety and consent", fontWeight = FontWeight.Bold)
+                Text("Contact details are disclosed only after a donor accepts. LifeLink is a discovery and contact aid, not a replacement for blood-bank screening or medical care.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Text("Use the role-specific dashboard to update your display name, availability, or location.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         androidx.compose.material3.OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
     }
 }

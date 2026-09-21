@@ -43,6 +43,8 @@ data class RequesterContact(
     val displayName: String,
     val status: String,
     val acceptedAt: String? = null,
+    val contactSharedAt: String? = null,
+    val updatedAt: String? = null,
     val contactEmail: String? = null
 )
 

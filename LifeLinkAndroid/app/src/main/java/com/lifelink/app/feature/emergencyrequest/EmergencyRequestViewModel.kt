@@ -313,7 +313,7 @@ class EmergencyRequestViewModel(
 
     private fun validateStep(step: RequestStep, draft: EmergencyRequestDraft): String? = when (step) {
         RequestStep.BLOOD_NEED -> when {
-            !draft.typeUnknown && draft.bloodType == null -> "Select a blood type or choose unknown type."
+            draft.bloodType == null -> "Select a blood type before continuing."
             draft.units !in 1..20 -> "Units must be between 1 and 20."
             else -> null
         }

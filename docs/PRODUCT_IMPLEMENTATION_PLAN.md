@@ -32,4 +32,4 @@ Facility discovery, hospital routing, coordinator-required workflows, public don
 
 ## Operational prerequisites
 
-Apply `lifelink_fastapi/sql/003_roles_profiles_contacts.sql` after the existing migrations in Supabase. The Android build must continue using only the Supabase URL and publishable key. JWT secrets, service-role keys, database passwords, and SMTP credentials remain server-side.
+The live Supabase database has migrations `001_initial_schema.sql` through `005_audit_events.sql` applied in order. Future schema changes must be applied as new migrations and verified against the live database. The Android build must continue using only the Supabase URL and publishable key. JWT secrets, service-role keys, database passwords, and SMTP credentials remain server-side.
