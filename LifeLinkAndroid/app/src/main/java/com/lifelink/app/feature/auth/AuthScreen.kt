@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +20,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -68,6 +72,8 @@ fun AuthScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .imePadding()
+                .navigationBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -124,7 +130,10 @@ fun AuthScreen(
                         supportingText = if (email.isNotEmpty() && !emailValid) {
                             { Text("Enter a complete email, such as name@gmail.com") }
                         } else null,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        trailingIcon = if (email.isNotEmpty() && !emailValid) {
+                            { androidx.compose.material3.Icon(Icons.Default.Error, contentDescription = "Invalid email address") }
+                        } else null
                     )
 
                     if (!recoveryMode) PasswordField(
@@ -173,7 +182,7 @@ fun AuthScreen(
                                 color = MaterialTheme.colorScheme.onPrimary
                             )
                             Spacer(Modifier.width(10.dp))
-                            Text("Working...")
+                            Text("Working…")
                         } else {
                             Text(if (recoveryMode) "Send reset email" else if (createAccount) "Create account" else "Sign in")
                         }
@@ -229,7 +238,12 @@ private fun PasswordField(
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         trailingIcon = {
-            TextButton(onClick = onToggleVisibility) { Text(if (visible) "Hide" else "Show") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isError) {
+                    androidx.compose.material3.Icon(Icons.Default.Error, contentDescription = "Invalid $label")
+                }
+                TextButton(onClick = onToggleVisibility) { Text(if (visible) "Hide" else "Show") }
+            }
         }
     )
 }

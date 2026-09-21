@@ -111,8 +111,8 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                 Text("Your availability controls which verified requests you see.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             item { AvailabilityCard(state.profile, onAction) }
-            state.message?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) } }
-            locationMessage?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) } }
+            state.message?.let { message -> item { StatusMessage(message) } }
+            locationMessage?.let { message -> item { StatusMessage(message, compact = true) } }
             item {
                 Button(onClick = { profileExpanded = !profileExpanded }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (profileExpanded) "Hide donor profile and map" else "Show donor profile and map")
@@ -132,9 +132,31 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                 )
             }
             item { Text("Requests near you", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            if (state.requests.isEmpty()) item { Text("No eligible requests right now.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            if (state.requests.isEmpty()) item {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("No eligible requests right now", fontWeight = FontWeight.SemiBold)
+                        Text("Keep your availability and approximate location up to date. New matching requests will appear here when available.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
             items(state.requests, key = { it.requestId }) { request -> RequestCard(request, onAction) }
         }
+    }
+}
+
+@Composable
+private fun StatusMessage(message: String, compact: Boolean = false) {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Text(
+            message,
+            Modifier.padding(if (compact) 12.dp else 14.dp),
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium
+        )
     }
 }
 
@@ -246,7 +268,7 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
             Text(request.facilityName, fontWeight = FontWeight.SemiBold)
             Text("${request.area} · ${request.distanceKm} km away", color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (request.response == null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { onAction(DonorAction.Respond(request.requestId, DonorResponse.ACCEPTED)) }, Modifier.weight(1f)) { Text("Accept") }
                     Button(onClick = { onAction(DonorAction.Respond(request.requestId, DonorResponse.DECLINED)) }, Modifier.weight(1f)) { Text("Decline") }
                 }

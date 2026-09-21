@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
@@ -52,17 +54,17 @@ fun ActiveRequestScreen(
             )
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(active.status.label, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text("Request ${active.requestId.take(12)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
             StatusCard(active)
             ProgressCard(active)
             if (active.status == ActiveRequestStatus.MANUAL_BROADCAST) {
-                Button(onClick = { onAction(EmergencyRequestAction.SendManualBroadcast) }) { Text("Send manual broadcast") }
+                Button(onClick = { onAction(EmergencyRequestAction.SendManualBroadcast) }, modifier = Modifier.fillMaxWidth()) { Text("Send manual broadcast") }
             }
             if (!active.isTerminal) {
-                Button(onClick = { onAction(EmergencyRequestAction.FulfillRequest) }, enabled = !state.statusRefreshing) { Text("Mark fulfilled") }
-                TextButton(onClick = { showCancelConfirmation = true }) { Text("Cancel request") }
+                Button(onClick = { onAction(EmergencyRequestAction.FulfillRequest) }, enabled = !state.statusRefreshing, modifier = Modifier.fillMaxWidth()) { Text("Mark fulfilled") }
+                TextButton(onClick = { showCancelConfirmation = true }, modifier = Modifier.fillMaxWidth()) { Text("Cancel request") }
             }
             Text("Status refreshes automatically while this request is active.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }

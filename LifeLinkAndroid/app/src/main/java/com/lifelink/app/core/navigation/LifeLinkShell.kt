@@ -22,8 +22,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -81,8 +81,9 @@ fun LifeLinkShell(
     }
 
     Scaffold(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar {
+            NavigationBar(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface) {
                 NavigationBarItem(tab == ShellTab.HOME, { tab = ShellTab.HOME }, icon = { Icon(Icons.Default.AddAlert, "Home") }, label = { Text("Home") })
                 NavigationBarItem(tab == ShellTab.REQUESTS, { tab = ShellTab.REQUESTS }, icon = { Icon(Icons.Default.Assignment, "Requests") }, label = { Text("Requests") })
                 NavigationBarItem(tab == ShellTab.LEARN, { tab = ShellTab.LEARN }, icon = { Icon(Icons.Default.Info, "Info") }, label = { Text("Info") })
@@ -243,8 +244,16 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
 ) {
     var displayName by rememberSaveable(accountDisplayName) { mutableStateOf(accountDisplayName) }
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Profile", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("Account and privacy controls", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            if (role == UserRole.REQUESTER) "Requester profile" else "Profile",
+            style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            if (role == UserRole.REQUESTER) "Update the name shown on your requester account."
+            else "Account and privacy controls",
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(accountEmail.ifBlank { "Authenticated LifeLink account" }, fontWeight = FontWeight.Bold)
@@ -254,13 +263,18 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
         }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Profile details", fontWeight = FontWeight.Bold)
+                Text(if (role == UserRole.REQUESTER) "Requester details" else "Profile details", fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = displayName,
                     onValueChange = { if (it.length <= 160) displayName = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Display name") },
-                    supportingText = { Text("Keep medical details out of this field.") },
+                    supportingText = {
+                        Text(
+                            if (role == UserRole.REQUESTER) "This name identifies you when coordinating a blood request."
+                            else "Keep medical details out of this field."
+                        )
+                    },
                     singleLine = true
                 )
                 Button(
@@ -287,7 +301,11 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
                 Text("Contact details are disclosed only after a donor accepts. LifeLink is a discovery and contact aid, not a replacement for blood-bank screening or medical care.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Text("Use the role-specific dashboard to update availability or location.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            if (role == UserRole.REQUESTER) "Your requester profile is used with your emergency requests. Update it here whenever your display name changes."
+            else "Use the role-specific dashboard to update availability or location.",
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+        )
         androidx.compose.material3.OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
     }
 }

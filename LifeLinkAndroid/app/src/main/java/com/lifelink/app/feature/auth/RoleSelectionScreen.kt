@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -19,7 +20,7 @@ import com.lifelink.app.core.auth.UserRole
 @Composable
 fun RoleSelectionScreen(onRoleSelected: (UserRole) -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 24.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         Text("How will you use LifeLink?", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -27,7 +28,7 @@ fun RoleSelectionScreen(onRoleSelected: (UserRole) -> Unit) {
         UserRole.values().forEach { role ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(role.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
