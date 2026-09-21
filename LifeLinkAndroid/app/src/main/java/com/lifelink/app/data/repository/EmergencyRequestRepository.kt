@@ -44,7 +44,8 @@ class EmergencyRequestRepositoryImpl(
     private val activeRequestDao: ActiveRequestDao,
     private val api: LifeLinkApi,
     private val workManager: WorkManager,
-    private val requesterIdProvider: () -> String? = { null }
+    private val requesterIdProvider: () -> String? = { null },
+    private val networkAvailable: () -> Boolean = { true }
 ) : EmergencyRequestRepository {
     override suspend fun saveDraft(draft: EmergencyRequestDraft) = draftDao.upsert(draft.toEntity())
 
@@ -114,8 +115,12 @@ class EmergencyRequestRepositoryImpl(
                 }
             }
         } catch (_: IOException) {
-            queueForRetry(draft)
-            SubmitResult.OfflineQueued(draft.id)
+            if (networkAvailable()) {
+                SubmitResult.Error("LifeLink is taking longer than expected to respond. Your draft is saved; please retry in a moment.")
+            } else {
+                queueForRetry(draft)
+                SubmitResult.OfflineQueued(draft.id)
+            }
         } catch (_: Exception) {
             SubmitResult.Error("We couldn’t reach LifeLink right now. Your draft is still saved.")
         }

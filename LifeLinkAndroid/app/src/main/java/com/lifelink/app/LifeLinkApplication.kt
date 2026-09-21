@@ -1,6 +1,7 @@
 package com.lifelink.app
 
 import android.app.Application
+import android.net.ConnectivityManager
 import androidx.work.WorkManager
 import com.lifelink.app.data.local.LifeLinkDatabase
 import com.lifelink.app.data.repository.EmergencyRequestRepositoryImpl
@@ -29,7 +30,13 @@ class LifeLinkApplication : Application() {
                 activeRequestDao = database.activeRequestDao(),
                 api = RetrofitProvider.create(tokenProvider = authSessionStore::accessToken, onUnauthorized = authRepository::refreshAccessToken),
                 workManager = WorkManager.getInstance(this),
-                requesterIdProvider = authSessionStore::userId
+                requesterIdProvider = authSessionStore::userId,
+                networkAvailable = {
+                    val connectivity = getSystemService(ConnectivityManager::class.java)
+                    val network = connectivity.activeNetwork
+                    val capabilities = network?.let(connectivity::getNetworkCapabilities)
+                    capabilities?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+                }
             ),
             donorRepository = DonorRepositoryImpl(
                 dao = database.donorDao(),
