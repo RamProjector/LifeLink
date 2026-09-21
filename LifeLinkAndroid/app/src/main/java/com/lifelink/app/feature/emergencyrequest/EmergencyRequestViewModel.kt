@@ -201,8 +201,16 @@ class EmergencyRequestViewModel(
             _uiState.update { it.copy(submission = SubmissionState.Submitting) }
             when (val result = repository.submit(draft)) {
                 is SubmitResult.MatchingStarted -> {
-                    val contacts = runCatching { repository.refreshContacts(result.requestId) }.getOrDefault(emptyList())
-                    _uiState.update { it.copy(step = RequestStep.RESULTS, submission = SubmissionState.Matching(result.requestId), discoveredDonors = result.donors, contacts = contacts) }
+                    // Do not keep the submit button spinning while the optional contacts refresh waits on the API.
+                    _uiState.update {
+                        it.copy(
+                            step = RequestStep.RESULTS,
+                            submission = SubmissionState.Matching(result.requestId),
+                            discoveredDonors = result.donors
+                        )
+                    }
+                    runCatching { repository.refreshContacts(result.requestId) }
+                        .onSuccess { contacts -> _uiState.update { it.copy(contacts = contacts) } }
                 }
                 is SubmitResult.ContactRequested -> _uiState.update { it.copy(contactRequestSent = true) }
                 is SubmitResult.ManualFallback -> _uiState.update { it.copy(submission = SubmissionState.ManualFallback(result.requestId, result.reason)) }

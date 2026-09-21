@@ -589,7 +589,8 @@ private fun LocationMapPicker(
         LocationMapPicker(
             draft = draft,
             onLocationSelected = { latitude, longitude -> onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500)) },
-            recenterRequest = locationCaptureRequest
+            recenterRequest = locationCaptureRequest,
+            modifier = Modifier.height(260.dp)
         )
         if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
             OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { fullMapVisible = true }) {
