@@ -1,5 +1,7 @@
 package com.lifelink.app
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -31,8 +33,11 @@ import com.lifelink.app.data.remote.RetrofitProvider
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private var recoveryUri by mutableStateOf<Uri?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        recoveryUri = intent?.data
         enableEdgeToEdge()
         val app = application as LifeLinkApplication
         setContent {
@@ -41,7 +46,7 @@ class MainActivity : ComponentActivity() {
                 val authViewModel: AuthViewModel = viewModel(
                     factory = AuthViewModelFactory(app.container.authRepository)
                 )
-                LaunchedEffect(Unit) { authViewModel.handleRecoveryCallback(intent?.data) }
+                LaunchedEffect(recoveryUri) { authViewModel.handleRecoveryCallback(recoveryUri) }
                 val authState by authViewModel.state.collectAsStateWithLifecycle()
                 if (authState !is AuthState.SignedIn) {
                     AuthScreen(authState, authViewModel::signIn, authViewModel::signUp, authViewModel::requestPasswordReset, authViewModel::resendConfirmation)
@@ -127,5 +132,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        recoveryUri = intent.data
     }
 }
