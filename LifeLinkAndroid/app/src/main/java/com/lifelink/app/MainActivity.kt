@@ -41,6 +41,7 @@ class MainActivity : ComponentActivity() {
                 val authViewModel: AuthViewModel = viewModel(
                     factory = AuthViewModelFactory(app.container.authRepository)
                 )
+                LaunchedEffect(Unit) { authViewModel.handleRecoveryCallback(intent?.data) }
                 val authState by authViewModel.state.collectAsStateWithLifecycle()
                 if (authState !is AuthState.SignedIn) {
                     AuthScreen(authState, authViewModel::signIn, authViewModel::signUp, authViewModel::requestPasswordReset, authViewModel::resendConfirmation)

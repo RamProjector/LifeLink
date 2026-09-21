@@ -1,5 +1,7 @@
 package com.lifelink.app.feature.auth
 
+import android.net.Uri
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -17,6 +19,7 @@ sealed interface AuthState {
     data object SessionExpired : AuthState
     data class SignedIn(val session: AuthSession) : AuthState
     data object EmailConfirmationRequired : AuthState
+    data class PasswordResetConfirmed(val email: String?) : AuthState
     data class Message(val text: String, val isError: Boolean = false) : AuthState
     data class Error(val message: String) : AuthState
 }
@@ -29,7 +32,7 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
         viewModelScope.launch {
             repository.session.collect { session ->
                 if (session != null) _state.value = AuthState.SignedIn(session)
-                else if (_state.value !is AuthState.EmailConfirmationRequired) _state.value = AuthState.SignedOut
+                else if (_state.value !is AuthState.EmailConfirmationRequired && _state.value !is AuthState.PasswordResetConfirmed) _state.value = AuthState.SignedOut
             }
         }
         viewModelScope.launch {
@@ -44,6 +47,12 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
     fun signOut() = repository.signOut()
     fun requestPasswordReset(email: String) = runRecovery(email) { repository.requestPasswordReset(email) }
     fun resendConfirmation(email: String) = runRecovery(email) { repository.resendConfirmation(email) }
+    fun handleRecoveryCallback(uri: Uri?) {
+        if (uri == null) return
+        repository.parseRecoveryCallback(uri)
+            .onSuccess { callback -> _state.value = AuthState.PasswordResetConfirmed(callback.email) }
+            .onFailure { _state.value = AuthState.Message(it.message ?: "Password-reset link could not be confirmed.", true) }
+    }
 
     private fun runRecovery(email: String, action: suspend () -> Result<Unit>) {
         viewModelScope.launch {
