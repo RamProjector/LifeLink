@@ -63,7 +63,7 @@ fun LifeLinkShell(
     var tab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
 
     if (showRequest) {
-        EmergencyRequestScreen(state = state, onAction = onAction, onExit = { showRequest = false; tab = ShellTab.REQUESTS })
+        EmergencyRequestScreen(state = state, onAction = onAction, onExit = { showRequest = false; tab = ShellTab.HOME })
         return
     }
     if (showActive && state.activeRequest != null) {

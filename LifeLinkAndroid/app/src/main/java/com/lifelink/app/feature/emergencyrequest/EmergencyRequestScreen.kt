@@ -134,6 +134,13 @@ fun EmergencyRequestScreen(
         }
         if (state.contactRequestSent) snackbarHostState.showSnackbar("Contact request sent")
     }
+    LaunchedEffect(state.draftSavedManually) {
+        if (state.draftSavedManually) {
+            snackbarHostState.showSnackbar("Draft saved. Returning to Home…")
+            onAction(EmergencyRequestAction.DraftSaveHandled)
+            onExit()
+        }
+    }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -479,7 +486,7 @@ private fun LocationMapPicker(
                 Card(Modifier.align(Alignment.Center).padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
-                        OutlinedButton(onClick = { retryRequest++ }) { Text("Retry map") }
+                OutlinedButton(onClick = { mapError = null; mapLoading = true; retryRequest++ }) { Text("Retry map") }
                     }
                 }
             }
@@ -565,6 +572,7 @@ private fun LocationMapPicker(
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
         Heading("Where are you requesting help?", "Your approximate location is used only to find nearby eligible donors.")
         InfoCard("Privacy-first GPS", "Your precise coordinates are used for matching and are not shown to donors.", MaterialTheme.colorScheme.secondary)
+        InfoCard("Map preview uses internet", "The preview loads map tiles online. GPS capture and manual coordinates remain available even when the preview cannot load.", MaterialTheme.colorScheme.secondary)
         locationMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),

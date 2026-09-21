@@ -35,6 +35,7 @@ data class EmergencyRequestUiState(
     val submission: SubmissionState = SubmissionState.Idle,
     val criticalConfirmationVisible: Boolean = false,
     val draftSaved: Boolean = false,
+    val draftSavedManually: Boolean = false,
     val activeRequest: ActiveRequestSnapshot? = null,
     val statusRefreshing: Boolean = false,
     val discoveredDonors: List<DiscoveredDonor> = emptyList(),
@@ -51,6 +52,7 @@ sealed interface EmergencyRequestAction {
     data object Back : EmergencyRequestAction
     data class EditStep(val step: RequestStep) : EmergencyRequestAction
     data object SaveDraft : EmergencyRequestAction
+    data object DraftSaveHandled : EmergencyRequestAction
     data object Submit : EmergencyRequestAction
     data object ConfirmCriticalSubmit : EmergencyRequestAction
     data object DismissCriticalSubmit : EmergencyRequestAction
@@ -118,7 +120,8 @@ class EmergencyRequestViewModel(
             EmergencyRequestAction.Continue -> continueStep()
             EmergencyRequestAction.Back -> back()
             is EmergencyRequestAction.EditStep -> _uiState.update { it.copy(step = action.step) }
-            EmergencyRequestAction.SaveDraft -> saveDraft()
+            EmergencyRequestAction.SaveDraft -> saveDraft(manual = true)
+            EmergencyRequestAction.DraftSaveHandled -> _uiState.update { it.copy(draftSavedManually = false) }
             EmergencyRequestAction.Submit -> requestSubmit()
             EmergencyRequestAction.ConfirmCriticalSubmit -> {
                 _uiState.update { it.copy(criticalConfirmationVisible = false) }
@@ -148,7 +151,7 @@ class EmergencyRequestViewModel(
     }
 
     private fun updateDraft(update: (EmergencyRequestDraft) -> EmergencyRequestDraft) {
-        _uiState.update { it.copy(draft = update(it.draft), draftSaved = false, submission = SubmissionState.Idle) }
+        _uiState.update { it.copy(draft = update(it.draft), draftSaved = false, draftSavedManually = false, submission = SubmissionState.Idle) }
         draftSaveJob?.cancel()
         draftSaveJob = viewModelScope.launch {
             delay(500)
@@ -181,12 +184,12 @@ class EmergencyRequestViewModel(
         } else submit()
     }
 
-    private fun saveDraft() {
+    private fun saveDraft(manual: Boolean = false) {
         val draft = _uiState.value.draft
         viewModelScope.launch {
             _uiState.update { it.copy(submission = SubmissionState.Saving) }
             runCatching { repository.saveDraft(draft) }
-                .onSuccess { _uiState.update { it.copy(draftSaved = true, submission = SubmissionState.Idle) } }
+                .onSuccess { _uiState.update { it.copy(draftSaved = true, draftSavedManually = manual, submission = SubmissionState.Idle) } }
                 .onFailure { _uiState.update { it.copy(submission = SubmissionState.Error("Draft is kept on this device; sync will retry.")) } }
         }
     }
