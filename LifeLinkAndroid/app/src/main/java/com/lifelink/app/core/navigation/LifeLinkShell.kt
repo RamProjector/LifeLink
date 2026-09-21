@@ -21,6 +21,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -55,6 +56,10 @@ fun LifeLinkShell(
     role: UserRole,
     accountEmail: String,
     accountUserId: String,
+    accountDisplayName: String,
+    profileSaving: Boolean,
+    profileMessage: String?,
+    onSaveProfile: (String) -> Unit,
     onSignOut: () -> Unit
 ) {
     var showRequest by rememberSaveable { mutableStateOf(false) }
@@ -90,7 +95,7 @@ fun LifeLinkShell(
                 ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true })
                 ShellTab.REQUESTS -> RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = { showRequest = true }, onActive = { showActive = true })
                 ShellTab.LEARN -> LearnContent()
-                ShellTab.PROFILE -> ProfileContent(role, accountEmail, accountUserId, onSignOut)
+                ShellTab.PROFILE -> ProfileContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, onSignOut)
             }
         }
     }
@@ -226,7 +231,17 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     }
 }
 
-@Composable private fun ProfileContent(role: UserRole, accountEmail: String, accountUserId: String, onSignOut: () -> Unit) {
+@Composable private fun ProfileContent(
+    role: UserRole,
+    accountEmail: String,
+    accountUserId: String,
+    accountDisplayName: String,
+    profileSaving: Boolean,
+    profileMessage: String?,
+    onSaveProfile: (String) -> Unit,
+    onSignOut: () -> Unit
+) {
+    var displayName by rememberSaveable(accountDisplayName) { mutableStateOf(accountDisplayName) }
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Profile", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("Account and privacy controls", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
@@ -235,6 +250,25 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
                 Text(accountEmail.ifBlank { "Authenticated LifeLink account" }, fontWeight = FontWeight.Bold)
                 Text(if (role == UserRole.DONOR) "Donor account" else "Requester account", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                 if (accountUserId.isNotBlank()) Text("Account ID · ${accountUserId.take(8)}…", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Profile details", fontWeight = FontWeight.Bold)
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { if (it.length <= 160) displayName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Display name") },
+                    supportingText = { Text("Keep medical details out of this field.") },
+                    singleLine = true
+                )
+                Button(
+                    onClick = { onSaveProfile(displayName) },
+                    enabled = !profileSaving && displayName.trim().length >= 2,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (profileSaving) "Saving…" else "Save profile") }
+                profileMessage?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.primary) }
             }
         }
         Card(Modifier.fillMaxWidth()) {
@@ -253,7 +287,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
                 Text("Contact details are disclosed only after a donor accepts. LifeLink is a discovery and contact aid, not a replacement for blood-bank screening or medical care.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Text("Use the role-specific dashboard to update your display name, availability, or location.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Use the role-specific dashboard to update availability or location.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         androidx.compose.material3.OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
     }
 }

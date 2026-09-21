@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -48,6 +49,23 @@ class MainActivity : ComponentActivity() {
                 val roleStore = remember { UserRoleStore(this@MainActivity) }
                 val roleSyncScope = rememberCoroutineScope()
                 var role by remember { mutableStateOf(roleStore.get()) }
+                var displayName by remember { mutableStateOf("") }
+                var profileSaving by remember { mutableStateOf(false) }
+                var profileMessage by remember { mutableStateOf<String?>(null) }
+                val signedInSession = (authState as? AuthState.SignedIn)?.session
+                val accountUserId = signedInSession?.userId.orEmpty()
+                LaunchedEffect(accountUserId) {
+                    if (accountUserId.isNotBlank()) {
+                        runCatching {
+                            RetrofitProvider.create(
+                                tokenProvider = { app.container.authRepository.session.value?.accessToken ?: signedInSession?.accessToken },
+                                onUnauthorized = app.container.authRepository::refreshAccessToken
+                            ).getProfile()
+                        }.onSuccess { response ->
+                            if (response.isSuccessful) displayName = response.body()?.displayName.orEmpty()
+                        }
+                    }
+                }
                 if (role == null) {
                     RoleSelectionScreen { selectedRole ->
                         roleStore.save(selectedRole)
@@ -81,8 +99,29 @@ class MainActivity : ComponentActivity() {
                     donorState = donorState,
                     onDonorAction = donorViewModel::onAction,
                     role = role ?: UserRole.REQUESTER,
-                    accountEmail = (authState as? AuthState.SignedIn)?.session?.email.orEmpty(),
-                    accountUserId = (authState as? AuthState.SignedIn)?.session?.userId.orEmpty(),
+                    accountEmail = signedInSession?.email.orEmpty(),
+                    accountUserId = accountUserId,
+                    accountDisplayName = displayName,
+                    profileSaving = profileSaving,
+                    profileMessage = profileMessage,
+                    onSaveProfile = { updatedName ->
+                        roleSyncScope.launch {
+                            profileSaving = true
+                            profileMessage = null
+                            runCatching {
+                                RetrofitProvider.create(
+                                    tokenProvider = { app.container.authRepository.session.value?.accessToken ?: signedInSession?.accessToken },
+                                    onUnauthorized = app.container.authRepository::refreshAccessToken
+                                ).upsertProfile(ProfileRequest(role?.name?.lowercase() ?: "requester", updatedName.trim()))
+                            }.onSuccess { response ->
+                                if (response.isSuccessful) {
+                                    displayName = response.body()?.displayName.orEmpty()
+                                    profileMessage = "Profile saved"
+                                } else profileMessage = "Profile could not be saved (${response.code()})."
+                            }.onFailure { error -> profileMessage = error.message ?: "Profile could not be saved." }
+                            profileSaving = false
+                        }
+                    },
                     onSignOut = authViewModel::signOut
                 )
             }
