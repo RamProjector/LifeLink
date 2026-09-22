@@ -58,6 +58,7 @@ sealed interface EmergencyRequestAction {
     data object DismissCriticalSubmit : EmergencyRequestAction
     data object SendManualBroadcast : EmergencyRequestAction
     data object RefreshStatus : EmergencyRequestAction
+    data class OpenRequest(val requestId: String) : EmergencyRequestAction
     data object RefreshHistory : EmergencyRequestAction
     data object CancelRequest : EmergencyRequestAction
     data object FulfillRequest : EmergencyRequestAction
@@ -130,6 +131,7 @@ class EmergencyRequestViewModel(
             EmergencyRequestAction.DismissCriticalSubmit -> _uiState.update { it.copy(criticalConfirmationVisible = false) }
             EmergencyRequestAction.SendManualBroadcast -> sendManualBroadcast()
             EmergencyRequestAction.RefreshStatus -> refreshStatus()
+            is EmergencyRequestAction.OpenRequest -> openRequest(action.requestId)
             EmergencyRequestAction.RefreshHistory -> refreshHistory()
             EmergencyRequestAction.CancelRequest -> cancelRequest()
             EmergencyRequestAction.FulfillRequest -> fulfillRequest()
@@ -277,6 +279,21 @@ class EmergencyRequestViewModel(
             runCatching { repository.refreshActiveRequest(requestId) }
                 .onFailure { _uiState.update { it.copy(submission = SubmissionState.Error("Status could not be refreshed. Try again.")) } }
             _uiState.update { it.copy(statusRefreshing = false) }
+        }
+    }
+
+    private fun openRequest(requestId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(statusRefreshing = true) }
+            val loaded = repository.refreshActiveRequest(requestId)
+            _uiState.update {
+                it.copy(
+                    statusRefreshing = false,
+                    submission = if (loaded == null) SubmissionState.Error("This request could not be loaded. Try refreshing.") else it.submission
+                )
+            }
+            runCatching { repository.refreshContacts(requestId) }
+                .onSuccess { contacts -> _uiState.update { it.copy(contacts = contacts) } }
         }
     }
 

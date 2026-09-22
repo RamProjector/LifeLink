@@ -29,15 +29,20 @@ import com.lifelink.app.feature.auth.RoleSelectionScreen
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.auth.UserRoleStore
 import com.lifelink.app.data.remote.ProfileRequest
+import com.lifelink.app.data.remote.PushTokenRequest
 import com.lifelink.app.data.remote.RetrofitProvider
+import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private var recoveryUri by mutableStateOf<Uri?>(null)
+    private var notificationRequestId by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         recoveryUri = intent?.data
+        notificationRequestId = intent?.getStringExtra("request_id")
         enableEdgeToEdge()
         val app = application as LifeLinkApplication
         setContent {
@@ -69,14 +74,15 @@ class MainActivity : ComponentActivity() {
                 val accountUserId = signedInSession?.userId.orEmpty()
                 LaunchedEffect(accountUserId) {
                     if (accountUserId.isNotBlank()) {
-                        runCatching {
-                            RetrofitProvider.create(
+                        val api = RetrofitProvider.create(
                                 tokenProvider = { app.container.authRepository.session.value?.accessToken ?: signedInSession?.accessToken },
                                 onUnauthorized = app.container.authRepository::refreshAccessToken
-                            ).getProfile()
-                        }.onSuccess { response ->
+                            )
+                        runCatching { api.getProfile() }.onSuccess { response ->
                             if (response.isSuccessful) displayName = response.body()?.displayName.orEmpty()
                         }
+                        runCatching { FirebaseMessaging.getInstance().token.await() }
+                            .onSuccess { token -> runCatching { api.registerPushToken(PushTokenRequest(token)) } }
                     }
                 }
                 if (role == null) {
@@ -135,7 +141,8 @@ class MainActivity : ComponentActivity() {
                             profileSaving = false
                         }
                     },
-                    onSignOut = authViewModel::signOut
+                    onSignOut = authViewModel::signOut,
+                    notificationRequestId = notificationRequestId
                 )
             }
         }
@@ -145,5 +152,6 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         recoveryUri = intent.data
+        notificationRequestId = intent.getStringExtra("request_id")
     }
 }

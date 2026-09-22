@@ -61,6 +61,11 @@ class ProfileOut(BaseModel):
     display_name: str | None = None
 
 
+class PushTokenIn(BaseModel):
+    token: str = Field(min_length=1, max_length=4096)
+    platform: str = Field(default="android", pattern="^android$")
+
+
 class RequesterContactOut(BaseModel):
     donor_id: str
     display_name: str
@@ -122,6 +127,21 @@ async def get_profile(
     if row is None:
         raise HTTPException(status_code=404, detail="Profile not found")
     return ProfileOut(user_id=row.user_id, email=row.email, role=row.role.value, display_name=row.display_name)
+
+
+@app.put("/v1/push-token", status_code=204)
+async def register_push_token(
+    payload: PushTokenIn,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_principal),
+):
+    if principal.subject == "development-user":
+        raise HTTPException(status_code=401, detail="An authenticated user is required")
+    row = await session.get(LifeLinkProfile, principal.subject)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    row.fcm_token = payload.token
+    await session.commit()
 
 
 @app.get("/health")

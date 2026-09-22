@@ -25,6 +25,9 @@ interface LifeLinkApi {
     @GET("v1/profile")
     suspend fun getProfile(): Response<ProfileResponse>
 
+    @PUT("v1/push-token")
+    suspend fun registerPushToken(@Body token: PushTokenRequest): Response<Unit>
+
     @POST("v1/emergency-requests")
     suspend fun submitEmergencyRequest(
         @Header("Idempotency-Key") idempotencyKey: String,
@@ -84,6 +87,11 @@ data class ProfileResponse(
     val email: String,
     val role: String,
     @SerializedName("display_name") val displayName: String? = null
+)
+
+data class PushTokenRequest(
+    val token: String,
+    val platform: String = "android"
 )
 
 data class EmergencyRequestRequest(

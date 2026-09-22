@@ -27,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -60,12 +61,19 @@ fun LifeLinkShell(
     profileSaving: Boolean,
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    notificationRequestId: String? = null
 ) {
     var showRequest by rememberSaveable { mutableStateOf(false) }
     var showActive by rememberSaveable { mutableStateOf(false) }
     var showDonor by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
+    LaunchedEffect(notificationRequestId) {
+        notificationRequestId?.takeIf { it.isNotBlank() }?.let {
+            showActive = true
+            onAction(EmergencyRequestAction.OpenRequest(it))
+        }
+    }
 
     if (showRequest) {
         EmergencyRequestScreen(state = state, onAction = onAction, onExit = { showRequest = false; tab = ShellTab.HOME })
