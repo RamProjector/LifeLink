@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
@@ -51,9 +52,10 @@ import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestScreen
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
+import com.lifelink.app.core.ui.theme.ThemeMode
 
 private enum class ShellTab { HOME, REQUESTS, INFO, SETTINGS }
-private enum class SettingsSection { PROFILE, LEGAL, SAFETY }
+private enum class SettingsSection { PROFILE, LEGAL, SAFETY, THEME, SECURITY }
 
 @Composable
 fun LifeLinkShell(
@@ -68,6 +70,9 @@ fun LifeLinkShell(
     profileSaving: Boolean,
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
+    onRequestPasswordReset: () -> Unit,
     onSignOut: () -> Unit,
     notificationRequestId: String? = null
 ) {
@@ -111,7 +116,7 @@ fun LifeLinkShell(
                 ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true })
                 ShellTab.REQUESTS -> RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = { showRequest = true }, onActive = { showActive = true })
                 ShellTab.INFO -> LearnContent()
-                ShellTab.SETTINGS -> SettingsContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, onSignOut)
+                ShellTab.SETTINGS -> SettingsContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, themeMode, onThemeModeChange, onRequestPasswordReset, onSignOut)
             }
         }
     }
@@ -270,10 +275,13 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     profileSaving: Boolean,
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
+    onRequestPasswordReset: () -> Unit,
     onSignOut: () -> Unit
 ) {
     var section by rememberSaveable { mutableStateOf(SettingsSection.PROFILE) }
-    val sections = listOf(SettingsSection.PROFILE, SettingsSection.LEGAL, SettingsSection.SAFETY)
+    val sections = listOf(SettingsSection.PROFILE, SettingsSection.LEGAL, SettingsSection.SAFETY, SettingsSection.THEME, SettingsSection.SECURITY)
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Settings", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -292,7 +300,48 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
             SettingsSection.PROFILE -> ProfileContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, onSignOut)
             SettingsSection.LEGAL -> LegalContent()
             SettingsSection.SAFETY -> SafetyContent()
+            SettingsSection.THEME -> ThemeContent(themeMode, onThemeModeChange)
+            SettingsSection.SECURITY -> SecurityContent(onRequestPasswordReset)
         }
+    }
+}
+
+@Composable private fun ThemeContent(themeMode: ThemeMode, onThemeModeChange: (ThemeMode) -> Unit) {
+    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("Theme", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Choose how LifeLink should look on this device.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp)) {
+                ThemeMode.values().forEach { mode ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = themeMode == mode, onClick = { onThemeModeChange(mode) })
+                        Text(
+                            when (mode) {
+                                ThemeMode.SYSTEM -> "Use device setting"
+                                ThemeMode.LIGHT -> "Light"
+                                ThemeMode.DARK -> "Dark"
+                            },
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun SecurityContent(onRequestPasswordReset: () -> Unit) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Security", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        LearnCard("Account protection", "Keep your email account secure and never share your LifeLink password, reset link, or session details with another person.")
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Reset password", fontWeight = FontWeight.Bold)
+                Text("Send a password-reset link to the email address on this account.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+                androidx.compose.material3.OutlinedButton(onClick = onRequestPasswordReset, modifier = Modifier.fillMaxWidth()) { Text("Send reset link") }
+            }
+        }
+        LearnCard("Session safety", "LifeLink refreshes authenticated sessions when needed. Signing out clears the local session on this device. If you suspect unauthorized access, reset your password and sign out.")
     }
 }
 

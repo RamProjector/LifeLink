@@ -12,6 +12,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Context
 
 private val LifeLinkLightColors = lightColorScheme(
     primary = Color(0xFFB91C3A),
@@ -74,10 +75,29 @@ private val LifeLinkShapes = Shapes(
     extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
 )
 
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+class ThemeStore(context: Context) {
+    private val preferences = context.getSharedPreferences("lifelink_theme", Context.MODE_PRIVATE)
+
+    fun get(): ThemeMode = preferences.getString("mode", ThemeMode.SYSTEM.name)?.let { value ->
+        runCatching { ThemeMode.valueOf(value) }.getOrDefault(ThemeMode.SYSTEM)
+    } ?: ThemeMode.SYSTEM
+
+    fun save(mode: ThemeMode) {
+        preferences.edit().putString("mode", mode.name).apply()
+    }
+}
+
 @Composable
-fun LifeLinkTheme(content: @Composable () -> Unit) {
+fun LifeLinkTheme(themeMode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Unit) {
+    val darkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) LifeLinkDarkColors else LifeLinkLightColors,
+        colorScheme = if (darkTheme) LifeLinkDarkColors else LifeLinkLightColors,
         typography = LifeLinkTypography,
         shapes = LifeLinkShapes,
         content = content

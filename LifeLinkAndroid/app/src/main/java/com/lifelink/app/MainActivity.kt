@@ -15,6 +15,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
+import com.lifelink.app.core.ui.theme.ThemeMode
+import com.lifelink.app.core.ui.theme.ThemeStore
 import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.notifications.RequestNotificationPermissionIfNeeded
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestViewModel
@@ -46,7 +48,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val app = application as LifeLinkApplication
         setContent {
-            LifeLinkTheme {
+            val themeStore = remember { ThemeStore(this@MainActivity) }
+            var themeMode by remember { mutableStateOf(themeStore.get()) }
+            LifeLinkTheme(themeMode = themeMode) {
                 RequestNotificationPermissionIfNeeded()
                 val authViewModel: AuthViewModel = viewModel(
                     factory = AuthViewModelFactory(app.container.authRepository)
@@ -141,6 +145,12 @@ class MainActivity : ComponentActivity() {
                             profileSaving = false
                         }
                     },
+                    themeMode = themeMode,
+                    onThemeModeChange = { selectedMode ->
+                        themeStore.save(selectedMode)
+                        themeMode = selectedMode
+                    },
+                    onRequestPasswordReset = { authViewModel.requestPasswordReset(signedInSession?.email.orEmpty()) },
                     onSignOut = authViewModel::signOut,
                     notificationRequestId = notificationRequestId
                 )
