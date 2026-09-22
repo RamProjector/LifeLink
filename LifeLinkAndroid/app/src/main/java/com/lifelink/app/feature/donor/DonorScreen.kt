@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +26,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -35,6 +37,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -53,6 +56,7 @@ import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
 import com.lifelink.app.domain.BloodType
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,8 +117,7 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
             }
             if (!state.profile.isSetupComplete) item { SetupRequiredCard(state.profile) }
             else item { AvailabilityCard(state.profile, onAction) }
-            state.message?.let { message -> item { StatusMessage(message) } }
-            locationMessage?.let { message -> item { StatusMessage(message, compact = true) } }
+            (locationMessage ?: state.message)?.let { message -> item { StatusMessage(message) } }
             item {
                 OutlinedButton(onClick = { profileExpanded = !profileExpanded }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (profileExpanded) "Hide profile editor" else "Edit donor profile")
@@ -328,12 +331,49 @@ private fun ProfileCard(
 private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSelected: (Double, Double) -> Unit) {
     val selectedLatitude = latitude ?: 14.5995
     val selectedLongitude = longitude ?: 120.9842
-    MapLibreLocationPicker(
-        latitude = selectedLatitude,
-        longitude = selectedLongitude,
-        onLocationSelected = onLocationSelected,
-        modifier = Modifier.height(280.dp)
-    )
+    var mapLoading by remember { mutableStateOf(true) }
+    var mapError by remember { mutableStateOf<String?>(null) }
+    var retryRequest by remember { mutableStateOf(0) }
+    LaunchedEffect(retryRequest, mapLoading) {
+        if (mapLoading) {
+            delay(30_000)
+            if (mapLoading) {
+                mapLoading = false
+                mapError = "Map preview is unavailable right now. Your location is still saved; retry the preview or use the fields below."
+            }
+        }
+    }
+    Box(Modifier.fillMaxWidth()) {
+        key(retryRequest) {
+            MapLibreLocationPicker(
+                selectedLatitude,
+                selectedLongitude,
+                onLocationSelected,
+                retryRequest,
+                onLoadingChanged = { mapLoading = it; if (it) mapError = null },
+                onMapError = { mapLoading = false; mapError = it },
+                modifier = Modifier.fillMaxWidth().height(260.dp)
+            )
+        }
+        if (mapLoading) {
+            Surface(Modifier.align(androidx.compose.ui.Alignment.TopCenter).padding(12.dp)) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator(Modifier.height(18.dp), strokeWidth = 2.dp)
+                    Text("Loading map…", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+        mapError?.let { error ->
+            Card(Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick = { mapError = null; mapLoading = true; retryRequest++ }) { Text("Retry map") }
+                }
+            }
+        }
+        OutlinedButton(onClick = { retryRequest++ }, modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(12.dp)) { Text("Recenter") }
+    }
+    Text("Tap or long-press to move the approximate donor location.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable private fun RequestCard(request: DonorRequest, onAction: (DonorAction) -> Unit) {
