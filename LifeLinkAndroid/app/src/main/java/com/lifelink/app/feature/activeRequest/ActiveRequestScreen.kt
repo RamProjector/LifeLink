@@ -16,6 +16,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,7 +56,7 @@ fun ActiveRequestScreen(
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(active.status.label, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Your request", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text("Request ${active.requestId.take(12)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
             StatusCard(active)
             ProgressCard(active)
@@ -64,9 +65,9 @@ fun ActiveRequestScreen(
             }
             if (!active.isTerminal) {
                 Button(onClick = { onAction(EmergencyRequestAction.FulfillRequest) }, enabled = !state.statusRefreshing, modifier = Modifier.fillMaxWidth()) { Text("Mark fulfilled") }
-                TextButton(onClick = { showCancelConfirmation = true }, modifier = Modifier.fillMaxWidth()) { Text("Cancel request") }
+                OutlinedButton(onClick = { showCancelConfirmation = true }, modifier = Modifier.fillMaxWidth()) { Text("Cancel request") }
             }
-            Text("Status refreshes automatically while this request is active.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            Text("Updates automatically while active.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }
     }
     if (showCancelConfirmation) {

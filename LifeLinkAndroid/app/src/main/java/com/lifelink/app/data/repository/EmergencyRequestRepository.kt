@@ -236,7 +236,8 @@ private data class ApiErrorResponse(val detail: String? = null)
 class LifeLinkAppContainer(
     val authRepository: com.lifelink.app.core.auth.SupabaseAuthRepository,
     val emergencyRequestRepository: EmergencyRequestRepository,
-    val donorRepository: DonorRepository
+    val donorRepository: DonorRepository,
+    val updatesRepository: UpdatesRepository
 )
 
 private fun EmergencyRequestDraft.toEntity() = EmergencyRequestDraftEntity(

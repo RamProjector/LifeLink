@@ -21,12 +21,13 @@ interface EmergencyRequestDraftDao {
     suspend fun deleteById(id: String)
 }
 
-@Database(entities = [EmergencyRequestDraftEntity::class, PendingSubmissionEntity::class, ActiveRequestEntity::class, DonorProfileEntity::class, DonorRequestEntity::class], version = 5, exportSchema = false)
+@Database(entities = [EmergencyRequestDraftEntity::class, PendingSubmissionEntity::class, ActiveRequestEntity::class, DonorProfileEntity::class, DonorRequestEntity::class, UpdateEntity::class], version = 6, exportSchema = false)
 abstract class LifeLinkDatabase : RoomDatabase() {
     abstract fun emergencyRequestDraftDao(): EmergencyRequestDraftDao
     abstract fun pendingSubmissionDao(): PendingSubmissionDao
     abstract fun activeRequestDao(): ActiveRequestDao
     abstract fun donorDao(): DonorDao
+    abstract fun updateDao(): UpdateDao
 
     companion object {
         @Volatile private var INSTANCE: LifeLinkDatabase? = null

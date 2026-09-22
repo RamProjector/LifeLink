@@ -115,8 +115,8 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
             state.message?.let { message -> item { StatusMessage(message) } }
             locationMessage?.let { message -> item { StatusMessage(message, compact = true) } }
             item {
-                Button(onClick = { profileExpanded = !profileExpanded }, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (profileExpanded) "Hide donor profile and map" else "Show donor profile and map")
+                OutlinedButton(onClick = { profileExpanded = !profileExpanded }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (profileExpanded) "Hide profile editor" else "Edit donor profile")
                 }
             }
             if (profileExpanded) item {
@@ -195,6 +195,7 @@ private fun ProfileCard(
     var profileVisible by remember(profile.profileVisible) { mutableStateOf(profile.profileVisible) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Donor profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
             OutlinedTextField(area, { area = it }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
             OutlinedTextField(
@@ -202,7 +203,6 @@ private fun ProfileCard(
                 onValueChange = { if (it.length <= 500) donorNote = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Optional donor note") },
-                supportingText = { Text("Share practical information only, such as usual availability. Do not add medical details.") },
                 minLines = 2,
                 maxLines = 4
             )
@@ -222,7 +222,6 @@ private fun ProfileCard(
                     onValueChange = { if (it.length <= 240) pauseReason = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Why are you paused? (optional)") },
-                    supportingText = { Text("This helps you remember why matching is paused.") },
                     singleLine = true
                 )
             }
@@ -252,7 +251,6 @@ private fun ProfileCard(
                 onValueChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Service radius (km)") },
-                supportingText = { Text("Requests outside this radius are not shown in your inbox.") },
                 singleLine = true
             )
             Text(
@@ -320,7 +318,7 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
             if (request.response == null) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { onAction(DonorAction.Respond(request.requestId, DonorResponse.ACCEPTED)) }, Modifier.weight(1f)) { Text("Accept") }
-                    Button(onClick = { onAction(DonorAction.Respond(request.requestId, DonorResponse.DECLINED)) }, Modifier.weight(1f)) { Text("Decline") }
+                    OutlinedButton(onClick = { onAction(DonorAction.Respond(request.requestId, DonorResponse.DECLINED)) }, Modifier.weight(1f)) { Text("Decline") }
                 }
             } else Text("Response: ${request.response.label}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
         }

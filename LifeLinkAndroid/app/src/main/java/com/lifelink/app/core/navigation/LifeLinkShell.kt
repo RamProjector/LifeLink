@@ -13,15 +13,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
-import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
@@ -53,9 +56,11 @@ import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestScreen
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
 import com.lifelink.app.core.ui.theme.ThemeMode
+import com.lifelink.app.domain.UpdateItem
+import com.lifelink.app.feature.updates.UpdatesScreen
 
-private enum class ShellTab { HOME, REQUESTS, INFO, SETTINGS }
-private enum class SettingsSection { PROFILE, LEGAL, SAFETY, THEME, SECURITY }
+private enum class ShellTab { HOME, REQUESTS, UPDATES, PROFILE }
+private enum class SettingsSection { PROFILE, LEGAL, SAFETY, ABOUT, THEME, SECURITY }
 
 @Composable
 fun LifeLinkShell(
@@ -74,6 +79,10 @@ fun LifeLinkShell(
     onThemeModeChange: (ThemeMode) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
     onSignOut: () -> Unit,
+    updates: List<UpdateItem>,
+    onUpdateRead: (String) -> Unit,
+    onMarkAllUpdatesRead: () -> Unit,
+    notificationOpenUpdates: Boolean = false,
     notificationRequestId: String? = null
 ) {
     var showRequest by rememberSaveable { mutableStateOf(false) }
@@ -86,6 +95,12 @@ fun LifeLinkShell(
             showStart = false
             showActive = true
             onAction(EmergencyRequestAction.OpenRequest(it))
+        }
+    }
+    LaunchedEffect(notificationOpenUpdates) {
+        if (notificationOpenUpdates) {
+            showStart = false
+            tab = ShellTab.UPDATES
         }
     }
 
@@ -110,6 +125,7 @@ fun LifeLinkShell(
         DonorScreen(state = donorState, onAction = onDonorAction, onBack = { showDonor = false })
         return
     }
+    val unreadUpdates = updates.count { !it.isRead }
 
     Scaffold(
         containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
@@ -117,8 +133,17 @@ fun LifeLinkShell(
             NavigationBar(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
                 NavigationBarItem(tab == ShellTab.HOME, { tab = ShellTab.HOME }, icon = { Icon(Icons.Default.Home, "Home") }, label = { Text("Home") })
                 NavigationBarItem(tab == ShellTab.REQUESTS, { tab = ShellTab.REQUESTS }, icon = { Icon(Icons.AutoMirrored.Filled.Assignment, "Requests") }, label = { Text("Requests") })
-                NavigationBarItem(tab == ShellTab.INFO, { tab = ShellTab.INFO }, icon = { Icon(Icons.Default.Info, "Info") }, label = { Text("Info") })
-                NavigationBarItem(tab == ShellTab.SETTINGS, { tab = ShellTab.SETTINGS }, icon = { Icon(Icons.Default.Settings, "Settings") }, label = { Text("Settings") })
+                NavigationBarItem(
+                    tab == ShellTab.UPDATES,
+                    { tab = ShellTab.UPDATES },
+                    icon = {
+                        BadgedBox(badge = { if (unreadUpdates > 0 && tab != ShellTab.UPDATES) Badge() }) {
+                            Icon(Icons.Default.NotificationsNone, if (unreadUpdates > 0) "Updates, $unreadUpdates unread" else "Updates")
+                        }
+                    },
+                    label = { Text("Updates") }
+                )
+                NavigationBarItem(tab == ShellTab.PROFILE, { tab = ShellTab.PROFILE }, icon = { Icon(Icons.Default.Person, "Profile") }, label = { Text("Profile") })
             }
         }
     ) { padding ->
@@ -126,8 +151,15 @@ fun LifeLinkShell(
             when (tab) {
                 ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { tab = ShellTab.REQUESTS }, onActive = { showActive = true }, onDonor = { showDonor = true })
                 ShellTab.REQUESTS -> RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = { showRequest = true }, onActive = { showActive = true })
-                ShellTab.INFO -> LearnContent()
-                ShellTab.SETTINGS -> SettingsContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, themeMode, onThemeModeChange, onRequestPasswordReset, onSignOut)
+                ShellTab.UPDATES -> UpdatesScreen(
+                    updates = updates,
+                    onOpen = { update ->
+                        onUpdateRead(update.id)
+                        update.requestId?.let { onAction(EmergencyRequestAction.OpenRequest(it)); showActive = true }
+                    },
+                    onMarkAllRead = onMarkAllUpdatesRead
+                )
+                ShellTab.PROFILE -> SettingsContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, themeMode, onThemeModeChange, onRequestPasswordReset, onSignOut)
             }
         }
     }
@@ -207,7 +239,6 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
         Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Home", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(if (role == UserRole.DONOR) "Ready to help nearby?" else "Find help when it matters", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(if (role == UserRole.DONOR) "Keep your availability current so verified requests can reach you." else "LifeLink helps you reach eligible donors while keeping exact locations private.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         if (role == UserRole.DONOR) {
@@ -216,7 +247,6 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
         if (role == UserRole.REQUESTER) {
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer), elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(Icons.Default.Favorite, "LifeLink support", tint = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                     Text("Need blood? Start here.", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text("Tell us the blood type, urgency, and approximate area. We will show eligible matches before you contact anyone.")
                     Button(onClick = onCreate, Modifier.fillMaxWidth()) { Text("Open Requests") }
@@ -254,15 +284,6 @@ private fun StartContent(
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                Surface(
-                    modifier = Modifier.size(72.dp),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(36.dp), tint = androidx.compose.material3.MaterialTheme.colorScheme.primary)
-                    }
-                }
                 Text("LifeLink", style = androidx.compose.material3.MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
                 Text(
                     if (role == UserRole.DONOR) "A calm, private way to manage when you can help."
@@ -295,24 +316,57 @@ private fun StartContent(
 }
 
 @Composable private fun LearnContent() {
+    var selectedTopic by rememberSaveable { mutableStateOf<String?>(null) }
+    val topics = listOf(
+        "How LifeLink works" to null,
+        "How matching works" to "Matching considers blood-type compatibility, donor availability, service radius, approximate distance, travel estimate, and urgency. A match is not medical approval; confirm compatibility with a blood-bank professional.",
+        "Location privacy" to "Current or manually selected location is used for matching. Exact requester and donor coordinates are not shown to the other person. LifeLink does not track anyone in the background, and requester maps never show individual donor pins.",
+        "Contact and consent" to "Contact requests remain pending until a donor responds. Contact details are disclosed only after donor acceptance and server authorization.",
+        "Respond safely" to "Use a verified blood bank or hospital for screening and collection. Do not share patient names, diagnoses, medical records, passwords, or payment information in LifeLink notes or messages.",
+        "What LifeLink is not" to "LifeLink is not a hospital, blood bank, emergency dispatcher, medical screening service, or guarantee that a donor can provide blood. For immediate danger, contact local emergency services."
+    )
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("LifeLink info", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("A direct requester-to-donor discovery and contact aid for urgent blood needs.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-        LearnCard("How LifeLink works", "Requesters share the blood type, units, urgency, and an approximate location. LifeLink finds eligible, available donors nearby. Donors choose whether to accept or decline a contact request.")
-        LearnCard("How matching works", "Matching considers blood-type compatibility, donor availability, service radius, approximate distance, travel estimate, and urgency. A match is not medical approval; confirm compatibility with a blood-bank professional.")
-        LearnCard("Location privacy", "Current or manually selected location is used for matching. Exact requester and donor coordinates are not shown to the other person. LifeLink does not track anyone in the background, and requester maps never show individual donor pins.")
-        LearnCard("Contact and consent", "Contact requests remain pending until a donor responds. Contact details are disclosed only after donor acceptance and server authorization. You can mark contact shared, meeting arranged, fulfilled, or cancelled.")
-        LearnCard("Respond safely", "Use a verified blood bank or hospital for screening and collection. Do not share patient names, diagnoses, medical records, passwords, or payment information in LifeLink notes or messages. Report or block unsafe interactions.")
-        LearnCard("What LifeLink is not", "LifeLink is not a hospital, blood bank, emergency dispatcher, medical screening service, or guarantee that a donor can provide blood. For immediate danger, contact local emergency services and a qualified medical facility.")
+        topics.forEach { (title, body) -> LearnRow(title, body) { selectedTopic = title } }
         Text("LifeLink Cloud · MVP", style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    val selectedBody = topics.firstOrNull { it.first == selectedTopic }?.second
+    if (selectedTopic != null && selectedBody != null) {
+        AlertDialog(
+            onDismissRequest = { selectedTopic = null },
+            title = { Text(selectedTopic!!) },
+            text = { Text(selectedBody) },
+            confirmButton = { TextButton(onClick = { selectedTopic = null }) { Text("Done") } }
+        )
+    }
+}
+
+@Composable private fun LearnRow(title: String, body: String?, onHelp: () -> Unit) {
+    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+        Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+            if (body != null) {
+                IconButton(onClick = onHelp) { Icon(Icons.Default.HelpOutline, contentDescription = "More about $title") }
+            }
+        }
     }
 }
 
 @Composable private fun LearnCard(title: String, body: String) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, fontWeight = FontWeight.Bold)
+            Text(title, fontWeight = FontWeight.SemiBold)
             Text(body, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable private fun DetailRow(title: String, helpDescription: String, onClick: () -> Unit) {
+    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+        Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+            IconButton(onClick = onClick) { Icon(Icons.Default.HelpOutline, contentDescription = helpDescription) }
         }
     }
 }
@@ -331,11 +385,11 @@ private fun StartContent(
     onSignOut: () -> Unit
 ) {
     var section by rememberSaveable { mutableStateOf(SettingsSection.PROFILE) }
-    val sections = listOf(SettingsSection.PROFILE, SettingsSection.LEGAL, SettingsSection.SAFETY, SettingsSection.THEME, SettingsSection.SECURITY)
+    val sections = listOf(SettingsSection.PROFILE, SettingsSection.LEGAL, SettingsSection.SAFETY, SettingsSection.ABOUT, SettingsSection.THEME, SettingsSection.SECURITY)
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Settings", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("Manage your account, privacy choices, and LifeLink information.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Profile", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Account, privacy, and LifeLink information.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         }
         ScrollableTabRow(selectedTabIndex = sections.indexOf(section), edgePadding = 12.dp) {
             sections.forEach { item ->
@@ -350,6 +404,7 @@ private fun StartContent(
             SettingsSection.PROFILE -> ProfileContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, onSignOut)
             SettingsSection.LEGAL -> LegalContent()
             SettingsSection.SAFETY -> SafetyContent()
+            SettingsSection.ABOUT -> LearnContent()
             SettingsSection.THEME -> ThemeContent(themeMode, onThemeModeChange)
             SettingsSection.SECURITY -> SecurityContent(onRequestPasswordReset)
         }
@@ -357,23 +412,24 @@ private fun StartContent(
 }
 
 @Composable private fun ThemeContent(themeMode: ThemeMode, onThemeModeChange: (ThemeMode) -> Unit) {
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Theme", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Choose how LifeLink should look on this device.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(12.dp)) {
-                ThemeMode.values().forEach { mode ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = themeMode == mode, onClick = { onThemeModeChange(mode) })
-                        Text(
-                            when (mode) {
-                                ThemeMode.SYSTEM -> "Use device setting"
-                                ThemeMode.LIGHT -> "Light"
-                                ThemeMode.DARK -> "Dark"
-                            },
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
+    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Appearance", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        ThemeMode.values().forEach { mode ->
+            Card(
+                Modifier.fillMaxWidth().clickable { onThemeModeChange(mode) },
+                colors = CardDefaults.cardColors(containerColor = if (themeMode == mode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
+            ) {
+                Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = themeMode == mode, onClick = { onThemeModeChange(mode) })
+                    Text(
+                        when (mode) {
+                            ThemeMode.SYSTEM -> "Use device setting"
+                            ThemeMode.LIGHT -> "Light"
+                            ThemeMode.DARK -> "Dark"
+                        },
+                        modifier = Modifier.padding(start = 4.dp),
+                        fontWeight = if (themeMode == mode) FontWeight.SemiBold else FontWeight.Normal
+                    )
                 }
             }
         }
@@ -382,13 +438,12 @@ private fun StartContent(
 
 @Composable private fun SecurityContent(onRequestPasswordReset: ((String) -> Unit) -> Unit) {
     var resetMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    var showSessionHelp by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Security", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        LearnCard("Account protection", "Keep your email account secure and never share your LifeLink password, reset link, or session details with another person.")
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Reset password", fontWeight = FontWeight.Bold)
-                Text("Send a password-reset link to the email address on this account.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
                 androidx.compose.material3.OutlinedButton(
                     onClick = { onRequestPasswordReset { message -> resetMessage = message } },
                     modifier = Modifier.fillMaxWidth()
@@ -396,29 +451,48 @@ private fun StartContent(
                 resetMessage?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.primary) }
             }
         }
-        LearnCard("Session safety", "LifeLink refreshes authenticated sessions when needed. Signing out clears the local session on this device. If you suspect unauthorized access, reset your password and sign out.")
+        DetailRow("Session safety", "About session safety") { showSessionHelp = true }
     }
+    if (showSessionHelp) AlertDialog(
+        onDismissRequest = { showSessionHelp = false },
+        title = { Text("Session safety") },
+        text = { Text("LifeLink refreshes your session when needed. Signing out clears the local session on this device. If you suspect unauthorized access, reset your password and sign out.") },
+        confirmButton = { TextButton(onClick = { showSessionHelp = false }) { Text("Done") } }
+    )
 }
 
 @Composable private fun LegalContent() {
+    var selectedTopic by rememberSaveable { mutableStateOf<String?>(null) }
+    val details = mapOf(
+        "Service scope" to "LifeLink helps requesters discover and contact eligible donors. It is not a hospital, blood bank, emergency dispatcher, medical screening service, or guarantee that a donor can provide blood.",
+        "Privacy" to "LifeLink uses approximate location for matching and does not show exact coordinates between users. Contact details are disclosed only after the donor accepts and the requester chooses to continue.",
+        "User responsibility" to "Use a qualified hospital or blood bank for screening, collection, and urgent medical care. Do not share patient records, passwords, payment details, or other sensitive information here.",
+        "Contact and reports" to "You can cancel a request, report unsafe behavior, or block a contact. Safety reports may be recorded for abuse prevention and service auditing."
+    )
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Legal information", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Please read how LifeLink is intended to be used before creating or responding to a request.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-        LearnCard("Service scope", "LifeLink is a direct requester-to-donor discovery and contact aid. It is not a hospital, blood bank, emergency dispatcher, medical screening service, or guarantee that a donor can provide blood.")
-        LearnCard("Privacy", "LifeLink uses approximate location for matching and does not show exact coordinates between users. Donor contact details are disclosed only after the donor accepts and the requester explicitly chooses to continue.")
-        LearnCard("User responsibility", "Use a qualified hospital or blood bank for screening, collection, and urgent medical care. Do not use LifeLink to share patient records, passwords, payment details, or other sensitive information.")
-        LearnCard("Contact and reports", "Interactions are user-controlled. You can cancel a request, report unsafe behavior, or block a contact. Safety reports may be recorded for abuse prevention and service auditing.")
+        details.keys.forEach { title -> DetailRow(title, "About $title") { selectedTopic = title } }
         Text("LifeLink Cloud · MVP", style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    selectedTopic?.let { topic ->
+        AlertDialog(onDismissRequest = { selectedTopic = null }, title = { Text(topic) }, text = { Text(details.getValue(topic)) }, confirmButton = { TextButton(onClick = { selectedTopic = null }) { Text("Done") } })
     }
 }
 
 @Composable private fun SafetyContent() {
+    var selectedTopic by rememberSaveable { mutableStateOf<String?>(null) }
+    val details = mapOf(
+        "Location privacy" to "Your exact coordinates are never shown to the other person. Matching uses an approximate area, distance, and travel estimate instead of a public map of donor locations.",
+        "Consent before contact" to "A donor must accept before contact can proceed. LifeLink asks for confirmation before opening your email app and recording contact sharing.",
+        "Meet safely" to "Use a verified hospital or blood bank, tell someone you trust where you are going, and avoid exchanging money or sensitive medical information through LifeLink.",
+        "If something feels unsafe" to "Stop the interaction, use Report or Block in the request flow, and contact local emergency services or a qualified medical facility when immediate danger is involved."
+    )
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Safety and privacy", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        LearnCard("Location privacy", "Your exact coordinates are never shown to the other person. Matching uses an approximate area, distance, and travel estimate instead of a public map of donor locations.")
-        LearnCard("Consent before contact", "A donor must accept before contact can proceed. When contact details become available, LifeLink asks for your confirmation before opening your email app and recording contact sharing.")
-        LearnCard("Meet safely", "Use a verified hospital or blood bank, tell someone you trust where you are going, and avoid exchanging money or sensitive medical information through LifeLink.")
-        LearnCard("If something feels unsafe", "Stop the interaction, use Report or Block in the request flow, and contact local emergency services or a qualified medical facility when immediate danger is involved.")
+        details.keys.forEach { title -> DetailRow(title, "About $title") { selectedTopic = title } }
+    }
+    selectedTopic?.let { topic ->
+        AlertDialog(onDismissRequest = { selectedTopic = null }, title = { Text(topic) }, text = { Text(details.getValue(topic)) }, confirmButton = { TextButton(onClick = { selectedTopic = null }) { Text("Done") } })
     }
 }
 
@@ -433,16 +507,12 @@ private fun StartContent(
     onSignOut: () -> Unit
 ) {
     var displayName by rememberSaveable(accountDisplayName) { mutableStateOf(accountDisplayName) }
+    var selectedHelp by rememberSaveable { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
             if (role == UserRole.REQUESTER) "Requester profile" else "Profile",
             style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
-        )
-        Text(
-            if (role == UserRole.REQUESTER) "Update the name shown on your requester account."
-            else "Account and privacy controls",
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
         )
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
             Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -464,12 +534,6 @@ private fun StartContent(
                     onValueChange = { if (it.length <= 160) displayName = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Display name") },
-                    supportingText = {
-                        Text(
-                            if (role == UserRole.REQUESTER) "This name identifies you when coordinating a blood request."
-                            else "Keep medical details out of this field."
-                        )
-                    },
                     singleLine = true
                 )
                 Button(
@@ -481,26 +545,28 @@ private fun StartContent(
             }
         }
         Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Location privacy", fontWeight = FontWeight.Bold)
-                Text(
-                    if (role == UserRole.DONOR) "Your approximate donor location is used for distance matching. Requesters see distance and travel estimates, not your coordinates."
-                    else "Your request location is used for matching. Donors do not see your exact coordinates.",
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(Modifier.padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Location privacy", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                IconButton(onClick = { selectedHelp = "location" }) { Icon(Icons.Default.HelpOutline, contentDescription = "About location privacy") }
             }
         }
         Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Safety and consent", fontWeight = FontWeight.Bold)
-                Text("Contact details are disclosed only after a donor accepts. LifeLink is a discovery and contact aid, not a replacement for blood-bank screening or medical care.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(Modifier.padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Safety and consent", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                IconButton(onClick = { selectedHelp = "safety" }) { Icon(Icons.Default.HelpOutline, contentDescription = "About safety and consent") }
             }
         }
-        Text(
-            if (role == UserRole.REQUESTER) "Your requester profile is used with your emergency requests. Update it here whenever your display name changes."
-            else "Use the role-specific dashboard to update availability or location.",
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
-        )
         androidx.compose.material3.OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
+    }
+    selectedHelp?.let { topic ->
+        val body = if (topic == "location") {
+            if (role == UserRole.DONOR) "Your approximate donor location is used for distance matching. Requesters see distance and travel estimates, not your coordinates." else "Your request location is used for matching. Donors do not see your exact coordinates."
+        } else "Contact details are disclosed only after a donor accepts. LifeLink is a discovery and contact aid, not a replacement for blood-bank screening or medical care."
+        AlertDialog(
+            onDismissRequest = { selectedHelp = null },
+            title = { Text(if (topic == "location") "Location privacy" else "Safety and consent") },
+            text = { Text(body) },
+            confirmButton = { TextButton(onClick = { selectedHelp = null }) { Text("Done") } }
+        )
     }
 }

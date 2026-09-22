@@ -11,6 +11,12 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.RemoteMessage
 import com.lifelink.app.MainActivity
+import com.lifelink.app.data.local.LifeLinkDatabase
+import com.lifelink.app.data.repository.UpdatesRepository
+import com.lifelink.app.domain.UpdateType
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 object LifeLinkNotifications {
     const val EMERGENCY_CHANNEL_ID = "lifelink_emergency_requests"
@@ -31,16 +37,35 @@ object LifeLinkNotifications {
     }
 
     fun showRemoteMessage(context: Context, message: RemoteMessage) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, "android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED
-        ) return
+        val canPostNotification = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, "android.permission.POST_NOTIFICATIONS") == PackageManager.PERMISSION_GRANTED
         createChannels(context)
         val data = message.data
         val title = message.notification?.title ?: data["title"] ?: "LifeLink update"
         val body = message.notification?.body ?: data["body"] ?: "You have a new LifeLink notification."
+        val requestId = data["request_id"]
+        val eventId = data["event_id"] ?: listOf(data["type"], requestId, title, body).joinToString(":").hashCode().toString()
+        val updateType = when (data["type"]?.lowercase()) {
+            "donor_response" -> UpdateType.DONOR_RESPONSE
+            "contact_status" -> UpdateType.CONTACT_STATUS
+            "account" -> UpdateType.ACCOUNT
+            "request_status" -> UpdateType.REQUEST_STATUS
+            else -> UpdateType.SYSTEM
+        }
+        CoroutineScope(Dispatchers.IO).launch {
+            UpdatesRepository(LifeLinkDatabase.getInstance(context).updateDao()).record(
+                id = eventId,
+                type = updateType,
+                title = title,
+                body = body,
+                requestId = requestId,
+                actionKey = if (requestId != null) "request" else "updates"
+            )
+        }
+        if (!canPostNotification) return
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            data["request_id"]?.let { putExtra("request_id", it) }
+            if (requestId != null) putExtra("request_id", requestId) else putExtra("open_updates", true)
         }
         val pendingIntent = PendingIntent.getActivity(
             context,

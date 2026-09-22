@@ -7,6 +7,7 @@ import com.lifelink.app.data.local.LifeLinkDatabase
 import com.lifelink.app.data.repository.EmergencyRequestRepositoryImpl
 import com.lifelink.app.data.repository.LifeLinkAppContainer
 import com.lifelink.app.data.repository.DonorRepositoryImpl
+import com.lifelink.app.data.repository.UpdatesRepository
 import com.lifelink.app.data.remote.RetrofitProvider
 import com.lifelink.app.core.auth.AuthSessionStore
 import com.lifelink.app.core.auth.SupabaseAuthRepository
@@ -46,11 +47,12 @@ class LifeLinkApplication : Application() {
                     capabilities?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
                 }
             ),
-            donorRepository = DonorRepositoryImpl(
-                dao = database.donorDao(),
-                api = RetrofitProvider.create(tokenProvider = authSessionStore::accessToken, onUnauthorized = authRepository::refreshAccessToken),
-                donorIdProvider = authSessionStore::userId
+                donorRepository = DonorRepositoryImpl(
+                    dao = database.donorDao(),
+                    api = RetrofitProvider.create(tokenProvider = authSessionStore::accessToken, onUnauthorized = authRepository::refreshAccessToken),
+                    donorIdProvider = authSessionStore::userId
+                ),
+                updatesRepository = UpdatesRepository(database.updateDao())
             )
-        )
     }
 }

@@ -653,7 +653,6 @@ private fun LocationMapPicker(
         ) { Text("Use this approximate location") }
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Default.LocationOn, "Request location", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
                 Text(if (draft.requesterLatitude == null) "Location not captured" else "Approximate location captured", fontWeight = FontWeight.SemiBold)
                 if (draft.requesterLatitude != null) Text("Using a selected pin · accuracy about ${draft.locationPrecisionMeters} m", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -713,15 +712,14 @@ private fun LocationMapPicker(
 @Composable private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) { Surface(Modifier.height(48.dp).clickable(role = Role.RadioButton, onClick = onClick).semantics { role = Role.RadioButton }, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium, border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)) { Box(Modifier.padding(horizontal = 18.dp), contentAlignment = Alignment.Center) { Text(label, color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold) } } }
 @Composable private fun QuantityStepper(quantity: Int, onChange: (Int) -> Unit) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) { OutlinedButton({ if (quantity > 1) onChange(quantity - 1) }, enabled = quantity > 1, modifier = Modifier.size(52.dp), contentPadding = PaddingValues(0.dp)) { Text("−", fontSize = 24.sp) }; Text("$quantity unit${if (quantity == 1) "" else "s"}", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold); OutlinedButton({ if (quantity < 20) onChange(quantity + 1) }, enabled = quantity < 20, modifier = Modifier.size(52.dp), contentPadding = PaddingValues(0.dp)) { Text("+", fontSize = 24.sp) } } }
 @Composable private fun CheckRow(checked: Boolean, label: String, supporting: String? = null, onChecked: (Boolean) -> Unit) { Row(Modifier.fillMaxWidth().clickable(role = Role.Checkbox) { onChecked(!checked) }.semantics { role = Role.Checkbox }, verticalAlignment = Alignment.Top) { Checkbox(checked, onChecked); Column(Modifier.padding(top = 12.dp, start = 8.dp)) { Text(label); supporting?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) } } } }
-@Composable private fun InfoCard(title: String, body: String, accent: Color = MaterialTheme.colorScheme.primary) { Surface(Modifier.fillMaxWidth(), color = if (accent == MaterialTheme.colorScheme.secondary) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.medium) { Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) { Icon(if (accent == MaterialTheme.colorScheme.secondary) Icons.Default.Check else Icons.Default.Warning, title, tint = accent); Column(Modifier.padding(start = 10.dp)) { Text(title, fontWeight = FontWeight.SemiBold); Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) } } } }
+@Composable private fun InfoCard(title: String, body: String, accent: Color = MaterialTheme.colorScheme.primary) { Surface(Modifier.fillMaxWidth(), color = if (accent == MaterialTheme.colorScheme.secondary) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.medium) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(title, fontWeight = FontWeight.SemiBold); Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) } } }
 @Composable private fun FacilityRow(facility: Facility, selected: Boolean, onClick: () -> Unit) { Surface(Modifier.fillMaxWidth().clickable(role = Role.RadioButton, onClick = onClick).semantics { role = Role.RadioButton }, color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium, border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline)) { Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.LocationOn, "Facility location", tint = MaterialTheme.colorScheme.secondary); Column(Modifier.padding(start = 10.dp).weight(1f)) { Text(facility.name, fontWeight = FontWeight.SemiBold); Text(facility.area, color = MaterialTheme.colorScheme.onSurfaceVariant) }; if (facility.verified) Icon(Icons.Default.Check, "Verified facility", tint = MaterialTheme.colorScheme.secondary) } } }
 @Composable private fun SelectableRow(label: String, selected: Boolean, onClick: () -> Unit) { Surface(Modifier.fillMaxWidth().clickable(role = Role.RadioButton, onClick = onClick).semantics { role = Role.RadioButton }, color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium, border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline)) { Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected, onClick); Text(label, fontWeight = FontWeight.Medium) } } }
 @Composable private fun Summary(title: String, value: String, step: Int, onAction: (EmergencyRequestAction) -> Unit) { Column { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) { Column(Modifier.weight(1f)) { Text(title, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium); Text(value, fontWeight = FontWeight.Medium) }; TextButton(onClick = { onAction(EmergencyRequestAction.EditStep(RequestStep.entries[step])) }) { Text("Edit") } }; HorizontalDivider(color = MaterialTheme.colorScheme.outline) } }
 @Composable private fun ErrorBanner(message: String, onRetry: () -> Unit) {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Warning, "Error", tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(28.dp))
-            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+            Column(Modifier.weight(1f)) {
                 Text("Something needs attention", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onErrorContainer)
                 Text(message, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
             }
@@ -731,12 +729,9 @@ private fun LocationMapPicker(
 }
 @Composable private fun SuccessBanner(message: String) {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Check, "Success", tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(28.dp))
-            Column(Modifier.padding(start = 10.dp)) {
-                Text("LifeLink update", fontWeight = FontWeight.SemiBold)
-                Text(message, color = MaterialTheme.colorScheme.onSecondaryContainer)
-            }
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("LifeLink update", fontWeight = FontWeight.SemiBold)
+            Text(message, color = MaterialTheme.colorScheme.onSecondaryContainer)
         }
     }
 }

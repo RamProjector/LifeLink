@@ -96,22 +96,26 @@ class SqlAlchemyRequestStore(RequestStore):
         await self.session.commit()
 
     async def get_by_idempotency_key_async(self, key: str) -> RequestRecord | None:
-        result = await self.session.scalar(
+        result = await self.session.execute(
             select(EmergencyRequestRow)
+            .options(joinedload(EmergencyRequestRow.facility))
             .options(joinedload(EmergencyRequestRow.matches).joinedload(RequestMatchRow.donor))
             .where(EmergencyRequestRow.idempotency_key == key)
         )
-        return self._to_record(result) if result else None
+        row = result.unique().scalar_one_or_none()
+        return self._to_record(row) if row else None
 
     async def get_by_id_async(self, request_id: str) -> RequestRecord | None:
-        result = await self.session.scalar(
+        result = await self.session.execute(
             select(EmergencyRequestRow)
+            .options(joinedload(EmergencyRequestRow.facility))
             .options(joinedload(EmergencyRequestRow.matches).joinedload(RequestMatchRow.donor))
             .where(EmergencyRequestRow.id == request_id)
         )
-        if result is not None:
-            await self._expire_if_needed(result)
-        return self._to_record(result) if result else None
+        row = result.unique().scalar_one_or_none()
+        if row is not None:
+            await self._expire_if_needed(row)
+        return self._to_record(row) if row else None
 
     async def _expire_if_needed(self, row: EmergencyRequestRow) -> bool:
         if is_request_expired(row.status.value, row.response_deadline):
@@ -123,6 +127,7 @@ class SqlAlchemyRequestStore(RequestStore):
     async def list_by_requester_async(self, requester_id: str, limit: int = 50) -> list[RequestRecord]:
         result = await self.session.scalars(
             select(EmergencyRequestRow)
+            .options(joinedload(EmergencyRequestRow.facility))
             .options(joinedload(EmergencyRequestRow.matches).joinedload(RequestMatchRow.donor))
             .where(EmergencyRequestRow.requester_id == requester_id)
             .order_by(EmergencyRequestRow.created_at.desc())

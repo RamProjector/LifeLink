@@ -30,6 +30,9 @@ import com.lifelink.app.feature.auth.AuthViewModelFactory
 import com.lifelink.app.feature.auth.RoleSelectionScreen
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.auth.UserRoleStore
+import com.lifelink.app.domain.UpdateType
+import com.lifelink.app.feature.updates.UpdatesViewModel
+import com.lifelink.app.feature.updates.UpdatesViewModelFactory
 import com.lifelink.app.data.remote.ProfileRequest
 import com.lifelink.app.data.remote.PushTokenRequest
 import com.lifelink.app.data.remote.RetrofitProvider
@@ -40,11 +43,13 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private var recoveryUri by mutableStateOf<Uri?>(null)
     private var notificationRequestId by mutableStateOf<String?>(null)
+    private var notificationOpenUpdates by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         recoveryUri = intent?.data
         notificationRequestId = intent?.getStringExtra("request_id")
+        notificationOpenUpdates = intent?.getBooleanExtra("open_updates", false) == true
         enableEdgeToEdge()
         val app = application as LifeLinkApplication
         setContent {
@@ -116,6 +121,50 @@ class MainActivity : ComponentActivity() {
                     factory = DonorViewModelFactory(app.container.donorRepository)
                 )
                 val donorState by donorViewModel.state.collectAsStateWithLifecycle()
+                val updatesViewModel: UpdatesViewModel = viewModel(
+                    factory = UpdatesViewModelFactory(app.container.updatesRepository)
+                )
+                val updates by updatesViewModel.updates.collectAsStateWithLifecycle()
+                LaunchedEffect(state.activeRequest?.requestId, state.activeRequest?.status) {
+                    state.activeRequest?.let { active ->
+                        app.container.updatesRepository.record(
+                            id = "request:${active.requestId}:${active.status.name}",
+                            type = UpdateType.REQUEST_STATUS,
+                            title = "Request ${active.status.label.lowercase()}",
+                            body = active.reason ?: "Your request status has changed.",
+                            requestId = active.requestId,
+                            actionKey = "request"
+                        )
+                    }
+                }
+                LaunchedEffect(state.contacts) {
+                    state.activeRequest?.requestId?.let { requestId ->
+                        state.contacts.forEach { contact ->
+                            app.container.updatesRepository.record(
+                                id = "contact:$requestId:${contact.donorId}:${contact.status}",
+                                type = UpdateType.CONTACT_STATUS,
+                                title = "Contact request ${contact.status.replace('_', ' ')}",
+                                body = "A donor contact request has a new status.",
+                                requestId = requestId,
+                                actionKey = "request"
+                            )
+                        }
+                    }
+                }
+                LaunchedEffect(donorState.requests) {
+                    donorState.requests.forEach { request ->
+                        request.response?.let { response ->
+                            app.container.updatesRepository.record(
+                                id = "donor-response:${request.requestId}",
+                                type = UpdateType.DONOR_RESPONSE,
+                                title = "Response sent",
+                                body = "Your ${response.name.lowercase()} response was recorded.",
+                                requestId = request.requestId,
+                                actionKey = "request"
+                            )
+                        }
+                    }
+                }
                 LifeLinkShell(
                     state = state,
                     onAction = viewModel::onAction,
@@ -163,6 +212,10 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onSignOut = authViewModel::signOut,
+                    updates = updates,
+                    onUpdateRead = updatesViewModel::markRead,
+                    onMarkAllUpdatesRead = updatesViewModel::markAllRead,
+                    notificationOpenUpdates = notificationOpenUpdates,
                     notificationRequestId = notificationRequestId
                 )
             }
@@ -174,5 +227,6 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         recoveryUri = intent.data
         notificationRequestId = intent.getStringExtra("request_id")
+        notificationOpenUpdates = intent.getBooleanExtra("open_updates", false)
     }
 }
