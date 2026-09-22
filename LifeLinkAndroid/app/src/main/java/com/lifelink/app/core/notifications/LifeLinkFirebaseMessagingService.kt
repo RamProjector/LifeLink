@@ -12,8 +12,6 @@ class LifeLinkFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        // Notification rendering is intentionally centralized here later so that
-        // request_id, status, and deep-link payloads can be handled consistently.
-        LifeLinkNotifications.createChannels(this)
+        LifeLinkNotifications.showRemoteMessage(this, message)
     }
 }
