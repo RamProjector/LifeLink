@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -26,6 +27,8 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -49,7 +52,8 @@ import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestScreen
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
 
-private enum class ShellTab { HOME, REQUESTS, LEARN, PROFILE }
+private enum class ShellTab { HOME, REQUESTS, INFO, SETTINGS }
+private enum class SettingsSection { PROFILE, LEGAL, SAFETY }
 
 @Composable
 fun LifeLinkShell(
@@ -97,8 +101,8 @@ fun LifeLinkShell(
             NavigationBar(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
                 NavigationBarItem(tab == ShellTab.HOME, { tab = ShellTab.HOME }, icon = { Icon(Icons.Default.Home, "Home") }, label = { Text("Home") })
                 NavigationBarItem(tab == ShellTab.REQUESTS, { tab = ShellTab.REQUESTS }, icon = { Icon(Icons.Default.Assignment, "Requests") }, label = { Text("Requests") })
-                NavigationBarItem(tab == ShellTab.LEARN, { tab = ShellTab.LEARN }, icon = { Icon(Icons.Default.Info, "Info") }, label = { Text("Info") })
-                NavigationBarItem(tab == ShellTab.PROFILE, { tab = ShellTab.PROFILE }, icon = { Icon(Icons.Default.Person, "Profile") }, label = { Text("Profile") })
+                NavigationBarItem(tab == ShellTab.INFO, { tab = ShellTab.INFO }, icon = { Icon(Icons.Default.Info, "Info") }, label = { Text("Info") })
+                NavigationBarItem(tab == ShellTab.SETTINGS, { tab = ShellTab.SETTINGS }, icon = { Icon(Icons.Default.Settings, "Settings") }, label = { Text("Settings") })
             }
         }
     ) { padding ->
@@ -106,8 +110,8 @@ fun LifeLinkShell(
             when (tab) {
                 ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true })
                 ShellTab.REQUESTS -> RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = { showRequest = true }, onActive = { showActive = true })
-                ShellTab.LEARN -> LearnContent()
-                ShellTab.PROFILE -> ProfileContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, onSignOut)
+                ShellTab.INFO -> LearnContent()
+                ShellTab.SETTINGS -> SettingsContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, onSignOut)
             }
         }
     }
@@ -255,6 +259,62 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
             Text(title, fontWeight = FontWeight.Bold)
             Text(body, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+@Composable private fun SettingsContent(
+    role: UserRole,
+    accountEmail: String,
+    accountUserId: String,
+    accountDisplayName: String,
+    profileSaving: Boolean,
+    profileMessage: String?,
+    onSaveProfile: (String) -> Unit,
+    onSignOut: () -> Unit
+) {
+    var section by rememberSaveable { mutableStateOf(SettingsSection.PROFILE) }
+    val sections = listOf(SettingsSection.PROFILE, SettingsSection.LEGAL, SettingsSection.SAFETY)
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Settings", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Manage your account, privacy choices, and LifeLink information.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        TabRow(selectedTabIndex = sections.indexOf(section)) {
+            sections.forEach { item ->
+                Tab(
+                    selected = section == item,
+                    onClick = { section = item },
+                    text = { Text(item.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                )
+            }
+        }
+        when (section) {
+            SettingsSection.PROFILE -> ProfileContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, onSignOut)
+            SettingsSection.LEGAL -> LegalContent()
+            SettingsSection.SAFETY -> SafetyContent()
+        }
+    }
+}
+
+@Composable private fun LegalContent() {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Legal information", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Please read how LifeLink is intended to be used before creating or responding to a request.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        LearnCard("Service scope", "LifeLink is a direct requester-to-donor discovery and contact aid. It is not a hospital, blood bank, emergency dispatcher, medical screening service, or guarantee that a donor can provide blood.")
+        LearnCard("Privacy", "LifeLink uses approximate location for matching and does not show exact coordinates between users. Donor contact details are disclosed only after the donor accepts and the requester explicitly chooses to continue.")
+        LearnCard("User responsibility", "Use a qualified hospital or blood bank for screening, collection, and urgent medical care. Do not use LifeLink to share patient records, passwords, payment details, or other sensitive information.")
+        LearnCard("Contact and reports", "Interactions are user-controlled. You can cancel a request, report unsafe behavior, or block a contact. Safety reports may be recorded for abuse prevention and service auditing.")
+        Text("LifeLink Cloud · MVP", style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable private fun SafetyContent() {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Safety and privacy", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        LearnCard("Location privacy", "Your exact coordinates are never shown to the other person. Matching uses an approximate area, distance, and travel estimate instead of a public map of donor locations.")
+        LearnCard("Consent before contact", "A donor must accept before contact can proceed. When contact details become available, LifeLink asks for your confirmation before opening your email app and recording contact sharing.")
+        LearnCard("Meet safely", "Use a verified hospital or blood bank, tell someone you trust where you are going, and avoid exchanging money or sensitive medical information through LifeLink.")
+        LearnCard("If something feels unsafe", "Stop the interaction, use Report or Block in the request flow, and contact local emergency services or a qualified medical facility when immediate danger is involved.")
     }
 }
 
