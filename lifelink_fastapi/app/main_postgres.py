@@ -128,7 +128,7 @@ async def get_profile(
 async def register_push_token(
     payload: PushTokenIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_principal),
+    principal: Principal = Depends(get_postgres_principal),
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
