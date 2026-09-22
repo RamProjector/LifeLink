@@ -45,9 +45,15 @@ class DonorRepositoryImpl(
                 effectiveProfile.pauseReason?.trim()?.takeIf { it.isNotEmpty() }, effectiveProfile.profileVisible
                 )
             )
-            check(response.isSuccessful) { "Profile could not be saved on the server (${response.code()})." }
+            check(response.isSuccessful) {
+                val detail = response.errorBody()?.string()?.takeIf { it.isNotBlank() }
+                "Profile could not be saved on the server (${response.code()})${detail?.let { ": $it" } ?: "."}"
+            }
             val availability = remote.updateDonorAvailability(ownerId, DonorAvailabilityRequest(effectiveProfile.availability.name.lowercase()))
-            check(availability.isSuccessful) { "Availability could not be updated (${availability.code()})." }
+            check(availability.isSuccessful) {
+                val detail = availability.errorBody()?.string()?.takeIf { it.isNotBlank() }
+                "Availability could not be updated (${availability.code()})${detail?.let { ": $it" } ?: "."}"
+            }
         }
         dao.upsertProfile(effectiveProfile.toEntity())
         }

@@ -206,16 +206,18 @@ private fun ProfileCard(
     onCaptureLocation: () -> Unit,
     onLocationSelected: (Double, Double) -> Unit
 ) {
-    var name by remember(profile.displayName) { mutableStateOf(profile.displayName) }
-    var area by remember(profile.area) { mutableStateOf(profile.area) }
-    var bloodType by remember(profile.bloodType) { mutableStateOf(profile.bloodType) }
-    var serviceRadius by remember(profile.serviceRadiusKm) { mutableStateOf(profile.serviceRadiusKm.toString()) }
-    var manualLatitude by remember(profile.latitude) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
-    var manualLongitude by remember(profile.longitude) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
-    var donorNote by remember(profile.donorNote) { mutableStateOf(profile.donorNote) }
-    var preferredContactMethod by remember(profile.preferredContactMethod) { mutableStateOf(profile.preferredContactMethod) }
-    var pauseReason by remember(profile.pauseReason) { mutableStateOf(profile.pauseReason.orEmpty()) }
-    var profileVisible by remember(profile.profileVisible) { mutableStateOf(profile.profileVisible) }
+    // Keep an editor draft for this donor. The repository refreshes in the background;
+    // keying these states to each server field used to erase text/chips while editing.
+    var name by remember(profile.donorId) { mutableStateOf(profile.displayName) }
+    var area by remember(profile.donorId) { mutableStateOf(profile.area) }
+    var bloodType by remember(profile.donorId) { mutableStateOf(profile.bloodType) }
+    var serviceRadius by remember(profile.donorId) { mutableStateOf(profile.serviceRadiusKm.toString()) }
+    var manualLatitude by remember(profile.donorId) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
+    var manualLongitude by remember(profile.donorId) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
+    var donorNote by remember(profile.donorId) { mutableStateOf(profile.donorNote) }
+    var preferredContactMethod by remember(profile.donorId) { mutableStateOf(profile.preferredContactMethod) }
+    var pauseReason by remember(profile.donorId) { mutableStateOf(profile.pauseReason.orEmpty()) }
+    var profileVisible by remember(profile.donorId) { mutableStateOf(profile.profileVisible) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Donor profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -344,17 +346,15 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
         }
     }
     Box(Modifier.fillMaxWidth()) {
-        key(retryRequest) {
-            MapLibreLocationPicker(
-                selectedLatitude,
-                selectedLongitude,
-                onLocationSelected,
-                retryRequest,
-                onLoadingChanged = { mapLoading = it; if (it) mapError = null },
-                onMapError = { mapLoading = false; mapError = it },
-                modifier = Modifier.fillMaxWidth().height(260.dp)
-            )
-        }
+        MapLibreLocationPicker(
+            selectedLatitude,
+            selectedLongitude,
+            onLocationSelected,
+            retryRequest,
+            onLoadingChanged = { mapLoading = it; if (it) mapError = null },
+            onMapError = { mapLoading = false; mapError = it },
+            modifier = Modifier.fillMaxWidth().height(260.dp)
+        )
         if (mapLoading) {
             Surface(Modifier.align(androidx.compose.ui.Alignment.TopCenter).padding(12.dp)) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
