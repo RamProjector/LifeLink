@@ -3,7 +3,10 @@ package com.lifelink.app
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
@@ -36,7 +39,7 @@ class AuthScreenSmokeTest {
         }
 
         composeRule.onNodeWithText("LifeLink").assertIsDisplayed()
-        composeRule.onNodeWithText("Sign in").assertIsDisplayed()
+        composeRule.onNode(hasText("Sign in") and hasClickAction()).assertIsDisplayed()
         composeRule.onNodeWithText("Email address").assertIsDisplayed()
     }
 }
