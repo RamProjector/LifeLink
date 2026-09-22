@@ -39,4 +39,3 @@ class AuthScreenSmokeTest {
         composeRule.onNodeWithText("Email address").assertIsDisplayed()
     }
 }
-EOF
