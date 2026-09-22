@@ -150,7 +150,18 @@ class MainActivity : ComponentActivity() {
                         themeStore.save(selectedMode)
                         themeMode = selectedMode
                     },
-                    onRequestPasswordReset = { authViewModel.requestPasswordReset(signedInSession?.email.orEmpty()) },
+                    onRequestPasswordReset = { showMessage ->
+                        roleSyncScope.launch {
+                            val email = signedInSession?.email.orEmpty()
+                            if (email.isBlank()) {
+                                showMessage("No account email is available for password recovery.")
+                            } else {
+                                app.container.authRepository.requestPasswordReset(email)
+                                    .onSuccess { showMessage("Reset link sent. Check your inbox.") }
+                                    .onFailure { showMessage(it.message ?: "Could not send the reset link.") }
+                            }
+                        }
+                    },
                     onSignOut = authViewModel::signOut,
                     notificationRequestId = notificationRequestId
                 )

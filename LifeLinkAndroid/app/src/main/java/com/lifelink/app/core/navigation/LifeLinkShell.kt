@@ -29,7 +29,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -72,7 +72,7 @@ fun LifeLinkShell(
     onSaveProfile: (String) -> Unit,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
-    onRequestPasswordReset: () -> Unit,
+    onRequestPasswordReset: ((String) -> Unit) -> Unit,
     onSignOut: () -> Unit,
     notificationRequestId: String? = null
 ) {
@@ -277,7 +277,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     onSaveProfile: (String) -> Unit,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
-    onRequestPasswordReset: () -> Unit,
+    onRequestPasswordReset: ((String) -> Unit) -> Unit,
     onSignOut: () -> Unit
 ) {
     var section by rememberSaveable { mutableStateOf(SettingsSection.PROFILE) }
@@ -287,7 +287,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
             Text("Settings", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text("Manage your account, privacy choices, and LifeLink information.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        TabRow(selectedTabIndex = sections.indexOf(section)) {
+        ScrollableTabRow(selectedTabIndex = sections.indexOf(section), edgePadding = 12.dp) {
             sections.forEach { item ->
                 Tab(
                     selected = section == item,
@@ -330,7 +330,8 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     }
 }
 
-@Composable private fun SecurityContent(onRequestPasswordReset: () -> Unit) {
+@Composable private fun SecurityContent(onRequestPasswordReset: ((String) -> Unit) -> Unit) {
+    var resetMessage by rememberSaveable { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Security", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         LearnCard("Account protection", "Keep your email account secure and never share your LifeLink password, reset link, or session details with another person.")
@@ -338,7 +339,11 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Reset password", fontWeight = FontWeight.Bold)
                 Text("Send a password-reset link to the email address on this account.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-                androidx.compose.material3.OutlinedButton(onClick = onRequestPasswordReset, modifier = Modifier.fillMaxWidth()) { Text("Send reset link") }
+                androidx.compose.material3.OutlinedButton(
+                    onClick = { onRequestPasswordReset { message -> resetMessage = message } },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Send reset link") }
+                resetMessage?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.primary) }
             }
         }
         LearnCard("Session safety", "LifeLink refreshes authenticated sessions when needed. Signing out clears the local session on this device. If you suspect unauthorized access, reset your password and sign out.")
