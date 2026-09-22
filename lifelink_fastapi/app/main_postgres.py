@@ -57,6 +57,16 @@ app = FastAPI(title="LifeLink Matching Service — PostgreSQL", lifespan=lifespa
 logger = logging.getLogger("lifelink.api")
 
 
+def donor_setup_complete(row: DonorRow) -> bool:
+    return (
+        len(row.display_name.strip()) >= 2
+        and row.blood_type.value != "UNKNOWN"
+        and -90 <= float(row.latitude) <= 90
+        and -180 <= float(row.longitude) <= 180
+        and 0 < float(row.service_radius_km) <= 100
+    )
+
+
 @app.exception_handler(IntegrityError)
 async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
     logger.exception("Database constraint failure on %s", request.url.path)
@@ -560,6 +570,8 @@ async def register_donor_postgres(
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
     if donor_id != payload.donor_id:
         raise HTTPException(status_code=400, detail="Path donor_id must match payload donor_id")
+    if payload.blood_type.value == "UNKNOWN":
+        raise HTTPException(status_code=400, detail="Select a confirmed blood type before completing donor setup")
     profile = await session.get(LifeLinkProfile, donor_id)
     if profile is not None:
         profile.can_donate = True
@@ -592,6 +604,9 @@ async def update_donor_availability_postgres(
 ):
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
+    donor_row = await session.get(DonorRow, donor_id)
+    if donor_row is None or not donor_setup_complete(donor_row):
+        raise HTTPException(status_code=409, detail="Complete donor setup before choosing availability")
     try:
         row = await SqlAlchemyDonorStore(session).set_availability(donor_id, payload.availability)
     except KeyError:
@@ -618,6 +633,9 @@ async def donor_request_inbox_postgres(
 ):
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
+    donor_row = await session.get(DonorRow, donor_id)
+    if donor_row is None or not donor_setup_complete(donor_row):
+        return []
     items = []
     for request, match, contact in await SqlAlchemyDonorStore(session).inbox(donor_id):
         items.append(DonorInboxItem(

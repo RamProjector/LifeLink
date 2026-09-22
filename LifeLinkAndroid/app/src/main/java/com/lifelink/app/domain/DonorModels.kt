@@ -20,7 +20,14 @@ data class DonorProfile(
     val preferredContactMethod: String = "in_app",
     val pauseReason: String? = null,
     val profileVisible: Boolean = true
-)
+) {
+    val isSetupComplete: Boolean
+        get() = displayName.trim().length >= 2 &&
+            bloodType != null &&
+            latitude != null &&
+            longitude != null &&
+            serviceRadiusKm in 1..100
+}
 
 data class DonorRequest(
     val requestId: String,
@@ -37,6 +44,7 @@ interface DonorRepository {
     fun observeProfile(): Flow<DonorProfile>
     fun observeRequests(): Flow<List<DonorRequest>>
     suspend fun saveProfile(profile: DonorProfile)
+    suspend fun setAvailability(availability: DonorAvailability)
     suspend fun refresh()
     suspend fun respond(requestId: String, response: DonorResponse): Result<Unit>
 }

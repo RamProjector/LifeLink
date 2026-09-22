@@ -52,10 +52,23 @@ class DonorRepositoryImpl(
         dao.upsertProfile(effectiveProfile.toEntity())
         }
     }
+    override suspend fun setAvailability(availability: DonorAvailability) {
+        withContext(Dispatchers.IO) {
+            val ownerId = donorId()
+            val local = dao.observeProfile(ownerId).first()
+            val current = local?.toDomain() ?: DonorProfile(donorId = ownerId)
+            require(current.isSetupComplete) { "Complete your donor profile before choosing availability." }
+            api?.let { remote ->
+                val response = remote.updateDonorAvailability(ownerId, DonorAvailabilityRequest(availability.name.lowercase()))
+                check(response.isSuccessful) { "Availability could not be updated (${response.code()})." }
+            }
+            dao.upsertProfile(current.copy(availability = availability).toEntity())
+        }
+    }
     override suspend fun refresh() = withContext(Dispatchers.IO) {
         val remote = api ?: return@withContext
         val profile = dao.observeProfile(donorId()).first()
-        if (profile != null) {
+        if (profile != null && profile.toDomain().isSetupComplete) {
             remote.donorRequests(profile.donorId).body().orEmpty().forEach { request ->
                 dao.upsertRequest(DonorRequestEntity(request.requestId, request.bloodType, request.units, request.urgency, request.facilityName, request.area, request.distanceKm, request.status.takeUnless { it == "not_responded" }))
             }

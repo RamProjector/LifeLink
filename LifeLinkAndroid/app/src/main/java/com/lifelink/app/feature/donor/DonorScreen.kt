@@ -111,7 +111,8 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                 Text("Help when it matters", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Text("Your availability controls which verified requests you see.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            item { AvailabilityCard(state.profile, onAction) }
+            if (!state.profile.isSetupComplete) item { SetupRequiredCard(state.profile) }
+            else item { AvailabilityCard(state.profile, onAction) }
             state.message?.let { message -> item { StatusMessage(message) } }
             locationMessage?.let { message -> item { StatusMessage(message, compact = true) } }
             item {
@@ -132,16 +133,18 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                     onLocationSelected = { latitude, longitude -> onAction(DonorAction.SetLocation(latitude, longitude, 500)) }
                 )
             }
-            item { Text("Requests near you", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            if (state.requests.isEmpty()) item {
-                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("No eligible requests right now", fontWeight = FontWeight.SemiBold)
-                        Text("Keep your availability and approximate location up to date. New matching requests will appear here when available.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (state.profile.isSetupComplete) {
+                item { Text("Requests near you", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+                if (state.requests.isEmpty()) item {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("No eligible requests right now", fontWeight = FontWeight.SemiBold)
+                            Text("New matching requests will appear here when available.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
+                items(state.requests, key = { it.requestId }) { request -> RequestCard(request, onAction) }
             }
-            items(state.requests, key = { it.requestId }) { request -> RequestCard(request, onAction) }
         }
     }
 }
@@ -172,6 +175,23 @@ private fun StatusMessage(message: String, compact: Boolean = false) {
                     FilterChip(selected = profile.availability == option, onClick = { onAction(DonorAction.SetAvailability(option)) }, label = { Text(option.label) })
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SetupRequiredCard(profile: DonorProfile) {
+    val missing = buildList {
+        if (profile.displayName.trim().length < 2) add("display name")
+        if (profile.bloodType == null) add("blood type")
+        if (profile.latitude == null || profile.longitude == null) add("approximate location")
+        if (profile.serviceRadiusKm !in 1..100) add("service radius")
+    }
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Finish donor setup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Complete ${missing.joinToString()}. Requests stay hidden until your profile is ready.", color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text("Choose availability after setup is saved.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
         }
     }
 }
@@ -237,13 +257,18 @@ private fun ProfileCard(
                 Switch(checked = profileVisible, onCheckedChange = { profileVisible = it })
             }
             Text("Blood type", fontWeight = FontWeight.SemiBold)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                BloodType.values().forEach { option ->
-                    FilterChip(
-                        selected = bloodType == option,
-                        onClick = { bloodType = option },
-                        label = { Text(option.label) }
-                    )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                BloodType.values().toList().chunked(4).forEach { rowOptions ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        rowOptions.forEach { option ->
+                            FilterChip(
+                                selected = bloodType == option,
+                                onClick = { bloodType = option },
+                                label = { Text(option.label) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
             }
             OutlinedTextField(
@@ -290,9 +315,11 @@ private fun ProfileCard(
                         )
                     )
                 },
-                enabled = name.trim().length >= 2 && bloodType != null && serviceRadius.toIntOrNull() in 1..100,
+                enabled = name.trim().length >= 2 && bloodType != null &&
+                    profile.latitude != null && profile.longitude != null &&
+                    serviceRadius.toIntOrNull() in 1..100,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Save profile") }
+            ) { Text(if (profile.isSetupComplete) "Save changes" else "Complete donor setup") }
         }
     }
 }
@@ -301,7 +328,12 @@ private fun ProfileCard(
 private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSelected: (Double, Double) -> Unit) {
     val selectedLatitude = latitude ?: 14.5995
     val selectedLongitude = longitude ?: 120.9842
-    MapLibreLocationPicker(selectedLatitude, selectedLongitude, onLocationSelected)
+    MapLibreLocationPicker(
+        latitude = selectedLatitude,
+        longitude = selectedLongitude,
+        onLocationSelected = onLocationSelected,
+        modifier = Modifier.height(280.dp)
+    )
 }
 
 @Composable private fun RequestCard(request: DonorRequest, onAction: (DonorAction) -> Unit) {

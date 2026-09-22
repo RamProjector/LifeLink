@@ -8,12 +8,12 @@ import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRepository
 import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 
 data class DonorUiState(
     val profile: DonorProfile = DonorProfile(),
@@ -37,7 +37,12 @@ class DonorViewModel(private val repository: DonorRepository) : ViewModel() {
     init {
         viewModelScope.launch {
             combine(repository.observeProfile(), repository.observeRequests()) { profile, requests -> profile to requests }
-                .collect { (profile, requests) -> _state.value = _state.value.copy(profile = profile, requests = requests) }
+                .collect { (profile, requests) ->
+                    _state.value = _state.value.copy(
+                        profile = profile,
+                        requests = if (profile.isSetupComplete) requests else emptyList()
+                    )
+                }
         }
         viewModelScope.launch {
             while (true) {
@@ -56,9 +61,9 @@ class DonorViewModel(private val repository: DonorRepository) : ViewModel() {
                     longitude = action.longitude,
                     locationPrecisionMeters = action.precisionMeters
                 ),
-                message = "Location captured; save your profile to update matching."
+                message = "Location selected. Save the profile to complete setup."
             )
-            is DonorAction.SetAvailability -> saveProfile(_state.value.profile.copy(availability = action.availability))
+            is DonorAction.SetAvailability -> setAvailability(action.availability)
             is DonorAction.Respond -> respond(action.requestId, action.response)
             DonorAction.ClearMessage -> _state.value = _state.value.copy(message = null)
         }
@@ -68,13 +73,22 @@ class DonorViewModel(private val repository: DonorRepository) : ViewModel() {
         viewModelScope.launch {
             _state.value = _state.value.copy(saving = true)
             runCatching { repository.saveProfile(profile) }
-                .onSuccess { _state.value = _state.value.copy(saving = false, message = "Profile saved") }
+                .onSuccess { _state.value = _state.value.copy(saving = false, message = "Donor profile saved") }
                 .onFailure { error ->
                     _state.value = _state.value.copy(
                         saving = false,
                         message = error.message ?: "Profile could not be saved. Check your connection and try again."
                     )
                 }
+        }
+    }
+
+    private fun setAvailability(availability: DonorAvailability) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(saving = true)
+            runCatching { repository.setAvailability(availability) }
+                .onSuccess { _state.value = _state.value.copy(saving = false, message = "Availability updated") }
+                .onFailure { error -> _state.value = _state.value.copy(saving = false, message = error.message ?: "Availability could not be updated.") }
         }
     }
 
