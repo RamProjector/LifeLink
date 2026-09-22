@@ -16,8 +16,8 @@ class Principal:
     role: str | None = None
 
 
-def auth_required() -> bool:
-    return os.getenv("LIFELINK_AUTH_REQUIRED", "false").lower() == "true"
+def auth_required(default: bool = False) -> bool:
+    return os.getenv("LIFELINK_AUTH_REQUIRED", str(default).lower()).lower() == "true"
 
 
 def _supabase_url() -> str:
@@ -68,10 +68,9 @@ def _verify_supabase_token(token: str) -> Principal:
     )
 
 
-def get_principal(authorization: str | None = Header(default=None)) -> Principal:
-    """Return the authenticated Supabase user, failing closed in deployed mode."""
+def _get_principal(authorization: str | None, required: bool) -> Principal:
     if not authorization:
-        if auth_required():
+        if required:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Bearer authentication required",
@@ -83,9 +82,19 @@ def get_principal(authorization: str | None = Header(default=None)) -> Principal
     if scheme.lower() != "bearer" or not token.strip():
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Use a Bearer access token")
 
-    if auth_required():
+    if required:
         return _verify_supabase_token(token.strip())
     return Principal(subject=token.strip())
+
+
+def get_principal(authorization: str | None = Header(default=None)) -> Principal:
+    """In-memory/demo dependency; anonymous access is allowed unless explicitly enabled."""
+    return _get_principal(authorization, auth_required())
+
+
+def get_postgres_principal(authorization: str | None = Header(default=None)) -> Principal:
+    """Production dependency; authentication is required unless explicitly disabled for local testing."""
+    return _get_principal(authorization, auth_required(default=True))
 
 
 def require_owner(principal: Principal, resource_owner_id: str) -> None:
