@@ -67,6 +67,38 @@ def test_donor_can_register_and_change_availability(monkeypatch):
     assert response.json()["availability"] == "available"
 
 
+def test_incomplete_donor_cannot_choose_availability_or_view_inbox(monkeypatch):
+    monkeypatch.setenv("LIFELINK_AUTH_REQUIRED", "true")
+    monkeypatch.setattr("app.security._verify_supabase_token", lambda token: Principal(subject=token))
+    headers = {"Authorization": "Bearer donor-incomplete"}
+    response = client.put(
+        "/v1/donors/donor-incomplete",
+        json={
+            "donor_id": "donor-incomplete",
+            "display_name": "A",
+            "blood_type": "O-",
+            "latitude": 14.6466,
+            "longitude": 121.0437,
+            "service_radius_km": 15,
+            "verified": True,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    response = client.patch(
+        "/v1/donors/donor-incomplete/availability",
+        json={"availability": "available"},
+        headers=headers,
+    )
+    assert response.status_code == 409
+    assert "Complete donor setup" in response.json()["detail"]
+
+    response = client.get("/v1/donors/donor-incomplete/requests", headers=headers)
+    assert response.status_code == 200
+    assert response.json() == []
+
+
 def test_authenticated_donor_cannot_mutate_another_profile(monkeypatch):
     monkeypatch.setenv("LIFELINK_AUTH_REQUIRED", "true")
     monkeypatch.setattr("app.security._verify_supabase_token", lambda token: Principal(subject=token))

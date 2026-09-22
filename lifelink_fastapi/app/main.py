@@ -298,6 +298,17 @@ donor_availability: dict[str, DonorAvailability] = {
 }
 
 
+def donor_setup_complete(donor: Donor) -> bool:
+    """Return whether a donor has the minimum data needed for matching."""
+    return (
+        len(donor.display_name.strip()) >= 2
+        and donor.blood_type != BloodType.UNKNOWN
+        and -90 <= donor.latitude <= 90
+        and -180 <= donor.longitude <= 180
+        and 1 <= donor.service_radius_km <= 100
+    )
+
+
 def get_request_store() -> RequestStore:
     return request_store
 
@@ -340,6 +351,8 @@ def update_donor_availability(donor_id: str, payload: DonorAvailabilityIn, princ
     donor = donor_profiles.get(donor_id)
     if donor is None:
         raise HTTPException(status_code=404, detail="Donor not found")
+    if not donor_setup_complete(donor):
+        raise HTTPException(status_code=409, detail="Complete donor setup before choosing availability")
     donor_profiles[donor_id] = donor.model_copy(
         update={
             "available": payload.availability == DonorAvailability.AVAILABLE,
@@ -360,6 +373,8 @@ def donor_request_inbox(donor_id: str, principal: Principal = Depends(get_princi
     donor = donor_profiles.get(donor_id)
     if donor is None:
         raise HTTPException(status_code=404, detail="Donor not found")
+    if not donor_setup_complete(donor):
+        return []
     items: list[DonorInboxItem] = []
     for record in request_store.records.values():
         for match in record.matches:
