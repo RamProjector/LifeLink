@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import os
+import logging
 from datetime import datetime, timezone
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import get_db_session
-from .db_models import Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, LifeLinkProfile, LifeLinkRoleEnum
+from .db_models import Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum
 from .fcm import send_push_safely
 from .main import (
     EmergencyRequestIn,
@@ -44,6 +47,19 @@ from .security import Principal, get_postgres_principal
 from .rate_limit import enforce_rate_limit
 
 app = FastAPI(title="LifeLink Matching Service — PostgreSQL")
+logger = logging.getLogger("lifelink.api")
+
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
+    logger.exception("Database constraint failure on %s", request.url.path)
+    return JSONResponse(status_code=409, content={"detail": "This request conflicts with current server data. Refresh and submit again."})
+
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_error_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+    logger.exception("Database failure on %s", request.url.path)
+    return JSONResponse(status_code=503, content={"detail": "LifeLink could not save the request right now. Please retry."})
 
 
 async def _tokens_for_donors(session: AsyncSession, donor_ids: list[str]) -> list[str]:
@@ -189,6 +205,18 @@ async def create_emergency_request_postgres(
     enforce_rate_limit(f"request-create:{principal.subject}", 5, 300)
     if idempotency_header and idempotency_header != payload.idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key header must match payload.idempotency_key.")
+
+    # Android drafts can outlive a facility seed or migration. Preserve the
+    # coordinates but clear an unknown facility foreign key instead of failing
+    # the entire request on the hosted database.
+    facility_id = payload.location.facility_id
+    if facility_id:
+        facility = await session.scalar(select(Facility).where(Facility.id == facility_id))
+        if facility is None:
+            logger.warning("Unknown facility_id=%s; using approximate location", facility_id)
+            payload = payload.model_copy(update={
+                "location": payload.location.model_copy(update={"facility_id": None, "verified": False})
+            })
 
     store = SqlAlchemyRequestStore(session)
     existing = await store.get_by_idempotency_key_async(payload.idempotency_key)

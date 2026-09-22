@@ -95,7 +95,7 @@ class EmergencyRequestRepositoryImpl(
         try {
             val response = api.submitEmergencyRequest(draft.id, EmergencyRequestRequest.from(draft, requesterIdProvider()))
             if (!response.isSuccessful) {
-                SubmitResult.Error("The server rejected the request (${response.code()}). Check the details and try again.")
+                SubmitResult.Error(serverError(response.code(), response.errorBody()?.string()))
             } else {
                 val body = response.body()
                 if (body == null) {
@@ -218,7 +218,20 @@ class EmergencyRequestRepositoryImpl(
         val work = OneTimeWorkRequestBuilder<PendingSubmissionWorker>().setConstraints(constraints).build()
         workManager.enqueueUniqueWork("lifelink-submit-${draft.id}", ExistingWorkPolicy.KEEP, work)
     }
+
+    private fun serverError(code: Int, body: String?): String {
+        val detail = body?.let {
+            runCatching { Gson().fromJson(it, ApiErrorResponse::class.java)?.detail }.getOrNull()
+        }?.takeIf { it.isNotBlank() }
+        return detail ?: when (code) {
+            409 -> "This request conflicts with current server data. Refresh and submit again."
+            503 -> "LifeLink could not save the request right now. Please retry."
+            else -> "The server rejected the request ($code). Check the details and try again."
+        }
+    }
 }
+
+private data class ApiErrorResponse(val detail: String? = null)
 
 class LifeLinkAppContainer(
     val authRepository: com.lifelink.app.core.auth.SupabaseAuthRepository,
