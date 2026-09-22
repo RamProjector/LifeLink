@@ -84,6 +84,8 @@ The free public architecture is:
 Android app → Render Free FastAPI → Supabase Free PostgreSQL
 ```
 
+Outbound push notifications are enabled by setting `FIREBASE_SERVICE_ACCOUNT_JSON` in the Render dashboard to the complete JSON service-account key for the Firebase project used by the Android app. The API registers Android tokens at `PUT /v1/push-token` and sends notifications for donor matches, requester contact selections, and donor responses. Delivery is skipped safely when the secret is absent, so local development remains usable.
+
 ## PostgreSQL package
 
 - `sql/001_initial_schema.sql` — PostgreSQL/PostGIS DDL, enums, constraints, indexes, geography triggers, and tables.
@@ -129,4 +131,4 @@ Set `LIFELINK_AUTH_REQUIRED=true` in a deployed environment to reject anonymous 
 
 ## Production integration points
 
-Add Firebase Authentication/JWT verification for requester identity, a queue/worker for push notifications, an audit log for request lifecycle changes, and a real routing provider for travel-time estimates. Run schema changes through Alembic after the initial migration rather than calling `Base.metadata.create_all()` in production.
+Add Firebase Authentication/JWT verification for requester identity, a queue/worker for high-volume push notifications, an audit log for request lifecycle changes, and a real routing provider for travel-time estimates. Run schema changes through Alembic after the initial migration rather than calling `Base.metadata.create_all()` in production.
