@@ -282,6 +282,7 @@ private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContac
     var blockDialogVisible by remember { mutableStateOf(false) }
     var cancelDialogVisible by remember { mutableStateOf(false) }
     var fulfillDialogVisible by remember { mutableStateOf(false) }
+    var contactConsentVisible by remember { mutableStateOf(false) }
     var reportReason by remember { mutableStateOf("") }
     Card(
         Modifier.fillMaxWidth(),
@@ -297,16 +298,15 @@ private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContac
             if (accepted) {
                 contact.acceptedAt?.let { Text("Accepted $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 contact.contactSharedAt?.let { Text("Contact shared $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                contact.updatedAt?.let { Text("Last updated $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 Text("Contact details are shared only after donor consent.", style = MaterialTheme.typography.bodySmall)
                 contact.contactEmail?.let { email ->
-                    OutlinedButton(onClick = {
-                        runCatching { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$email"))) }
-                    }, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { contactConsentVisible = true }, modifier = Modifier.fillMaxWidth()) {
                         Text("Contact donor · $email")
                     }
                 }
                 when (status) {
-                    "accepted" -> OutlinedButton(onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "contact_shared")) }, modifier = Modifier.fillMaxWidth()) { Text("Mark contact shared") }
+                    "accepted" -> if (contact.contactEmail == null) Text("Contact details are not available yet. Refresh after the donor confirms sharing.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     "contact_shared" -> OutlinedButton(onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "meeting_arranged")) }, modifier = Modifier.fillMaxWidth()) { Text("Mark meeting arranged") }
                     "meeting_arranged" -> OutlinedButton(onClick = { fulfillDialogVisible = true }, modifier = Modifier.fillMaxWidth()) { Text("Mark fulfilled") }
                     "fulfilled" -> Text("Fulfilled", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
@@ -329,6 +329,24 @@ private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContac
                 )
             }
         }
+    }
+
+    if (contactConsentVisible) {
+        AlertDialog(
+            onDismissRequest = { contactConsentVisible = false },
+            title = { Text("Contact donor?") },
+            text = { Text("The donor accepted this request. LifeLink will open your email app using the authorized contact address. Only continue if you consent to sharing this contact interaction.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    contact.contactEmail?.let { email ->
+                        runCatching { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$email"))) }
+                        onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "contact_shared"))
+                    }
+                    contactConsentVisible = false
+                }) { Text("Continue") }
+            },
+            dismissButton = { TextButton(onClick = { contactConsentVisible = false }) { Text("Not now") } }
+        )
     }
 
     if (reportDialogVisible) {

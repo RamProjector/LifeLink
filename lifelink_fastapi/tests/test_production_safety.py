@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from app.rate_limit import enforce_rate_limit
 from app.main_postgres import RequesterContactOut
+from app.repositories import CONTACT_EMAIL_VISIBLE_STATUSES
 
 
 def test_rate_limit_rejects_after_threshold():
@@ -32,3 +33,8 @@ def test_contact_response_preserves_lifecycle_timestamps():
 
     assert response.contact_shared_at == shared_at
     assert response.updated_at == shared_at
+
+
+def test_contact_email_is_hidden_until_contact_is_shared():
+    assert "accepted" not in CONTACT_EMAIL_VISIBLE_STATUSES
+    assert CONTACT_EMAIL_VISIBLE_STATUSES == {"contact_shared", "meeting_arranged", "fulfilled"}

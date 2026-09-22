@@ -33,6 +33,7 @@ from .expiry import is_request_expired
 
 
 MATCHING_VERSION = "v1-explainable-weighted"
+CONTACT_EMAIL_VISIBLE_STATUSES = {"contact_shared", "meeting_arranged", "fulfilled"}
 
 
 class SqlAlchemyDonorRepository(DonorRepository):
@@ -280,7 +281,7 @@ class SqlAlchemyRequestStore(RequestStore):
                 "accepted_at": contact.accepted_at,
                 "contact_shared_at": contact.contact_shared_at,
                 "updated_at": contact.updated_at,
-                "contact_email": profile.email if contact.status in {"accepted", "contact_shared", "meeting_arranged", "fulfilled"} and profile else None,
+                "contact_email": profile.email if contact.status in CONTACT_EMAIL_VISIBLE_STATUSES and profile else None,
             })
         return items
 
