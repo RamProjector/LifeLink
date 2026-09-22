@@ -331,8 +331,6 @@ private fun ProfileCard(
 
 @Composable
 private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSelected: (Double, Double) -> Unit) {
-    val selectedLatitude = latitude ?: 14.5995
-    val selectedLongitude = longitude ?: 120.9842
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf<String?>(null) }
     var retryRequest by remember { mutableStateOf(0) }
@@ -347,10 +345,10 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
     }
     Box(Modifier.fillMaxWidth()) {
         MapLibreLocationPicker(
-            selectedLatitude,
-            selectedLongitude,
-            onLocationSelected,
-            retryRequest,
+            latitude = latitude,
+            longitude = longitude,
+            onLocationSelected = onLocationSelected,
+            recenterRequest = retryRequest,
             onLoadingChanged = { mapLoading = it; if (it) mapError = null },
             onMapError = { mapLoading = false; mapError = it },
             modifier = Modifier.fillMaxWidth().height(260.dp)
