@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Annotated
 from uuid import uuid4
@@ -14,7 +15,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .db import get_db_session
+from .db import create_all_tables, get_db_session
 from .db_models import Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum
 from .fcm import send_push_safely
 from .main import (
@@ -46,7 +47,13 @@ from .main import Donor
 from .security import Principal, get_postgres_principal
 from .rate_limit import enforce_rate_limit
 
-app = FastAPI(title="LifeLink Matching Service — PostgreSQL")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await create_all_tables()
+    yield
+
+
+app = FastAPI(title="LifeLink Matching Service — PostgreSQL", lifespan=lifespan)
 logger = logging.getLogger("lifelink.api")
 
 
