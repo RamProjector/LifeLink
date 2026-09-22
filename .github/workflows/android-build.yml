@@ -71,14 +71,17 @@ jobs:
       - name: Run emulator smoke test
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 34
           target: google_apis
           arch: x86_64
           profile: pixel_2
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -no-snapshot-save -gpu swiftshader_indirect
+          cores: 2
+          ram-size: 4096M
+          disk-size: 8G
           disable-animations: true
           force-avd-creation: true
-          emulator-boot-timeout: 600
+          emulator-boot-timeout: 900
           working-directory: LifeLinkAndroid
           script: ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
 
