@@ -49,7 +49,14 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(recoveryUri) { authViewModel.handleRecoveryCallback(recoveryUri) }
                 val authState by authViewModel.state.collectAsStateWithLifecycle()
                 if (authState !is AuthState.SignedIn) {
-                    AuthScreen(authState, authViewModel::signIn, authViewModel::signUp, authViewModel::requestPasswordReset, authViewModel::resendConfirmation)
+                    AuthScreen(
+                        state = authState,
+                        onSignIn = authViewModel::signIn,
+                        onSignUp = authViewModel::signUp,
+                        onPasswordReset = authViewModel::requestPasswordReset,
+                        onResendConfirmation = authViewModel::resendConfirmation,
+                        onUpdatePassword = authViewModel::updatePassword
+                    )
                     return@LifeLinkTheme
                 }
                 val roleStore = remember { UserRoleStore(this@MainActivity) }

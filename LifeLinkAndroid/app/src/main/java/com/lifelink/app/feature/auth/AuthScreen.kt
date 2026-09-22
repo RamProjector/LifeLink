@@ -52,7 +52,8 @@ fun AuthScreen(
     onSignIn: (String, String) -> Unit,
     onSignUp: (String, String) -> Unit,
     onPasswordReset: (String) -> Unit,
-    onResendConfirmation: (String) -> Unit
+    onResendConfirmation: (String) -> Unit,
+    onUpdatePassword: (String, String) -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -62,10 +63,11 @@ fun AuthScreen(
     var showConfirmPassword by remember { mutableStateOf(false) }
     var recoveryMode by remember { mutableStateOf(false) }
     val busy = state is AuthState.Loading
+    val resetReady = state is AuthState.PasswordResetReady
     val emailValid = emailPattern.matcher(email.trim()).matches()
     val passwordValid = password.length >= 6
-    val passwordsMatch = !createAccount || password == confirmPassword
-    val canSubmit = emailValid && (recoveryMode || (passwordValid && passwordsMatch)) && !busy
+    val passwordsMatch = !(createAccount || resetReady) || password == confirmPassword
+    val canSubmit = if (resetReady) passwordValid && passwordsMatch && !busy else emailValid && (recoveryMode || (passwordValid && passwordsMatch)) && !busy
 
     Surface(color = MaterialTheme.colorScheme.background) {
         Column(
@@ -79,14 +81,15 @@ fun AuthScreen(
         ) {
             Text("LifeLink", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.SemiBold)
             Text(
-                if (recoveryMode) "Recover access to your LifeLink account."
+                if (resetReady) "Choose a new password for your LifeLink account."
+                else if (recoveryMode) "Recover access to your LifeLink account."
                 else if (createAccount) "Join the community helping people find blood donors."
                 else "Welcome back. Sign in to continue.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            if (!recoveryMode) Row(
+            if (!recoveryMode && !resetReady) Row(
                 modifier = Modifier.fillMaxWidth().background(
                     MaterialTheme.colorScheme.surfaceVariant,
                     RoundedCornerShape(12.dp)
@@ -107,19 +110,20 @@ fun AuthScreen(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Text(
-                        if (recoveryMode) "Reset your password" else if (createAccount) "Create your account" else "Sign in",
+                        if (resetReady) "Create a new password" else if (recoveryMode) "Reset your password" else if (createAccount) "Create your account" else "Sign in",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        if (recoveryMode) "We’ll email a secure password-reset link."
+                        if (resetReady) "Your recovery link is confirmed. Enter and confirm your new password below."
+                        else if (recoveryMode) "We’ll email a secure password-reset link."
                         else if (createAccount) "Use an email address you can open. Supabase may send a confirmation link."
                         else "Use the email and password associated with your LifeLink account.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    OutlinedTextField(
+                    if (!resetReady) OutlinedTextField(
                         value = email,
                         onValueChange = { email = it },
                         modifier = Modifier.fillMaxWidth(),
@@ -136,21 +140,21 @@ fun AuthScreen(
                         } else null
                     )
 
-                    if (!recoveryMode) PasswordField(
+                    if (!recoveryMode || resetReady) PasswordField(
                         value = password,
                         onValueChange = { password = it },
-                        label = "Password",
+                        label = if (resetReady) "New password" else "Password",
                         visible = showPassword,
                         onToggleVisibility = { showPassword = !showPassword },
                         isError = password.isNotEmpty() && !passwordValid,
                         supportingText = if (password.isNotEmpty() && !passwordValid) "Use at least 6 characters." else null
                     )
 
-                    if (!recoveryMode && createAccount) {
+                    if ((!recoveryMode && createAccount) || resetReady) {
                         PasswordField(
                             value = confirmPassword,
                             onValueChange = { confirmPassword = it },
-                            label = "Confirm password",
+                            label = if (resetReady) "Confirm new password" else "Confirm password",
                             visible = showConfirmPassword,
                             onToggleVisibility = { showConfirmPassword = !showConfirmPassword },
                             isError = confirmPassword.isNotEmpty() && !passwordsMatch,
@@ -162,11 +166,8 @@ fun AuthScreen(
                         is AuthState.Error -> MessageCard(state.message, isError = true)
                         is AuthState.Message -> MessageCard(state.text, isError = state.isError)
                         AuthState.SessionExpired -> MessageCard("Your session expired. Please sign in again to protect your requests and contact details.", isError = true)
-                        is AuthState.PasswordResetConfirmed -> MessageCard(
-                            if (state.email.isNullOrBlank()) "Email confirmed. Your password-reset link is valid. Return to sign in to continue."
-                            else "Email confirmed for ${state.email}. Your password-reset link is valid. Return to sign in to continue.",
-                            isError = false
-                        )
+                        is AuthState.PasswordResetReady -> MessageCard("Email confirmed. Your password-reset link is valid. Set a new password below.", isError = false)
+                        AuthState.PasswordResetComplete -> MessageCard("Password updated successfully. Return to sign in with your new password.", isError = false)
                         AuthState.EmailConfirmationRequired -> MessageCard(
                             "Account created. Check your inbox and click the confirmation link, then choose Sign in.",
                             isError = false
@@ -175,7 +176,12 @@ fun AuthScreen(
                     }
 
                     Button(
-                        onClick = { if (recoveryMode) onPasswordReset(email.trim()) else if (createAccount) onSignUp(email.trim(), password) else onSignIn(email.trim(), password) },
+                        onClick = {
+                            if (resetReady) onUpdatePassword((state as AuthState.PasswordResetReady).accessToken, password)
+                            else if (recoveryMode) onPasswordReset(email.trim())
+                            else if (createAccount) onSignUp(email.trim(), password)
+                            else onSignIn(email.trim(), password)
+                        },
                         enabled = canSubmit,
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = RoundedCornerShape(14.dp)
@@ -189,16 +195,16 @@ fun AuthScreen(
                             Spacer(Modifier.width(10.dp))
                             Text("Working…")
                         } else {
-                            Text(if (recoveryMode) "Send reset email" else if (createAccount) "Create account" else "Sign in")
+                            Text(if (resetReady) "Update password" else if (recoveryMode) "Send reset email" else if (createAccount) "Create account" else "Sign in")
                         }
                     }
 
-                    if (!createAccount && !recoveryMode) {
+                    if (!createAccount && !recoveryMode && !resetReady) {
                         TextButton(onClick = { recoveryMode = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                             Text("Forgot password?")
                         }
                     }
-                    if (recoveryMode) TextButton(onClick = { recoveryMode = false }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Back to sign in") }
+                    if (recoveryMode && !resetReady) TextButton(onClick = { recoveryMode = false }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Back to sign in") }
                     if (state is AuthState.EmailConfirmationRequired) OutlinedButton(onClick = { onResendConfirmation(email.trim()) }, enabled = emailValid && !busy, modifier = Modifier.fillMaxWidth()) { Text("Resend confirmation email") }
                 }
             }

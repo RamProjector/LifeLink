@@ -14,6 +14,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.Header
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Query
 
 class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
@@ -52,6 +53,18 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
         val accessToken = uri.getQueryParameter("access_token") ?: uri.getFragmentParameter("access_token")
         require(!accessToken.isNullOrBlank()) { "The password-reset link is missing its confirmation token." }
         RecoveryCallback(uri.getQueryParameter("email"), accessToken)
+    }
+
+    suspend fun updatePassword(accessToken: String, password: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            if (BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
+            val response = api?.updateUser(
+                BuildConfig.SUPABASE_PUBLISHABLE_KEY,
+                "Bearer $accessToken",
+                PasswordUpdateRequest(password)
+            ) ?: error("Supabase URL is not configured")
+            if (!response.isSuccessful) error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+        }
     }
 
     suspend fun resendConfirmation(email: String): Result<Unit> = simpleAuthAction {
@@ -170,6 +183,13 @@ private interface SupabaseAuthApi {
 
     @POST("auth/v1/resend")
     suspend fun resend(@Header("apikey") publishableKey: String, @Body request: ResendRequest): Response<Unit>
+
+    @PUT("auth/v1/user")
+    suspend fun updateUser(
+        @Header("apikey") publishableKey: String,
+        @Header("Authorization") authorization: String,
+        @Body request: PasswordUpdateRequest
+    ): Response<SupabaseUser>
 }
 
 data class AuthRequest(val email: String, val password: String)
@@ -178,6 +198,7 @@ data class EmailRequest(val email: String)
 data class PasswordRecoveryRequest(val email: String, val redirect_to: String)
 data class ResendRequest(val type: String, val email: String)
 data class RecoveryCallback(val email: String?, val accessToken: String)
+data class PasswordUpdateRequest(val password: String)
 
 data class SupabaseAuthResponse(
     @SerializedName("access_token") val accessToken: String?,
