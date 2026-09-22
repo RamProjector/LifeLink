@@ -1,11 +1,39 @@
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
 from app.main import app, request_store
+from app.main import BloodType
+from app.main_postgres import donor_response_model
 from app.security import Principal
 
 client = TestClient(app)
+
+
+def test_postgres_donor_response_handles_string_enum_values():
+    row = SimpleNamespace(
+        id="donor-legacy",
+        display_name="Donor Legacy",
+        blood_type="O-",
+        latitude=14.6466,
+        longitude=121.0437,
+        available=False,
+        availability_updated_at=datetime.now(timezone.utc),
+        verified=True,
+        service_radius_km=15,
+        estimated_response_probability=0.5,
+        donor_note=None,
+        preferred_contact_method=None,
+        pause_reason=None,
+        profile_visible=True,
+    )
+
+    donor = donor_response_model(row)
+
+    assert donor.blood_type == BloodType.O_NEG
+    assert donor.donor_note == ""
+    assert donor.preferred_contact_method == "in_app"
 
 
 def request_payload(key: str = "donor-request-key-0001"):
