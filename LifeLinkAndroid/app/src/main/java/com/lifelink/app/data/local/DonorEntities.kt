@@ -18,7 +18,11 @@ data class DonorProfileEntity(
     val verified: Boolean,
     val latitude: Double?,
     val longitude: Double?,
-    val locationPrecisionMeters: Int
+    val locationPrecisionMeters: Int,
+    val donorNote: String,
+    val preferredContactMethod: String,
+    val pauseReason: String?,
+    val profileVisible: Boolean
 )
 
 @Entity(tableName = "donor_requests")

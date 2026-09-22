@@ -33,6 +33,10 @@ class SqlAlchemyDonorStore:
                 verified=payload.verified,
                 service_radius_km=Decimal(str(payload.service_radius_km)),
                 estimated_response_probability=Decimal("0.50"),
+                donor_note=payload.donor_note,
+                preferred_contact_method=payload.preferred_contact_method,
+                pause_reason=payload.pause_reason,
+                profile_visible=payload.profile_visible,
             )
             self.session.add(row)
         else:
@@ -43,6 +47,10 @@ class SqlAlchemyDonorStore:
             row.longitude = Decimal(str(payload.longitude))
             row.service_radius_km = Decimal(str(payload.service_radius_km))
             row.verified = payload.verified
+            row.donor_note = payload.donor_note
+            row.preferred_contact_method = payload.preferred_contact_method
+            row.pause_reason = payload.pause_reason
+            row.profile_visible = payload.profile_visible
             row.updated_at = now
         await self.session.commit()
         return row

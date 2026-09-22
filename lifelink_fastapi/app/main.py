@@ -114,6 +114,10 @@ class Donor(BaseModel):
     verified: bool
     service_radius_km: float = Field(gt=0, le=500)
     estimated_response_probability: float = Field(ge=0, le=1)
+    donor_note: str = ""
+    preferred_contact_method: str = "in_app"
+    pause_reason: str | None = None
+    profile_visible: bool = True
 
 
 class MatchExplanation(BaseModel):
@@ -270,7 +274,7 @@ class DemoDonorRepository:
         ]
 
     def list_active_donors(self) -> list[Donor]:
-        return list(self.donors)
+        return [donor for donor in self.donors if donor.profile_visible]
 
 
 from .donor_api import (
@@ -319,6 +323,10 @@ def register_donor(donor_id: str, payload: DonorProfileIn, principal: Principal 
         verified=payload.verified,
         service_radius_km=payload.service_radius_km,
         estimated_response_probability=0.50,
+        donor_note=payload.donor_note,
+        preferred_contact_method=payload.preferred_contact_method,
+        pause_reason=payload.pause_reason,
+        profile_visible=payload.profile_visible,
     )
     donor_profiles[donor_id] = donor
     donor_repository.donors = [existing for existing in donor_repository.donors if existing.donor_id != donor_id] + [donor]

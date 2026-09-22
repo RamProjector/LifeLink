@@ -40,7 +40,9 @@ class DonorRepositoryImpl(
             val response = remote.registerDonor(
                 ownerId, DonorProfileRequest(
                 ownerId, effectiveProfile.displayName.trim(), effectiveProfile.bloodType?.label?.replace('−', '-') ?: "UNKNOWN",
-                effectiveProfile.latitude, effectiveProfile.longitude, effectiveProfile.serviceRadiusKm.toDouble(), effectiveProfile.verified
+                effectiveProfile.latitude, effectiveProfile.longitude, effectiveProfile.serviceRadiusKm.toDouble(), effectiveProfile.verified,
+                effectiveProfile.donorNote.trim(), effectiveProfile.preferredContactMethod,
+                effectiveProfile.pauseReason?.trim()?.takeIf { it.isNotEmpty() }, effectiveProfile.profileVisible
                 )
             )
             check(response.isSuccessful) { "Profile could not be saved on the server (${response.code()})." }
@@ -78,6 +80,6 @@ class DonorRepositoryImpl(
     }
 }
 
-private fun DonorProfile.toEntity() = DonorProfileEntity(donorId, displayName, bloodType?.name, area, serviceRadiusKm, availability.name, verified, latitude, longitude, locationPrecisionMeters)
-private fun DonorProfileEntity.toDomain() = DonorProfile(donorId, displayName, bloodType?.let { runCatching { BloodType.valueOf(it) }.getOrNull() }, area, serviceRadiusKm, runCatching { DonorAvailability.valueOf(availability) }.getOrDefault(DonorAvailability.OFFLINE), verified, latitude, longitude, locationPrecisionMeters)
+private fun DonorProfile.toEntity() = DonorProfileEntity(donorId, displayName, bloodType?.name, area, serviceRadiusKm, availability.name, verified, latitude, longitude, locationPrecisionMeters, donorNote, preferredContactMethod, pauseReason, profileVisible)
+private fun DonorProfileEntity.toDomain() = DonorProfile(donorId, displayName, bloodType?.let { runCatching { BloodType.valueOf(it) }.getOrNull() }, area, serviceRadiusKm, runCatching { DonorAvailability.valueOf(availability) }.getOrDefault(DonorAvailability.OFFLINE), verified, latitude, longitude, locationPrecisionMeters, donorNote, preferredContactMethod, pauseReason, profileVisible)
 private fun DonorRequestEntity.toDomain() = DonorRequest(requestId, bloodType, units, urgency, facilityName, area, distanceKm, response?.let { runCatching { DonorResponse.valueOf(it) }.getOrNull() })

@@ -21,7 +21,7 @@ interface EmergencyRequestDraftDao {
     suspend fun deleteById(id: String)
 }
 
-@Database(entities = [EmergencyRequestDraftEntity::class, PendingSubmissionEntity::class, ActiveRequestEntity::class, DonorProfileEntity::class, DonorRequestEntity::class], version = 4, exportSchema = false)
+@Database(entities = [EmergencyRequestDraftEntity::class, PendingSubmissionEntity::class, ActiveRequestEntity::class, DonorProfileEntity::class, DonorRequestEntity::class], version = 5, exportSchema = false)
 abstract class LifeLinkDatabase : RoomDatabase() {
     abstract fun emergencyRequestDraftDao(): EmergencyRequestDraftDao
     abstract fun pendingSubmissionDao(): PendingSubmissionDao

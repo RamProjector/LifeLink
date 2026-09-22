@@ -131,6 +131,10 @@ class Donor(Base):
     estimated_response_probability: Mapped[Decimal] = mapped_column(
         Numeric(4, 3), nullable=False, default=Decimal("0.50")
     )
+    donor_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    preferred_contact_method: Mapped[str] = mapped_column(String(32), nullable=False, default="in_app")
+    pause_reason: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    profile_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

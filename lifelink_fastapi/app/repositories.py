@@ -45,6 +45,7 @@ class SqlAlchemyDonorRepository(DonorRepository):
             select(DonorRow).where(
                 DonorRow.available.is_(True),
                 DonorRow.verified.is_(True),
+                DonorRow.profile_visible.is_(True),
             )
         )
         rows = result.all()

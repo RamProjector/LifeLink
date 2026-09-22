@@ -21,6 +21,10 @@ class DonorProfileIn(BaseModel):
     longitude: float = Field(ge=-180, le=180)
     service_radius_km: float = Field(gt=0, le=500)
     verified: bool = False
+    donor_note: str = Field(default="", max_length=500)
+    preferred_contact_method: str = Field(default="in_app", pattern="^(in_app|phone)$")
+    pause_reason: str | None = Field(default=None, max_length=240)
+    profile_visible: bool = True
 
 
 class DonorAvailabilityIn(BaseModel):
@@ -66,4 +70,8 @@ def profile_to_out(profile: Donor, availability: DonorAvailability) -> DonorProf
         verified=profile.verified,
         availability=availability,
         availability_updated_at=profile.availability_updated_at,
+        donor_note=profile.donor_note,
+        preferred_contact_method=profile.preferred_contact_method,
+        pause_reason=profile.pause_reason,
+        profile_visible=profile.profile_visible,
     )

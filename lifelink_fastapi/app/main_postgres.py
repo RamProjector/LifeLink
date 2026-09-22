@@ -521,6 +521,10 @@ async def register_donor_postgres(
         verified=row.verified,
         service_radius_km=float(row.service_radius_km),
         estimated_response_probability=float(row.estimated_response_probability),
+        donor_note=row.donor_note,
+        preferred_contact_method=row.preferred_contact_method,
+        pause_reason=row.pause_reason,
+        profile_visible=row.profile_visible,
     )
     return profile_to_out(donor, DonorAvailability.AVAILABLE if row.available else DonorAvailability.OFFLINE)
 
@@ -546,6 +550,8 @@ async def update_donor_availability_postgres(
         available=row.available, availability_updated_at=row.availability_updated_at,
         verified=row.verified, service_radius_km=float(row.service_radius_km),
         estimated_response_probability=float(row.estimated_response_probability),
+        donor_note=row.donor_note, preferred_contact_method=row.preferred_contact_method,
+        pause_reason=row.pause_reason, profile_visible=row.profile_visible,
     )
     return profile_to_out(donor, payload.availability)
 

@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
@@ -188,10 +189,54 @@ private fun ProfileCard(
     var serviceRadius by remember(profile.serviceRadiusKm) { mutableStateOf(profile.serviceRadiusKm.toString()) }
     var manualLatitude by remember(profile.latitude) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
     var manualLongitude by remember(profile.longitude) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
+    var donorNote by remember(profile.donorNote) { mutableStateOf(profile.donorNote) }
+    var preferredContactMethod by remember(profile.preferredContactMethod) { mutableStateOf(profile.preferredContactMethod) }
+    var pauseReason by remember(profile.pauseReason) { mutableStateOf(profile.pauseReason.orEmpty()) }
+    var profileVisible by remember(profile.profileVisible) { mutableStateOf(profile.profileVisible) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
             OutlinedTextField(area, { area = it }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
+            OutlinedTextField(
+                value = donorNote,
+                onValueChange = { if (it.length <= 500) donorNote = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Optional donor note") },
+                supportingText = { Text("Share practical information only, such as usual availability. Do not add medical details.") },
+                minLines = 2,
+                maxLines = 4
+            )
+            Text("Preferred contact method", fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("in_app" to "In-app", "phone" to "Phone").forEach { (value, label) ->
+                    FilterChip(
+                        selected = preferredContactMethod == value,
+                        onClick = { preferredContactMethod = value },
+                        label = { Text(label) }
+                    )
+                }
+            }
+            if (profile.availability == DonorAvailability.PAUSED) {
+                OutlinedTextField(
+                    value = pauseReason,
+                    onValueChange = { if (it.length <= 240) pauseReason = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Why are you paused? (optional)") },
+                    supportingText = { Text("This helps you remember why matching is paused.") },
+                    singleLine = true
+                )
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(Modifier.weight(1f)) {
+                    Text("Profile visible to requesters", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (profileVisible) "You can appear in matching results when available." else "You will not appear in new matching results.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Switch(checked = profileVisible, onCheckedChange = { profileVisible = it })
+            }
             Text("Blood type", fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 BloodType.values().forEach { option ->
@@ -238,7 +283,11 @@ private fun ProfileCard(
                                 displayName = name,
                                 area = area,
                                 bloodType = bloodType,
-                                serviceRadiusKm = serviceRadius.toIntOrNull() ?: profile.serviceRadiusKm
+                                serviceRadiusKm = serviceRadius.toIntOrNull() ?: profile.serviceRadiusKm,
+                                donorNote = donorNote.trim(),
+                                preferredContactMethod = preferredContactMethod,
+                                pauseReason = pauseReason.trim().takeIf { it.isNotEmpty() },
+                                profileVisible = profileVisible
                             )
                         )
                     )

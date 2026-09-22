@@ -15,7 +15,11 @@ data class DonorProfile(
     val verified: Boolean = false,
     val latitude: Double? = null,
     val longitude: Double? = null,
-    val locationPrecisionMeters: Int = 500
+    val locationPrecisionMeters: Int = 500,
+    val donorNote: String = "",
+    val preferredContactMethod: String = "in_app",
+    val pauseReason: String? = null,
+    val profileVisible: Boolean = true
 )
 
 data class DonorRequest(
