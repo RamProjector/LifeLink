@@ -1,16 +1,17 @@
 package com.lifelink.app.core.navigation
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddAlert
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
@@ -34,6 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.domain.DonorAvailability
@@ -130,7 +132,7 @@ fun LifeLinkShell(
                 }
             }
         } else if (state.activeRequest != null) {
-            Card(Modifier.fillMaxWidth()) {
+            Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Active request", fontWeight = FontWeight.Bold)
                     Text(state.activeRequest.status.label)
@@ -138,7 +140,7 @@ fun LifeLinkShell(
                 }
             }
         } else {
-            Card(Modifier.fillMaxWidth()) {
+            Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("No active request", fontWeight = FontWeight.Bold)
                     Text("Start a request when you need help finding eligible donors nearby.")
@@ -158,7 +160,7 @@ fun LifeLinkShell(
 
 @Composable
 private fun RequestHistoryCard(request: RequestHistoryItem) {
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(request.status.label, fontWeight = FontWeight.SemiBold)
@@ -185,13 +187,28 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
         Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                color = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Favorite, contentDescription = null, tint = androidx.compose.material3.MaterialTheme.colorScheme.primary)
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text("LifeLink", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(if (role == UserRole.DONOR) "Donor workspace" else "Requester workspace", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         Text(if (role == UserRole.DONOR) "Ready to help nearby" else "Find eligible donors nearby", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(if (role == UserRole.DONOR) "Manage your donor profile and availability." else "Create a request and connect with donors who choose to respond.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         if (role == UserRole.DONOR) {
             Button(onClick = onDonor, Modifier.fillMaxWidth()) { Text("Open donor dashboard") }
         }
         if (role == UserRole.REQUESTER) {
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer)) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(Icons.Default.Favorite, "LifeLink support", tint = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                     Text("Need blood urgently?", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -201,7 +218,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
             }
         }
         state.activeRequest?.let { active ->
-            Card(Modifier.fillMaxWidth()) {
+            Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Active request", fontWeight = FontWeight.Bold)
                     Text(active.status.label)
@@ -209,7 +226,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
                 }
             }
         }
-        if (role == UserRole.REQUESTER) Card(Modifier.fillMaxWidth()) {
+        if (role == UserRole.REQUESTER) Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Want to help someone nearby?", fontWeight = FontWeight.Bold)
                 Text("Choose the donor role from your profile to manage availability and respond to requests.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
@@ -233,7 +250,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
 }
 
 @Composable private fun LearnCard(title: String, body: String) {
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, fontWeight = FontWeight.Bold)
             Text(body, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
@@ -252,7 +269,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     onSignOut: () -> Unit
 ) {
     var displayName by rememberSaveable(accountDisplayName) { mutableStateOf(accountDisplayName) }
-    Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
             if (role == UserRole.REQUESTER) "Requester profile" else "Profile",
             style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
@@ -263,11 +280,16 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
             else "Account and privacy controls",
             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer)) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(accountEmail.ifBlank { "Authenticated LifeLink account" }, fontWeight = FontWeight.Bold)
-                Text(if (role == UserRole.DONOR) "Donor account" else "Requester account", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
-                if (accountUserId.isNotBlank()) Text("Account ID · ${accountUserId.take(8)}…", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Surface(modifier = Modifier.size(48.dp), shape = androidx.compose.foundation.shape.CircleShape, color = androidx.compose.material3.MaterialTheme.colorScheme.primary) {
+                    Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.Person, contentDescription = null, tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary) }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(accountEmail.ifBlank { "Authenticated LifeLink account" }, fontWeight = FontWeight.Bold)
+                    Text(if (role == UserRole.DONOR) "Donor account" else "Requester account", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
+                    if (accountUserId.isNotBlank()) Text("Account ID · ${accountUserId.take(8)}…", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
         Card(Modifier.fillMaxWidth()) {
@@ -294,7 +316,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
                 profileMessage?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.primary) }
             }
         }
-        Card(Modifier.fillMaxWidth()) {
+        Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Location privacy", fontWeight = FontWeight.Bold)
                 Text(
@@ -304,7 +326,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
                 )
             }
         }
-        Card(Modifier.fillMaxWidth()) {
+        Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Safety and consent", fontWeight = FontWeight.Bold)
                 Text("Contact details are disclosed only after a donor accepts. LifeLink is a discovery and contact aid, not a replacement for blood-bank screening or medical care.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)

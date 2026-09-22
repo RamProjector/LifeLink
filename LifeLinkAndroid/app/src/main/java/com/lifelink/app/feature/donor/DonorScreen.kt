@@ -149,7 +149,8 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
 private fun StatusMessage(message: String, compact: Boolean = false) {
     Card(
         Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Text(
             message,
@@ -161,7 +162,7 @@ private fun StatusMessage(message: String, compact: Boolean = false) {
 }
 
 @Composable private fun AvailabilityCard(profile: DonorProfile, onAction: (DonorAction) -> Unit) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Availability", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(profile.availability.label, color = MaterialTheme.colorScheme.onSecondaryContainer)
@@ -187,7 +188,7 @@ private fun ProfileCard(
     var serviceRadius by remember(profile.serviceRadiusKm) { mutableStateOf(profile.serviceRadiusKm.toString()) }
     var manualLatitude by remember(profile.latitude) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
     var manualLongitude by remember(profile.longitude) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
             OutlinedTextField(area, { area = it }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
@@ -257,7 +258,7 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
 }
 
 @Composable private fun RequestCard(request: DonorRequest, onAction: (DonorAction) -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("${request.bloodType} · ${request.units} unit${if (request.units == 1) "" else "s"}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
