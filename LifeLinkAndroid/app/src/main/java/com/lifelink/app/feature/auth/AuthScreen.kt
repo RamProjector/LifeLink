@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -22,6 +23,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -76,10 +78,25 @@ fun AuthScreen(
                 .verticalScroll(rememberScrollState())
                 .imePadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 32.dp),
+                .padding(horizontal = 20.dp, vertical = 28.dp)
+                .widthIn(max = 560.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("LifeLink", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.width(48.dp).height(48.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        androidx.compose.material3.Icon(Icons.Default.Favorite, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("LifeLink", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("Connect. Respond. Save lives.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             Text(
                 if (resetReady) "Choose a new password for your LifeLink account."
                 else if (recoveryMode) "Recover access to your LifeLink account."
@@ -103,7 +120,8 @@ fun AuthScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),

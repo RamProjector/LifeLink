@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val LifeLinkLightColors = lightColorScheme(
@@ -25,6 +26,8 @@ private val LifeLinkLightColors = lightColorScheme(
     onBackground = Color(0xFF17202A),
     surface = Color.White,
     onSurface = Color(0xFF17202A),
+    surfaceVariant = Color(0xFFF1EFEC),
+    onSurfaceVariant = Color(0xFF5F6267),
     outline = Color(0xFFE6E4DF),
     error = Color(0xFFB3261E),
     errorContainer = Color(0xFFF9DEDC),
@@ -53,17 +56,23 @@ private val LifeLinkDarkColors = darkColorScheme(
 )
 
 private val LifeLinkTypography = Typography(
-    displaySmall = TextStyle(fontWeight = FontWeight.Bold, fontSize = 36.sp, lineHeight = 44.sp),
-    headlineMedium = TextStyle(fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 36.sp),
-    headlineSmall = TextStyle(fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 32.sp),
-    titleLarge = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = 28.sp),
-    titleMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 24.sp),
+    displaySmall = TextStyle(fontWeight = FontWeight.Bold, fontSize = 34.sp, lineHeight = 42.sp, letterSpacing = (-0.4).sp),
+    headlineMedium = TextStyle(fontWeight = FontWeight.Bold, fontSize = 27.sp, lineHeight = 34.sp, letterSpacing = (-0.2).sp),
+    headlineSmall = TextStyle(fontWeight = FontWeight.Bold, fontSize = 23.sp, lineHeight = 30.sp),
+    titleLarge = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 21.sp, lineHeight = 27.sp),
+    titleMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 22.sp),
     bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 24.sp),
     bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
     bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 18.sp)
 )
 
-private val LifeLinkShapes = Shapes()
+private val LifeLinkShapes = Shapes(
+    extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+    small = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    medium = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+    large = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+    extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
+)
 
 @Composable
 fun LifeLinkTheme(content: @Composable () -> Unit) {

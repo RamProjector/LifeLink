@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddAlert
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
@@ -91,8 +92,8 @@ fun LifeLinkShell(
     Scaffold(
         containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface) {
-                NavigationBarItem(tab == ShellTab.HOME, { tab = ShellTab.HOME }, icon = { Icon(Icons.Default.AddAlert, "Home") }, label = { Text("Home") })
+            NavigationBar(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
+                NavigationBarItem(tab == ShellTab.HOME, { tab = ShellTab.HOME }, icon = { Icon(Icons.Default.Home, "Home") }, label = { Text("Home") })
                 NavigationBarItem(tab == ShellTab.REQUESTS, { tab = ShellTab.REQUESTS }, icon = { Icon(Icons.Default.Assignment, "Requests") }, label = { Text("Requests") })
                 NavigationBarItem(tab == ShellTab.LEARN, { tab = ShellTab.LEARN }, icon = { Icon(Icons.Default.Info, "Info") }, label = { Text("Info") })
                 NavigationBarItem(tab == ShellTab.PROFILE, { tab = ShellTab.PROFILE }, icon = { Icon(Icons.Default.Person, "Profile") }, label = { Text("Profile") })
