@@ -190,6 +190,13 @@ fun EmergencyRequestScreen(
                     RequestStep.RESULTS -> DonorPicker(state, onAction)
                 }
             }
+            if (state.step == RequestStep.RESULTS) {
+                item {
+                    TextButton(onClick = onExit, modifier = Modifier.fillMaxWidth()) {
+                        Text("Back to Home")
+                    }
+                }
+            }
             if (state.step != RequestStep.RESULTS && state.discoveredDonors.isNotEmpty()) item { DonorPicker(state, onAction) }
         }
     }

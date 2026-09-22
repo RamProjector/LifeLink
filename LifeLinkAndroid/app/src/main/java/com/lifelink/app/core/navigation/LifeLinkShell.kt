@@ -79,14 +79,25 @@ fun LifeLinkShell(
     var showRequest by rememberSaveable { mutableStateOf(false) }
     var showActive by rememberSaveable { mutableStateOf(false) }
     var showDonor by rememberSaveable { mutableStateOf(false) }
+    var showStart by rememberSaveable { mutableStateOf(true) }
     var tab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
     LaunchedEffect(notificationRequestId) {
         notificationRequestId?.takeIf { it.isNotBlank() }?.let {
+            showStart = false
             showActive = true
             onAction(EmergencyRequestAction.OpenRequest(it))
         }
     }
 
+    if (showStart) {
+        StartContent(
+            role = role,
+            onGetStarted = { showStart = false },
+            onCreateRequest = { showStart = false; showRequest = true },
+            onOpenDonor = { showStart = false; showDonor = true }
+        )
+        return
+    }
     if (showRequest) {
         EmergencyRequestScreen(state = state, onAction = onAction, onExit = { showRequest = false; tab = ShellTab.HOME })
         return
@@ -196,21 +207,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
         Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Surface(
-                modifier = Modifier.size(44.dp),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
-                color = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Favorite, contentDescription = null, tint = androidx.compose.material3.MaterialTheme.colorScheme.primary)
-                }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text("LifeLink", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(if (role == UserRole.DONOR) "Donor workspace" else "Requester workspace", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+        Text("Home", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(if (role == UserRole.DONOR) "Ready to help nearby" else "Find eligible donors nearby", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(if (role == UserRole.DONOR) "Manage your donor profile and availability." else "Create a request and connect with donors who choose to respond.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         if (role == UserRole.DONOR) {
@@ -239,6 +236,59 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Want to help someone nearby?", fontWeight = FontWeight.Bold)
                 Text("Choose the donor role from your profile to manage availability and respond to requests.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StartContent(
+    role: UserRole,
+    onGetStarted: () -> Unit,
+    onCreateRequest: () -> Unit,
+    onOpenDonor: () -> Unit
+) {
+    Surface(color = androidx.compose.material3.MaterialTheme.colorScheme.background) {
+        Column(
+            Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 28.dp, vertical = 32.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                Surface(
+                    modifier = Modifier.size(72.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(36.dp), tint = androidx.compose.material3.MaterialTheme.colorScheme.primary)
+                    }
+                }
+                Text("LifeLink", style = androidx.compose.material3.MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+                Text(
+                    if (role == UserRole.DONOR) "A calm, private way to manage when you can help."
+                    else "A clear way to find eligible blood donors nearby.",
+                    style = androidx.compose.material3.MaterialTheme.typography.headlineSmall
+                )
+                Text(
+                    "Use approximate locations, consent-based contact, and clear request status. LifeLink supports coordination; hospitals and blood banks remain responsible for screening and care.",
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = androidx.compose.material3.MaterialTheme.typography.bodyLarge
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(
+                    onClick = if (role == UserRole.DONOR) onOpenDonor else onCreateRequest,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (role == UserRole.DONOR) "Open donor workspace" else "Create a request") }
+                androidx.compose.material3.OutlinedButton(onClick = onGetStarted, modifier = Modifier.fillMaxWidth()) {
+                    Text("Go to Home")
+                }
+                Text(
+                    if (role == UserRole.DONOR) "You control your availability and profile visibility." else "You choose when to contact a donor after they respond.",
+                    modifier = Modifier.fillMaxWidth(),
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall
+                )
             }
         }
     }
