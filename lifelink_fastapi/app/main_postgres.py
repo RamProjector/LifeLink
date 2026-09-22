@@ -194,9 +194,9 @@ async def auth_confirmed() -> str:
 <style>body{font-family:system-ui,sans-serif;margin:0;padding:3rem 1.5rem;background:#fff8f8;color:#241a1c}main{max-width:30rem;margin:auto;background:#fff;padding:2rem;border-radius:1rem;box-shadow:0 8px 30px #3b171714}h1{color:#bd123f}p{line-height:1.6}strong{color:#8b1232}.open{display:block;margin-top:1.5rem;padding:1rem;text-align:center;border-radius:.75rem;background:#bd123f;color:#fff;text-decoration:none;font-weight:700}</style>
 </head><body><main><h1>Email confirmed</h1>
 <p>Your LifeLink account email has been confirmed.</p>
-<p>Open the app to finish password recovery, or choose <strong>Sign in</strong> using the email and password you registered with.</p>
-<a id="open-app" class="open" href="lifelink://auth/callback">Open LifeLink</a>
-</main><script>const target=document.getElementById('open-app');target.href='lifelink://auth/callback'+window.location.search+window.location.hash;</script></body></html>"""
+<p>Open LifeLink to finish account authentication, or choose <strong>Sign in</strong> using the email and password you registered with.</p>
+<a id="open-app" class="open" href="lifelink://auth/confirm">Open LifeLink</a>
+</main><script>const target=document.getElementById('open-app');const recovery=new URLSearchParams(window.location.search).get('type')==='recovery';const path=recovery?'/recovery':'/confirm';target.href='lifelink://auth'+path+window.location.search+window.location.hash;</script></body></html>"""
 
 
 @app.post("/v1/emergency-requests", response_model=EmergencyRequestOut | ManualFallbackOut, status_code=201)

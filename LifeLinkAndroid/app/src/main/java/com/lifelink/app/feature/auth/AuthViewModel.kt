@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.lifelink.app.core.auth.AuthResult
 import com.lifelink.app.core.auth.AuthSession
+import com.lifelink.app.core.auth.AuthCallbackKind
 import com.lifelink.app.core.auth.SupabaseAuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,11 +49,22 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
     fun signOut() = repository.signOut()
     fun requestPasswordReset(email: String) = runRecovery(email) { repository.requestPasswordReset(email) }
     fun resendConfirmation(email: String) = runRecovery(email) { repository.resendConfirmation(email) }
-    fun handleRecoveryCallback(uri: Uri?) {
+    fun handleAuthCallback(uri: Uri?) {
         if (uri == null) return
-        repository.parseRecoveryCallback(uri)
-            .onSuccess { callback -> _state.value = AuthState.PasswordResetReady(callback.email, callback.accessToken) }
-            .onFailure { _state.value = AuthState.Message(it.message ?: "Password-reset link could not be confirmed.", true) }
+        repository.parseAuthCallback(uri)
+            .onSuccess { callback ->
+                if (callback.kind == AuthCallbackKind.RECOVERY) {
+                    _state.value = AuthState.PasswordResetReady(callback.email, callback.accessToken)
+                } else {
+                    viewModelScope.launch {
+                        _state.value = AuthState.Loading
+                        repository.completeEmailConfirmation(callback)
+                            .onSuccess { session -> _state.value = AuthState.SignedIn(session) }
+                            .onFailure { _state.value = AuthState.Message(it.message ?: "Account confirmation could not be completed. Please sign in.", true) }
+                    }
+                }
+            }
+            .onFailure { _state.value = AuthState.Message(it.message ?: "Authentication link could not be confirmed.", true) }
     }
     fun updatePassword(accessToken: String, password: String) {
         viewModelScope.launch {

@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
                 val authViewModel: AuthViewModel = viewModel(
                     factory = AuthViewModelFactory(app.container.authRepository)
                 )
-                LaunchedEffect(recoveryUri) { authViewModel.handleRecoveryCallback(recoveryUri) }
+                LaunchedEffect(recoveryUri) { authViewModel.handleAuthCallback(recoveryUri) }
                 val authState by authViewModel.state.collectAsStateWithLifecycle()
                 if (authState !is AuthState.SignedIn) {
                     AuthScreen(

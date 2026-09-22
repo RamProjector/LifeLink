@@ -12,6 +12,7 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -32,7 +33,7 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
     val session = sessionStore.session
 
     suspend fun signUp(email: String, password: String): Result<AuthResult> = authenticate {
-        api?.signUp(BuildConfig.SUPABASE_PUBLISHABLE_KEY, AuthRequest(email, password))
+        api?.signUp(BuildConfig.SUPABASE_PUBLISHABLE_KEY, AuthRequest(email, password), SIGNUP_REDIRECT_URI)
             ?: error("Supabase URL is not configured")
     }
 
@@ -46,13 +47,46 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
             ?: error("Supabase URL is not configured")
     }
 
-    fun parseRecoveryCallback(uri: Uri): Result<RecoveryCallback> = runCatching {
-        require(uri.scheme == "lifelink" && uri.host == "auth" && uri.path.orEmpty().trimEnd('/') == "/callback") { "This is not a LifeLink recovery link." }
+    suspend fun completeEmailConfirmation(callback: AuthCallback): Result<AuthSession> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = api?.getUser(
+                BuildConfig.SUPABASE_PUBLISHABLE_KEY,
+                "Bearer ${callback.accessToken}"
+            ) ?: error("Supabase URL is not configured")
+            if (!response.isSuccessful) error("Email confirmation could not be completed. Please sign in.")
+            val user = response.body() ?: error("Supabase returned an empty account")
+            AuthSession(
+                accessToken = callback.accessToken,
+                refreshToken = callback.refreshToken.orEmpty(),
+                userId = user.id,
+                email = user.email.orEmpty()
+            ).also(sessionStore::save)
+        }
+    }
+
+    fun parseAuthCallback(uri: Uri): Result<AuthCallback> = runCatching {
+        require(uri.scheme == "lifelink" && uri.host == "auth") { "This is not a LifeLink authentication link." }
         val type = uri.getQueryParameter("type") ?: uri.getFragmentParameter("type")
-        require(type == "recovery") { "This link is not a password-reset link." }
         val accessToken = uri.getQueryParameter("access_token") ?: uri.getFragmentParameter("access_token")
-        require(!accessToken.isNullOrBlank()) { "The password-reset link is missing its confirmation token." }
-        RecoveryCallback(uri.getQueryParameter("email"), accessToken)
+        require(!accessToken.isNullOrBlank()) { "The authentication link is missing its confirmation token." }
+        val path = uri.path.orEmpty().trimEnd('/')
+        val kind = when (path) {
+            "/recovery" -> {
+                require(type == "recovery") { "This link is not a password-reset link." }
+                AuthCallbackKind.RECOVERY
+            }
+            "/confirm" -> {
+                require(type == "signup" || type == "email") { "This link is not an account-confirmation link." }
+                AuthCallbackKind.CONFIRMATION
+            }
+            else -> error("This LifeLink authentication link is no longer supported.")
+        }
+        AuthCallback(
+            kind = kind,
+            email = uri.getQueryParameter("email"),
+            accessToken = accessToken,
+            refreshToken = uri.getQueryParameter("refresh_token") ?: uri.getFragmentParameter("refresh_token")
+        )
     }
 
     suspend fun updatePassword(accessToken: String, password: String): Result<Unit> = withContext(Dispatchers.IO) {
@@ -148,7 +182,8 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
         ?.let(Uri::decode)
 
     private companion object {
-        const val RECOVERY_REDIRECT_URI = "lifelink://auth/callback"
+        const val RECOVERY_REDIRECT_URI = "lifelink://auth/recovery"
+        const val SIGNUP_REDIRECT_URI = "lifelink://auth/confirm"
     }
 }
 
@@ -161,7 +196,8 @@ private interface SupabaseAuthApi {
     @POST("auth/v1/signup")
     suspend fun signUp(
         @Header("apikey") publishableKey: String,
-        @Body request: AuthRequest
+        @Body request: AuthRequest,
+        @Query("redirect_to") redirectTo: String
     ): Response<SupabaseAuthResponse>
 
     @POST("auth/v1/token")
@@ -184,6 +220,9 @@ private interface SupabaseAuthApi {
     @POST("auth/v1/resend")
     suspend fun resend(@Header("apikey") publishableKey: String, @Body request: ResendRequest): Response<Unit>
 
+    @GET("auth/v1/user")
+    suspend fun getUser(@Header("apikey") publishableKey: String, @Header("Authorization") authorization: String): Response<SupabaseUser>
+
     @PUT("auth/v1/user")
     suspend fun updateUser(
         @Header("apikey") publishableKey: String,
@@ -197,7 +236,8 @@ data class RefreshRequest(@SerializedName("refresh_token") val refreshToken: Str
 data class EmailRequest(val email: String)
 data class PasswordRecoveryRequest(val email: String, val redirect_to: String)
 data class ResendRequest(val type: String, val email: String)
-data class RecoveryCallback(val email: String?, val accessToken: String)
+enum class AuthCallbackKind { RECOVERY, CONFIRMATION }
+data class AuthCallback(val kind: AuthCallbackKind, val email: String?, val accessToken: String, val refreshToken: String?)
 data class PasswordUpdateRequest(val password: String)
 
 data class SupabaseAuthResponse(
