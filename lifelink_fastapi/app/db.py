@@ -64,3 +64,11 @@ async def create_all_tables() -> None:
             "ADD COLUMN IF NOT EXISTS pause_reason VARCHAR(240), "
             "ADD COLUMN IF NOT EXISTS profile_visible BOOLEAN NOT NULL DEFAULT TRUE"
         ))
+        await connection.execute(text(
+            "ALTER TABLE lifelink_profiles "
+            "ADD COLUMN IF NOT EXISTS can_request BOOLEAN NOT NULL DEFAULT TRUE, "
+            "ADD COLUMN IF NOT EXISTS can_donate BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        await connection.execute(text(
+            "UPDATE lifelink_profiles SET can_donate = TRUE WHERE role = 'donor' AND can_donate = FALSE"
+        ))

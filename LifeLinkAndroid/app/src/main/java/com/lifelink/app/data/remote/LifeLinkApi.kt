@@ -79,14 +79,18 @@ interface LifeLinkApi {
 
 data class ProfileRequest(
     val role: String,
-    @SerializedName("display_name") val displayName: String? = null
+    @SerializedName("display_name") val displayName: String? = null,
+    @SerializedName("can_request") val canRequest: Boolean = true,
+    @SerializedName("can_donate") val canDonate: Boolean = false
 )
 
 data class ProfileResponse(
     @SerializedName("user_id") val userId: String,
     val email: String,
     val role: String,
-    @SerializedName("display_name") val displayName: String? = null
+    @SerializedName("display_name") val displayName: String? = null,
+    @SerializedName("can_request") val canRequest: Boolean = true,
+    @SerializedName("can_donate") val canDonate: Boolean = false
 )
 
 data class PushTokenRequest(

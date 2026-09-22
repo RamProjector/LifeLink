@@ -106,7 +106,7 @@ class MainActivity : ComponentActivity() {
                                         tokenProvider = { app.container.authRepository.session.value?.accessToken ?: session.accessToken },
                                         onUnauthorized = app.container.authRepository::refreshAccessToken
                                     )
-                                        .upsertProfile(ProfileRequest(selectedRole.name.lowercase()))
+                                        .upsertProfile(ProfileRequest(selectedRole.name.lowercase(), canRequest = true, canDonate = selectedRole == UserRole.DONOR))
                                 }
                             }
                         }
@@ -184,7 +184,7 @@ class MainActivity : ComponentActivity() {
                                 RetrofitProvider.create(
                                     tokenProvider = { app.container.authRepository.session.value?.accessToken ?: signedInSession?.accessToken },
                                     onUnauthorized = app.container.authRepository::refreshAccessToken
-                                ).upsertProfile(ProfileRequest(role?.name?.lowercase() ?: "requester", updatedName.trim()))
+                                        ).upsertProfile(ProfileRequest(role?.name?.lowercase() ?: "requester", updatedName.trim(), canRequest = true, canDonate = role == UserRole.DONOR))
                             }.onSuccess { response ->
                                 if (response.isSuccessful) {
                                     displayName = response.body()?.displayName.orEmpty()

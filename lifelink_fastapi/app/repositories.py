@@ -40,13 +40,16 @@ class SqlAlchemyDonorRepository(DonorRepository):
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def list_active_donors(self) -> list[Donor]:
+    async def list_active_donors(self, excluded_user_id: str | None = None) -> list[Donor]:
+        conditions = [
+            DonorRow.available.is_(True),
+            DonorRow.verified.is_(True),
+            DonorRow.profile_visible.is_(True),
+        ]
+        if excluded_user_id:
+            conditions.append((DonorRow.user_id.is_(None)) | (DonorRow.user_id != excluded_user_id))
         result = await self.session.scalars(
-            select(DonorRow).where(
-                DonorRow.available.is_(True),
-                DonorRow.verified.is_(True),
-                DonorRow.profile_visible.is_(True),
-            )
+            select(DonorRow).where(*conditions)
         )
         rows = result.all()
         return [
@@ -237,6 +240,8 @@ class SqlAlchemyRequestStore(RequestStore):
         if row.status.value in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.EXPIRED.value, RequestStatusEnum.FULFILLED.value}:
             raise ValueError("This request is no longer accepting contact requests")
         allowed = {match.donor_id for match in row.matches}
+        if row.requester_id in donor_ids:
+            raise ValueError("You cannot select your own donor profile for this request")
         if any(donor_id not in allowed for donor_id in donor_ids):
             raise ValueError("One or more selected donors are not eligible for this request")
         now = datetime.now(timezone.utc)

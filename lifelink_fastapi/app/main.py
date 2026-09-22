@@ -383,6 +383,8 @@ def donor_respond(donor_id: str, request_id: str, payload: DonorResponseIn, prin
     record = request_store.records.get(request_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Request not found")
+    if record.payload.requester_id == donor_id:
+        raise HTTPException(status_code=403, detail="You cannot respond to your own request")
     match = next((item for item in record.matches if item.donor_id == donor_id), None)
     if match is None:
         raise HTTPException(status_code=403, detail="Donor is not eligible for this request")
@@ -547,6 +549,7 @@ def create_emergency_request(
     matches = [
         scored
         for donor in donors.list_active_donors()
+        if donor.donor_id != payload.requester_id
         if (scored := score_donor(payload, donor, now)) is not None
     ]
     if payload.ai_matching_enabled:

@@ -161,7 +161,7 @@ fun LifeLinkShell(
                     },
                     onMarkAllRead = onMarkAllUpdatesRead
                 )
-                ShellTab.PROFILE -> SettingsContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, themeMode, onThemeModeChange, onRequestPasswordReset, onSignOut)
+                ShellTab.PROFILE -> SettingsContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, themeMode, onThemeModeChange, onRequestPasswordReset, { showStart = false; showDonor = true }, onSignOut)
             }
         }
     }
@@ -384,6 +384,7 @@ private fun StartContent(
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
+    onOpenDonor: () -> Unit,
     onSignOut: () -> Unit
 ) {
     var section by rememberSaveable { mutableStateOf(SettingsSection.PROFILE) }
@@ -403,7 +404,7 @@ private fun StartContent(
             }
         }
         when (section) {
-            SettingsSection.PROFILE -> ProfileContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, onSignOut)
+            SettingsSection.PROFILE -> ProfileContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, onOpenDonor, onSignOut)
             SettingsSection.LEGAL -> LegalContent()
             SettingsSection.SAFETY -> SafetyContent()
             SettingsSection.ABOUT -> LearnContent()
@@ -506,6 +507,7 @@ private fun StartContent(
     profileSaving: Boolean,
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
+    onOpenDonor: () -> Unit,
     onSignOut: () -> Unit
 ) {
     var displayName by rememberSaveable(accountDisplayName) { mutableStateOf(accountDisplayName) }
@@ -544,6 +546,19 @@ private fun StartContent(
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(if (profileSaving) "Saving…" else "Save profile") }
                 profileMessage?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.primary) }
+            }
+        }
+        Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Donor capability", fontWeight = FontWeight.Bold)
+                Text(
+                    if (role == UserRole.DONOR) "Manage your availability and donor profile."
+                    else "You can request blood and offer to donate to other people. Your own requests will never appear as donor opportunities.",
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(onClick = onOpenDonor, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (role == UserRole.DONOR) "Open donor workspace" else "Become a donor")
+                }
             }
         }
         Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {

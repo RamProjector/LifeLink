@@ -149,7 +149,14 @@ async def upsert_profile(
         row.role = LifeLinkRoleEnum(payload.role)
         row.display_name = payload.display_name
     await session.commit()
-    return ProfileOut(user_id=row.user_id, email=row.email, role=row.role.value, display_name=row.display_name)
+    return ProfileOut(
+        user_id=row.user_id,
+        email=row.email,
+        role=row.role.value,
+        display_name=row.display_name,
+        can_request=row.can_request,
+        can_donate=row.can_donate,
+    )
 
 
 @app.get("/v1/profile", response_model=ProfileOut)
@@ -162,7 +169,14 @@ async def get_profile(
     row = await session.get(LifeLinkProfile, principal.subject)
     if row is None:
         raise HTTPException(status_code=404, detail="Profile not found")
-    return ProfileOut(user_id=row.user_id, email=row.email, role=row.role.value, display_name=row.display_name)
+    return ProfileOut(
+        user_id=row.user_id,
+        email=row.email,
+        role=row.role.value,
+        display_name=row.display_name,
+        can_request=row.can_request,
+        can_donate=row.can_donate,
+    )
 
 
 @app.put("/v1/push-token", status_code=204)
@@ -241,7 +255,7 @@ async def create_emergency_request_postgres(
     now = datetime.now(timezone.utc)
     request_id = f"req_{uuid4().hex}"
     donor_repository = SqlAlchemyDonorRepository(session)
-    donors = await donor_repository.list_active_donors()
+    donors = await donor_repository.list_active_donors(excluded_user_id=principal.subject)
     matches = [
         scored
         for donor in donors
@@ -306,6 +320,8 @@ async def contact_selected_donors_postgres(
         raise HTTPException(status_code=404, detail="Request not found")
     if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
         raise HTTPException(status_code=403, detail="Not allowed to contact donors for this request")
+    if principal.subject in payload.donor_ids:
+        raise HTTPException(status_code=403, detail="You cannot contact your own donor profile")
     enforce_rate_limit(f"contact-request:{principal.subject}", 20, 300)
     try:
         await store.contact_selected_donors_async(request_id, payload.donor_ids)
@@ -544,6 +560,9 @@ async def register_donor_postgres(
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
     if donor_id != payload.donor_id:
         raise HTTPException(status_code=400, detail="Path donor_id must match payload donor_id")
+    profile = await session.get(LifeLinkProfile, donor_id)
+    if profile is not None:
+        profile.can_donate = True
     row = await SqlAlchemyDonorStore(session).upsert_profile(donor_id, payload)
     donor = Donor(
         donor_id=row.id,

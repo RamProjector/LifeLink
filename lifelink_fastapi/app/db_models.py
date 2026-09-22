@@ -156,6 +156,8 @@ class LifeLinkProfile(Base):
     role: Mapped[LifeLinkRoleEnum] = mapped_column(
         SqlEnum(LifeLinkRoleEnum, name="lifelink_role_enum", native_enum=True, values_callable=enum_values), nullable=False
     )
+    can_request: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    can_donate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     display_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     fcm_token: Mapped[str | None] = mapped_column(String(4096), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

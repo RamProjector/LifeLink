@@ -73,7 +73,7 @@ class SqlAlchemyDonorStore:
                 (DonorContactRequest.request_id == RequestRow.id) & (DonorContactRequest.donor_id == donor_id),
             )
             .options(joinedload(RequestRow.facility))
-            .where(MatchRow.donor_id == donor_id)
+            .where(MatchRow.donor_id == donor_id, RequestRow.requester_id != donor_id)
             .order_by(RequestRow.created_at.desc())
         )
         return list(result.unique().all())
@@ -88,6 +88,8 @@ class SqlAlchemyDonorStore:
         request = await self.session.get(RequestRow, request_id)
         if request is None:
             raise KeyError(request_id)
+        if request.requester_id == donor_id:
+            raise ValueError("You cannot accept or decline your own request")
         if is_request_expired(request.status.value, request.response_deadline):
             request.status = "expired"
             await self.session.commit()
