@@ -47,14 +47,17 @@ class DonorViewModelTest {
         val repository = FakeDonorRepository(persisted)
         val viewModel = DonorViewModel(repository, enablePolling = false)
 
+        viewModel.onAction(DonorAction.UpdateDraft {
+            it.copy(displayName = "Edited donor", area = "Makati", bloodType = BloodType.A_POS, serviceRadiusKm = 15)
+        })
         viewModel.onAction(DonorAction.SetLocation(14.6466, 121.0437, 12))
         persisted.value = DonorProfile()
 
         val profile = viewModel.state.value.profile
-        assertEquals("Alex Donor", profile.displayName)
-        assertEquals("Quezon City", profile.area)
-        assertEquals(BloodType.O_NEG, profile.bloodType)
-        assertEquals(25, profile.serviceRadiusKm)
+        assertEquals("Edited donor", profile.displayName)
+        assertEquals("Makati", profile.area)
+        assertEquals(BloodType.A_POS, profile.bloodType)
+        assertEquals(15, profile.serviceRadiusKm)
         assertEquals(14.6466, profile.latitude!!, 0.000001)
         assertTrue(viewModel.state.value.profileDirty)
     }
@@ -66,6 +69,7 @@ private class FakeDonorRepository(
     override fun observeProfile(): Flow<DonorProfile> = persisted
     override fun observeRequests(): Flow<List<DonorRequest>> = flowOf(emptyList())
     override suspend fun saveProfile(profile: DonorProfile) = Unit
+    override suspend fun setAvailability(availability: DonorAvailability) = Unit
     override suspend fun refresh() = Unit
     override suspend fun respond(requestId: String, response: DonorResponse): Result<Unit> = Result.success(Unit)
 }

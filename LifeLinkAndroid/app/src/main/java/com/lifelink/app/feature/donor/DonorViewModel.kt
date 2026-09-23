@@ -24,7 +24,8 @@ data class DonorUiState(
 )
 
 sealed interface DonorAction {
-    data class UpdateProfile(val profile: DonorProfile) : DonorAction
+    data class UpdateDraft(val update: (DonorProfile) -> DonorProfile) : DonorAction
+    data object SaveProfile : DonorAction
     data class SetLocation(val latitude: Double, val longitude: Double, val precisionMeters: Int) : DonorAction
     data class SetAvailability(val availability: DonorAvailability) : DonorAction
     data class Respond(val requestId: String, val response: DonorResponse) : DonorAction
@@ -65,7 +66,12 @@ class DonorViewModel(
 
     fun onAction(action: DonorAction) {
         when (action) {
-            is DonorAction.UpdateProfile -> saveProfile(action.profile)
+            is DonorAction.UpdateDraft -> _state.value = _state.value.copy(
+                profile = action.update(_state.value.profile),
+                profileDirty = true,
+                message = null
+            )
+            DonorAction.SaveProfile -> saveProfile(_state.value.profile)
             is DonorAction.SetLocation -> _state.value = _state.value.copy(
                 profile = _state.value.profile.copy(
                     latitude = action.latitude,

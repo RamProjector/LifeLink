@@ -206,26 +206,19 @@ private fun ProfileCard(
     onCaptureLocation: () -> Unit,
     onLocationSelected: (Double, Double) -> Unit
 ) {
-    // Keep an editor draft for this donor. The repository refreshes in the background;
-    // keying these states to each server field used to erase text/chips while editing.
-    var name by remember(profile.donorId) { mutableStateOf(profile.displayName) }
-    var area by remember(profile.donorId) { mutableStateOf(profile.area) }
-    var bloodType by remember(profile.donorId) { mutableStateOf(profile.bloodType) }
+    // Keep the editable profile in the ViewModel, like the emergency-request draft.
+    // GPS can therefore update only coordinates without recreating this form.
     var serviceRadius by remember(profile.donorId) { mutableStateOf(profile.serviceRadiusKm.toString()) }
     var manualLatitude by remember(profile.donorId) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
     var manualLongitude by remember(profile.donorId) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
-    var donorNote by remember(profile.donorId) { mutableStateOf(profile.donorNote) }
-    var preferredContactMethod by remember(profile.donorId) { mutableStateOf(profile.preferredContactMethod) }
-    var pauseReason by remember(profile.donorId) { mutableStateOf(profile.pauseReason.orEmpty()) }
-    var profileVisible by remember(profile.donorId) { mutableStateOf(profile.profileVisible) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Donor profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
-            OutlinedTextField(area, { area = it }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
+            OutlinedTextField(profile.displayName, { value -> onAction(DonorAction.UpdateDraft { it.copy(displayName = value) }) }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
+            OutlinedTextField(profile.area, { value -> onAction(DonorAction.UpdateDraft { it.copy(area = value) }) }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
             OutlinedTextField(
-                value = donorNote,
-                onValueChange = { if (it.length <= 500) donorNote = it },
+                value = profile.donorNote,
+                onValueChange = { if (it.length <= 500) onAction(DonorAction.UpdateDraft { draft -> draft.copy(donorNote = it) }) },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Optional donor note") },
                 minLines = 2,
@@ -235,16 +228,16 @@ private fun ProfileCard(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("in_app" to "In-app", "phone" to "Phone").forEach { (value, label) ->
                     FilterChip(
-                        selected = preferredContactMethod == value,
-                        onClick = { preferredContactMethod = value },
+                        selected = profile.preferredContactMethod == value,
+                        onClick = { onAction(DonorAction.UpdateDraft { it.copy(preferredContactMethod = value) }) },
                         label = { Text(label) }
                     )
                 }
             }
             if (profile.availability == DonorAvailability.PAUSED) {
                 OutlinedTextField(
-                    value = pauseReason,
-                    onValueChange = { if (it.length <= 240) pauseReason = it },
+                    value = profile.pauseReason.orEmpty(),
+                    onValueChange = { if (it.length <= 240) onAction(DonorAction.UpdateDraft { draft -> draft.copy(pauseReason = it) }) },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Why are you paused? (optional)") },
                     singleLine = true
@@ -254,12 +247,12 @@ private fun ProfileCard(
                 Column(Modifier.weight(1f)) {
                     Text("Profile visible to requesters", fontWeight = FontWeight.SemiBold)
                     Text(
-                        if (profileVisible) "You can appear in matching results when available." else "You will not appear in new matching results.",
+                        if (profile.profileVisible) "You can appear in matching results when available." else "You will not appear in new matching results.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
-                Switch(checked = profileVisible, onCheckedChange = { profileVisible = it })
+                Switch(checked = profile.profileVisible, onCheckedChange = { value -> onAction(DonorAction.UpdateDraft { it.copy(profileVisible = value) }) })
             }
             Text("Blood type", fontWeight = FontWeight.SemiBold)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -267,8 +260,8 @@ private fun ProfileCard(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         rowOptions.forEach { option ->
                             FilterChip(
-                                selected = bloodType == option,
-                                onClick = { bloodType = option },
+                                selected = profile.bloodType == option,
+                                onClick = { onAction(DonorAction.UpdateDraft { it.copy(bloodType = option) }) },
                                 label = { Text(option.label) },
                                 modifier = Modifier.weight(1f)
                             )
@@ -305,22 +298,12 @@ private fun ProfileCard(
             ) { Text("Use this approximate location") }
             Button(
                 onClick = {
-                    onAction(
-                        DonorAction.UpdateProfile(
-                            profile.copy(
-                                displayName = name,
-                                area = area,
-                                bloodType = bloodType,
-                                serviceRadiusKm = serviceRadius.toIntOrNull() ?: profile.serviceRadiusKm,
-                                donorNote = donorNote.trim(),
-                                preferredContactMethod = preferredContactMethod,
-                                pauseReason = pauseReason.trim().takeIf { it.isNotEmpty() },
-                                profileVisible = profileVisible
-                            )
-                        )
-                    )
+                    serviceRadius.toIntOrNull()?.let { radius ->
+                        onAction(DonorAction.UpdateDraft { it.copy(serviceRadiusKm = radius) })
+                        onAction(DonorAction.SaveProfile)
+                    }
                 },
-                enabled = name.trim().length >= 2 && bloodType != null &&
+                enabled = profile.displayName.trim().length >= 2 && profile.bloodType != null &&
                     profile.latitude != null && profile.longitude != null &&
                     serviceRadius.toIntOrNull() in 1..100,
                 modifier = Modifier.fillMaxWidth()
