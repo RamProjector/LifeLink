@@ -20,7 +20,8 @@ data class DonorUiState(
     val requests: List<DonorRequest> = emptyList(),
     val saving: Boolean = false,
     val message: String? = null,
-    val profileDirty: Boolean = false
+    val profileDirty: Boolean = false,
+    val requestsRefreshing: Boolean = false
 )
 
 sealed interface DonorAction {
@@ -29,6 +30,7 @@ sealed interface DonorAction {
     data class SetLocation(val latitude: Double, val longitude: Double, val precisionMeters: Int) : DonorAction
     data class SetAvailability(val availability: DonorAvailability) : DonorAction
     data class Respond(val requestId: String, val response: DonorResponse) : DonorAction
+    data object RefreshRequests : DonorAction
     data object ClearMessage : DonorAction
 }
 
@@ -83,6 +85,7 @@ class DonorViewModel(
             )
             is DonorAction.SetAvailability -> setAvailability(action.availability)
             is DonorAction.Respond -> respond(action.requestId, action.response)
+            DonorAction.RefreshRequests -> refreshRequests()
             DonorAction.ClearMessage -> _state.value = _state.value.copy(message = null)
         }
     }
@@ -117,6 +120,20 @@ class DonorViewModel(
             repository.respond(requestId, response)
                 .onSuccess { _state.value = _state.value.copy(saving = false, message = "Response sent") }
                 .onFailure { _state.value = _state.value.copy(saving = false, message = "Response could not be sent") }
+        }
+    }
+
+    private fun refreshRequests() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(requestsRefreshing = true, message = null)
+            runCatching { repository.refresh() }
+                .onSuccess { _state.value = _state.value.copy(requestsRefreshing = false, message = "Requests refreshed") }
+                .onFailure { error ->
+                    _state.value = _state.value.copy(
+                        requestsRefreshing = false,
+                        message = error.message ?: "Requests could not be refreshed. Check your connection and try again."
+                    )
+                }
         }
     }
 }
