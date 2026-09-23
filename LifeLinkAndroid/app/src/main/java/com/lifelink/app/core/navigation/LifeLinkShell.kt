@@ -16,7 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
-import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Person
@@ -359,7 +359,7 @@ private fun StartContent(
         Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(title, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
             if (body != null) {
-                IconButton(onClick = onHelp) { Icon(Icons.Default.HelpOutline, contentDescription = "More about $title") }
+                IconButton(onClick = onHelp) { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "More about $title") }
             }
         }
     }
@@ -378,7 +378,7 @@ private fun StartContent(
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(title, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-            IconButton(onClick = onClick) { Icon(Icons.Default.HelpOutline, contentDescription = helpDescription) }
+            IconButton(onClick = onClick) { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = helpDescription) }
         }
     }
 }
@@ -603,13 +603,13 @@ private fun StartContent(
         Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
             Row(Modifier.padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Location privacy", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-                IconButton(onClick = { selectedHelp = "location" }) { Icon(Icons.Default.HelpOutline, contentDescription = "About location privacy") }
+                IconButton(onClick = { selectedHelp = "location" }) { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "About location privacy") }
             }
         }
         Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
             Row(Modifier.padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Safety and consent", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-                IconButton(onClick = { selectedHelp = "safety" }) { Icon(Icons.Default.HelpOutline, contentDescription = "About safety and consent") }
+                IconButton(onClick = { selectedHelp = "safety" }) { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "About safety and consent") }
             }
         }
         androidx.compose.material3.OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }

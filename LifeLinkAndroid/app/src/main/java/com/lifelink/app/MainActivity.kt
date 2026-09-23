@@ -101,7 +101,7 @@ class MainActivity : ComponentActivity() {
                         runCatching { api.getProfile() }.onSuccess { response ->
                             if (response.isSuccessful) displayName = response.body()?.displayName.orEmpty()
                         }
-                        runCatching { FirebaseMessaging.getInstance().token.await() }
+                        runCatching { fetchFirebaseToken() }
                             .onSuccess { token -> runCatching { api.registerPushToken(PushTokenRequest(token)) } }
                     }
                 }
@@ -250,3 +250,6 @@ class MainActivity : ComponentActivity() {
         notificationOpenUpdates = intent.getBooleanExtra("open_updates", false)
     }
 }
+
+@Suppress("DEPRECATION")
+private suspend fun fetchFirebaseToken(): String = FirebaseMessaging.getInstance().getToken().await()

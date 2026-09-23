@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.lifelink.app.core.location
 
 import android.view.MotionEvent
