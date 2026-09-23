@@ -60,10 +60,31 @@ logger = logging.getLogger("lifelink.api")
 def donor_setup_complete(row: DonorRow) -> bool:
     return (
         len(row.display_name.strip()) >= 2
-        and row.blood_type.value != "UNKNOWN"
+        and (row.blood_type.value if hasattr(row.blood_type, "value") else row.blood_type) != "UNKNOWN"
         and -90 <= float(row.latitude) <= 90
         and -180 <= float(row.longitude) <= 180
         and 0 < float(row.service_radius_km) <= 100
+    )
+
+
+def donor_response_model(row: DonorRow) -> Donor:
+    """Convert a database donor row without assuming native enum round-tripping."""
+    blood_type = row.blood_type.value if hasattr(row.blood_type, "value") else row.blood_type
+    return Donor(
+        donor_id=row.id,
+        display_name=row.display_name,
+        blood_type=blood_type,
+        latitude=float(row.latitude),
+        longitude=float(row.longitude),
+        available=row.available,
+        availability_updated_at=row.availability_updated_at,
+        verified=row.verified,
+        service_radius_km=float(row.service_radius_km),
+        estimated_response_probability=float(row.estimated_response_probability),
+        donor_note=row.donor_note or "",
+        preferred_contact_method=row.preferred_contact_method or "in_app",
+        pause_reason=row.pause_reason,
+        profile_visible=row.profile_visible,
     )
 
 
@@ -576,22 +597,7 @@ async def register_donor_postgres(
     if profile is not None:
         profile.can_donate = True
     row = await SqlAlchemyDonorStore(session).upsert_profile(donor_id, payload)
-    donor = Donor(
-        donor_id=row.id,
-        display_name=row.display_name,
-        blood_type=row.blood_type.value,
-        latitude=float(row.latitude),
-        longitude=float(row.longitude),
-        available=row.available,
-        availability_updated_at=row.availability_updated_at,
-        verified=row.verified,
-        service_radius_km=float(row.service_radius_km),
-        estimated_response_probability=float(row.estimated_response_probability),
-        donor_note=row.donor_note,
-        preferred_contact_method=row.preferred_contact_method,
-        pause_reason=row.pause_reason,
-        profile_visible=row.profile_visible,
-    )
+    donor = donor_response_model(row)
     return profile_to_out(donor, DonorAvailability.AVAILABLE if row.available else DonorAvailability.OFFLINE)
 
 
@@ -611,17 +617,7 @@ async def update_donor_availability_postgres(
         row = await SqlAlchemyDonorStore(session).set_availability(donor_id, payload.availability)
     except KeyError:
         raise HTTPException(status_code=404, detail="Donor not found") from None
-    donor = Donor(
-        donor_id=row.id,
-        display_name=row.display_name,
-        blood_type=row.blood_type.value,
-        latitude=float(row.latitude), longitude=float(row.longitude),
-        available=row.available, availability_updated_at=row.availability_updated_at,
-        verified=row.verified, service_radius_km=float(row.service_radius_km),
-        estimated_response_probability=float(row.estimated_response_probability),
-        donor_note=row.donor_note, preferred_contact_method=row.preferred_contact_method,
-        pause_reason=row.pause_reason, profile_visible=row.profile_visible,
-    )
+    donor = donor_response_model(row)
     return profile_to_out(donor, payload.availability)
 
 

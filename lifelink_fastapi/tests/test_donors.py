@@ -1,11 +1,39 @@
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
 from app.main import app, request_store
+from app.main import BloodType
+from app.main_postgres import donor_response_model
 from app.security import Principal
 
 client = TestClient(app)
+
+
+def test_postgres_donor_response_handles_string_enum_values():
+    row = SimpleNamespace(
+        id="donor-legacy",
+        display_name="Donor Legacy",
+        blood_type="O-",
+        latitude=14.6466,
+        longitude=121.0437,
+        available=False,
+        availability_updated_at=datetime.now(timezone.utc),
+        verified=True,
+        service_radius_km=15,
+        estimated_response_probability=0.5,
+        donor_note=None,
+        preferred_contact_method=None,
+        pause_reason=None,
+        profile_visible=True,
+    )
+
+    donor = donor_response_model(row)
+
+    assert donor.blood_type == BloodType.O_NEG
+    assert donor.donor_note == ""
+    assert donor.preferred_contact_method == "in_app"
 
 
 def request_payload(key: str = "donor-request-key-0001"):
@@ -65,6 +93,38 @@ def test_donor_can_register_and_change_availability(monkeypatch):
     )
     assert response.status_code == 200
     assert response.json()["availability"] == "available"
+
+
+def test_incomplete_donor_cannot_choose_availability_or_view_inbox(monkeypatch):
+    monkeypatch.setenv("LIFELINK_AUTH_REQUIRED", "true")
+    monkeypatch.setattr("app.security._verify_supabase_token", lambda token: Principal(subject=token))
+    headers = {"Authorization": "Bearer donor-incomplete"}
+    response = client.put(
+        "/v1/donors/donor-incomplete",
+        json={
+            "donor_id": "donor-incomplete",
+            "display_name": "A",
+            "blood_type": "O-",
+            "latitude": 14.6466,
+            "longitude": 121.0437,
+            "service_radius_km": 15,
+            "verified": True,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    response = client.patch(
+        "/v1/donors/donor-incomplete/availability",
+        json={"availability": "available"},
+        headers=headers,
+    )
+    assert response.status_code == 409
+    assert "Complete donor setup" in response.json()["detail"]
+
+    response = client.get("/v1/donors/donor-incomplete/requests", headers=headers)
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 def test_authenticated_donor_cannot_mutate_another_profile(monkeypatch):
