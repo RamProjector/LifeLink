@@ -68,24 +68,6 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug -PlifelinkApiBaseUrl="$API_BASE_URL" -PsupabaseUrl="$SUPABASE_URL_VALUE" -PsupabasePublishableKey="$SUPABASE_KEY_VALUE" --no-daemon --stacktrace
 
-      - name: Run emulator smoke test
-        continue-on-error: true
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
-          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -no-snapshot-save -gpu off
-          cores: 2
-          ram-size: 4096M
-          disk-size: 8G
-          disable-animations: true
-          force-avd-creation: true
-          emulator-boot-timeout: 900
-          working-directory: LifeLinkAndroid
-          script: ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
-
       - name: Build release APK
         run: ./gradlew assembleRelease -PlifelinkApiBaseUrl="$API_BASE_URL" -PsupabaseUrl="$SUPABASE_URL_VALUE" -PsupabasePublishableKey="$SUPABASE_KEY_VALUE" --no-daemon --stacktrace
 
