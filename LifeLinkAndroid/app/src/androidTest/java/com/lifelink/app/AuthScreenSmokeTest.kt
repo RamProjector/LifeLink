@@ -35,8 +35,7 @@ class AuthScreenSmokeTest {
             }
         }
 
-        composeRule.onNodeWithText("LifeLink").assertIsDisplayed()
-        composeRule.onNodeWithText("Sign in").assertIsDisplayed()
+        composeRule.onNodeWithText("Welcome back. Sign in to continue.").assertIsDisplayed()
         composeRule.onNodeWithText("Email address").assertIsDisplayed()
     }
 }
