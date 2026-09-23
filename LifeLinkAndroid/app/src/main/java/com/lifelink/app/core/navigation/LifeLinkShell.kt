@@ -1,5 +1,7 @@
 package com.lifelink.app.core.navigation
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
@@ -198,7 +201,7 @@ fun LifeLinkShell(
             Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("No active request", fontWeight = FontWeight.Bold)
-                    Text("Start a request when you need help finding eligible donors nearby.")
+        Text("Start a request when you need help finding potential donors nearby.")
                 }
             }
         }
@@ -243,7 +246,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(if (role == UserRole.DONOR) "Ready to help nearby?" else "Find help when it matters", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(if (role == UserRole.DONOR) "Keep your availability current so verified requests can reach you." else "LifeLink helps you reach eligible donors while keeping exact locations private.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(if (role == UserRole.DONOR) "Keep your availability current so requests can reach you." else "LifeLink helps you reach potential donors while keeping exact locations private.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         if (role == UserRole.DONOR) {
             Button(onClick = onDonor, Modifier.fillMaxWidth()) { Text("Open donor dashboard") }
         }
@@ -251,7 +254,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer), elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Need blood? Start here.", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Tell us the blood type, urgency, and approximate area. We will show eligible matches before you contact anyone.")
+                    Text("Tell us the blood type, urgency, and approximate area. We will show potential matches before you contact anyone.")
                     Button(onClick = onCreate, Modifier.fillMaxWidth()) { Text("Open Requests") }
                 }
             }
@@ -466,20 +469,49 @@ private fun StartContent(
 }
 
 @Composable private fun LegalContent() {
-    var selectedTopic by rememberSaveable { mutableStateOf<String?>(null) }
-    val details = mapOf(
-        "Service scope" to "LifeLink helps requesters discover and contact eligible donors. It is not a hospital, blood bank, emergency dispatcher, medical screening service, or guarantee that a donor can provide blood.",
-        "Privacy" to "LifeLink uses approximate location for matching and does not show exact coordinates between users. Contact details are disclosed only after the donor accepts and the requester chooses to continue.",
-        "User responsibility" to "Use a qualified hospital or blood bank for screening, collection, and urgent medical care. Do not share patient records, passwords, payment details, or other sensitive information here.",
-        "Contact and reports" to "You can cancel a request, report unsafe behavior, or block a contact. Safety reports may be recorded for abuse prevention and service auditing."
-    )
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Legal information", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        details.keys.forEach { title -> DetailRow(title, "About $title") { selectedTopic = title } }
-        Text("LifeLink Cloud · MVP", style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Legal & Safety Center", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Product guidance for a Philippines-oriented service. This is not legal or medical advice; counsel, clinicians, and licensed blood-service partners must review the final release.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        EmergencyHelpCard()
+        LegalSection("LifeLink’s role", "LifeLink is a coordination and contact service. It helps describe a need, discover potential voluntary donors, and manage consented contact. It does not confirm that a request is genuine, urgent, fulfilled, safe, or medically appropriate.")
+        LegalSection("Clinical and blood-service boundary", "LifeLink is not a hospital, blood bank, collection unit, laboratory, ambulance, emergency dispatcher, or medical advice service. It does not screen or approve donors, collect or test blood, determine compatibility, store or transport blood, or guarantee supply. Licensed facilities and qualified clinicians make those decisions.")
+        LegalSection("Voluntary donation", "Donation must be voluntary and free from pressure. Do not sell blood, request deposits or replacement fees, offer honoraria, demand money, or condition contact on gifts, sex, services, employment, or medical treatment.")
+        LegalSection("Consent and conduct", "A match is an invitation to communicate, not consent to donate. Do not impersonate anyone, create fake emergencies, harass, threaten, stalk, doxx, share non-consensual sexual material, provide medical misinformation, forge records, or claim that a donor is tested, safe, or compatible. Use Report and Block when available.")
+        LegalSection("Privacy and health information", "Blood type, emergency details, health-related messages, location, and contact details are personal information. Share only what is necessary. Do not post diagnoses, test results, patient names, IDs, passwords, one-time codes, financial credentials, exact addresses, or live location. Privacy requests and consent changes should use the support channel configured for this deployment.")
+        LegalSection("User responsibilities", "Provide truthful information, post only requests you are authorized to make, respect consent, follow hospital or blood-service instructions, and verify real-world arrangements independently. LifeLink does not control off-platform transport, payment, donation, transfusion, or clinical decisions, subject to rights and responsibilities that cannot lawfully be excluded.")
+        Text("Official guidance", style = androidx.compose.material3.MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        SourceLink("WHO · Blood safety and availability", "https://www.who.int/news-room/fact-sheets/detail/blood-safety-and-availability")
+        SourceLink("Philippines · National Blood Services Act (RA 7719)", "https://lawphil.net/statutes/repacts/ra1994/ra_7719_1994.html")
+        SourceLink("Philippines · Data Privacy Act (RA 10173)", "https://privacy.gov.ph/data-privacy-act/")
+        SourceLink("Philippines · Unified emergency hotline information", "https://dilg.gov.ph/news/One-Number-for-All-Emergencies-Unified-911-to-Launch-Nationwide/NC-2025-1177")
+        Text("Product guidance v1.0 · Review before production launch.", style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
     }
-    selectedTopic?.let { topic ->
-        AlertDialog(onDismissRequest = { selectedTopic = null }, title = { Text(topic) }, text = { Text(details.getValue(topic)) }, confirmButton = { TextButton(onClick = { selectedTopic = null }) { Text("Done") } })
+}
+
+@Composable private fun EmergencyHelpCard() {
+    val context = LocalContext.current
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.errorContainer), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Emergency help", style = androidx.compose.material3.MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = androidx.compose.material3.MaterialTheme.colorScheme.onErrorContainer)
+            Text("If someone is unconscious, severely bleeding, having trouble breathing, showing signs of shock, or getting worse, call 911 or go to the nearest emergency department now. Do not wait for a LifeLink match.", color = androidx.compose.material3.MaterialTheme.colorScheme.onErrorContainer)
+            Button(onClick = { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:911"))) }) { Text("Call 911") }
+        }
+    }
+}
+
+@Composable private fun LegalSection(title: String, body: String) {
+    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(title, style = androidx.compose.material3.MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(body, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable private fun SourceLink(label: String, url: String) {
+    val context = LocalContext.current
+    TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }) {
+        Text(label, modifier = Modifier.fillMaxWidth())
     }
 }
 

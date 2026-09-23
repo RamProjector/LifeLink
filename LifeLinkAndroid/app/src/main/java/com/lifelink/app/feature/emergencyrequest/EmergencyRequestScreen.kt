@@ -117,7 +117,7 @@ fun EmergencyRequestScreen(
         val feedback = when (val submission = state.submission) {
             is SubmissionState.Error -> submission.message to "Retry"
             is SubmissionState.Matching -> "Request submitted. Matching donors nearby…" to null
-            is SubmissionState.ManualFallback -> "No automatic matches yet. You can broadcast to the wider eligible audience." to "Broadcast"
+            is SubmissionState.ManualFallback -> "No automatic matches yet. You can broadcast to more potential donors." to "Broadcast"
             is SubmissionState.QueuedOffline -> "Saved offline. It will sync when connection returns." to null
             else -> null
         }
@@ -210,7 +210,7 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
     val donorsWithinTenKm = state.discoveredDonors.count { it.distanceKm > 5.0 && it.distanceKm <= 10.0 }
     val donorsBeyondTenKm = state.discoveredDonors.count { it.distanceKm > 10.0 }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Heading("Donor results", "Select eligible donors to contact. Their exact locations remain private.")
+        Heading("Donor results", "Select potential donors to contact. A licensed facility confirms eligibility. Their exact locations remain private.")
         if (state.contacts.isNotEmpty()) {
             Text("Donor contact", fontWeight = FontWeight.SemiBold)
             state.contacts.forEach { contact -> AcceptedContactCard(contact, onAction) }
@@ -235,7 +235,7 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
         if (!showMap) {
             Text("Donor list", fontWeight = FontWeight.SemiBold)
             if (state.discoveredDonors.isEmpty()) {
-                InfoCard("No eligible donors yet", "No donor cards are available for this request right now. Keep the request active and check the request status again later.", MaterialTheme.colorScheme.secondary)
+                InfoCard("No potential donors yet", "No donor cards are available for this request right now. Keep the request active and check the request status again later.", MaterialTheme.colorScheme.secondary)
             }
             state.discoveredDonors.forEach { donor ->
                 Card(
@@ -597,7 +597,7 @@ private fun LocationMapPicker(
         )
     }
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
-        Heading("Where are you requesting help?", "Your approximate location is used only to find nearby eligible donors.")
+        Heading("Where are you requesting help?", "Your approximate location is used only to find nearby potential donors.")
         locationMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
@@ -679,11 +679,11 @@ private fun LocationMapPicker(
 
 @Composable private fun ContactStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Heading("How should responses work?", "Choose how eligible donors can contact you after they accept.")
+        Heading("How should responses work?", "Choose how potential donors can contact you after they accept. Eligibility is confirmed by a licensed facility.")
         Text("Preferred contact", fontWeight = FontWeight.SemiBold)
         ContactMethod.entries.forEach { method -> SelectableRow(method.label, draft.contactMethod == method) { onAction(EmergencyRequestAction.UpdateDraft { it.copy(contactMethod = method) }) } }
         CheckRow(draft.genuineRequestConfirmed, "I confirm this is a genuine blood request.") { checked -> onAction(EmergencyRequestAction.UpdateDraft { draftValue -> draftValue.copy(genuineRequestConfirmed = checked) }) }
-        CheckRow(draft.sharingConsentConfirmed, "I agree to share the listed request details with eligible donors for this request.") { checked -> onAction(EmergencyRequestAction.UpdateDraft { draftValue -> draftValue.copy(sharingConsentConfirmed = checked) }) }
+        CheckRow(draft.sharingConsentConfirmed, "I agree to share the listed request details with potential donors for this request.") { checked -> onAction(EmergencyRequestAction.UpdateDraft { draftValue -> draftValue.copy(sharingConsentConfirmed = checked) }) }
     }
 }
 
