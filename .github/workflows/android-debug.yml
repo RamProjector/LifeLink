@@ -52,6 +52,22 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      - name: Validate Supabase build secrets
+        shell: bash
+        run: |
+          if [[ -z "$SUPABASE_URL_VALUE" ]]; then
+            echo "::error::SUPABASE_URL is not configured in GitHub Actions secrets. Refusing to build a keyless APK."
+            exit 1
+          fi
+          if [[ -z "$SUPABASE_KEY_VALUE" ]]; then
+            echo "::error::SUPABASE_PUBLISHABLE_KEY is not configured in GitHub Actions secrets. Refusing to build a keyless APK."
+            exit 1
+          fi
+          if [[ "$SUPABASE_URL_VALUE" != https://* ]]; then
+            echo "::error::SUPABASE_URL must use https:// in the Android build."
+            exit 1
+          fi
+
       - name: Build debug APK only
         run: ./gradlew assembleDebug -PlifelinkApiBaseUrl="$API_BASE_URL" -PsupabaseUrl="$SUPABASE_URL_VALUE" -PsupabasePublishableKey="$SUPABASE_KEY_VALUE" --no-daemon --stacktrace
 
