@@ -84,7 +84,7 @@ fun AuthScreen(
                 if (resetReady) "Choose a new password for your LifeLink account."
                 else if (recoveryMode) "Recover access to your LifeLink account."
                 else if (createAccount) "Join the community helping people find blood donors."
-                else "Welcome back. Sign in to continue.",
+                else "LifeLink",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )

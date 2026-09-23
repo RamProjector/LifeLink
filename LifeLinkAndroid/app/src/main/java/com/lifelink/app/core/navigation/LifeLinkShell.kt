@@ -47,6 +47,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
@@ -91,11 +92,17 @@ fun LifeLinkShell(
     notificationOpenUpdates: Boolean = false,
     notificationRequestId: String? = null
 ) {
+    val context = LocalContext.current
+    val welcomePrefs = context.getSharedPreferences("lifelink_welcome", 0)
     var showRequest by rememberSaveable { mutableStateOf(false) }
     var showActive by rememberSaveable { mutableStateOf(false) }
     var showDonor by rememberSaveable { mutableStateOf(false) }
-    var showStart by rememberSaveable { mutableStateOf(true) }
+    var showStart by rememberSaveable(accountUserId) { mutableStateOf(accountUserId.isNotBlank() && !welcomePrefs.getBoolean("seen_$accountUserId", false)) }
     var tab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
+    val markWelcomeSeen = {
+        if (accountUserId.isNotBlank()) welcomePrefs.edit().putBoolean("seen_$accountUserId", true).apply()
+        showStart = false
+    }
     LaunchedEffect(notificationRequestId) {
         notificationRequestId?.takeIf { it.isNotBlank() }?.let {
             showStart = false
@@ -113,9 +120,9 @@ fun LifeLinkShell(
     if (showStart) {
         StartContent(
             role = role,
-            onGetStarted = { showStart = false },
-            onCreateRequest = { showStart = false; showRequest = true },
-            onOpenDonor = { showStart = false; showDonor = true }
+            onGetStarted = markWelcomeSeen,
+            onCreateRequest = { markWelcomeSeen(); showRequest = true },
+            onOpenDonor = { markWelcomeSeen(); showDonor = true }
         )
         return
     }
