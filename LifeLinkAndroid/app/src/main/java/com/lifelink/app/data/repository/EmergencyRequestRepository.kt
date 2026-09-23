@@ -215,7 +215,10 @@ class EmergencyRequestRepositoryImpl(
     private suspend fun queueForRetry(draft: EmergencyRequestDraft) {
         pendingSubmissionDao.upsert(PendingSubmissionEntity(id = draft.id, payloadJson = Gson().toJson(draft)))
         val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-        val work = OneTimeWorkRequestBuilder<PendingSubmissionWorker>().setConstraints(constraints).build()
+        val work = OneTimeWorkRequestBuilder<PendingSubmissionWorker>()
+            .setConstraints(constraints)
+            .addTag("lifelink-account-work")
+            .build()
         workManager.enqueueUniqueWork("lifelink-submit-${draft.id}", ExistingWorkPolicy.KEEP, work)
     }
 

@@ -62,6 +62,18 @@ class MainActivity : ComponentActivity() {
                 )
                 LaunchedEffect(recoveryUri) { authViewModel.handleAuthCallback(recoveryUri) }
                 val authState by authViewModel.state.collectAsStateWithLifecycle()
+                val roleStore = remember { UserRoleStore(this@MainActivity) }
+                val authCleanupScope = rememberCoroutineScope()
+                var hadSignedInSession by remember { mutableStateOf(false) }
+                LaunchedEffect(authState) {
+                    if (authState is AuthState.SignedIn) {
+                        hadSignedInSession = true
+                    } else if (hadSignedInSession) {
+                        hadSignedInSession = false
+                        roleStore.clear()
+                        authCleanupScope.launch { app.clearLocalAccountData() }
+                    }
+                }
                 if (authState !is AuthState.SignedIn) {
                     AuthScreen(
                         state = authState,
@@ -73,7 +85,6 @@ class MainActivity : ComponentActivity() {
                     )
                     return@LifeLinkTheme
                 }
-                val roleStore = remember { UserRoleStore(this@MainActivity) }
                 val roleSyncScope = rememberCoroutineScope()
                 var role by remember { mutableStateOf(roleStore.get()) }
                 var displayName by remember { mutableStateOf("") }
@@ -114,14 +125,17 @@ class MainActivity : ComponentActivity() {
                     return@LifeLinkTheme
                 }
                 val viewModel: EmergencyRequestViewModel = viewModel(
+                    key = "emergency-request-$accountUserId",
                     factory = EmergencyRequestViewModelFactory(app.container.emergencyRequestRepository)
                 )
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
                 val donorViewModel: DonorViewModel = viewModel(
+                    key = "donor-$accountUserId",
                     factory = DonorViewModelFactory(app.container.donorRepository)
                 )
                 val donorState by donorViewModel.state.collectAsStateWithLifecycle()
                 val updatesViewModel: UpdatesViewModel = viewModel(
+                    key = "updates-$accountUserId",
                     factory = UpdatesViewModelFactory(app.container.updatesRepository)
                 )
                 val updates by updatesViewModel.updates.collectAsStateWithLifecycle()
@@ -211,7 +225,13 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     },
-                    onSignOut = authViewModel::signOut,
+                    onSignOut = {
+                        roleStore.clear()
+                        roleSyncScope.launch {
+                            app.clearLocalAccountData()
+                            authViewModel.signOut()
+                        }
+                    },
                     updates = updates,
                     onUpdateRead = updatesViewModel::markRead,
                     onMarkAllUpdatesRead = updatesViewModel::markAllRead,

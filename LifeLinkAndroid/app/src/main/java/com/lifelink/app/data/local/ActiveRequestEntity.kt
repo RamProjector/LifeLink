@@ -32,6 +32,9 @@ interface ActiveRequestDao {
 
     @Query("DELETE FROM active_requests WHERE requestId = :requestId")
     suspend fun delete(requestId: String)
+
+    @Query("DELETE FROM active_requests")
+    suspend fun clearAll()
 }
 
 fun ActiveRequestEntity.toDomain(): ActiveRequestSnapshot = ActiveRequestSnapshot(

@@ -8,6 +8,9 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.room.withTransaction
 
 @Dao
 interface EmergencyRequestDraftDao {
@@ -19,15 +22,26 @@ interface EmergencyRequestDraftDao {
 
     @Query("DELETE FROM emergency_request_drafts WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("DELETE FROM emergency_request_drafts")
+    suspend fun clearAll()
 }
 
-@Database(entities = [EmergencyRequestDraftEntity::class, PendingSubmissionEntity::class, ActiveRequestEntity::class, DonorProfileEntity::class, DonorRequestEntity::class, UpdateEntity::class], version = 6, exportSchema = false)
+@Database(entities = [EmergencyRequestDraftEntity::class, PendingSubmissionEntity::class, ActiveRequestEntity::class, DonorProfileEntity::class, DonorRequestEntity::class, UpdateEntity::class], version = 7, exportSchema = false)
 abstract class LifeLinkDatabase : RoomDatabase() {
     abstract fun emergencyRequestDraftDao(): EmergencyRequestDraftDao
     abstract fun pendingSubmissionDao(): PendingSubmissionDao
     abstract fun activeRequestDao(): ActiveRequestDao
     abstract fun donorDao(): DonorDao
     abstract fun updateDao(): UpdateDao
+
+    suspend fun clearLocalAccountData() = withTransaction {
+        emergencyRequestDraftDao().clearAll()
+        pendingSubmissionDao().clearAll()
+        activeRequestDao().clearAll()
+        donorDao().clearAll()
+        updateDao().clearAll()
+    }
 
     companion object {
         @Volatile private var INSTANCE: LifeLinkDatabase? = null
@@ -38,7 +52,20 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                     context.applicationContext,
                     LifeLinkDatabase::class.java,
                     "lifelink.db"
-                ).fallbackToDestructiveMigration().build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_6_7).fallbackToDestructiveMigration().build().also { INSTANCE = it }
             }
+
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Versions <= 6 stored rows without an account namespace. Never expose
+                // those rows to a newly authenticated account.
+                database.execSQL("DELETE FROM emergency_request_drafts")
+                database.execSQL("DELETE FROM pending_submissions")
+                database.execSQL("DELETE FROM active_requests")
+                database.execSQL("DELETE FROM donor_profiles")
+                database.execSQL("DELETE FROM donor_requests")
+                database.execSQL("DELETE FROM updates")
+            }
+        }
     }
 }

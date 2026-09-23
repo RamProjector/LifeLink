@@ -53,4 +53,15 @@ interface DonorDao {
 
     @Query("UPDATE donor_requests SET response = :response WHERE requestId = :requestId")
     suspend fun updateResponse(requestId: String, response: String)
+
+    @Query("DELETE FROM donor_profiles")
+    suspend fun clearProfiles()
+
+    @Query("DELETE FROM donor_requests")
+    suspend fun clearRequests()
+
+    suspend fun clearAll() {
+        clearProfiles()
+        clearRequests()
+    }
 }

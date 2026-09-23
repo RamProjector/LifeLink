@@ -19,7 +19,12 @@ import kotlinx.coroutines.launch
 
 class LifeLinkApplication : Application() {
     lateinit var container: LifeLinkAppContainer
-        private set
+    private set
+
+    suspend fun clearLocalAccountData() {
+        LifeLinkDatabase.getInstance(this).clearLocalAccountData()
+        WorkManager.getInstance(this).cancelAllWorkByTag("lifelink-account-work")
+    }
 
     override fun onCreate() {
         super.onCreate()

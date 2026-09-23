@@ -35,4 +35,7 @@ interface UpdateDao {
 
     @Query("UPDATE updates SET isRead = 1")
     suspend fun markAllRead()
+
+    @Query("DELETE FROM updates")
+    suspend fun clearAll()
 }

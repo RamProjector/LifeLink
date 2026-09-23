@@ -32,6 +32,9 @@ interface PendingSubmissionDao {
 
     @Query("DELETE FROM pending_submissions WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("DELETE FROM pending_submissions")
+    suspend fun clearAll()
 }
 
 class PendingSubmissionWorker(
