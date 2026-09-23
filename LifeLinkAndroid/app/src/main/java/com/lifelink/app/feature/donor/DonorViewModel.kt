@@ -19,7 +19,8 @@ data class DonorUiState(
     val profile: DonorProfile = DonorProfile(),
     val requests: List<DonorRequest> = emptyList(),
     val saving: Boolean = false,
-    val message: String? = null
+    val message: String? = null,
+    val profileDirty: Boolean = false
 )
 
 sealed interface DonorAction {
@@ -30,7 +31,10 @@ sealed interface DonorAction {
     data object ClearMessage : DonorAction
 }
 
-class DonorViewModel(private val repository: DonorRepository) : ViewModel() {
+class DonorViewModel(
+    private val repository: DonorRepository,
+    private val enablePolling: Boolean = true
+) : ViewModel() {
     private val _state = MutableStateFlow(DonorUiState())
     val state: StateFlow<DonorUiState> = _state.asStateFlow()
 
@@ -38,16 +42,23 @@ class DonorViewModel(private val repository: DonorRepository) : ViewModel() {
         viewModelScope.launch {
             combine(repository.observeProfile(), repository.observeRequests()) { profile, requests -> profile to requests }
                 .collect { (profile, requests) ->
-                    _state.value = _state.value.copy(
-                        profile = profile,
-                        requests = if (profile.isSetupComplete) requests else emptyList()
-                    )
+                    _state.value = _state.value.let { current ->
+                        current.copy(
+                            // A profile observer can emit the old database row
+                            // while GPS or form edits are still unsaved. Never
+                            // replace those local edits with stale persisted data.
+                            profile = if (current.profileDirty) current.profile else profile,
+                            requests = if (profile.isSetupComplete) requests else emptyList()
+                        )
+                    }
                 }
         }
-        viewModelScope.launch {
-            while (true) {
-                runCatching { repository.refresh() }
-                delay(30_000)
+        if (enablePolling) {
+            viewModelScope.launch {
+                while (true) {
+                    runCatching { repository.refresh() }
+                    delay(30_000)
+                }
             }
         }
     }
@@ -61,7 +72,8 @@ class DonorViewModel(private val repository: DonorRepository) : ViewModel() {
                     longitude = action.longitude,
                     locationPrecisionMeters = action.precisionMeters
                 ),
-                message = "Location selected. Save the profile to complete setup."
+                message = "Location captured; save your profile to update matching.",
+                profileDirty = true
             )
             is DonorAction.SetAvailability -> setAvailability(action.availability)
             is DonorAction.Respond -> respond(action.requestId, action.response)
@@ -73,10 +85,11 @@ class DonorViewModel(private val repository: DonorRepository) : ViewModel() {
         viewModelScope.launch {
             _state.value = _state.value.copy(saving = true)
             runCatching { repository.saveProfile(profile) }
-                .onSuccess { _state.value = _state.value.copy(saving = false, message = "Donor profile saved") }
+                .onSuccess { _state.value = _state.value.copy(profile = profile, saving = false, message = "Profile saved", profileDirty = false) }
                 .onFailure { error ->
                     _state.value = _state.value.copy(
                         saving = false,
+                        profileDirty = true,
                         message = error.message ?: "Profile could not be saved. Check your connection and try again."
                     )
                 }
