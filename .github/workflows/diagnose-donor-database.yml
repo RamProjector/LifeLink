@@ -114,11 +114,8 @@ jobs:
                   print("=== SANITIZED DONOR DATABASE DIAGNOSTICS ===")
                   for name, query in queries.items():
                       cur.execute(query)
-                      value = cur.fetchone()[0]
-                      if name == "enum_labels":
-                          print(f"{name}={value}")
-                      else:
-                          print(f"{name}={value}")
+                      values = cur.fetchone()
+                      print(f"{name}={values[0] if len(values) == 1 else values}")
                   print("=== END SANITIZED DIAGNOSTICS ===")
           PY
 
