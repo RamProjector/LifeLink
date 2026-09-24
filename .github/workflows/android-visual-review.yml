@@ -1,0 +1,88 @@
+name: Android visual review
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'LifeLinkAndroid/**'
+      - '.github/workflows/android-visual-review.yml'
+  pull_request:
+    paths:
+      - 'LifeLinkAndroid/**'
+      - '.github/workflows/android-visual-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-visual-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-review:
+    name: Capture Android visual evidence
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: LifeLinkAndroid
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Build visual-test APKs
+        run: ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon --stacktrace
+
+      - name: Run visual smoke test on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          profile: Pixel_2
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -no-snapshot-save -gpu off
+          disable-animations: true
+          script: |
+            cd LifeLinkAndroid
+            set +e
+            ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+            test_exit=$?
+            mkdir -p ../visual-artifacts
+            adb pull /sdcard/lifelink-auth-screen.png ../visual-artifacts/auth-screen.png || true
+            echo "$test_exit" > ../visual-artifacts/visual-test-exit-code.txt
+            exit "$test_exit"
+
+      - name: Collect visual test reports
+        if: always()
+        run: |
+          mkdir -p ../visual-artifacts
+          if [[ -d app/build/reports/androidTests/connected ]]; then
+            cp -R app/build/reports/androidTests/connected ../visual-artifacts/android-test-report
+          fi
+          if [[ -d app/build/outputs/androidTest-results ]]; then
+            cp -R app/build/outputs/androidTest-results ../visual-artifacts/test-results
+          fi
+
+      - name: Upload visual evidence and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifelink-android-visual-review-${{ github.sha }}
+          path: visual-artifacts/**
+          if-no-files-found: warn
+          retention-days: 14

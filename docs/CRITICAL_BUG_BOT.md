@@ -9,12 +9,13 @@ The bot listens for completed runs of the following workflows:
 - `Validate cloud package`
 - `Build Android APKs`
 - `Build Android Debug APK`
+- `Android visual review`
 
-The repository intentionally does not run emulator or visual-review automation. It creates an issue only when one of the non-emulator workflows fails on the repository’s default branch. Pull-request failures and manually triggered database diagnostics are intentionally excluded so routine development failures do not flood the issue tracker.
+The APK packaging workflows do not use an emulator. The separate Android visual-review workflow intentionally uses an emulator to capture screenshots and connected-test logs. The bot creates an issue only when one of these workflows fails on the repository’s default branch. Pull-request failures and manually triggered database diagnostics are intentionally excluded so routine development failures do not flood the issue tracker.
 
 ## What it records
 
-Each issue includes the workflow name, run number, commit, branch, direct workflow link, available artifact link, and failed job names. Android validation artifacts may include Gradle reports and the debug APK; emulator screenshots are not collected. The issue is labeled `critical` and `automated`. The body contains a short triage checklist and explicitly states that credentials, donor identifiers, coordinates, and medical information are not included.
+Each issue includes the workflow name, run number, commit, branch, direct workflow link, available artifact link, and failed job names. Android visual-review artifacts may include the auth screenshot, Gradle reports, and connected-test results; APK packaging artifacts contain the debug APK. The issue is labeled `critical` and `automated`. The body contains a short triage checklist and explicitly states that credentials, donor identifiers, coordinates, and medical information are not included.
 
 ## Duplicate prevention
 

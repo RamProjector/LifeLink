@@ -6,6 +6,7 @@ on:
       - Validate cloud package
       - Build Android APKs
       - Build Android Debug APK
+      - Android visual review
     types:
       - completed
 
@@ -70,7 +71,7 @@ jobs:
           | Field | Value |
           |---|---|
           | Workflow run | [Run #${RUN_NUMBER}](${RUN_URL}) |
-          | Artifacts | [Build and validation artifacts](https://github.com/${REPOSITORY}/actions/runs/${RUN_ID}/artifacts) |
+          | Artifacts | [Build, screenshots, and test reports](https://github.com/${REPOSITORY}/actions/runs/${RUN_ID}/artifacts) |
           | Commit | [${short_sha}](https://github.com/${REPOSITORY}/commit/${COMMIT_SHA}) |
           | Branch | \`${BRANCH}\` |
           | Run ID | \`${RUN_ID}\` |
