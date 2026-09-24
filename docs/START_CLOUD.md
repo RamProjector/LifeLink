@@ -96,9 +96,9 @@ cd LifeLinkAndroid
 ./gradlew assembleDebug -PlifelinkApiBaseUrl=https://lifelink-api-uzje.onrender.com/
 ```
 
-The repository also includes a **Build Android APKs** GitHub Actions workflow. It builds both a debug APK and an unsigned release APK on pushes to `main`, pull requests that modify `LifeLinkAndroid`, or manual workflow dispatch. Download the results from the workflow's **Artifacts** section. The manual dispatch form allows a different API base URL to be supplied for staging or local testing.
+The repository also includes a **Build Android APKs** GitHub Actions workflow. It builds a debug APK only on pushes to `main`, pull requests that modify `LifeLinkAndroid`, or manual workflow dispatch. No emulator is used by this packaging workflow. Download the result from the workflow's **Artifacts** section. The manual dispatch form allows a different API base URL to be supplied for staging or local testing.
 
-The release artifact is intentionally unsigned. Before distributing it through an app store or to end users, configure a protected Android signing key in GitHub Actions and sign the release with the same key used for future updates.
+Before distributing the debug artifact through an app store or to end users, configure a protected Android signing key and a dedicated release workflow in GitHub Actions.
 
 The production Android client must also provide a verified bearer token when `LIFELINK_AUTH_REQUIRED=true`. Until Firebase/JWT verification is connected, use `LIFELINK_AUTH_REQUIRED=false` only for controlled development testing; do not use that setting for a public emergency service.
 

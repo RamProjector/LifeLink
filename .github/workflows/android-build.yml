@@ -38,7 +38,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build debug and release APKs
+    name: Build debug APK only
     runs-on: ubuntu-latest
     defaults:
       run:
