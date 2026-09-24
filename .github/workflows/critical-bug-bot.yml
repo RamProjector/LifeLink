@@ -1,6 +1,12 @@
 name: Critical bug bot
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'LifeLinkAndroid/**'
+      - '.github/workflows/critical-bug-bot.yml'
+      - '.github/workflows/android-visual-review.yml'
   workflow_run:
     workflows:
       - Validate cloud package
@@ -20,6 +26,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  run-visual-evidence:
+    if: github.event_name == 'push'
+    name: Run automated app walkthrough
+    uses: ./.github/workflows/android-visual-review.yml
+
   log-critical-failure:
     if: >-
       github.event.workflow_run.conclusion == 'failure' &&

@@ -1,16 +1,13 @@
 name: Android visual review
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'LifeLinkAndroid/**'
-      - '.github/workflows/android-visual-review.yml'
   pull_request:
     paths:
       - 'LifeLinkAndroid/**'
       - '.github/workflows/android-visual-review.yml'
   workflow_dispatch:
+
+  workflow_call:
 
 permissions:
   contents: read
@@ -63,7 +60,10 @@ jobs:
             ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
             test_exit=$?
             mkdir -p ../visual-artifacts
-            adb pull /sdcard/lifelink-auth-screen.png ../visual-artifacts/auth-screen.png || true
+            for remote_file in $(adb shell ls /sdcard/lifelink-*.png 2>/dev/null | tr -d '\r'); do
+              adb pull "$remote_file" ../visual-artifacts/ || true
+            done
+            adb logcat -d > ../visual-artifacts/logcat.txt || true
             echo "$test_exit" > ../visual-artifacts/visual-test-exit-code.txt
             exit "$test_exit"
 

@@ -1,6 +1,6 @@
 # Critical bug bot
 
-LifeLink now includes a GitHub Actions bot that logs release-blocking or production-relevant CI failures as GitHub issues.
+LifeLink includes a GitHub Actions bot that automatically launches the Android emulator walkthrough on main-branch app changes, captures screenshots and device logs, and logs release-blocking or production-relevant failures as GitHub issues.
 
 ## What it watches
 
@@ -11,11 +11,11 @@ The bot listens for completed runs of the following workflows:
 - `Build Android Debug APK`
 - `Android visual review`
 
-The APK packaging workflows do not use an emulator. The separate Android visual-review workflow intentionally uses an emulator to capture screenshots and connected-test logs. The bot creates an issue only when one of these workflows fails on the repository’s default branch. Pull-request failures and manually triggered database diagnostics are intentionally excluded so routine development failures do not flood the issue tracker.
+The APK packaging workflows do not use an emulator. The bot invokes the separate Android visual-review workflow on main-branch app changes; that workflow intentionally uses an emulator to navigate the deterministic app walkthrough, capture screenshots, and collect connected-test logs. The bot creates an issue when one of these workflows fails on the repository’s default branch. Pull-request failures and manually triggered database diagnostics are intentionally excluded so routine development failures do not flood the issue tracker.
 
 ## What it records
 
-Each issue includes the workflow name, run number, commit, branch, direct workflow link, available artifact link, and failed job names. Android visual-review artifacts may include the auth screenshot, Gradle reports, and connected-test results; APK packaging artifacts contain the debug APK. The issue is labeled `critical` and `automated`. The body contains a short triage checklist and explicitly states that credentials, donor identifiers, coordinates, and medical information are not included.
+Each issue includes the workflow name, run number, commit, branch, direct workflow link, available artifact link, and failed job names. Android visual-review artifacts may include Home, Requests, Updates, Settings, Legal, Theme, Security, and donor-workspace screenshots, device logcat, Gradle reports, and connected-test results; APK packaging artifacts contain the debug APK. The issue is labeled `critical` and `automated`. The body contains a short triage checklist and explicitly states that credentials, donor identifiers, coordinates, and medical information are not included.
 
 ## Duplicate prevention
 
