@@ -13,6 +13,15 @@ from .donor_api import DonorAvailability, DonorProfileIn, DonorResponseIn
 from .expiry import is_request_expired
 
 
+def apply_donor_response_to_contact(contact, response: DonorResponseIn, now: datetime):
+    """Persist donor consent without treating acceptance as contact disclosure."""
+    contact.status = response.response
+    contact.updated_at = now
+    if response.response == "accepted":
+        contact.accepted_at = now
+    return contact
+
+
 class SqlAlchemyDonorStore:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -119,10 +128,6 @@ class SqlAlchemyDonorStore:
             )
         )
         if contact is not None:
-            contact.status = response.response
-            contact.updated_at = now
-            if response.response == "accepted":
-                contact.accepted_at = now
-                contact.contact_shared_at = now
+            apply_donor_response_to_contact(contact, response, now)
         await self.session.commit()
         return match

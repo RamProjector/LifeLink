@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 
 from app.rate_limit import enforce_rate_limit
 from app.main_postgres import RequesterContactOut
+from app.donor_api import DonorResponseIn
+from app.donor_repositories import apply_donor_response_to_contact
 from app.repositories import CONTACT_EMAIL_VISIBLE_STATUSES
 
 
@@ -38,3 +40,14 @@ def test_contact_response_preserves_lifecycle_timestamps():
 def test_contact_email_is_hidden_until_contact_is_shared():
     assert "accepted" not in CONTACT_EMAIL_VISIBLE_STATUSES
     assert CONTACT_EMAIL_VISIBLE_STATUSES == {"contact_shared", "meeting_arranged", "fulfilled"}
+
+
+def test_donor_acceptance_does_not_mark_contact_as_shared():
+    accepted_at = datetime.now(timezone.utc)
+    contact = type("Contact", (), {"contact_shared_at": None})()
+
+    apply_donor_response_to_contact(contact, DonorResponseIn(response="accepted"), accepted_at)
+
+    assert contact.status == "accepted"
+    assert contact.accepted_at == accepted_at
+    assert contact.contact_shared_at is None
