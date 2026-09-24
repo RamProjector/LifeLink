@@ -1,0 +1,97 @@
+name: Critical bug bot
+
+on:
+  workflow_run:
+    workflows:
+      - Validate cloud package
+      - Build Android APKs
+      - Build Android Debug APK
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+concurrency:
+  group: critical-bug-bot-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  log-critical-failure:
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_branch == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or reuse critical issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
+          RUN_NAME: ${{ github.event.workflow_run.name }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          short_sha="${COMMIT_SHA:0:7}"
+          title="[Critical CI] ${RUN_NAME} failed on ${BRANCH} (${short_sha})"
+
+          existing_issue="$(gh issue list \
+            --repo "$REPOSITORY" \
+            --state open \
+            --search "${title} in:title" \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [[ -n "$existing_issue" ]]; then
+            echo "Critical issue #${existing_issue} already exists for this failed run."
+            exit 0
+          fi
+
+          failed_jobs="$(gh run view "$RUN_ID" \
+            --repo "$REPOSITORY" \
+            --json jobs \
+            --jq '[.jobs[] | select(.conclusion == "failure") | .name] | if length == 0 then "No failed job list was returned; inspect the run details." else join("\\n- ") end')"
+
+          gh label create critical --repo "$REPOSITORY" --color B60205 --description "Production-impacting or release-blocking failure" --force >/dev/null 2>&1 || true
+          gh label create automated --repo "$REPOSITORY" --color 1D76DB --description "Created by repository automation" --force >/dev/null 2>&1 || true
+
+          body=$(cat <<EOF
+          ## Critical automated failure
+
+          The **${RUN_NAME}** workflow failed on the default branch and was logged automatically.
+
+          | Field | Value |
+          |---|---|
+          | Workflow run | [Run #${RUN_NUMBER}](${RUN_URL}) |
+          | Commit | [${short_sha}](https://github.com/${REPOSITORY}/commit/${COMMIT_SHA}) |
+          | Branch | \`${BRANCH}\` |
+          | Run ID | \`${RUN_ID}\` |
+
+          ### Failed jobs
+
+          - ${failed_jobs}
+
+          ### Triage checklist
+
+          - [ ] Open the workflow run and inspect the first actionable error.
+          - [ ] Determine whether the failure is a product regression, deployment issue, or hosted-runner problem.
+          - [ ] Add a root-cause comment and link the fixing commit or follow-up issue.
+          - [ ] Close this issue only after the relevant validation workflow passes.
+
+          This issue was created by **Critical bug bot**. It does not include credentials, donor identifiers, coordinates, or medical information.
+          EOF
+          )
+
+          gh issue create \
+            --repo "$REPOSITORY" \
+            --title "$title" \
+            --body "$body" \
+            --label critical \
+            --label automated
