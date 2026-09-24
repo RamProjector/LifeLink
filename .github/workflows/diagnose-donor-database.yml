@@ -1,0 +1,127 @@
+name: Diagnose Donor Database
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Read-only donor schema diagnostics
+    runs-on: ubuntu-latest
+    env:
+      LIFELINK_DATABASE_URL: ${{ secrets.LIFELINK_DATABASE_URL }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install database driver
+        run: python -m pip install --quiet --disable-pip-version-check 'psycopg[binary]'
+
+      - name: Run sanitized read-only diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$LIFELINK_DATABASE_URL"
+          python - <<'PY'
+          import os
+          import sys
+          import psycopg
+
+          url = os.environ["LIFELINK_DATABASE_URL"]
+          if not url.startswith(("postgres://", "postgresql://")):
+              raise SystemExit("LIFELINK_DATABASE_URL is not a PostgreSQL URI")
+
+          queries = {
+              "tables": """
+                  SELECT
+                    to_regclass('public.donors') IS NOT NULL,
+                    to_regclass('public.lifelink_profiles') IS NOT NULL,
+                    to_regclass('public.request_matches') IS NOT NULL,
+                    to_regclass('public.donor_contact_requests') IS NOT NULL
+              """,
+              "donor_columns": """
+                  SELECT
+                    COUNT(*) FILTER (WHERE column_name = 'user_id'),
+                    COUNT(*) FILTER (WHERE column_name = 'donor_note'),
+                    COUNT(*) FILTER (WHERE column_name = 'preferred_contact_method'),
+                    COUNT(*) FILTER (WHERE column_name = 'pause_reason'),
+                    COUNT(*) FILTER (WHERE column_name = 'profile_visible'),
+                    COUNT(*) FILTER (WHERE column_name = 'last_location_precision_meters')
+                  FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'donors'
+              """,
+              "profile_columns": """
+                  SELECT
+                    COUNT(*) FILTER (WHERE column_name = 'can_request'),
+                    COUNT(*) FILTER (WHERE column_name = 'can_donate'),
+                    COUNT(*) FILTER (WHERE column_name = 'fcm_token')
+                  FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'lifelink_profiles'
+              """,
+              "enum_labels": """
+                  SELECT COALESCE(json_object_agg(t.typname, labels.labels), '{}'::json)
+                  FROM pg_type t
+                  JOIN LATERAL (
+                    SELECT json_agg(e.enumlabel ORDER BY e.enumsortorder) AS labels
+                    FROM pg_enum e WHERE e.enumtypid = t.oid
+                  ) labels ON true
+                  WHERE t.typname IN ('blood_type_enum', 'lifelink_role_enum', 'request_status_enum', 'match_status_enum')
+              """,
+              "donor_integrity": """
+                  SELECT
+                    COUNT(*)::bigint,
+                    COUNT(*) FILTER (WHERE user_id IS NULL)::bigint,
+                    COUNT(*) FILTER (WHERE display_name IS NULL OR btrim(display_name) = '')::bigint,
+                    COUNT(*) FILTER (WHERE latitude < -90 OR latitude > 90)::bigint,
+                    COUNT(*) FILTER (WHERE longitude < -180 OR longitude > 180)::bigint,
+                    COUNT(*) FILTER (WHERE service_radius_km <= 0 OR service_radius_km > 100)::bigint,
+                    COUNT(*) FILTER (WHERE blood_type IS NULL)::bigint
+                  FROM public.donors
+              """,
+              "duplicate_user_ids": """
+                  SELECT COUNT(*)::bigint FROM (
+                    SELECT user_id FROM public.donors
+                    WHERE user_id IS NOT NULL GROUP BY user_id HAVING COUNT(*) > 1
+                  ) duplicates
+              """,
+              "orphan_donor_profiles": """
+                  SELECT
+                    COUNT(*) FILTER (WHERE d.id IS NULL)::bigint,
+                    COUNT(*) FILTER (WHERE p.user_id IS NULL)::bigint
+                  FROM public.lifelink_profiles p
+                  FULL OUTER JOIN public.donors d ON d.user_id = p.user_id
+              """,
+              "constraints": """
+                  SELECT
+                    COUNT(*) FILTER (WHERE tc.constraint_type = 'PRIMARY KEY')::bigint,
+                    COUNT(*) FILTER (WHERE tc.constraint_type = 'UNIQUE')::bigint,
+                    COUNT(*) FILTER (WHERE tc.constraint_type = 'FOREIGN KEY')::bigint
+                  FROM information_schema.table_constraints tc
+                  WHERE tc.table_schema = 'public'
+                    AND tc.table_name IN ('donors', 'lifelink_profiles', 'request_matches', 'donor_contact_requests')
+              """,
+          }
+
+          with psycopg.connect(url, connect_timeout=15, sslmode="require", autocommit=True) as conn:
+              with conn.cursor() as cur:
+                  print("=== SANITIZED DONOR DATABASE DIAGNOSTICS ===")
+                  for name, query in queries.items():
+                      cur.execute(query)
+                      value = cur.fetchone()[0]
+                      if name == "enum_labels":
+                          print(f"{name}={value}")
+                      else:
+                          print(f"{name}={value}")
+                  print("=== END SANITIZED DIAGNOSTICS ===")
+          PY
+
+      - name: Security reminder
+        if: always()
+        run: echo 'Diagnostics intentionally exclude donor IDs, names, coordinates, emails, tokens, and database credentials.'
