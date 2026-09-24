@@ -42,6 +42,7 @@ data class EmergencyRequestUiState(
     val selectedDonorIds: Set<String> = emptySet(),
     val contactRequestSent: Boolean = false,
     val contacts: List<RequesterContact> = emptyList(),
+    val contactActionInFlightDonorId: String? = null,
     val requestHistory: List<RequestHistoryItem> = emptyList(),
     val historyRefreshing: Boolean = false
 )
@@ -266,9 +267,24 @@ class EmergencyRequestViewModel(
     private fun updateContactStatus(donorId: String, status: String) {
         val requestId = (_uiState.value.submission as? SubmissionState.Matching)?.requestId ?: _uiState.value.activeRequest?.requestId ?: return
         viewModelScope.launch {
+            _uiState.update { it.copy(contactActionInFlightDonorId = donorId) }
             runCatching { repository.updateContactStatus(requestId, donorId, status) }
-                .onSuccess { updated -> _uiState.update { state -> state.copy(contacts = state.contacts.map { if (it.donorId == donorId) updated else it }) } }
-                .onFailure { error -> _uiState.update { it.copy(submission = SubmissionState.Error(error.message ?: "Contact status could not be updated.")) } }
+                .onSuccess { updated ->
+                    _uiState.update { state ->
+                        state.copy(
+                            contacts = state.contacts.map { if (it.donorId == donorId) updated else it },
+                            contactActionInFlightDonorId = null
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            contactActionInFlightDonorId = null,
+                            submission = SubmissionState.Error(error.message ?: "Contact status could not be updated.")
+                        )
+                    }
+                }
         }
     }
 

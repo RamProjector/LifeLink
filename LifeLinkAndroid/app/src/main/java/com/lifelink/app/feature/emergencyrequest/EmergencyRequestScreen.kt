@@ -78,6 +78,9 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -213,7 +216,13 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
         Heading("Donor results", "Select potential donors to contact. A licensed facility confirms eligibility. Their exact locations remain private.")
         if (state.contacts.isNotEmpty()) {
             Text("Donor contact", fontWeight = FontWeight.SemiBold)
-            state.contacts.forEach { contact -> AcceptedContactCard(contact, onAction) }
+            state.contacts.forEach { contact ->
+                AcceptedContactCard(
+                    contact = contact,
+                    actionInFlight = state.contactActionInFlightDonorId == contact.donorId,
+                    onAction = onAction
+                )
+            }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Results", fontWeight = FontWeight.SemiBold)
@@ -280,7 +289,11 @@ private fun PrivacySafeDonorMap(
 }
 
 @Composable
-private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContact, onAction: (EmergencyRequestAction) -> Unit) {
+private fun AcceptedContactCard(
+    contact: com.lifelink.app.domain.RequesterContact,
+    actionInFlight: Boolean,
+    onAction: (EmergencyRequestAction) -> Unit
+) {
     val status = contact.status.lowercase()
     val accepted = status in setOf("accepted", "contact_shared", "meeting_arranged", "fulfilled")
     val statusLabel = status.replace('_', ' ').replaceFirstChar { it.uppercase() }
@@ -303,22 +316,38 @@ private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContac
                 Text(statusLabel, color = if (accepted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (accepted) {
-                contact.acceptedAt?.let { Text("Accepted $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                contact.contactSharedAt?.let { Text("Contact shared $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                contact.updatedAt?.let { Text("Last updated $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                contact.acceptedAt?.let { Text("Accepted ${formatContactTimestamp(it)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                contact.contactSharedAt?.let { Text("Contact shared ${formatContactTimestamp(it)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                contact.updatedAt?.let { Text("Last updated ${formatContactTimestamp(it)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 Text("Contact details are shared only after donor consent.", style = MaterialTheme.typography.bodySmall)
-                contact.contactEmail?.let { email ->
-                    OutlinedButton(onClick = { contactConsentVisible = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Contact donor · $email")
+                if (status == "accepted" && contact.contactEmail == null) {
+                    OutlinedButton(
+                        onClick = { contactConsentVisible = true },
+                        enabled = !actionInFlight,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (actionInFlight) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else Text("Request contact details")
+                    }
+                } else {
+                    contact.contactEmail?.let { email ->
+                        OutlinedButton(
+                            onClick = { contactConsentVisible = true },
+                            enabled = !actionInFlight,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (actionInFlight) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            else Text("Contact donor · $email")
+                        }
                     }
                 }
                 when (status) {
-                    "accepted" -> if (contact.contactEmail == null) Text("Contact details are not available yet. Refresh after the donor confirms sharing.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    "contact_shared" -> OutlinedButton(onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "meeting_arranged")) }, modifier = Modifier.fillMaxWidth()) { Text("Mark meeting arranged") }
-                    "meeting_arranged" -> OutlinedButton(onClick = { fulfillDialogVisible = true }, modifier = Modifier.fillMaxWidth()) { Text("Mark fulfilled") }
+                    "accepted" -> if (contact.contactEmail == null) Text("Continue above to request the authorized contact details.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    "contact_shared" -> OutlinedButton(enabled = !actionInFlight, onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "meeting_arranged")) }, modifier = Modifier.fillMaxWidth()) { Text("Mark meeting arranged") }
+                    "meeting_arranged" -> OutlinedButton(enabled = !actionInFlight, onClick = { fulfillDialogVisible = true }, modifier = Modifier.fillMaxWidth()) { Text("Mark fulfilled") }
                     "fulfilled" -> Text("Fulfilled", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                 }
-                if (status in setOf("accepted", "contact_shared", "meeting_arranged")) TextButton(onClick = { cancelDialogVisible = true }) { Text("Cancel contact") }
+                if (status in setOf("accepted", "contact_shared", "meeting_arranged")) TextButton(enabled = !actionInFlight, onClick = { cancelDialogVisible = true }) { Text("Cancel contact") }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { reportDialogVisible = true }) { Text("Report") }
                     TextButton(onClick = { blockDialogVisible = true }) { Text("Block") }
@@ -342,13 +371,13 @@ private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContac
         AlertDialog(
             onDismissRequest = { contactConsentVisible = false },
             title = { Text("Contact donor?") },
-            text = { Text("The donor accepted this request. LifeLink will open your email app using the authorized contact address. Only continue if you consent to sharing this contact interaction.") },
+            text = { Text("The donor accepted this request. LifeLink will share the authorized contact address and open your email app. Only continue if you consent to this contact interaction.") },
             confirmButton = {
                 TextButton(onClick = {
                     contact.contactEmail?.let { email ->
                         runCatching { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$email"))) }
-                        onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "contact_shared"))
                     }
+                    onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "contact_shared"))
                     contactConsentVisible = false
                 }) { Text("Continue") }
             },
@@ -426,6 +455,12 @@ private fun AcceptedContactCard(contact: com.lifelink.app.domain.RequesterContac
         )
     }
 }
+
+private fun formatContactTimestamp(value: String): String = runCatching {
+    Instant.parse(value)
+        .atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofPattern("MMM d, h:mm a"))
+}.getOrDefault(value)
 
 @Composable private fun Progress(step: Int, total: Int) {
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {

@@ -71,6 +71,7 @@ jobs:
           | Field | Value |
           |---|---|
           | Workflow run | [Run #${RUN_NUMBER}](${RUN_URL}) |
+          | Artifacts | [Screenshots and test reports](https://github.com/${REPOSITORY}/actions/runs/${RUN_ID}/artifacts) |
           | Commit | [${short_sha}](https://github.com/${REPOSITORY}/commit/${COMMIT_SHA}) |
           | Branch | \`${BRANCH}\` |
           | Run ID | \`${RUN_ID}\` |

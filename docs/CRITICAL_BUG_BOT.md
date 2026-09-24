@@ -14,7 +14,7 @@ It creates an issue only when the workflow fails on the repository’s default b
 
 ## What it records
 
-Each issue includes the workflow name, run number, commit, branch, direct workflow link, and failed job names. The issue is labeled `critical` and `automated`. The body contains a short triage checklist and explicitly states that credentials, donor identifiers, coordinates, and medical information are not included.
+Each issue includes the workflow name, run number, commit, branch, direct workflow link, visual/test artifact link, and failed job names. For an Android visual-review failure, the artifact link opens the captured screenshots and Android test reports. The issue is labeled `critical` and `automated`. The body contains a short triage checklist and explicitly states that credentials, donor identifiers, coordinates, and medical information are not included.
 
 ## Duplicate prevention
 
