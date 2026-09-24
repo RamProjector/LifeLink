@@ -572,27 +572,36 @@ async def register_donor_postgres(
         raise HTTPException(status_code=400, detail="Path donor_id must match payload donor_id")
     if payload.blood_type.value == "UNKNOWN":
         raise HTTPException(status_code=400, detail="Select a confirmed blood type before completing donor setup")
-    profile = await session.get(LifeLinkProfile, donor_id)
-    if profile is not None:
-        profile.can_donate = True
-    row = await SqlAlchemyDonorStore(session).upsert_profile(donor_id, payload)
-    donor = Donor(
-        donor_id=row.id,
-        display_name=row.display_name,
-        blood_type=row.blood_type.value,
-        latitude=float(row.latitude),
-        longitude=float(row.longitude),
-        available=row.available,
-        availability_updated_at=row.availability_updated_at,
-        verified=row.verified,
-        service_radius_km=float(row.service_radius_km),
-        estimated_response_probability=float(row.estimated_response_probability),
-        donor_note=row.donor_note,
-        preferred_contact_method=row.preferred_contact_method,
-        pause_reason=row.pause_reason,
-        profile_visible=row.profile_visible,
-    )
-    return profile_to_out(donor, DonorAvailability.AVAILABLE if row.available else DonorAvailability.OFFLINE)
+    try:
+        profile = await session.get(LifeLinkProfile, donor_id)
+        if profile is not None:
+            profile.can_donate = True
+        row = await SqlAlchemyDonorStore(session).upsert_profile(donor_id, payload)
+        donor = Donor(
+            donor_id=row.id,
+            display_name=row.display_name,
+            blood_type=row.blood_type.value,
+            latitude=float(row.latitude),
+            longitude=float(row.longitude),
+            available=row.available,
+            availability_updated_at=row.availability_updated_at,
+            verified=row.verified,
+            service_radius_km=float(row.service_radius_km),
+            estimated_response_probability=float(row.estimated_response_probability),
+            donor_note=row.donor_note,
+            preferred_contact_method=row.preferred_contact_method,
+            pause_reason=row.pause_reason,
+            profile_visible=row.profile_visible,
+        )
+        return profile_to_out(donor, DonorAvailability.AVAILABLE if row.available else DonorAvailability.OFFLINE)
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        logger.exception("Donor profile save database failure for operation donor_profile_save")
+        raise HTTPException(status_code=503, detail="donor_profile_save_database_failure") from exc
+    except Exception as exc:
+        await session.rollback()
+        logger.exception("Donor profile save application failure for operation donor_profile_save")
+        raise HTTPException(status_code=500, detail=f"donor_profile_save_application_failure:{type(exc).__name__}") from exc
 
 
 @app.patch("/v1/donors/{donor_id}/availability", response_model=DonorProfileOut)

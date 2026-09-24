@@ -98,6 +98,15 @@ jobs:
                   FROM public.lifelink_profiles p
                   FULL OUTER JOIN public.donors d ON d.user_id = p.user_id
               """,
+              "donor_capability_linkage": """
+                  SELECT
+                    COUNT(*)::bigint,
+                    COUNT(*) FILTER (WHERE can_donate IS TRUE)::bigint,
+                    COUNT(*) FILTER (WHERE can_donate IS TRUE AND d.id IS NULL)::bigint,
+                    COUNT(*) FILTER (WHERE can_donate IS NOT TRUE AND d.id IS NOT NULL)::bigint
+                  FROM public.lifelink_profiles p
+                  LEFT JOIN public.donors d ON d.user_id = p.user_id
+              """,
               "constraints": """
                   SELECT
                     COUNT(*) FILTER (WHERE tc.constraint_type = 'PRIMARY KEY')::bigint,
@@ -106,6 +115,13 @@ jobs:
                   FROM information_schema.table_constraints tc
                   WHERE tc.table_schema = 'public'
                     AND tc.table_name IN ('donors', 'lifelink_profiles', 'request_matches', 'donor_contact_requests')
+              """,
+              "donor_triggers": """
+                  SELECT
+                    COUNT(*) FILTER (WHERE trigger_name = 'trg_donor_location')::bigint,
+                    COUNT(*) FILTER (WHERE action_statement ILIKE '%set_donor_location%')::bigint
+                  FROM information_schema.triggers
+                  WHERE event_object_schema = 'public' AND event_object_table = 'donors'
               """,
           }
 
