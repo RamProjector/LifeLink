@@ -6,6 +6,7 @@ on:
       - Validate cloud package
       - Build Android APKs
       - Build Android Debug APK
+      - Android visual review
     types:
       - completed
 
