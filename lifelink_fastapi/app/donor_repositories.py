@@ -17,8 +17,17 @@ class SqlAlchemyDonorStore:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def upsert_profile(self, donor_id: str, payload: DonorProfileIn) -> DonorRow:
+    async def get_by_identity(self, donor_id: str) -> DonorRow | None:
+        """Resolve both current user-keyed rows and legacy donor rows."""
         row = await self.session.get(DonorRow, donor_id)
+        if row is not None:
+            return row
+        return await self.session.scalar(
+            select(DonorRow).where(DonorRow.user_id == donor_id).limit(1)
+        )
+
+    async def upsert_profile(self, donor_id: str, payload: DonorProfileIn) -> DonorRow:
+        row = await self.get_by_identity(donor_id)
         now = datetime.now(timezone.utc)
         if row is None:
             row = DonorRow(
@@ -56,7 +65,7 @@ class SqlAlchemyDonorStore:
         return row
 
     async def set_availability(self, donor_id: str, availability: DonorAvailability) -> DonorRow:
-        row = await self.session.get(DonorRow, donor_id)
+        row = await self.get_by_identity(donor_id)
         if row is None:
             raise KeyError(donor_id)
         row.available = availability == DonorAvailability.AVAILABLE

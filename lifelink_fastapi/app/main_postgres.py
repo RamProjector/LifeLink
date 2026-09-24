@@ -604,7 +604,7 @@ async def update_donor_availability_postgres(
 ):
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
-    donor_row = await session.get(DonorRow, donor_id)
+    donor_row = await SqlAlchemyDonorStore(session).get_by_identity(donor_id)
     if donor_row is None or not donor_setup_complete(donor_row):
         raise HTTPException(status_code=409, detail="Complete donor setup before choosing availability")
     try:
@@ -633,11 +633,11 @@ async def donor_request_inbox_postgres(
 ):
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
-    donor_row = await session.get(DonorRow, donor_id)
+    donor_row = await SqlAlchemyDonorStore(session).get_by_identity(donor_id)
     if donor_row is None or not donor_setup_complete(donor_row):
         return []
     items = []
-    for request, match, contact in await SqlAlchemyDonorStore(session).inbox(donor_id):
+    for request, match, contact in await SqlAlchemyDonorStore(session).inbox(donor_row.id):
         items.append(DonorInboxItem(
             request_id=request.id,
             blood_type=request.blood_type.value,
@@ -663,7 +663,10 @@ async def donor_response_postgres(
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
     try:
-        match = await SqlAlchemyDonorStore(session).respond(donor_id, request_id, payload)
+        donor_row = await SqlAlchemyDonorStore(session).get_by_identity(donor_id)
+        if donor_row is None:
+            raise KeyError(donor_id)
+        match = await SqlAlchemyDonorStore(session).respond(donor_row.id, request_id, payload)
     except KeyError:
         raise HTTPException(status_code=403, detail="Donor is not eligible for this request") from None
     except ValueError as exc:
