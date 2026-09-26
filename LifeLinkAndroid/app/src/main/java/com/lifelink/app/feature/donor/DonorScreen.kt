@@ -207,25 +207,58 @@ private fun ProfileCard(
     onLocationSelected: (Double, Double) -> Unit
 ) {
     // Keep an editor draft for this donor. The repository refreshes in the background;
-    // keying these states to each server field used to erase text/chips while editing.
-    var name by remember(profile.donorId) { mutableStateOf(profile.displayName) }
-    var area by remember(profile.donorId) { mutableStateOf(profile.area) }
-    var bloodType by remember(profile.donorId) { mutableStateOf(profile.bloodType) }
-    var serviceRadius by remember(profile.donorId) { mutableStateOf(profile.serviceRadiusKm.toString()) }
-    var manualLatitude by remember(profile.donorId) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
-    var manualLongitude by remember(profile.donorId) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
-    var donorNote by remember(profile.donorId) { mutableStateOf(profile.donorNote) }
-    var preferredContactMethod by remember(profile.donorId) { mutableStateOf(profile.preferredContactMethod) }
-    var pauseReason by remember(profile.donorId) { mutableStateOf(profile.pauseReason.orEmpty()) }
-    var profileVisible by remember(profile.donorId) { mutableStateOf(profile.profileVisible) }
+    // Never key these states to individual server fields: map/GPS updates are
+    // profile emissions and must not replace text, chips, or unsaved choices.
+    var name by remember { mutableStateOf(profile.displayName) }
+    var area by remember { mutableStateOf(profile.area) }
+    var bloodType by remember { mutableStateOf(profile.bloodType) }
+    var serviceRadius by remember { mutableStateOf(profile.serviceRadiusKm.toString()) }
+    var manualLatitude by remember { mutableStateOf(profile.latitude?.toString().orEmpty()) }
+    var manualLongitude by remember { mutableStateOf(profile.longitude?.toString().orEmpty()) }
+    var donorNote by remember { mutableStateOf(profile.donorNote) }
+    var preferredContactMethod by remember { mutableStateOf(profile.preferredContactMethod) }
+    var pauseReason by remember { mutableStateOf(profile.pauseReason.orEmpty()) }
+    var profileVisible by remember { mutableStateOf(profile.profileVisible) }
+    var draftDirty by remember { mutableStateOf(false) }
+    var locationDraftDirty by remember { mutableStateOf(false) }
+
+    LaunchedEffect(profile.donorId) {
+        if (!draftDirty) {
+            name = profile.displayName
+            area = profile.area
+            bloodType = profile.bloodType
+            serviceRadius = profile.serviceRadiusKm.toString()
+            donorNote = profile.donorNote
+            preferredContactMethod = profile.preferredContactMethod
+            pauseReason = profile.pauseReason.orEmpty()
+            profileVisible = profile.profileVisible
+        }
+        if (!locationDraftDirty) {
+            manualLatitude = profile.latitude?.toString().orEmpty()
+            manualLongitude = profile.longitude?.toString().orEmpty()
+        }
+    }
+    LaunchedEffect(profile.latitude, profile.longitude) {
+        if (!locationDraftDirty) {
+            manualLatitude = profile.latitude?.toString().orEmpty()
+            manualLongitude = profile.longitude?.toString().orEmpty()
+        }
+    }
+
+    fun locationSelected(latitude: Double, longitude: Double) {
+        manualLatitude = latitude.toString()
+        manualLongitude = longitude.toString()
+        locationDraftDirty = false
+        onLocationSelected(latitude, longitude)
+    }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Donor profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
-            OutlinedTextField(area, { area = it }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
+            OutlinedTextField(name, { name = it; draftDirty = true }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
+            OutlinedTextField(area, { area = it; draftDirty = true }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
             OutlinedTextField(
                 value = donorNote,
-                onValueChange = { if (it.length <= 500) donorNote = it },
+                onValueChange = { if (it.length <= 500) { donorNote = it; draftDirty = true } },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Optional donor note") },
                 minLines = 2,
@@ -236,7 +269,7 @@ private fun ProfileCard(
                 listOf("in_app" to "In-app", "phone" to "Phone").forEach { (value, label) ->
                     FilterChip(
                         selected = preferredContactMethod == value,
-                        onClick = { preferredContactMethod = value },
+                        onClick = { preferredContactMethod = value; draftDirty = true },
                         label = { Text(label) }
                     )
                 }
@@ -244,7 +277,7 @@ private fun ProfileCard(
             if (profile.availability == DonorAvailability.PAUSED) {
                 OutlinedTextField(
                     value = pauseReason,
-                    onValueChange = { if (it.length <= 240) pauseReason = it },
+                    onValueChange = { if (it.length <= 240) { pauseReason = it; draftDirty = true } },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Why are you paused? (optional)") },
                     singleLine = true
@@ -259,7 +292,7 @@ private fun ProfileCard(
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
-                Switch(checked = profileVisible, onCheckedChange = { profileVisible = it })
+                Switch(checked = profileVisible, onCheckedChange = { profileVisible = it; draftDirty = true })
             }
             Text("Blood type", fontWeight = FontWeight.SemiBold)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -268,7 +301,7 @@ private fun ProfileCard(
                         rowOptions.forEach { option ->
                             FilterChip(
                                 selected = bloodType == option,
-                                onClick = { bloodType = option },
+                                onClick = { bloodType = option; draftDirty = true },
                                 label = { Text(option.label) },
                                 modifier = Modifier.weight(1f)
                             )
@@ -278,7 +311,7 @@ private fun ProfileCard(
             }
             OutlinedTextField(
                 value = serviceRadius,
-                onValueChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value },
+                onValueChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) { serviceRadius = value; draftDirty = true } },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Service radius (km)") },
                 singleLine = true
@@ -289,17 +322,17 @@ private fun ProfileCard(
             )
             Button(onClick = onCaptureLocation, modifier = Modifier.fillMaxWidth()) { Text(if (profile.latitude == null) "Use my current location" else "Update current location") }
             Text("Choose or adjust your approximate donor location", fontWeight = FontWeight.SemiBold)
-            DonorLocationMap(profile.latitude, profile.longitude, onLocationSelected)
+            DonorLocationMap(profile.latitude, profile.longitude, ::locationSelected)
             Text("Only you can see this pin. Requesters receive distance and travel estimates, not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(manualLatitude, { manualLatitude = it }, Modifier.weight(1f), label = { Text("Latitude") }, singleLine = true)
-                OutlinedTextField(manualLongitude, { manualLongitude = it }, Modifier.weight(1f), label = { Text("Longitude") }, singleLine = true)
+                OutlinedTextField(manualLatitude, { manualLatitude = it; locationDraftDirty = true }, Modifier.weight(1f), label = { Text("Latitude") }, singleLine = true)
+                OutlinedTextField(manualLongitude, { manualLongitude = it; locationDraftDirty = true }, Modifier.weight(1f), label = { Text("Longitude") }, singleLine = true)
             }
             OutlinedButton(
                 onClick = {
                     val latitude = manualLatitude.toDoubleOrNull()
                     val longitude = manualLongitude.toDoubleOrNull()
-                    if (latitude != null && longitude != null && latitude in -90.0..90.0 && longitude in -180.0..180.0) onLocationSelected(latitude, longitude)
+                    if (latitude != null && longitude != null && latitude in -90.0..90.0 && longitude in -180.0..180.0) locationSelected(latitude, longitude)
                 },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Use this approximate location") }

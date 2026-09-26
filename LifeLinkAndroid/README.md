@@ -94,7 +94,9 @@ The same value can be supplied through the `LIFELINK_API_BASE_URL` environment v
 
 ## Notifications
 
-The app creates an `Emergency blood requests` notification channel at startup, declares notification permission in the manifest, requests notification permission on Android 13+, and registers a `FirebaseMessagingService` hook. FCM token registration and remote notification delivery still require the Firebase project configuration and credentials.
+The app creates an `Emergency blood requests` notification channel at startup, declares notification permission in the manifest, requests notification permission on Android 13+, and registers a `FirebaseMessagingService` hook. FCM token registration and remote notification delivery require the Firebase project configuration and credentials.
+
+For GitHub Actions, store the base64-encoded contents of the Firebase Android client file as the repository secret `GOOGLE_SERVICES_JSON_BASE64`. The Android workflows restore it to `app/google-services.json` before lint and packaging. Local development can place the file at `app/google-services.json`; it is intentionally not committed.
 
 ## Build
 
