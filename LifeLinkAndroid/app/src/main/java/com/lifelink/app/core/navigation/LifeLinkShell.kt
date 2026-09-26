@@ -254,7 +254,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
         Text(if (role == UserRole.DONOR) "Ready to help nearby?" else "Find help when it matters", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(if (role == UserRole.DONOR) "Keep your availability current so requests can reach you." else "LifeLink helps you reach potential donors while keeping exact locations private.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         if (role == UserRole.DONOR) {
-            Button(onClick = onDonor, Modifier.fillMaxWidth()) { Text("Open donor dashboard") }
+            DonorDashboardSummary(profile = donorState.profile, requestCount = donorState.requests.size, onOpen = onDonor)
         }
         if (role == UserRole.REQUESTER) {
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer), elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)) {
@@ -278,6 +278,40 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("What happens next?", fontWeight = FontWeight.Bold)
                 Text("Open Requests to create or follow a request. Donor contact details are shared only after a donor accepts.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DonorDashboardSummary(
+    profile: com.lifelink.app.domain.DonorProfile,
+    requestCount: Int,
+    onOpen: () -> Unit
+) {
+    val statusColor = when (profile.availability) {
+        DonorAvailability.AVAILABLE -> androidx.compose.material3.MaterialTheme.colorScheme.primary
+        DonorAvailability.PAUSED -> androidx.compose.material3.MaterialTheme.colorScheme.tertiary
+        DonorAvailability.OFFLINE -> androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.secondaryContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+    ) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Donor dashboard", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(profile.availability.label, color = statusColor, fontWeight = FontWeight.Bold)
+            }
+            if (profile.isSetupComplete) {
+                Text("$requestCount matching request${if (requestCount == 1) "" else "s"} in your inbox")
+                Text("Your approximate location and profile are ready for matching.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSecondaryContainer)
+            } else {
+                Text("Complete your donor profile before choosing availability or receiving matching requests.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSecondaryContainer)
+            }
+            Button(onClick = onOpen, Modifier.fillMaxWidth()) {
+                Text(if (profile.isSetupComplete) "Manage donor dashboard" else "Complete donor profile")
             }
         }
     }

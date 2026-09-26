@@ -25,9 +25,10 @@ data class DonorProfileEntity(
     val profileVisible: Boolean
 )
 
-@Entity(tableName = "donor_requests")
+@Entity(tableName = "donor_requests", primaryKeys = ["donorId", "requestId"])
 data class DonorRequestEntity(
-    @androidx.room.PrimaryKey val requestId: String,
+    val donorId: String,
+    val requestId: String,
     val bloodType: String,
     val units: Int,
     val urgency: String,
@@ -42,8 +43,8 @@ interface DonorDao {
     @Query("SELECT * FROM donor_profiles WHERE donorId = :donorId LIMIT 1")
     fun observeProfile(donorId: String): Flow<DonorProfileEntity?>
 
-    @Query("SELECT * FROM donor_requests ORDER BY urgency DESC")
-    fun observeRequests(): Flow<List<DonorRequestEntity>>
+    @Query("SELECT * FROM donor_requests WHERE donorId = :donorId ORDER BY urgency DESC")
+    fun observeRequests(donorId: String): Flow<List<DonorRequestEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertProfile(profile: DonorProfileEntity)
@@ -51,8 +52,8 @@ interface DonorDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertRequest(request: DonorRequestEntity)
 
-    @Query("UPDATE donor_requests SET response = :response WHERE requestId = :requestId")
-    suspend fun updateResponse(requestId: String, response: String)
+    @Query("UPDATE donor_requests SET response = :response WHERE donorId = :donorId AND requestId = :requestId")
+    suspend fun updateResponse(donorId: String, requestId: String, response: String)
 
     @Query("DELETE FROM donor_profiles")
     suspend fun clearProfiles()

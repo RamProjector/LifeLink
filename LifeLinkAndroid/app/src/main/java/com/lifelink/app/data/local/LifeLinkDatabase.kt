@@ -27,7 +27,7 @@ interface EmergencyRequestDraftDao {
     suspend fun clearAll()
 }
 
-@Database(entities = [EmergencyRequestDraftEntity::class, PendingSubmissionEntity::class, ActiveRequestEntity::class, DonorProfileEntity::class, DonorRequestEntity::class, UpdateEntity::class], version = 7, exportSchema = false)
+@Database(entities = [EmergencyRequestDraftEntity::class, PendingSubmissionEntity::class, ActiveRequestEntity::class, DonorProfileEntity::class, DonorRequestEntity::class, UpdateEntity::class], version = 8, exportSchema = false)
 abstract class LifeLinkDatabase : RoomDatabase() {
     abstract fun emergencyRequestDraftDao(): EmergencyRequestDraftDao
     abstract fun pendingSubmissionDao(): PendingSubmissionDao
@@ -52,7 +52,7 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                     context.applicationContext,
                     LifeLinkDatabase::class.java,
                     "lifelink.db"
-                ).addMigrations(MIGRATION_6_7).fallbackToDestructiveMigration().build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_6_7, MIGRATION_7_8).fallbackToDestructiveMigration().build().also { INSTANCE = it }
             }
 
         private val MIGRATION_6_7 = object : Migration(6, 7) {
@@ -65,6 +65,28 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                 database.execSQL("DELETE FROM donor_profiles")
                 database.execSQL("DELETE FROM donor_requests")
                 database.execSQL("DELETE FROM updates")
+            }
+        }
+
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Donor request rows before v8 had no account namespace. Do not
+                // risk showing another account's inbox after upgrading.
+                database.execSQL("DROP TABLE IF EXISTS donor_requests")
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS donor_requests (
+                        donorId TEXT NOT NULL,
+                        requestId TEXT NOT NULL,
+                        bloodType TEXT NOT NULL,
+                        units INTEGER NOT NULL,
+                        urgency TEXT NOT NULL,
+                        facilityName TEXT NOT NULL,
+                        area TEXT NOT NULL,
+                        distanceKm REAL NOT NULL,
+                        response TEXT,
+                        PRIMARY KEY(donorId, requestId)
+                    )
+                """.trimIndent())
             }
         }
     }
