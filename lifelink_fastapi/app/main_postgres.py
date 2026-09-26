@@ -57,10 +57,15 @@ app = FastAPI(title="LifeLink Matching Service — PostgreSQL", lifespan=lifespa
 logger = logging.getLogger("lifelink.api")
 
 
+def enum_value(value):
+    """Accept SQLAlchemy enum instances and plain values on newly inserted rows."""
+    return getattr(value, "value", value)
+
+
 def donor_setup_complete(row: DonorRow) -> bool:
     return (
         len(row.display_name.strip()) >= 2
-        and row.blood_type.value != "UNKNOWN"
+        and enum_value(row.blood_type) != "UNKNOWN"
         and -90 <= float(row.latitude) <= 90
         and -180 <= float(row.longitude) <= 180
         and 0 < float(row.service_radius_km) <= 100
@@ -580,7 +585,7 @@ async def register_donor_postgres(
         donor = Donor(
             donor_id=row.id,
             display_name=row.display_name,
-            blood_type=row.blood_type.value,
+            blood_type=enum_value(row.blood_type),
             latitude=float(row.latitude),
             longitude=float(row.longitude),
             available=row.available,
@@ -623,7 +628,7 @@ async def update_donor_availability_postgres(
     donor = Donor(
         donor_id=row.id,
         display_name=row.display_name,
-        blood_type=row.blood_type.value,
+        blood_type=enum_value(row.blood_type),
         latitude=float(row.latitude), longitude=float(row.longitude),
         available=row.available, availability_updated_at=row.availability_updated_at,
         verified=row.verified, service_radius_km=float(row.service_radius_km),

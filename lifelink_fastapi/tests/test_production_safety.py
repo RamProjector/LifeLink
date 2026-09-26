@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from app.rate_limit import enforce_rate_limit
 from app.main_postgres import RequesterContactOut
+from app.main_postgres import enum_value
 from app.donor_api import DonorResponseIn
 from app.donor_repositories import apply_donor_response_to_contact
 from app.repositories import CONTACT_EMAIL_VISIBLE_STATUSES
@@ -51,3 +52,12 @@ def test_donor_acceptance_does_not_mark_contact_as_shared():
     assert contact.status == "accepted"
     assert contact.accepted_at == accepted_at
     assert contact.contact_shared_at is None
+
+
+def test_postgres_enum_value_handles_plain_and_enum_values():
+    assert enum_value("O+") == "O+"
+
+    class BloodTypeLike:
+        value = "O+"
+
+    assert enum_value(BloodTypeLike()) == "O+"
