@@ -31,6 +31,10 @@ env:
   SUPABASE_URL_VALUE: ${{ inputs.supabase_url || secrets.SUPABASE_URL }}
   # Publishable client key: safe to bundle into a mobile application.
   SUPABASE_KEY_VALUE: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+  LIFELINK_DEBUG_KEYSTORE_BASE64: ${{ secrets.LIFELINK_DEBUG_KEYSTORE_BASE64 }}
+  LIFELINK_DEBUG_STORE_PASSWORD: ${{ secrets.LIFELINK_DEBUG_STORE_PASSWORD }}
+  LIFELINK_DEBUG_KEY_ALIAS: ${{ secrets.LIFELINK_DEBUG_KEY_ALIAS }}
+  LIFELINK_DEBUG_KEY_PASSWORD: ${{ secrets.LIFELINK_DEBUG_KEY_PASSWORD }}
 
 concurrency:
   group: android-build-${{ github.ref }}
@@ -62,8 +66,12 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      - name: Restore stable debug signing key
+        if: ${{ env.LIFELINK_DEBUG_KEYSTORE_BASE64 != '' }}
+        run: echo "$LIFELINK_DEBUG_KEYSTORE_BASE64" | base64 --decode > app/stable-debug.keystore
+
       - name: Build debug APK
-        run: ./gradlew assembleDebug -PlifelinkApiBaseUrl="$API_BASE_URL" -PsupabaseUrl="$SUPABASE_URL_VALUE" -PsupabasePublishableKey="$SUPABASE_KEY_VALUE" --no-daemon --stacktrace
+        run: ./gradlew assembleDebug -PversionCode="${{ github.run_number }}" -PlifelinkApiBaseUrl="$API_BASE_URL" -PsupabaseUrl="$SUPABASE_URL_VALUE" -PsupabasePublishableKey="$SUPABASE_KEY_VALUE" --no-daemon --stacktrace
 
       - name: Rename APKs
         run: |

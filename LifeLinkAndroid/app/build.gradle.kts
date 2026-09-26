@@ -30,8 +30,8 @@ android {
         applicationId = "com.lifelink.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = providers.gradleProperty("versionCode").orElse("1").get().toInt()
+        versionName = providers.gradleProperty("versionName").orElse("1.0.0").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "LIFELINK_API_BASE_URL", "\"${apiBaseUrl.replace("\\\"", "\\\\\"")}\"")
@@ -41,6 +41,20 @@ android {
     }
 
     buildTypes {
+        debug {
+            val stableKeystore = file("stable-debug.keystore")
+            val stableStorePassword = providers.environmentVariable("LIFELINK_DEBUG_STORE_PASSWORD").orNull
+            val stableKeyAlias = providers.environmentVariable("LIFELINK_DEBUG_KEY_ALIAS").orNull
+            val stableKeyPassword = providers.environmentVariable("LIFELINK_DEBUG_KEY_PASSWORD").orNull
+            if (stableKeystore.exists() && stableStorePassword != null && stableKeyAlias != null && stableKeyPassword != null) {
+                signingConfig = signingConfigs.create("stableDebug") {
+                    storeFile = stableKeystore
+                    storePassword = stableStorePassword
+                    keyAlias = stableKeyAlias
+                    keyPassword = stableKeyPassword
+                }
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
