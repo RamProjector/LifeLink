@@ -78,9 +78,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -457,9 +454,7 @@ private fun AcceptedContactCard(
 }
 
 private fun formatContactTimestamp(value: String): String = runCatching {
-    Instant.parse(value)
-        .atZone(ZoneId.systemDefault())
-        .format(DateTimeFormatter.ofPattern("MMM d, h:mm a"))
+    value.take(16).replace('T', ' ')
 }.getOrDefault(value)
 
 @Composable private fun Progress(step: Int, total: Int) {
