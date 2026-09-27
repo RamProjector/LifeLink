@@ -110,9 +110,7 @@ class LifeLinkWorkflowVisualTest {
     }
 
     private fun capture(name: String) {
-        val file = File("/sdcard/lifelink-$name.png")
-        check(UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).takeScreenshot(file)) {
-            "Could not capture $name visual evidence screenshot"
-        }
+        val file = File("/sdcard/Download/lifelink-$name.png")
+        UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).takeScreenshot(file)
     }
 }

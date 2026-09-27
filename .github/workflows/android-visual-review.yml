@@ -55,7 +55,7 @@ jobs:
           ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
           test_exit=$?
           mkdir -p "$GITHUB_WORKSPACE/visual-artifacts"
-          for remote_file in $(adb shell ls /sdcard/lifelink-*.png 2>/dev/null | tr -d '\r'); do
+          for remote_file in $(adb shell ls /sdcard/Download/lifelink-*.png 2>/dev/null | tr -d '\r'); do
             adb pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
           done
           adb logcat -d > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" || true

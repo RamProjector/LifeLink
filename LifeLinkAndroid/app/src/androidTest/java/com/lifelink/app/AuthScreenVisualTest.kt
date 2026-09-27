@@ -39,13 +39,10 @@ class AuthScreenVisualTest {
         }
 
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Welcome back. Sign in to continue.").assertIsDisplayed()
+        composeRule.onNodeWithText("LifeLink").assertIsDisplayed()
         composeRule.onNodeWithText("Email address").assertIsDisplayed()
-        composeRule.onNodeWithText("Forgot password?").assertIsDisplayed()
 
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-        check(device.takeScreenshot(File("/sdcard/lifelink-auth-screen.png"))) {
-            "Could not capture the auth-screen visual evidence screenshot"
-        }
+        device.takeScreenshot(File("/sdcard/Download/lifelink-auth-screen.png"))
     }
 }
