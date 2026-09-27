@@ -62,16 +62,16 @@ jobs:
           disable-spellchecker: true
           disable-animations: true
           script: |
-            cd LifeLinkAndroid
             set +e
+            cd "$GITHUB_WORKSPACE/LifeLinkAndroid" || exit 1
             ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
             test_exit=$?
-            mkdir -p ../visual-artifacts
+            mkdir -p "$GITHUB_WORKSPACE/visual-artifacts"
             for remote_file in $(adb shell ls /sdcard/lifelink-*.png 2>/dev/null | tr -d '\r'); do
-              adb pull "$remote_file" ../visual-artifacts/ || true
+              adb pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
             done
-            adb logcat -d > ../visual-artifacts/logcat.txt || true
-            echo "$test_exit" > ../visual-artifacts/visual-test-exit-code.txt
+            adb logcat -d > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" || true
+            echo "$test_exit" > "$GITHUB_WORKSPACE/visual-artifacts/visual-test-exit-code.txt"
             exit "$test_exit"
 
       - name: Collect visual test reports
