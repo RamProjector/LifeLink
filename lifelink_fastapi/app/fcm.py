@@ -46,9 +46,10 @@ def enabled() -> bool:
     return _service_account() is not None
 
 
-async def send_push(tokens: list[str], title: str, body: str, data: dict[str, str]) -> int:
+async def send_push(recipients: list[tuple[str, str]], title: str, body: str, data: dict[str, str]) -> int:
+    recipients = [(owner, token) for owner, token in recipients if owner.strip() and token.strip()]
     account = _service_account()
-    if not account or not tokens:
+    if not account or not recipients:
         return 0
     auth = await asyncio.to_thread(_access_token, account)
     if not auth:
@@ -58,12 +59,12 @@ async def send_push(tokens: list[str], title: str, body: str, data: dict[str, st
     headers = {"Authorization": f"Bearer {access_token}"}
     sent = 0
     async with httpx.AsyncClient(timeout=10) as client:
-        for token in set(tokens):
+        for owner_id, token in set(recipients):
             payload = {
                 "message": {
                     "token": token,
-                    "notification": {"title": title, "body": body},
-                    "data": data,
+                    # Data-only delivery lets Android verify the signed-in owner before display.
+                    "data": {**data, "user_id": owner_id, "title": title, "body": body},
                     "android": {"priority": "high"},
                 }
             }
@@ -78,8 +79,8 @@ async def send_push(tokens: list[str], title: str, body: str, data: dict[str, st
     return sent
 
 
-async def send_push_safely(tokens: list[str], title: str, body: str, data: dict[str, str]) -> None:
+async def send_push_safely(recipients: list[tuple[str, str]], title: str, body: str, data: dict[str, str]) -> None:
     try:
-        await send_push(tokens, title, body, data)
+        await send_push(recipients, title, body, data)
     except Exception:
         logger.exception("FCM delivery failed without affecting the API request")

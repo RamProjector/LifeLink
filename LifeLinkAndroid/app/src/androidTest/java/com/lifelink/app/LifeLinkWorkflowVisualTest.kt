@@ -5,7 +5,13 @@ import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasText
+import com.lifelink.app.core.ui.theme.ThemeMode
+import com.lifelink.app.domain.RequestHistoryItem
+import com.lifelink.app.domain.ActiveRequestStatus
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -25,8 +31,7 @@ class LifeLinkWorkflowVisualTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
-    @Test
-    fun navigatesCoreWorkflowsAndCapturesEvidence() {
+    private fun render(state: EmergencyRequestUiState = EmergencyRequestUiState(), updates: List<com.lifelink.app.domain.UpdateItem> = emptyList()) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.getSharedPreferences("lifelink_welcome", 0)
             .edit()
@@ -35,9 +40,9 @@ class LifeLinkWorkflowVisualTest {
 
         composeRule.activity.runOnUiThread {
             composeRule.activity.setContent {
-                LifeLinkTheme {
+                LifeLinkTheme(themeMode = testTheme) {
                     LifeLinkShell(
-                        state = EmergencyRequestUiState(),
+                        state = state,
                         onAction = {},
                         donorState = DonorUiState(),
                         onDonorAction = {},
@@ -48,11 +53,11 @@ class LifeLinkWorkflowVisualTest {
                         profileSaving = false,
                         profileMessage = null,
                         onSaveProfile = {},
-                        themeMode = com.lifelink.app.core.ui.theme.ThemeMode.SYSTEM,
+                        themeMode = testTheme,
                         onThemeModeChange = {},
                         onRequestPasswordReset = {},
                         onSignOut = {},
-                        updates = emptyList(),
+                        updates = updates,
                         onUpdateRead = {},
                         onMarkAllUpdatesRead = {}
                     )
@@ -61,7 +66,15 @@ class LifeLinkWorkflowVisualTest {
         }
 
         composeRule.waitForIdle()
-        assertVisible("Find help when it matters")
+    }
+
+    private val testTheme: ThemeMode
+        get() = if (InstrumentationRegistry.getArguments().getString("theme") == "dark") ThemeMode.DARK else ThemeMode.LIGHT
+
+    @Test
+    fun navigatesCoreWorkflowsAndCapturesEvidence() {
+        render()
+        assertVisible("Your requests")
         capture("workflow-home")
 
         tapTab("Requests")
@@ -69,7 +82,7 @@ class LifeLinkWorkflowVisualTest {
         capture("workflow-requests")
 
         tapTab("Updates")
-        assertVisible("Nothing new")
+        assertVisible("Nothing needs your attention")
         capture("workflow-updates")
 
         tapTab("Profile")
@@ -77,7 +90,7 @@ class LifeLinkWorkflowVisualTest {
         capture("workflow-settings-profile")
 
         tap("Legal")
-        assertVisible("Legal and conduct")
+        assertVisible("Legal & Safety Center")
         capture("workflow-settings-legal")
 
         tap("Theme")
@@ -89,19 +102,64 @@ class LifeLinkWorkflowVisualTest {
         capture("workflow-settings-security")
 
         tap("Profile")
-        tap("Become a donor")
+        composeRule.onNodeWithText("Become a donor").performScrollTo().performClick()
         assertVisible("Donor workspace")
         assertVisible("Finish donor setup")
         capture("workflow-donor")
     }
 
+    @Test
+    fun homeAdaptsToWindowSize() {
+        render()
+        val widthDp = composeRule.activity.resources.configuration.screenWidthDp
+        if (widthDp >= 600) composeRule.onNodeWithTag("navigation-rail").assertIsDisplayed()
+        else composeRule.onNodeWithTag("navigation-rail").assertDoesNotExist()
+        assertVisible("Your requests")
+        capture("home-adaptive")
+        composeRule.onNodeWithText("Create emergency request").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun homeOpensRequestFormDirectly() {
+        render()
+        composeRule.onNodeWithText("Create emergency request").performScrollTo().performClick()
+        assertVisible("Blood need")
+        capture("request-form")
+    }
+
+    @Test
+    fun homeLinksOpenRequestsAndActivity() {
+        render(updates = listOf(com.lifelink.app.domain.UpdateItem(
+            id = "visual-update", type = com.lifelink.app.domain.UpdateType.DONOR_RESPONSE,
+            title = "A donor responded", body = "Open your request to see the response.",
+            createdAtEpochMillis = System.currentTimeMillis()
+        )))
+        composeRule.onNodeWithText("View all").performScrollTo().performClick()
+        assertVisible("No active request")
+        tapTab("Home")
+        composeRule.onNodeWithText("A donor responded").performScrollTo().performClick()
+        assertVisible("Activity")
+        assertVisible("A donor responded")
+    }
+
+    @Test
+    fun historyCanReachLastRequest() {
+        render(EmergencyRequestUiState(requestHistory = List(30) { index ->
+            RequestHistoryItem("history-$index", ActiveRequestStatus.FULFILLED, bloodType = "O+", units = 2)
+        }))
+        tapTab("Requests")
+        composeRule.onNodeWithTag("request-history").performScrollToNode(hasText("Request history-29"))
+        assertVisible("Request history-29")
+        capture("request-history")
+    }
+
     private fun tapTab(label: String) {
-        composeRule.onAllNodesWithText(label, useUnmergedTree = true)[0].performClick()
+        composeRule.onNodeWithTag("nav-${label.uppercase()}").performClick()
         composeRule.waitForIdle()
     }
 
     private fun tap(label: String) {
-        composeRule.onNodeWithText(label, useUnmergedTree = true).performClick()
+        composeRule.onNodeWithTag("settings-${label.uppercase()}").performScrollTo().performClick()
         composeRule.waitForIdle()
     }
 
@@ -110,7 +168,7 @@ class LifeLinkWorkflowVisualTest {
     }
 
     private fun capture(name: String) {
-        val file = File("/sdcard/Download/lifelink-$name.png")
-        UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).takeScreenshot(file)
+        val file = File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null), "lifelink-${InstrumentationRegistry.getArguments().getString("scenario", "phone")}-${testTheme.name.lowercase()}-$name.png")
+        check(UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).takeScreenshot(file)) { "Could not save screenshot" }
     }
 }

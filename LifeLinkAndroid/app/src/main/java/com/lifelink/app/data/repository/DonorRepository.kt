@@ -14,6 +14,8 @@ import com.lifelink.app.data.remote.DonorProfileRequest
 import com.lifelink.app.data.remote.DonorResponseRequest
 import com.lifelink.app.data.remote.LifeLinkApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import java.util.Locale
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -26,7 +28,10 @@ class DonorRepositoryImpl(
 ) : DonorRepository {
     private fun donorId(): String = donorIdProvider()?.takeIf { it.isNotBlank() } ?: error("Sign in before using donor mode.")
 
-    override fun observeProfile(): Flow<DonorProfile> = dao.observeProfile(donorId()).map { it?.toDomain() ?: DonorProfile(donorId = donorId()) }
+    override fun observeProfile(): Flow<DonorProfile> {
+        val ownerId = donorId()
+        return dao.observeProfile(ownerId).map { it?.toDomain() ?: DonorProfile(donorId = ownerId) }
+    }
     override fun observeRequests(): Flow<List<DonorRequest>> = dao.observeRequests(donorId()).map { list -> list.map { it.toDomain() } }
 
     override suspend fun saveProfile(profile: DonorProfile) {
@@ -75,7 +80,14 @@ class DonorRepositoryImpl(
     override suspend fun refresh() = withContext(Dispatchers.IO) {
         val remote = api ?: return@withContext
         val ownerId = donorId()
-        runCatching { remote.getDonorProfile(ownerId) }.getOrNull()?.takeIf { it.isSuccessful }?.body()?.let { response ->
+        val profileResponse = remote.getDonorProfile(ownerId)
+        if (profileResponse.code() == 404) {
+            dao.clearAll(ownerId)
+            return@withContext
+        }
+        check(profileResponse.isSuccessful) { "Donor profile could not be loaded (${profileResponse.code()})." }
+        val restored = checkNotNull(profileResponse.body()) { "The server returned an empty donor profile." }
+        restored.let { response ->
             val bloodType = BloodType.values().firstOrNull { it.label.replace('−', '-') == response.bloodType }
             dao.upsertProfile(DonorProfile(
                 donorId = ownerId,
@@ -94,22 +106,29 @@ class DonorRepositoryImpl(
         }
         val profile = dao.observeProfile(ownerId).first()
         if (profile != null && profile.toDomain().isSetupComplete) {
-            remote.donorRequests(ownerId).body().orEmpty().forEach { request ->
-                dao.upsertRequest(DonorRequestEntity(ownerId, request.requestId, request.bloodType, request.units, request.urgency, request.facilityName, request.area, request.distanceKm, request.status.takeUnless { it == "not_responded" }))
-            }
+            val response = remote.donorRequests(ownerId)
+            check(response.isSuccessful) { "Donor requests could not be loaded (${response.code()})." }
+            val requests = checkNotNull(response.body()) { "The server returned an empty donor inbox response." }
+            dao.replaceRequests(ownerId, requests.map { request ->
+                DonorRequestEntity(ownerId, request.requestId, request.bloodType, request.units, request.urgency, request.facilityName, request.area, request.distanceKm, request.status.takeUnless { it.equals("not_responded", ignoreCase = true) })
+            })
+        } else {
+            dao.clearRequests(ownerId)
         }
     }
 
     override suspend fun respond(requestId: String, response: DonorResponse): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            val local = dao.observeProfile(donorId()).first()
+            val ownerId = donorId()
+            val local = dao.observeProfile(ownerId).first()
             val remote = api
-            if (local != null && remote != null) {
-                val result = remote.respondToDonorRequest(local.donorId, requestId, DonorResponseRequest(response.name.lowercase()))
+            check(local?.toDomain()?.isSetupComplete == true) { "Complete your donor profile before responding." }
+            if (remote != null) {
+                val result = remote.respondToDonorRequest(ownerId, requestId, DonorResponseRequest(response.name.lowercase()))
                 check(result.isSuccessful) { "The server rejected the response" }
             }
-            dao.updateResponse(donorId(), requestId, response.name)
-        }
+            dao.updateResponse(ownerId, requestId, response.name)
+        }.onFailure { if (it is CancellationException) throw it }
     }
 
     suspend fun seedDemoRequests() {
@@ -121,4 +140,4 @@ class DonorRepositoryImpl(
 
 private fun DonorProfile.toEntity() = DonorProfileEntity(donorId, displayName, bloodType?.name, area, serviceRadiusKm, availability.name, verified, latitude, longitude, locationPrecisionMeters, donorNote, preferredContactMethod, pauseReason, profileVisible)
 private fun DonorProfileEntity.toDomain() = DonorProfile(donorId, displayName, bloodType?.let { runCatching { BloodType.valueOf(it) }.getOrNull() }, area, serviceRadiusKm, runCatching { DonorAvailability.valueOf(availability) }.getOrDefault(DonorAvailability.OFFLINE), verified, latitude, longitude, locationPrecisionMeters, donorNote, preferredContactMethod, pauseReason, profileVisible)
-private fun DonorRequestEntity.toDomain() = DonorRequest(requestId, bloodType, units, urgency, facilityName, area, distanceKm, response?.let { runCatching { DonorResponse.valueOf(it) }.getOrNull() })
+private fun DonorRequestEntity.toDomain() = DonorRequest(requestId, bloodType, units, urgency, facilityName, area, distanceKm, response?.let { runCatching { DonorResponse.valueOf(it.uppercase(Locale.ROOT)) }.getOrNull() })

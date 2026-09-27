@@ -11,12 +11,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.RemoteMessage
 import com.lifelink.app.MainActivity
+import com.lifelink.app.LifeLinkApplication
 import com.lifelink.app.data.local.LifeLinkDatabase
 import com.lifelink.app.data.repository.UpdatesRepository
 import com.lifelink.app.domain.UpdateType
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 object LifeLinkNotifications {
     const val EMERGENCY_CHANNEL_ID = "lifelink_emergency_requests"
@@ -52,8 +50,12 @@ object LifeLinkNotifications {
             "request_status" -> UpdateType.REQUEST_STATUS
             else -> UpdateType.SYSTEM
         }
-        CoroutineScope(Dispatchers.IO).launch {
-            UpdatesRepository(LifeLinkDatabase.getInstance(context).updateDao()).record(
+        val ownerId = data["user_id"]?.takeIf { it.isNotBlank() } ?: return
+        val app = context.applicationContext as? LifeLinkApplication ?: return
+        val currentOwner = app.authRepository.session.value?.userId
+        if (ownerId != currentOwner) return
+        app.launchAccountWrite(ownerId) {
+            UpdatesRepository(LifeLinkDatabase.getInstance(context).updateDao(), ownerId).record(
                 id = eventId,
                 type = updateType,
                 title = title,

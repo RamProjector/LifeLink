@@ -1,7 +1,9 @@
 package com.lifelink.app.feature.auth
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,7 +16,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -22,7 +23,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -70,46 +70,21 @@ fun AuthScreen(
     val canSubmit = if (resetReady) passwordValid && passwordsMatch && !busy else emailValid && (recoveryMode || (passwordValid && passwordsMatch)) && !busy
 
     Surface(color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .imePadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 28.dp)
-                .widthIn(max = 560.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                if (resetReady) "Choose a new password for your LifeLink account."
-                else if (recoveryMode) "Recover access to your LifeLink account."
-                else if (createAccount) "Join the community helping people find blood donors."
-                else "LifeLink",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-
-            if (!recoveryMode && !resetReady) Row(
-                modifier = Modifier.fillMaxWidth().background(
-                    MaterialTheme.colorScheme.surfaceVariant,
-                    RoundedCornerShape(12.dp)
-                ).padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 560.dp)
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .imePadding()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                AuthModeButton("Sign in", !createAccount, Modifier.weight(1f)) { createAccount = false }
-                AuthModeButton("Create account", createAccount, Modifier.weight(1f)) { createAccount = true }
-            }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
+                Text("LifeLink", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(12.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(
                         if (resetReady) "Create a new password" else if (recoveryMode) "Reset your password" else if (createAccount) "Create your account" else "Sign in",
                         style = MaterialTheme.typography.headlineSmall,
@@ -118,7 +93,7 @@ fun AuthScreen(
                     Text(
                         if (resetReady) "Your recovery link is confirmed. Enter and confirm your new password below."
                         else if (recoveryMode) "We’ll email a secure password-reset link."
-                        else if (createAccount) "Use an email address you can open. Supabase may send a confirmation link."
+                        else if (createAccount) "Use an email you can access. Check your inbox for a confirmation link."
                         else "Use the email and password associated with your LifeLink account.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -184,8 +159,8 @@ fun AuthScreen(
                             else onSignIn(email.trim(), password)
                         },
                         enabled = canSubmit,
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        shape = RoundedCornerShape(14.dp)
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                        shape = MaterialTheme.shapes.small
                     ) {
                         if (busy) {
                             CircularProgressIndicator(
@@ -208,24 +183,16 @@ fun AuthScreen(
                     if (recoveryMode && !resetReady) TextButton(onClick = { recoveryMode = false }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Back to sign in") }
                     if (state is AuthState.EmailConfirmationRequired) OutlinedButton(onClick = { onResendConfirmation(email.trim()) }, enabled = emailValid && !busy, modifier = Modifier.fillMaxWidth()) { Text("Resend confirmation email") }
                 }
+                if (!recoveryMode && !resetReady) {
+                    TextButton(
+                        onClick = { createAccount = !createAccount },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text(if (createAccount) "Already have an account? Sign in" else "Create an account")
+                    }
+                }
             }
-
-            HorizontalDivider()
-            Text(
-                "Your account protects emergency requests, donor profiles, and contact actions. Never share your password.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
-    }
-}
-
-@Composable
-private fun AuthModeButton(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    if (selected) {
-        Button(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(9.dp)) { Text(label) }
-    } else {
-        TextButton(onClick = onClick, modifier = modifier) { Text(label) }
     }
 }
 

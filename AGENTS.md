@@ -24,5 +24,5 @@ Read this file and `docs/PROJECT_CONTEXT_AND_REGRESSION_GUARDRAILS.md` before ch
 
 - `MainActivity.kt` loads `/v1/profile` after Supabase sign-in. Server role/capabilities determine startup; local role preferences are keyed by user ID only.
 - `DonorRepository.kt` restores `/v1/donors/{donorId}` before loading the donor inbox and scopes donor requests by owner ID.
-- `LifeLinkDatabase.kt` is version 7. Migration 6→7 adds owner IDs to cached donor requests and active requests; legacy rows have an empty owner and must not be returned.
+- `LifeLinkDatabase.kt` is version 9. Migrations 6→7→8→9 preserve legacy rows while introducing account ownership; drafts, pending submissions, and updates have composite owner/item keys. Legacy unowned rows have an empty owner and must not be returned.
 - `main_postgres.py` returns `can_request` and `can_donate` in profile responses and exposes authenticated donor profile GET.

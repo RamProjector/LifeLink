@@ -5,6 +5,8 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.workDataOf
+import kotlinx.coroutines.CancellationException
 import com.google.gson.Gson
 import com.lifelink.app.data.local.ActiveRequestDao
 import com.lifelink.app.data.local.ActiveRequestEntity
@@ -47,9 +49,9 @@ class EmergencyRequestRepositoryImpl(
     private val requesterIdProvider: () -> String? = { null },
     private val networkAvailable: () -> Boolean = { true }
 ) : EmergencyRequestRepository {
-    override suspend fun saveDraft(draft: EmergencyRequestDraft) = draftDao.upsert(draft.toEntity())
+    override suspend fun saveDraft(draft: EmergencyRequestDraft) = draftDao.upsert(draft.toEntity(requireRequesterId()))
 
-    override suspend fun loadDraft(id: String): EmergencyRequestDraft? = draftDao.findById(id)?.toDomain()
+    override suspend fun loadDraft(id: String): EmergencyRequestDraft? = draftDao.findById(requireRequesterId(), id)?.toDomain()
 
     override fun observeActiveRequest(): Flow<ActiveRequestSnapshot?> =
         activeRequestDao.observeLatest(requireRequesterId()).map { it?.toDomain() }
@@ -86,6 +88,8 @@ class EmergencyRequestRepositoryImpl(
             val snapshot = body.toSnapshot()
             activeRequestDao.upsert(snapshot.toEntity(requireRequesterId()))
             snapshot
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             null
         }
@@ -95,7 +99,7 @@ class EmergencyRequestRepositoryImpl(
         try {
             val response = api.submitEmergencyRequest(draft.id, EmergencyRequestRequest.from(draft, requesterIdProvider()))
             if (!response.isSuccessful) {
-                SubmitResult.Error(serverError(response.code(), response.errorBody()?.string()))
+                SubmitResult.Error(serverError(response.code(), response.errorBody()?.string()), retryable = response.code() == 408 || response.code() == 429 || response.code() >= 500)
             } else {
                 val body = response.body()
                 if (body == null) {
@@ -103,9 +107,11 @@ class EmergencyRequestRepositoryImpl(
                 } else if (body.status.equals("manual_broadcast", ignoreCase = true)) {
                     val fallback = SubmitResult.ManualFallback(body.requestId, body.reason ?: "Automatic matching is unavailable for this request.")
                     activeRequestDao.upsert(ActiveRequestSnapshot(body.requestId, ActiveRequestStatus.MANUAL_BROADCAST, reason = body.reason).toEntity(requireRequesterId()))
+                    pendingSubmissionDao.delete(requireRequesterId(), draft.id)
                     fallback
                 } else {
                     activeRequestDao.upsert(ActiveRequestSnapshot(body.requestId, ActiveRequestStatus.AWAITING_RESPONSES, body.notificationsCreated).toEntity(requireRequesterId()))
+                    pendingSubmissionDao.delete(requireRequesterId(), draft.id)
                     SubmitResult.MatchingStarted(
                         body.requestId,
                         body.matches.map { match ->
@@ -116,11 +122,13 @@ class EmergencyRequestRepositoryImpl(
             }
         } catch (_: IOException) {
             if (networkAvailable()) {
-                SubmitResult.Error("LifeLink is taking longer than expected to respond. Your draft is saved; please retry in a moment.")
+                SubmitResult.Error("LifeLink is taking longer than expected to respond. Your draft is saved; please retry in a moment.", retryable = true)
             } else {
                 queueForRetry(draft)
                 SubmitResult.OfflineQueued(draft.id)
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             SubmitResult.Error("We couldn’t reach LifeLink right now. Your draft is still saved.")
         }
@@ -135,6 +143,8 @@ class EmergencyRequestRepositoryImpl(
             } else SubmitResult.Error("Manual broadcast could not be sent (${response.code()}).")
         } catch (_: IOException) {
             SubmitResult.Error("You’re offline. No manual broadcast was sent.")
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             SubmitResult.Error("Manual broadcast could not be sent. Please retry.")
         }
@@ -147,6 +157,8 @@ class EmergencyRequestRepositoryImpl(
             else SubmitResult.Error("Selected donors could not be contacted (${response.code()}).")
         } catch (_: IOException) {
             SubmitResult.Error("You’re offline. No donor contact request was sent.")
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             SubmitResult.Error("Selected donors could not be contacted. Please retry.")
         }
@@ -193,6 +205,8 @@ class EmergencyRequestRepositoryImpl(
             } else SubmitResult.Error("The request could not be cancelled (${response.code()}).")
         } catch (_: IOException) {
             SubmitResult.Error("You’re offline. The request is still active.")
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             SubmitResult.Error("The request could not be cancelled. Please retry.")
         }
@@ -207,22 +221,25 @@ class EmergencyRequestRepositoryImpl(
             } else SubmitResult.Error("The request could not be marked fulfilled (${response.code()}).")
         } catch (_: IOException) {
             SubmitResult.Error("You’re offline. The request is still active.")
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             SubmitResult.Error("The request could not be marked fulfilled. Please retry.")
         }
     }
 
     private suspend fun queueForRetry(draft: EmergencyRequestDraft) {
-        pendingSubmissionDao.upsert(PendingSubmissionEntity(id = draft.id, payloadJson = Gson().toJson(draft)))
+        pendingSubmissionDao.upsert(PendingSubmissionEntity(ownerId = requireRequesterId(), id = draft.id, payloadJson = Gson().toJson(draft)))
         val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
         val work = OneTimeWorkRequestBuilder<PendingSubmissionWorker>()
             .setConstraints(constraints)
-            .addTag("lifelink-account-work")
+            .setInputData(workDataOf(PendingSubmissionWorker.OWNER_ID to requireRequesterId(), PendingSubmissionWorker.DRAFT_ID to draft.id))
+            .addTag("lifelink-account-${requireRequesterId()}")
             .build()
-        workManager.enqueueUniqueWork("lifelink-submit-${draft.id}", ExistingWorkPolicy.KEEP, work)
+        workManager.enqueueUniqueWork("lifelink-submit-${requireRequesterId()}-${draft.id}", ExistingWorkPolicy.KEEP, work)
     }
 
-    private fun requireRequesterId(): String = requesterIdProvider()?.takeIf { it.isNotBlank() } ?: "unauthenticated"
+    private fun requireRequesterId(): String = requesterIdProvider()?.takeIf { it.isNotBlank() } ?: error("Sign in before using emergency requests.")
 
     private fun serverError(code: Int, body: String?): String {
         val detail = body?.let {
@@ -238,15 +255,15 @@ class EmergencyRequestRepositoryImpl(
 
 private data class ApiErrorResponse(val detail: String? = null)
 
-class LifeLinkAppContainer(
-    val authRepository: com.lifelink.app.core.auth.SupabaseAuthRepository,
+class LifeLinkAccountContainer(
+    val api: LifeLinkApi,
     val emergencyRequestRepository: EmergencyRequestRepository,
     val donorRepository: DonorRepository,
     val updatesRepository: UpdatesRepository
 )
 
-private fun EmergencyRequestDraft.toEntity() = EmergencyRequestDraftEntity(
-    id = id, bloodType = bloodType?.name, units = units, typeUnknown = typeUnknown,
+private fun EmergencyRequestDraft.toEntity(ownerId: String) = EmergencyRequestDraftEntity(
+    ownerId = ownerId, id = id, bloodType = bloodType?.name, units = units, typeUnknown = typeUnknown,
     urgency = urgency.name, responseDeadline = responseDeadline, note = note,
     facilityId = facility?.id, facilityName = facility?.name, facilityArea = facility?.area,
     facilityVerified = facility?.verified ?: false, contactMethod = contactMethod.name,

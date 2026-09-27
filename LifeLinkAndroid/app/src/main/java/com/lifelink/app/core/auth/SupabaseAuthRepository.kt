@@ -4,6 +4,9 @@ import android.net.Uri
 import com.google.gson.annotations.SerializedName
 import com.lifelink.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
@@ -18,10 +21,15 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Query
 
-class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
+class SupabaseAuthRepository(
+    private val sessionStore: AuthSessionStore,
+    baseUrl: String = BuildConfig.SUPABASE_URL,
+    private val publishableKey: String = BuildConfig.SUPABASE_PUBLISHABLE_KEY
+) {
+    private val refreshMutex = Mutex()
     private val _sessionExpired = MutableStateFlow(false)
     val sessionExpired = _sessionExpired.asStateFlow()
-    private val api: SupabaseAuthApi? = BuildConfig.SUPABASE_URL.takeIf { it.isNotBlank() }?.let { baseUrl ->
+    private val api: SupabaseAuthApi? = baseUrl.takeIf { it.isNotBlank() }?.let { baseUrl ->
         Retrofit.Builder()
             .baseUrl(if (baseUrl.endsWith('/')) baseUrl else "$baseUrl/")
             .client(OkHttpClient.Builder().build())
@@ -33,24 +41,24 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
     val session = sessionStore.session
 
     suspend fun signUp(email: String, password: String): Result<AuthResult> = authenticate {
-        api?.signUp(BuildConfig.SUPABASE_PUBLISHABLE_KEY, AuthRequest(email, password), SIGNUP_REDIRECT_URI)
+        api?.signUp(publishableKey, AuthRequest(email, password), SIGNUP_REDIRECT_URI)
             ?: error("Supabase URL is not configured")
     }
 
     suspend fun signIn(email: String, password: String): Result<AuthResult> = authenticate {
-        api?.signIn(BuildConfig.SUPABASE_PUBLISHABLE_KEY, AuthRequest(email, password))
+        api?.signIn(publishableKey, AuthRequest(email, password))
             ?: error("Supabase URL is not configured")
     }
 
     suspend fun requestPasswordReset(email: String): Result<Unit> = simpleAuthAction {
-        api?.recover(BuildConfig.SUPABASE_PUBLISHABLE_KEY, PasswordRecoveryRequest(email, RECOVERY_REDIRECT_URI))
+        api?.recover(publishableKey, PasswordRecoveryRequest(email, RECOVERY_REDIRECT_URI))
             ?: error("Supabase URL is not configured")
     }
 
     suspend fun completeEmailConfirmation(callback: AuthCallback): Result<AuthSession> = withContext(Dispatchers.IO) {
         runCatching {
             val response = api?.getUser(
-                BuildConfig.SUPABASE_PUBLISHABLE_KEY,
+                publishableKey,
                 "Bearer ${callback.accessToken}"
             ) ?: error("Supabase URL is not configured")
             if (!response.isSuccessful) error("Email confirmation could not be completed. Please sign in.")
@@ -60,7 +68,7 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
                 refreshToken = callback.refreshToken.orEmpty(),
                 userId = user.id,
                 email = user.email.orEmpty()
-            ).also(sessionStore::save)
+            ).also { sessionStore.save(it); _sessionExpired.value = false }
         }
     }
 
@@ -91,9 +99,9 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
 
     suspend fun updatePassword(accessToken: String, password: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            if (BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
+            if (publishableKey.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
             val response = api?.updateUser(
-                BuildConfig.SUPABASE_PUBLISHABLE_KEY,
+                publishableKey,
                 "Bearer $accessToken",
                 PasswordUpdateRequest(password)
             ) ?: error("Supabase URL is not configured")
@@ -102,40 +110,50 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
     }
 
     suspend fun resendConfirmation(email: String): Result<Unit> = simpleAuthAction {
-        api?.resend(BuildConfig.SUPABASE_PUBLISHABLE_KEY, ResendRequest("signup", email))
+        api?.resend(publishableKey, ResendRequest("signup", email))
             ?: error("Supabase URL is not configured")
     }
 
     suspend fun refreshAccessToken(): String? = withContext(Dispatchers.IO) {
-        val current = sessionStore.session.value ?: return@withContext null
-        if (current.refreshToken.isBlank()) return@withContext null
-        val refreshed = runCatching {
-            val response = api?.refresh(BuildConfig.SUPABASE_PUBLISHABLE_KEY, RefreshRequest(current.refreshToken))
-                ?: return@runCatching null
-            if (!response.isSuccessful) return@runCatching null
-            val body = response.body() ?: return@runCatching null
-            val accessToken = body.accessToken?.takeIf { it.isNotBlank() } ?: return@runCatching null
-            val refreshed = AuthSession(
-                accessToken = accessToken,
-                refreshToken = body.refreshToken?.takeIf { it.isNotBlank() } ?: current.refreshToken,
-                userId = body.user?.id ?: current.userId,
-                email = body.user?.email ?: current.email
-            )
-            sessionStore.save(refreshed)
-            accessToken
-        }.getOrNull()
-        if (refreshed == null) {
-            sessionStore.clear()
-            _sessionExpired.value = true
+        val requestedSession = sessionStore.session.value ?: return@withContext null
+        refreshMutex.withLock {
+            val current = sessionStore.session.value ?: return@withLock null
+            if (current != requestedSession) {
+                return@withLock current.accessToken.takeIf { current.userId == requestedSession.userId }
+            }
+            if (current.refreshToken.isBlank()) return@withLock null
+            try {
+                val response = api?.refresh(publishableKey, RefreshRequest(current.refreshToken))
+                    ?: return@withLock null
+                if (sessionStore.session.value != current) return@withLock null
+                if (!response.isSuccessful) {
+                    if (response.code() == 400 || response.code() == 401 || response.code() == 403) {
+                        if (sessionStore.replace(current, null)) _sessionExpired.value = true
+                    }
+                    return@withLock null
+                }
+                val body = response.body() ?: return@withLock null
+                val accessToken = body.accessToken?.takeIf { it.isNotBlank() } ?: return@withLock null
+                if (body.user != null && body.user.id != current.userId) return@withLock null
+                val refreshed = current.copy(
+                    accessToken = accessToken,
+                    refreshToken = body.refreshToken?.takeIf { it.isNotBlank() } ?: current.refreshToken,
+                    email = body.user?.email ?: current.email
+                )
+                accessToken.takeIf { sessionStore.replace(current, refreshed) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: java.io.IOException) {
+                null
+            }
         }
-        refreshed
     }
 
     fun signOut() = sessionStore.clear()
 
     private suspend fun authenticate(call: suspend () -> Response<SupabaseAuthResponse>): Result<AuthResult> = withContext(Dispatchers.IO) {
         runCatching {
-            if (BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) {
+            if (publishableKey.isBlank()) {
                 error("Add the Supabase URL and publishable key to the Android build")
             }
             val response = call()
@@ -149,7 +167,7 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
                 AuthResult.EmailConfirmationRequired
             } else {
                 AuthSession(accessToken, body.refreshToken.orEmpty(), user.id, user.email.orEmpty())
-                    .also(sessionStore::save)
+                    .also { sessionStore.save(it); _sessionExpired.value = false }
                 AuthResult.SignedIn(sessionStore.session.value!!)
             }
         }
@@ -157,7 +175,7 @@ class SupabaseAuthRepository(private val sessionStore: AuthSessionStore) {
 
     private suspend fun simpleAuthAction(call: suspend () -> Response<Unit>): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            if (BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
+            if (publishableKey.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
             val response = call()
             if (!response.isSuccessful) error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
         }

@@ -7,8 +7,9 @@ import com.lifelink.app.domain.UpdateType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-class UpdatesRepository(private val dao: UpdateDao) {
-    fun observe(): Flow<List<UpdateItem>> = dao.observeAll().map { updates -> updates.map(UpdateEntity::toDomain) }
+class UpdatesRepository(private val dao: UpdateDao, private val ownerId: String) {
+    init { require(ownerId.isNotBlank()) }
+    fun observe(): Flow<List<UpdateItem>> = dao.observeAll(ownerId).map { updates -> updates.map(UpdateEntity::toDomain) }
 
     suspend fun record(
         id: String,
@@ -19,13 +20,13 @@ class UpdatesRepository(private val dao: UpdateDao) {
         actionKey: String? = null,
         createdAtEpochMillis: Long = System.currentTimeMillis()
     ) {
-        val existing = dao.findById(id)
-        dao.upsert(UpdateEntity(id, type.name, title, body, createdAtEpochMillis, requestId, actionKey, existing?.isRead ?: false))
+        val existing = dao.findById(ownerId, id)
+        dao.upsert(UpdateEntity(ownerId, id, type.name, title, body, createdAtEpochMillis, requestId, actionKey, existing?.isRead ?: false))
     }
 
-    suspend fun markRead(id: String) = dao.markRead(id)
+    suspend fun markRead(id: String) = dao.markRead(ownerId, id)
 
-    suspend fun markAllRead() = dao.markAllRead()
+    suspend fun markAllRead() = dao.markAllRead(ownerId)
 }
 
 private fun UpdateEntity.toDomain() = UpdateItem(

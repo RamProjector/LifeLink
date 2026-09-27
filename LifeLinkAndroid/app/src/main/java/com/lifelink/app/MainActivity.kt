@@ -6,6 +6,20 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -27,7 +41,6 @@ import com.lifelink.app.feature.auth.AuthScreen
 import com.lifelink.app.feature.auth.AuthState
 import com.lifelink.app.feature.auth.AuthViewModel
 import com.lifelink.app.feature.auth.AuthViewModelFactory
-import com.lifelink.app.feature.auth.RoleSelectionScreen
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.auth.UserRoleStore
 import com.lifelink.app.domain.UpdateType
@@ -35,10 +48,10 @@ import com.lifelink.app.feature.updates.UpdatesViewModel
 import com.lifelink.app.feature.updates.UpdatesViewModelFactory
 import com.lifelink.app.data.remote.ProfileRequest
 import com.lifelink.app.data.remote.PushTokenRequest
-import com.lifelink.app.data.remote.RetrofitProvider
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 class MainActivity : ComponentActivity() {
     private var recoveryUri by mutableStateOf<Uri?>(null)
@@ -58,21 +71,11 @@ class MainActivity : ComponentActivity() {
             LifeLinkTheme(themeMode = themeMode) {
                 RequestNotificationPermissionIfNeeded()
                 val authViewModel: AuthViewModel = viewModel(
-                    factory = AuthViewModelFactory(app.container.authRepository)
+                    factory = AuthViewModelFactory(app.authRepository)
                 )
                 LaunchedEffect(recoveryUri) { authViewModel.handleAuthCallback(recoveryUri) }
                 val authState by authViewModel.state.collectAsStateWithLifecycle()
                 val roleStore = remember { UserRoleStore(this@MainActivity) }
-                val authCleanupScope = rememberCoroutineScope()
-                var hadSignedInSession by remember { mutableStateOf(false) }
-                LaunchedEffect(authState) {
-                    if (authState is AuthState.SignedIn) {
-                        hadSignedInSession = true
-                    } else if (hadSignedInSession) {
-                        hadSignedInSession = false
-                        authCleanupScope.launch { app.clearLocalAccountData() }
-                    }
-                }
                 if (authState !is AuthState.SignedIn) {
                     AuthScreen(
                         state = authState,
@@ -85,24 +88,25 @@ class MainActivity : ComponentActivity() {
                     return@LifeLinkTheme
                 }
                 val roleSyncScope = rememberCoroutineScope()
-                var role by remember { mutableStateOf<UserRole?>(null) }
+                val signedInSession = (authState as AuthState.SignedIn).session
+                val accountUserId = signedInSession.userId
+                var roleLoadError by remember(accountUserId) { mutableStateOf<String?>(null) }
+                var roleAttempt by remember(accountUserId) { mutableStateOf(0) }
+                var role by remember(accountUserId) { mutableStateOf<UserRole?>(null) }
                 var displayName by remember { mutableStateOf("") }
                 var canRequest by remember { mutableStateOf(true) }
                 var canDonate by remember { mutableStateOf(false) }
                 var profileSaving by remember { mutableStateOf(false) }
                 var profileMessage by remember { mutableStateOf<String?>(null) }
-                val signedInSession = (authState as? AuthState.SignedIn)?.session
-                val accountUserId = signedInSession?.userId.orEmpty()
-                LaunchedEffect(accountUserId) {
+                val account = remember(accountUserId) { app.accountContainer(accountUserId) }
+                LaunchedEffect(accountUserId, roleAttempt) {
+                    roleLoadError = null
                     role = null
                     displayName = ""
                     canRequest = true
                     canDonate = false
                     if (accountUserId.isNotBlank()) {
-                        val api = RetrofitProvider.create(
-                                tokenProvider = { app.container.authRepository.session.value?.accessToken ?: signedInSession?.accessToken },
-                                onUnauthorized = app.container.authRepository::refreshAccessToken
-                            )
+                        val api = account.api
                         runCatching { api.getProfile() }.onSuccess { response ->
                             if (response.isSuccessful) {
                                 response.body()?.let { profile ->
@@ -124,35 +128,59 @@ class MainActivity : ComponentActivity() {
                                     runCatching { api.upsertProfile(ProfileRequest("requester", canRequest = true, canDonate = false)) }
                                 }
                             }
-                        }.onFailure {
-                            // Keep the shell from guessing a donor role when the profile is unavailable.
-                            role = UserRole.REQUESTER
+                            if (role == null) roleLoadError = "Your profile could not be loaded (${response.code()}). Please retry."
+                        }.onFailure { error ->
+                            if (error is CancellationException) throw error
+                            roleLoadError = "Your profile could not be loaded. Check your connection and retry."
                         }
                         runCatching { fetchFirebaseToken() }
                             .onSuccess { token -> runCatching { api.registerPushToken(PushTokenRequest(token)) } }
                     }
                 }
                 if (role == null) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        if (roleLoadError == null) {
+                            CircularProgressIndicator()
+                            Text("Loading your profile…")
+                        } else {
+                            Text(roleLoadError.orEmpty())
+                            Button(onClick = { roleAttempt++ }) { Text("Retry") }
+                            Button(onClick = authViewModel::signOut) { Text("Sign out") }
+                        }
+                    }
                     return@LifeLinkTheme
                 }
+                val accountModels: AccountViewModelStore = viewModel(key = "account-models-$accountUserId")
+                DisposableEffect(accountModels) {
+                    onDispose {
+                        if (!this@MainActivity.isChangingConfigurations) accountModels.viewModelStore.clear()
+                    }
+                }
                 val viewModel: EmergencyRequestViewModel = viewModel(
+                    viewModelStoreOwner = accountModels,
                     key = "emergency-request-$accountUserId",
-                    factory = EmergencyRequestViewModelFactory(app.container.emergencyRequestRepository)
+                    factory = EmergencyRequestViewModelFactory(account.emergencyRequestRepository)
                 )
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
                 val donorViewModel: DonorViewModel = viewModel(
+                    viewModelStoreOwner = accountModels,
                     key = "donor-$accountUserId",
-                    factory = DonorViewModelFactory(app.container.donorRepository)
+                    factory = DonorViewModelFactory(account.donorRepository)
                 )
                 val donorState by donorViewModel.state.collectAsStateWithLifecycle()
                 val updatesViewModel: UpdatesViewModel = viewModel(
+                    viewModelStoreOwner = accountModels,
                     key = "updates-$accountUserId",
-                    factory = UpdatesViewModelFactory(app.container.updatesRepository)
+                    factory = UpdatesViewModelFactory(account.updatesRepository)
                 )
                 val updates by updatesViewModel.updates.collectAsStateWithLifecycle()
                 LaunchedEffect(state.activeRequest?.requestId, state.activeRequest?.status) {
                     state.activeRequest?.let { active ->
-                        app.container.updatesRepository.record(
+                        account.updatesRepository.record(
                             id = "request:${active.requestId}:${active.status.name}",
                             type = UpdateType.REQUEST_STATUS,
                             title = "Request ${active.status.label.lowercase()}",
@@ -165,7 +193,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(state.contacts) {
                     state.activeRequest?.requestId?.let { requestId ->
                         state.contacts.forEach { contact ->
-                            app.container.updatesRepository.record(
+                            account.updatesRepository.record(
                                 id = "contact:$requestId:${contact.donorId}:${contact.status}",
                                 type = UpdateType.CONTACT_STATUS,
                                 title = "Contact request ${contact.status.replace('_', ' ')}",
@@ -179,7 +207,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(donorState.requests) {
                     donorState.requests.forEach { request ->
                         request.response?.let { response ->
-                            app.container.updatesRepository.record(
+                            account.updatesRepository.record(
                                 id = "donor-response:${request.requestId}",
                                 type = UpdateType.DONOR_RESPONSE,
                                 title = "Response sent",
@@ -206,10 +234,7 @@ class MainActivity : ComponentActivity() {
                             profileSaving = true
                             profileMessage = null
                             runCatching {
-                                RetrofitProvider.create(
-                                    tokenProvider = { app.container.authRepository.session.value?.accessToken ?: signedInSession?.accessToken },
-                                    onUnauthorized = app.container.authRepository::refreshAccessToken
-                                        ).upsertProfile(ProfileRequest(role?.name?.lowercase() ?: "requester", updatedName.trim(), canRequest = canRequest, canDonate = canDonate))
+                                account.api.upsertProfile(ProfileRequest(role?.name?.lowercase() ?: "requester", updatedName.trim(), canRequest = canRequest, canDonate = canDonate))
                             }.onSuccess { response ->
                                 if (response.isSuccessful) {
                                     displayName = response.body()?.displayName.orEmpty()
@@ -230,7 +255,7 @@ class MainActivity : ComponentActivity() {
                             if (email.isBlank()) {
                                 showMessage("No account email is available for password recovery.")
                             } else {
-                                app.container.authRepository.requestPasswordReset(email)
+                                app.authRepository.requestPasswordReset(email)
                                     .onSuccess { showMessage("Reset link sent. Check your inbox.") }
                                     .onFailure { showMessage(it.message ?: "Could not send the reset link.") }
                             }
@@ -238,10 +263,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onSignOut = {
                         roleStore.clear(accountUserId)
-                        roleSyncScope.launch {
-                            app.clearLocalAccountData()
-                            authViewModel.signOut()
-                        }
+                        authViewModel.signOut()
                     },
                     updates = updates,
                     onUpdateRead = updatesViewModel::markRead,
@@ -264,3 +286,9 @@ class MainActivity : ComponentActivity() {
 
 @Suppress("DEPRECATION")
 private suspend fun fetchFirebaseToken(): String = FirebaseMessaging.getInstance().getToken().await()
+
+/** Keeps account work across rotation and cancels it when the account leaves the UI. */
+class AccountViewModelStore : ViewModel(), ViewModelStoreOwner {
+    override val viewModelStore = ViewModelStore()
+    override fun onCleared() = viewModelStore.clear()
+}

@@ -40,7 +40,7 @@ fun UpdatesScreen(
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Activity", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("Activity", Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
                     Text(
                         if (unread == 0) "You’re up to date." else "$unread item${if (unread == 1) "" else "s"} need your attention.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant

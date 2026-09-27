@@ -70,7 +70,7 @@ sealed interface SubmitResult {
     data class Cancelled(val requestId: String) : SubmitResult
     data class Fulfilled(val requestId: String) : SubmitResult
     data class OfflineQueued(val draftId: String) : SubmitResult
-    data class Error(val message: String) : SubmitResult
+    data class Error(val message: String, val retryable: Boolean = false) : SubmitResult
 }
 
 interface EmergencyRequestRepository {

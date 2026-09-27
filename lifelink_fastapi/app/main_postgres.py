@@ -84,20 +84,20 @@ async def sqlalchemy_error_handler(request: Request, exc: SQLAlchemyError) -> JS
     return JSONResponse(status_code=503, content={"detail": "LifeLink could not save the request right now. Please retry."})
 
 
-async def _tokens_for_donors(session: AsyncSession, donor_ids: list[str]) -> list[str]:
+async def _push_recipients_for_donors(session: AsyncSession, donor_ids: list[str]) -> list[tuple[str, str]]:
     if not donor_ids:
         return []
     result = await session.execute(
-        select(LifeLinkProfile.fcm_token)
+        select(LifeLinkProfile.user_id, LifeLinkProfile.fcm_token)
         .join(DonorRow, DonorRow.user_id == LifeLinkProfile.user_id)
         .where(DonorRow.id.in_(donor_ids), LifeLinkProfile.fcm_token.is_not(None))
     )
-    return [token for (token,) in result.all() if token]
+    return [(owner_id, token) for owner_id, token in result.all() if owner_id and token]
 
 
-async def _token_for_user(session: AsyncSession, user_id: str) -> list[str]:
+async def _push_recipient_for_user(session: AsyncSession, user_id: str) -> list[tuple[str, str]]:
     token = await session.scalar(select(LifeLinkProfile.fcm_token).where(LifeLinkProfile.user_id == user_id))
-    return [token] if token else []
+    return [(user_id, token)] if token else []
 
 
 class ProfileIn(BaseModel):
@@ -314,7 +314,7 @@ async def create_emergency_request_postgres(
         status=RequestStatus.AWAITING_RESPONSES,
     )
     await send_push_safely(
-        await _tokens_for_donors(session, [match.donor_id for match in record.matches]),
+        await _push_recipients_for_donors(session, [match.donor_id for match in record.matches]),
         "LifeLink donor match",
         f"A {record.payload.blood_type.value} blood request needs a response near {record.payload.location.area}.",
         {"type": "donor_match", "request_id": record.request_id},
@@ -354,7 +354,7 @@ async def contact_selected_donors_postgres(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await store.record_audit_async(principal.subject, "contact_requested", request_id, metadata={"donor_count": len(payload.donor_ids)})
     await send_push_safely(
-        await _tokens_for_donors(session, payload.donor_ids),
+        await _push_recipients_for_donors(session, payload.donor_ids),
         "LifeLink contact request",
         "A requester selected you for contact. Open LifeLink to review the request.",
         {"type": "contact_request", "request_id": request_id},
@@ -727,7 +727,7 @@ async def donor_response_postgres(
     request = await session.get(EmergencyRequestRow, request_id)
     if request is not None:
         await send_push_safely(
-            await _token_for_user(session, request.requester_id),
+            await _push_recipient_for_user(session, request.requester_id),
             "LifeLink donor response",
             f"A donor has {payload.response}ed your request. Open LifeLink to view the update.",
             {"type": "donor_response", "request_id": request_id},

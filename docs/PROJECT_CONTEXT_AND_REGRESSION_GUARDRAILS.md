@@ -16,7 +16,7 @@ Existing accounts must not be routed using one device-wide role value. Startup i
 
 Every account-specific local query must include the authenticated user ID. This applies to active requests, request history, pending request state where applicable, donor profiles, donor inbox records, and updates. A global `SELECT ... ORDER BY ... LIMIT 1` or global donor-request feed is a cross-account data leak and is not acceptable.
 
-The Android Room database is currently version 7. Migration 6→7 adds `ownerId` to cached donor requests and active requests. Legacy rows receive an empty owner ID and therefore are intentionally ignored rather than shown to another account. Do not remove this migration or “solve” the problem by relying only on destructive migration.
+The Android Room database is currently version 9. Migrations 6→7→8→9 preserve legacy rows while adding account ownership. Migration 8→9 gives drafts, pending submissions, and updates composite owner/item keys and handles older active-request tables missing owner IDs. Unowned legacy rows receive an empty owner and are intentionally ignored. Keep these migrations; the historical reset fallback is limited to unsupported versions 1–5. Offline workers must carry an owner ID and exact draft ID, and repository network clients must remain bound to their account.
 
 The donor page must restore a saved profile from `GET /v1/donors/{donorId}` before deciding whether setup is complete. A local empty profile is not evidence that the server profile is missing. The donor inbox may be loaded only after the restored profile is complete.
 

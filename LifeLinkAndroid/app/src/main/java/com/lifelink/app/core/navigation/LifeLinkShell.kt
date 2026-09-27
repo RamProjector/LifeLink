@@ -1,6 +1,33 @@
 package com.lifelink.app.core.navigation
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.tooling.preview.Preview
+import com.lifelink.app.core.ui.LifeLinkPageHeader
+import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +54,8 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -50,6 +79,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.RequestHistoryItem
@@ -65,9 +95,10 @@ import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.domain.UpdateItem
 import com.lifelink.app.feature.updates.UpdatesScreen
 
-private enum class ShellTab { HOME, REQUESTS, UPDATES, PROFILE }
+private enum class ShellTab(val label: String) { HOME("Home"), REQUESTS("Requests"), UPDATES("Updates"), PROFILE("Profile") }
 private enum class SettingsSection { PROFILE, LEGAL, SAFETY, ABOUT, THEME, SECURITY }
 
+@OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
 @Composable
 fun LifeLinkShell(
     state: EmergencyRequestUiState,
@@ -130,50 +161,84 @@ fun LifeLinkShell(
         return
     }
     if (showActive && state.activeRequest != null) {
+        BackHandler { showActive = false }
         ActiveRequestScreen(state = state, onAction = onAction, onBack = { showActive = false })
         return
     }
     if (showDonor) {
+        BackHandler { showDonor = false }
         DonorScreen(state = donorState, onAction = onDonorAction, onBack = { showDonor = false })
         return
     }
+    BackHandler(enabled = tab != ShellTab.HOME) { tab = ShellTab.HOME }
     val unreadUpdates = updates.count { !it.isRead }
 
-    Scaffold(
-        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
-        bottomBar = {
-            NavigationBar(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
-                NavigationBarItem(tab == ShellTab.HOME, { tab = ShellTab.HOME }, icon = { Icon(Icons.Default.Home, "Home") }, label = { Text("Home") })
-                NavigationBarItem(tab == ShellTab.REQUESTS, { tab = ShellTab.REQUESTS }, icon = { Icon(Icons.AutoMirrored.Filled.Assignment, "Requests") }, label = { Text("Requests") })
-                NavigationBarItem(
-                    tab == ShellTab.UPDATES,
-                    { tab = ShellTab.UPDATES },
-                    icon = {
-                        BadgedBox(badge = { if (unreadUpdates > 0 && tab != ShellTab.UPDATES) Badge() }) {
-                            Icon(Icons.Default.NotificationsNone, if (unreadUpdates > 0) "Updates, $unreadUpdates unread" else "Updates")
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val windowSize = WindowSizeClass.calculateFromSize(DpSize(maxWidth, maxHeight))
+        val useRail = windowSize.widthSizeClass != WindowWidthSizeClass.Compact
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            bottomBar = {
+                if (!useRail) NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+                    ShellTab.entries.forEach { destination ->
+                        NavigationBarItem(
+                            selected = tab == destination,
+                            onClick = { tab = destination },
+                            icon = { ShellNavigationIcon(destination, unreadUpdates) },
+                            label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            modifier = Modifier.testTag("nav-${destination.name}")
+                        )
+                    }
+                }
+            }
+        ) { padding ->
+            Row(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+                if (useRail) NavigationRail(
+                    modifier = Modifier.fillMaxHeight().testTag("navigation-rail"),
+                    containerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    ShellTab.entries.forEach { destination ->
+                        NavigationRailItem(
+                            selected = tab == destination,
+                            onClick = { tab = destination },
+                            icon = { ShellNavigationIcon(destination, unreadUpdates) },
+                            label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            modifier = Modifier.testTag("nav-${destination.name}")
+                        )
+                    }
+                }
+                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
+                    Surface(Modifier.widthIn(max = 840.dp).fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        when (tab) {
+                            ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true }, updates = updates, onRequests = { tab = ShellTab.REQUESTS }, onUpdates = { tab = ShellTab.UPDATES })
+                            ShellTab.REQUESTS -> RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = { showRequest = true }, onActive = { showActive = true })
+                            ShellTab.UPDATES -> UpdatesScreen(
+                                updates = updates,
+                                onOpen = { update ->
+                                    onUpdateRead(update.id)
+                                    update.requestId?.let { onAction(EmergencyRequestAction.OpenRequest(it)); showActive = true }
+                                },
+                                onMarkAllRead = onMarkAllUpdatesRead
+                            )
+                            ShellTab.PROFILE -> SettingsContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, themeMode, onThemeModeChange, onRequestPasswordReset, { showStart = false; showDonor = true }, onSignOut)
                         }
-                    },
-                    label = { Text("Updates") }
-                )
-                NavigationBarItem(tab == ShellTab.PROFILE, { tab = ShellTab.PROFILE }, icon = { Icon(Icons.Default.Person, "Profile") }, label = { Text("Profile") })
+                    }
+                }
             }
         }
-    ) { padding ->
-        Surface(Modifier.fillMaxSize().padding(padding)) {
-            when (tab) {
-                ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { tab = ShellTab.REQUESTS }, onActive = { showActive = true }, onDonor = { showDonor = true })
-                ShellTab.REQUESTS -> RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = { showRequest = true }, onActive = { showActive = true })
-                ShellTab.UPDATES -> UpdatesScreen(
-                    updates = updates,
-                    onOpen = { update ->
-                        onUpdateRead(update.id)
-                        update.requestId?.let { onAction(EmergencyRequestAction.OpenRequest(it)); showActive = true }
-                    },
-                    onMarkAllRead = onMarkAllUpdatesRead
-                )
-                ShellTab.PROFILE -> SettingsContent(role, accountEmail, accountUserId, accountDisplayName, profileSaving, profileMessage, onSaveProfile, themeMode, onThemeModeChange, onRequestPasswordReset, { showStart = false; showDonor = true }, onSignOut)
-            }
-        }
+    }
+}
+
+@Composable
+private fun ShellNavigationIcon(tab: ShellTab, unread: Int) {
+    val icon = when (tab) {
+        ShellTab.HOME -> Icons.Default.Home
+        ShellTab.REQUESTS -> Icons.AutoMirrored.Filled.Assignment
+        ShellTab.UPDATES -> Icons.Default.NotificationsNone
+        ShellTab.PROFILE -> Icons.Default.Person
+    }
+    BadgedBox(badge = { if (tab == ShellTab.UPDATES && unread > 0) Badge { Text(if (unread > 99) "99+" else unread.toString()) } }) {
+        Icon(icon, contentDescription = if (tab == ShellTab.UPDATES && unread > 0) "$unread unread updates" else null)
     }
 }
 
@@ -184,41 +249,50 @@ fun LifeLinkShell(
     onOpen: () -> Unit,
     onActive: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Requests", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("Create a request, review matching donors, and follow responses in one place.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-        if (state.step == com.lifelink.app.domain.RequestStep.RESULTS && state.submission is com.lifelink.app.feature.emergencyrequest.SubmissionState.Matching) {
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Matching results ready", fontWeight = FontWeight.Bold)
-                    Text("Review nearby donors and manage contact requests.")
-                    Button(onClick = onOpen, Modifier.fillMaxWidth()) { Text("Open matching results") }
+    LazyColumn(
+        Modifier.fillMaxSize().testTag("request-history"),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item { LifeLinkPageHeader("Requests") }
+        item {
+            if (state.step == com.lifelink.app.domain.RequestStep.RESULTS && state.submission is com.lifelink.app.feature.emergencyrequest.SubmissionState.Matching) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Matching results ready", style = MaterialTheme.typography.titleLarge)
+                        Text("Review nearby donors and choose who to contact.")
+                        Button(onClick = onOpen, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Open matching results") }
+                    }
+                }
+            } else if (state.activeRequest != null) {
+                ActiveRequestSummary(state, onActive)
+            } else {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("No active request", style = MaterialTheme.typography.titleMedium)
+                        Text("When you need blood, start with the type, amount, and location.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
-        } else if (state.activeRequest != null) {
-            Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Active request", fontWeight = FontWeight.Bold)
-                    Text(state.activeRequest.status.label)
-                    TextButton(onClick = onActive) { Text("View live status") }
-                }
-            }
-        } else {
-            Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("No active request", fontWeight = FontWeight.Bold)
-        Text("Start a request when you need help finding potential donors nearby.")
-                }
+        }
+        item {
+            Button(onClick = onCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = MaterialTheme.shapes.medium) {
+                Icon(Icons.Default.Add, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Create emergency request")
             }
         }
         if (state.requestHistory.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("Request history", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                TextButton(onClick = { onAction(EmergencyRequestAction.RefreshHistory) }, enabled = !state.historyRefreshing) { Text(if (state.historyRefreshing) "Refreshing…" else "Refresh") }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Request history", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { onAction(EmergencyRequestAction.RefreshHistory) }, enabled = !state.historyRefreshing) {
+                        Text(if (state.historyRefreshing) "Refreshing…" else "Refresh")
+                    }
+                }
             }
-            state.requestHistory.forEach { request -> RequestHistoryCard(request) }
+            items(state.requestHistory, key = { it.requestId }) { RequestHistoryCard(it) }
         }
-        Button(onClick = onCreate, Modifier.fillMaxWidth()) { Text("Create emergency request") }
     }
 }
 
@@ -227,7 +301,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(request.status.label, fontWeight = FontWeight.SemiBold)
+                Text(request.status.label, modifier = Modifier.weight(1f).padding(end = 12.dp), fontWeight = FontWeight.SemiBold)
                 Text(if (request.status in setOf(com.lifelink.app.domain.ActiveRequestStatus.FULFILLED, com.lifelink.app.domain.ActiveRequestStatus.EXPIRED, com.lifelink.app.domain.ActiveRequestStatus.CANCELLED)) "Past" else "Active", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
             }
             Text("Request ${request.requestId.take(12)}", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
@@ -245,40 +319,84 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     role: UserRole,
     onCreate: () -> Unit,
     onActive: () -> Unit,
-    onDonor: () -> Unit
+    onDonor: () -> Unit,
+    updates: List<UpdateItem>,
+    onRequests: () -> Unit,
+    onUpdates: () -> Unit
 ) {
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(if (role == UserRole.DONOR) "Donor home" else "Requester home", style = androidx.compose.material3.MaterialTheme.typography.labelLarge, color = androidx.compose.material3.MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-        Text(if (role == UserRole.DONOR) "Ready to help nearby?" else "Find help when it matters", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(if (role == UserRole.DONOR) "Keep your availability current so matching stays clear." else "Create a request, follow responses, and share details only when you choose.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-        if (role == UserRole.DONOR) {
-            DonorDashboardSummary(profile = donorState.profile, requestCount = donorState.requests.size, onOpen = onDonor)
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            LifeLinkPageHeader("LifeLink")
         }
-        if (role == UserRole.REQUESTER) {
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer)) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Need blood? Start here.", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Share the essentials and review potential matches before contacting anyone.")
-                    Button(onClick = onCreate, Modifier.fillMaxWidth()) { Text("Create emergency request") }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            if (role == UserRole.DONOR) {
+                DonorDashboardSummary(donorState.profile, donorState.requests.size, onDonor)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Your requests", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    TextButton(onClick = onRequests) { Text("View all") }
+                }
+                if (state.activeRequest != null) {
+                    ActiveRequestSummary(state, onActive)
+                } else {
+                    Column(Modifier.padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("No active request", style = MaterialTheme.typography.bodyLarge)
+                        Text("Create a request to find nearby blood donors.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Button(onClick = onCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = MaterialTheme.shapes.small) {
+                    Icon(Icons.Default.Add, null, Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Create emergency request")
                 }
             }
-        }
-        state.activeRequest?.let { active ->
-            Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Active request", style = androidx.compose.material3.MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(active.status.label, color = androidx.compose.material3.MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-                    TextButton(onClick = onActive) { Text("View live status") }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Recent activity", style = MaterialTheme.typography.titleMedium)
+                if (updates.isEmpty()) {
+                    Text("No updates yet", modifier = Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyLarge)
+                    Text("Donor responses and request updates will appear here.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    updates.take(3).forEach { update ->
+                        ListItem(
+                            headlineContent = { Text(update.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                            supportingContent = { Text(update.body, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                            modifier = Modifier.fillMaxWidth().clickable(onClick = onUpdates)
+                        )
+                    }
+                    TextButton(onClick = onUpdates) { Text("View all updates") }
                 }
             }
-        }
-        if (role == UserRole.REQUESTER && state.activeRequest == null) {
-            Text("Exact locations stay private. Contact details are shared only after donor acceptance.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
         }
     }
+}
+
+@Composable
+private fun ActiveRequestSummary(state: EmergencyRequestUiState, onOpen: () -> Unit) {
+    val active = state.activeRequest ?: return
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(if (active.isTerminal) "Latest request" else "Active request", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(active.status.label, style = MaterialTheme.typography.titleLarge)
+            Text("${active.matchesResponded} donor responses", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = onOpen) { Text(if (active.isTerminal) "View request" else "View live status"); Spacer(Modifier.width(8.dp)); Icon(Icons.AutoMirrored.Filled.ArrowForward, null) }
+        }
+    }
+}
+
+@Preview(name = "Home · light", widthDp = 360, heightDp = 820, showBackground = true)
+@Preview(name = "Home · dark", widthDp = 360, heightDp = 820, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun HomePreview() {
+    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, emptyList(), {}, {}) }
 }
 
 @Composable
@@ -294,19 +412,19 @@ private fun DonorDashboardSummary(
     }
     Card(
         Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.secondaryContainer),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Donor dashboard", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Donor dashboard", modifier = Modifier.weight(1f).padding(end = 12.dp), style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
                 Text(profile.availability.label, color = statusColor, fontWeight = FontWeight.Bold)
             }
             if (profile.isSetupComplete) {
                 Text("$requestCount matching request${if (requestCount == 1) "" else "s"} in your inbox")
-                Text("Your approximate location and profile are ready for matching.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSecondaryContainer)
+                Text("Your approximate location and profile are ready for matching.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                Text("Complete your donor profile before choosing availability or receiving matching requests.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSecondaryContainer)
+                Text("Complete your donor profile before choosing availability or receiving matching requests.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Button(onClick = onOpen, Modifier.fillMaxWidth()) {
                 Text(if (profile.isSetupComplete) "Manage donor dashboard" else "Complete donor profile")
@@ -324,14 +442,14 @@ private fun StartContent(
 ) {
     Surface(color = androidx.compose.material3.MaterialTheme.colorScheme.background) {
         Column(
-            Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 28.dp, vertical = 32.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+            Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp, vertical = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(32.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                Text("LifeLink", style = androidx.compose.material3.MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+                Text("LifeLink", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    if (role == UserRole.DONOR) "A calm, private way to manage when you can help."
-                    else "A clear way to find eligible blood donors nearby.",
+                    if (role == UserRole.DONOR) "Set up your donor profile"
+                    else "Find nearby blood donors",
                     style = androidx.compose.material3.MaterialTheme.typography.headlineSmall
                 )
                 Text(
@@ -433,12 +551,13 @@ private fun StartContent(
     val sections = listOf(SettingsSection.PROFILE, SettingsSection.LEGAL, SettingsSection.SAFETY, SettingsSection.ABOUT, SettingsSection.THEME, SettingsSection.SECURITY)
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Profile", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Profile", style = MaterialTheme.typography.titleLarge)
             Text("Account, privacy, and LifeLink information.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         }
         ScrollableTabRow(selectedTabIndex = sections.indexOf(section), edgePadding = 12.dp) {
             sections.forEach { item ->
                 Tab(
+                    modifier = Modifier.testTag("settings-${item.name}"),
                     selected = section == item,
                     onClick = { section = item },
                     text = { Text(item.name.lowercase().replaceFirstChar { it.uppercase() }) }
@@ -457,20 +576,21 @@ private fun StartContent(
 }
 
 @Composable private fun ThemeContent(themeMode: ThemeMode, onThemeModeChange: (ThemeMode) -> Unit) {
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).selectableGroup().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Appearance", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         ThemeMode.values().forEach { mode ->
             Card(
-                Modifier.fillMaxWidth().clickable { onThemeModeChange(mode) },
+                Modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(selected = themeMode == mode, role = Role.RadioButton, onClick = { onThemeModeChange(mode) }),
                 colors = CardDefaults.cardColors(containerColor = if (themeMode == mode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
             ) {
                 Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = themeMode == mode, onClick = { onThemeModeChange(mode) })
+                    RadioButton(selected = themeMode == mode, onClick = null)
                     Text(
                         when (mode) {
                             ThemeMode.SYSTEM -> "Use device setting"
                             ThemeMode.LIGHT -> "Light"
                             ThemeMode.DARK -> "Dark"
+                            ThemeMode.DYNAMIC -> "Wallpaper colors (Android 12+)"
                         },
                         modifier = Modifier.padding(start = 4.dp),
                         fontWeight = if (themeMode == mode) FontWeight.SemiBold else FontWeight.Normal

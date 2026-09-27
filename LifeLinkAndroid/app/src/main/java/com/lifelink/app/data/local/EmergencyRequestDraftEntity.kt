@@ -3,9 +3,10 @@ package com.lifelink.app.data.local
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "emergency_request_drafts")
+@Entity(tableName = "emergency_request_drafts", primaryKeys = ["ownerId", "id"])
 data class EmergencyRequestDraftEntity(
-    @PrimaryKey val id: String,
+    val ownerId: String,
+    val id: String,
     val bloodType: String?,
     val units: Int,
     val typeUnknown: Boolean,

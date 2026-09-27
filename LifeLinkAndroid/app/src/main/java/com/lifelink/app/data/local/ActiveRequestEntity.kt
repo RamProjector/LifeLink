@@ -31,11 +31,11 @@ interface ActiveRequestDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(request: ActiveRequestEntity)
 
-    @Query("DELETE FROM active_requests WHERE requestId = :requestId")
-    suspend fun delete(requestId: String)
+    @Query("DELETE FROM active_requests WHERE ownerId = :ownerId AND requestId = :requestId")
+    suspend fun delete(ownerId: String, requestId: String)
 
-    @Query("DELETE FROM active_requests")
-    suspend fun clearAll()
+    @Query("DELETE FROM active_requests WHERE ownerId = :ownerId")
+    suspend fun clearAll(ownerId: String)
 }
 
 fun ActiveRequestEntity.toDomain(): ActiveRequestSnapshot = ActiveRequestSnapshot(

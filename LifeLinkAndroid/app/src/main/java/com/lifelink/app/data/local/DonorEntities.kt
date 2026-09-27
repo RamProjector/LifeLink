@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "donor_profiles")
@@ -43,7 +44,7 @@ interface DonorDao {
     @Query("SELECT * FROM donor_profiles WHERE donorId = :donorId LIMIT 1")
     fun observeProfile(donorId: String): Flow<DonorProfileEntity?>
 
-    @Query("SELECT * FROM donor_requests WHERE donorId = :donorId ORDER BY urgency DESC")
+    @Query("SELECT * FROM donor_requests WHERE donorId = :donorId ORDER BY CASE LOWER(urgency) WHEN 'critical' THEN 0 WHEN 'urgent' THEN 1 ELSE 2 END, distanceKm ASC")
     fun observeRequests(donorId: String): Flow<List<DonorRequestEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -55,14 +56,22 @@ interface DonorDao {
     @Query("UPDATE donor_requests SET response = :response WHERE donorId = :donorId AND requestId = :requestId")
     suspend fun updateResponse(donorId: String, requestId: String, response: String)
 
-    @Query("DELETE FROM donor_profiles")
-    suspend fun clearProfiles()
+    @Query("DELETE FROM donor_profiles WHERE donorId = :donorId")
+    suspend fun clearProfiles(donorId: String)
 
-    @Query("DELETE FROM donor_requests")
-    suspend fun clearRequests()
+    @Query("DELETE FROM donor_requests WHERE donorId = :donorId")
+    suspend fun clearRequests(donorId: String)
 
-    suspend fun clearAll() {
-        clearProfiles()
-        clearRequests()
+    @Transaction
+    suspend fun replaceRequests(donorId: String, requests: List<DonorRequestEntity>) {
+        require(requests.all { it.donorId == donorId })
+        clearRequests(donorId)
+        requests.forEach { upsertRequest(it) }
+    }
+
+    @Transaction
+    suspend fun clearAll(donorId: String) {
+        clearProfiles(donorId)
+        clearRequests(donorId)
     }
 }

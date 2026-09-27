@@ -68,10 +68,10 @@ jobs:
             exit 2
           fi
           cd "$GITHUB_WORKSPACE/LifeLinkAndroid" || exit 1
-          ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+          ./gradlew connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --no-daemon --stacktrace
           test_exit=$?
           mkdir -p "$GITHUB_WORKSPACE/visual-artifacts"
-          for remote_file in $(adb -s "$device_serial" shell ls /sdcard/Download/lifelink-*.png 2>/dev/null | tr -d '\r'); do
+          for remote_file in $(adb -s "$device_serial" shell ls /sdcard/Android/data/com.lifelink.app/files/lifelink-*.png 2>/dev/null | tr -d '\r'); do
             adb -s "$device_serial" pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
           done
           adb -s "$device_serial" logcat -d > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" || true
