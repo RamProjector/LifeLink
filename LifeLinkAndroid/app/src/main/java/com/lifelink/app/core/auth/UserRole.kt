@@ -10,15 +10,15 @@ enum class UserRole(val title: String, val description: String) {
 class UserRoleStore(context: Context) {
     private val preferences = context.getSharedPreferences("lifelink_user_role", Context.MODE_PRIVATE)
 
-    fun get(): UserRole? = preferences.getString("role", null)?.let { value ->
+    fun get(userId: String): UserRole? = preferences.getString("role_$userId", null)?.let { value ->
         runCatching { UserRole.valueOf(value) }.getOrNull()
     }
 
-    fun save(role: UserRole) {
-        preferences.edit().putString("role", role.name).apply()
+    fun save(userId: String, role: UserRole) {
+        preferences.edit().putString("role_$userId", role.name).apply()
     }
 
-    fun clear() {
-        preferences.edit().remove("role").apply()
+    fun clear(userId: String) {
+        preferences.edit().remove("role_$userId").apply()
     }
 }

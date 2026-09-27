@@ -47,15 +47,18 @@ class EmergencyRequestRepositoryImpl(
     private val requesterIdProvider: () -> String? = { null },
     private val networkAvailable: () -> Boolean = { true }
 ) : EmergencyRequestRepository {
+    private fun requesterId(): String = requesterIdProvider()?.takeIf { it.isNotBlank() }
+        ?: error("Sign in before using requester mode.")
+
     override suspend fun saveDraft(draft: EmergencyRequestDraft) = draftDao.upsert(draft.toEntity())
 
     override suspend fun loadDraft(id: String): EmergencyRequestDraft? = draftDao.findById(id)?.toDomain()
 
     override fun observeActiveRequest(): Flow<ActiveRequestSnapshot?> =
-        activeRequestDao.observeLatest().map { it?.toDomain() }
+        activeRequestDao.observeLatest(requesterId()).map { it?.toDomain() }
 
     override fun observeRequestHistory(): Flow<List<ActiveRequestSnapshot>> =
-        activeRequestDao.observeAll().map { requests -> requests.map { it.toDomain() } }
+        activeRequestDao.observeAll(requesterId()).map { requests -> requests.map { it.toDomain() } }
 
     override suspend fun refreshRequestHistory(): List<RequestHistoryItem> = withContext(Dispatchers.IO) {
         val response = api.requestHistory()
@@ -84,7 +87,7 @@ class EmergencyRequestRepositoryImpl(
             if (!response.isSuccessful) return@withContext null
             val body = response.body() ?: return@withContext null
             val snapshot = body.toSnapshot()
-            activeRequestDao.upsert(snapshot.toEntity())
+            activeRequestDao.upsert(snapshot.toEntity(requesterId()))
             snapshot
         } catch (_: Exception) {
             null
@@ -102,10 +105,10 @@ class EmergencyRequestRepositoryImpl(
                     SubmitResult.Error("The server returned an empty response. Your draft is still saved.")
                 } else if (body.status.equals("manual_broadcast", ignoreCase = true)) {
                     val fallback = SubmitResult.ManualFallback(body.requestId, body.reason ?: "Automatic matching is unavailable for this request.")
-                    activeRequestDao.upsert(ActiveRequestSnapshot(body.requestId, ActiveRequestStatus.MANUAL_BROADCAST, reason = body.reason).toEntity())
+                    activeRequestDao.upsert(ActiveRequestSnapshot(body.requestId, ActiveRequestStatus.MANUAL_BROADCAST, reason = body.reason).toEntity(requesterId()))
                     fallback
                 } else {
-                    activeRequestDao.upsert(ActiveRequestSnapshot(body.requestId, ActiveRequestStatus.AWAITING_RESPONSES, body.notificationsCreated).toEntity())
+                    activeRequestDao.upsert(ActiveRequestSnapshot(body.requestId, ActiveRequestStatus.AWAITING_RESPONSES, body.notificationsCreated).toEntity(requesterId()))
                     SubmitResult.MatchingStarted(
                         body.requestId,
                         body.matches.map { match ->
@@ -130,7 +133,7 @@ class EmergencyRequestRepositoryImpl(
         try {
             val response = api.sendManualBroadcast(requestId)
             if (response.isSuccessful) {
-                activeRequestDao.upsert(ActiveRequestSnapshot(requestId, ActiveRequestStatus.AWAITING_RESPONSES).toEntity())
+                activeRequestDao.upsert(ActiveRequestSnapshot(requestId, ActiveRequestStatus.AWAITING_RESPONSES).toEntity(requesterId()))
                 SubmitResult.MatchingStarted(response.body()?.requestId ?: requestId)
             } else SubmitResult.Error("Manual broadcast could not be sent (${response.code()}).")
         } catch (_: IOException) {
@@ -187,7 +190,7 @@ class EmergencyRequestRepositoryImpl(
                         requestId = requestId,
                         status = ActiveRequestStatus.CANCELLED,
                         reason = response.body()?.reason ?: "Cancelled by coordinator"
-                    ).toEntity()
+                    ).toEntity(requesterId())
                 )
                 SubmitResult.Cancelled(requestId)
             } else SubmitResult.Error("The request could not be cancelled (${response.code()}).")
@@ -202,7 +205,7 @@ class EmergencyRequestRepositoryImpl(
         try {
             val response = api.fulfillEmergencyRequest(requestId)
             if (response.isSuccessful) {
-                activeRequestDao.upsert(ActiveRequestSnapshot(requestId, ActiveRequestStatus.FULFILLED, reason = response.body()?.reason).toEntity())
+                activeRequestDao.upsert(ActiveRequestSnapshot(requestId, ActiveRequestStatus.FULFILLED, reason = response.body()?.reason).toEntity(requesterId()))
                 SubmitResult.Fulfilled(requestId)
             } else SubmitResult.Error("The request could not be marked fulfilled (${response.code()}).")
         } catch (_: IOException) {

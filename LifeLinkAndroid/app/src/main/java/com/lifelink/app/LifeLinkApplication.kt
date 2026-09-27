@@ -52,7 +52,7 @@ class LifeLinkApplication : Application() {
                     api = RetrofitProvider.create(tokenProvider = authSessionStore::accessToken, onUnauthorized = authRepository::refreshAccessToken),
                     donorIdProvider = authSessionStore::userId
                 ),
-                updatesRepository = UpdatesRepository(database.updateDao())
+                updatesRepository = UpdatesRepository(database.updateDao(), authSessionStore::userId)
             )
     }
 }

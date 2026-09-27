@@ -67,6 +67,9 @@ interface LifeLinkApi {
     @PUT("v1/donors/{donorId}")
     suspend fun registerDonor(@Path("donorId") donorId: String, @Body profile: DonorProfileRequest): Response<DonorProfileResponse>
 
+    @GET("v1/donors/{donorId}")
+    suspend fun getDonorProfile(@Path("donorId") donorId: String): Response<DonorProfileResponse>
+
     @PATCH("v1/donors/{donorId}/availability")
     suspend fun updateDonorAvailability(@Path("donorId") donorId: String, @Body availability: DonorAvailabilityRequest): Response<DonorProfileResponse>
 
@@ -244,7 +247,21 @@ data class DonorProfileRequest(
 )
 
 data class DonorAvailabilityRequest(val availability: String)
-data class DonorProfileResponse(@SerializedName("donor_id") val donorId: String, val availability: String, @SerializedName("availability_updated_at") val availabilityUpdatedAt: String, @SerializedName("donor_note") val donorNote: String = "", @SerializedName("preferred_contact_method") val preferredContactMethod: String = "in_app", @SerializedName("pause_reason") val pauseReason: String? = null, @SerializedName("profile_visible") val profileVisible: Boolean = true)
+data class DonorProfileResponse(
+    @SerializedName("donor_id") val donorId: String,
+    @SerializedName("display_name") val displayName: String = "",
+    @SerializedName("blood_type") val bloodType: String = "UNKNOWN",
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    @SerializedName("service_radius_km") val serviceRadiusKm: Double = 10.0,
+    val verified: Boolean = false,
+    val availability: String,
+    @SerializedName("availability_updated_at") val availabilityUpdatedAt: String = "",
+    @SerializedName("donor_note") val donorNote: String = "",
+    @SerializedName("preferred_contact_method") val preferredContactMethod: String = "in_app",
+    @SerializedName("pause_reason") val pauseReason: String? = null,
+    @SerializedName("profile_visible") val profileVisible: Boolean = true
+)
 data class DonorRequestResponse(@SerializedName("request_id") val requestId: String, @SerializedName("blood_type") val bloodType: String, val units: Int, val urgency: String, @SerializedName("facility_name") val facilityName: String, val area: String, @SerializedName("distance_km") val distanceKm: Double, val status: String)
 data class DonorResponseRequest(val response: String)
 data class DonorResponseResponse(@SerializedName("request_id") val requestId: String, @SerializedName("donor_id") val donorId: String, val response: String)

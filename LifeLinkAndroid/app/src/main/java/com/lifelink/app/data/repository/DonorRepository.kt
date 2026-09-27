@@ -27,7 +27,7 @@ class DonorRepositoryImpl(
     private fun donorId(): String = donorIdProvider()?.takeIf { it.isNotBlank() } ?: error("Sign in before using donor mode.")
 
     override fun observeProfile(): Flow<DonorProfile> = dao.observeProfile(donorId()).map { it?.toDomain() ?: DonorProfile(donorId = donorId()) }
-    override fun observeRequests(): Flow<List<DonorRequest>> = dao.observeRequests().map { list -> list.map { it.toDomain() } }
+    override fun observeRequests(): Flow<List<DonorRequest>> = dao.observeRequests(donorId()).map { list -> list.map { it.toDomain() } }
     override suspend fun saveProfile(profile: DonorProfile) {
         withContext(Dispatchers.IO) {
         val ownerId = donorId()
@@ -73,10 +73,34 @@ class DonorRepositoryImpl(
     }
     override suspend fun refresh() = withContext(Dispatchers.IO) {
         val remote = api ?: return@withContext
-        val profile = dao.observeProfile(donorId()).first()
-        if (profile != null && profile.toDomain().isSetupComplete) {
-            remote.donorRequests(profile.donorId).body().orEmpty().forEach { request ->
-                dao.upsertRequest(DonorRequestEntity(request.requestId, request.bloodType, request.units, request.urgency, request.facilityName, request.area, request.distanceKm, request.status.takeUnless { it == "not_responded" }))
+        val ownerId = donorId()
+        val localProfile = dao.observeProfile(ownerId).first()?.toDomain()
+        val remoteProfile = remote.getDonorProfile(ownerId)
+        if (remoteProfile.isSuccessful && remoteProfile.body() != null) {
+            val body = remoteProfile.body()!!
+            val current = localProfile ?: DonorProfile(donorId = ownerId)
+            dao.upsertProfile(
+                current.copy(
+                    donorId = ownerId,
+                    displayName = body.displayName,
+                    bloodType = body.bloodType.toBloodTypeOrNull(),
+                    latitude = body.latitude,
+                    longitude = body.longitude,
+                    serviceRadiusKm = body.serviceRadiusKm.toInt().coerceIn(1, 100),
+                    verified = body.verified,
+                    availability = runCatching { DonorAvailability.valueOf(body.availability.uppercase()) }.getOrDefault(current.availability),
+                    donorNote = body.donorNote,
+                    preferredContactMethod = body.preferredContactMethod,
+                    pauseReason = body.pauseReason,
+                    profileVisible = body.profileVisible
+                ).toEntity()
+            )
+        }
+        val profile = dao.observeProfile(ownerId).first()?.toDomain()
+        if (profile?.isSetupComplete == true) {
+            dao.deleteRequests(ownerId)
+            remote.donorRequests(ownerId).body().orEmpty().forEach { request ->
+                dao.upsertRequest(DonorRequestEntity(request.requestId, ownerId, request.bloodType, request.units, request.urgency, request.facilityName, request.area, request.distanceKm, request.status.takeUnless { it == "not_responded" }))
             }
         }
     }
@@ -94,11 +118,16 @@ class DonorRepositoryImpl(
     }
 
     suspend fun seedDemoRequests() {
-        dao.upsertRequest(DonorRequestEntity("req-demo-001", "O−", 1, "critical", "St. Luke’s Medical Center", "Quezon City", 4.2, null))
-        dao.upsertRequest(DonorRequestEntity("req-demo-002", "A+", 2, "urgent", "Philippine General Hospital", "Manila", 8.7, null))
+        val ownerId = donorId()
+        dao.upsertRequest(DonorRequestEntity("req-demo-001", ownerId, "O−", 1, "critical", "St. Luke’s Medical Center", "Quezon City", 4.2, null))
+        dao.upsertRequest(DonorRequestEntity("req-demo-002", ownerId, "A+", 2, "urgent", "Philippine General Hospital", "Manila", 8.7, null))
     }
 }
 
 private fun DonorProfile.toEntity() = DonorProfileEntity(donorId, displayName, bloodType?.name, area, serviceRadiusKm, availability.name, verified, latitude, longitude, locationPrecisionMeters, donorNote, preferredContactMethod, pauseReason, profileVisible)
 private fun DonorProfileEntity.toDomain() = DonorProfile(donorId, displayName, bloodType?.let { runCatching { BloodType.valueOf(it) }.getOrNull() }, area, serviceRadiusKm, runCatching { DonorAvailability.valueOf(availability) }.getOrDefault(DonorAvailability.OFFLINE), verified, latitude, longitude, locationPrecisionMeters, donorNote, preferredContactMethod, pauseReason, profileVisible)
 private fun DonorRequestEntity.toDomain() = DonorRequest(requestId, bloodType, units, urgency, facilityName, area, distanceKm, response?.let { runCatching { DonorResponse.valueOf(it) }.getOrNull() })
+
+private fun String.toBloodTypeOrNull(): BloodType? = BloodType.values().firstOrNull { option ->
+    option.name == this || option.label.replace('−', '-') == this
+}

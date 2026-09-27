@@ -7,8 +7,11 @@ import com.lifelink.app.domain.UpdateType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-class UpdatesRepository(private val dao: UpdateDao) {
-    fun observe(): Flow<List<UpdateItem>> = dao.observeAll().map { updates -> updates.map(UpdateEntity::toDomain) }
+class UpdatesRepository(private val dao: UpdateDao, private val accountIdProvider: () -> String? = { null }) {
+    private fun accountId(): String = accountIdProvider()?.takeIf { it.isNotBlank() }
+        ?: error("Sign in before reading updates.")
+
+    fun observe(): Flow<List<UpdateItem>> = dao.observeAll(accountId()).map { updates -> updates.map(UpdateEntity::toDomain) }
 
     suspend fun record(
         id: String,
@@ -19,13 +22,14 @@ class UpdatesRepository(private val dao: UpdateDao) {
         actionKey: String? = null,
         createdAtEpochMillis: Long = System.currentTimeMillis()
     ) {
-        val existing = dao.findById(id)
-        dao.upsert(UpdateEntity(id, type.name, title, body, createdAtEpochMillis, requestId, actionKey, existing?.isRead ?: false))
+        val accountId = accountId()
+        val existing = dao.findById(id, accountId)
+        dao.upsert(UpdateEntity(id, accountId, type.name, title, body, createdAtEpochMillis, requestId, actionKey, existing?.isRead ?: false))
     }
 
-    suspend fun markRead(id: String) = dao.markRead(id)
+    suspend fun markRead(id: String) = dao.markRead(id, accountId())
 
-    suspend fun markAllRead() = dao.markAllRead()
+    suspend fun markAllRead() = dao.markAllRead(accountId())
 }
 
 private fun UpdateEntity.toDomain() = UpdateItem(

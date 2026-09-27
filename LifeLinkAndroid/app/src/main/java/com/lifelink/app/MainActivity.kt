@@ -6,14 +6,19 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material3.CircularProgressIndicator
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.core.ui.theme.ThemeStore
@@ -75,28 +80,57 @@ class MainActivity : ComponentActivity() {
                 }
                 val roleStore = remember { UserRoleStore(this@MainActivity) }
                 val roleSyncScope = rememberCoroutineScope()
-                var role by remember { mutableStateOf(roleStore.get()) }
+                val accountUserId = (authState as AuthState.SignedIn).session.userId
+                var role by remember(accountUserId) { mutableStateOf<UserRole?>(null) }
+                var profileResolved by remember(accountUserId) { mutableStateOf(false) }
                 var displayName by remember { mutableStateOf("") }
                 var profileSaving by remember { mutableStateOf(false) }
                 var profileMessage by remember { mutableStateOf<String?>(null) }
                 val signedInSession = (authState as? AuthState.SignedIn)?.session
-                val accountUserId = signedInSession?.userId.orEmpty()
                 LaunchedEffect(accountUserId) {
-                    if (accountUserId.isNotBlank()) {
+                    profileResolved = false
+                    role = null
+                    displayName = ""
+                    if (accountUserId.isNotBlank() && signedInSession != null) {
                         val api = RetrofitProvider.create(
-                                tokenProvider = { app.container.authRepository.session.value?.accessToken ?: signedInSession?.accessToken },
+                                tokenProvider = { app.container.authRepository.session.value?.accessToken ?: signedInSession.accessToken },
                                 onUnauthorized = app.container.authRepository::refreshAccessToken
                             )
                         runCatching { api.getProfile() }.onSuccess { response ->
-                            if (response.isSuccessful) displayName = response.body()?.displayName.orEmpty()
+                            if (response.isSuccessful) {
+                                val body = response.body()
+                                displayName = body?.displayName.orEmpty()
+                                val serverRole = when (body?.role?.lowercase()) {
+                                    "donor" -> UserRole.DONOR
+                                    "requester" -> UserRole.REQUESTER
+                                    else -> null
+                                }
+                                if (serverRole != null) {
+                                    roleStore.save(accountUserId, serverRole)
+                                    role = serverRole
+                                }
+                                profileResolved = true
+                            } else if (response.code() == 404) {
+                                role = roleStore.get(accountUserId)
+                                profileResolved = true
+                            }
+                        }.onFailure {
+                            role = roleStore.get(accountUserId)
+                            profileResolved = role != null
                         }
                         runCatching { FirebaseMessaging.getInstance().token.await() }
                             .onSuccess { token -> runCatching { api.registerPushToken(PushTokenRequest(token)) } }
                     }
                 }
+                if (!profileResolved) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                    return@LifeLinkTheme
+                }
                 if (role == null) {
                     RoleSelectionScreen { selectedRole ->
-                        roleStore.save(selectedRole)
+                        roleStore.save(accountUserId, selectedRole)
                         role = selectedRole
                         roleSyncScope.launch {
                             val session = (authState as? AuthState.SignedIn)?.session
@@ -114,14 +148,17 @@ class MainActivity : ComponentActivity() {
                     return@LifeLinkTheme
                 }
                 val viewModel: EmergencyRequestViewModel = viewModel(
+                    key = "requester-$accountUserId",
                     factory = EmergencyRequestViewModelFactory(app.container.emergencyRequestRepository)
                 )
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
                 val donorViewModel: DonorViewModel = viewModel(
+                    key = "donor-$accountUserId",
                     factory = DonorViewModelFactory(app.container.donorRepository)
                 )
                 val donorState by donorViewModel.state.collectAsStateWithLifecycle()
                 val updatesViewModel: UpdatesViewModel = viewModel(
+                    key = "updates-$accountUserId",
                     factory = UpdatesViewModelFactory(app.container.updatesRepository)
                 )
                 val updates by updatesViewModel.updates.collectAsStateWithLifecycle()

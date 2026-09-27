@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Insert
+import androidx.room.migration.Migration
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Room
@@ -21,7 +22,7 @@ interface EmergencyRequestDraftDao {
     suspend fun deleteById(id: String)
 }
 
-@Database(entities = [EmergencyRequestDraftEntity::class, PendingSubmissionEntity::class, ActiveRequestEntity::class, DonorProfileEntity::class, DonorRequestEntity::class, UpdateEntity::class], version = 6, exportSchema = false)
+@Database(entities = [EmergencyRequestDraftEntity::class, PendingSubmissionEntity::class, ActiveRequestEntity::class, DonorProfileEntity::class, DonorRequestEntity::class, UpdateEntity::class], version = 9, exportSchema = false)
 abstract class LifeLinkDatabase : RoomDatabase() {
     abstract fun emergencyRequestDraftDao(): EmergencyRequestDraftDao
     abstract fun pendingSubmissionDao(): PendingSubmissionDao
@@ -38,7 +39,28 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                     context.applicationContext,
                     LifeLinkDatabase::class.java,
                     "lifelink.db"
-                ).fallbackToDestructiveMigration().build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).fallbackToDestructiveMigration().build().also { INSTANCE = it }
             }
+
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE donor_requests ADD COLUMN donorId TEXT NOT NULL DEFAULT ''")
+                database.execSQL("DELETE FROM donor_requests WHERE donorId = ''")
+            }
+        }
+
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE active_requests ADD COLUMN requesterId TEXT NOT NULL DEFAULT ''")
+                database.execSQL("DELETE FROM active_requests WHERE requesterId = ''")
+            }
+        }
+
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE updates ADD COLUMN accountId TEXT NOT NULL DEFAULT ''")
+                database.execSQL("DELETE FROM updates WHERE accountId = ''")
+            }
+        }
     }
 }

@@ -119,6 +119,8 @@ async def _token_for_user(session: AsyncSession, user_id: str) -> list[str]:
 class ProfileIn(BaseModel):
     role: str = Field(pattern="^(requester|donor)$")
     display_name: str | None = Field(default=None, max_length=160)
+    can_request: bool = True
+    can_donate: bool = False
 
 
 class ProfileOut(BaseModel):
@@ -173,12 +175,16 @@ async def upsert_profile(
             email=principal.email or "",
             role=LifeLinkRoleEnum(payload.role),
             display_name=payload.display_name,
+            can_request=payload.can_request,
+            can_donate=payload.can_donate,
         )
         session.add(row)
     else:
         row.email = principal.email or row.email
         row.role = LifeLinkRoleEnum(payload.role)
         row.display_name = payload.display_name
+        row.can_request = payload.can_request
+        row.can_donate = payload.can_donate
     await session.commit()
     return ProfileOut(
         user_id=row.user_id,
@@ -597,6 +603,21 @@ async def register_donor_postgres(
     if profile is not None:
         profile.can_donate = True
     row = await SqlAlchemyDonorStore(session).upsert_profile(donor_id, payload)
+    donor = donor_response_model(row)
+    return profile_to_out(donor, DonorAvailability.AVAILABLE if row.available else DonorAvailability.OFFLINE)
+
+
+@app.get("/v1/donors/{donor_id}", response_model=DonorProfileOut)
+async def get_donor_profile_postgres(
+    donor_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    if principal.subject != "development-user" and principal.subject != donor_id:
+        raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
+    row = await session.get(DonorRow, donor_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Donor profile not found")
     donor = donor_response_model(row)
     return profile_to_out(donor, DonorAvailability.AVAILABLE if row.available else DonorAvailability.OFFLINE)
 
