@@ -17,6 +17,8 @@ services:
         sync: false
       - key: FIREBASE_SERVICE_ACCOUNT_JSON
         sync: false
+      - key: LIFELINK_REQUIRE_VERIFIED_DONORS
+        value: "false"
       - key: DB_POOL_SIZE
         value: "3"
       - key: DB_MAX_OVERFLOW

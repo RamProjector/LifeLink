@@ -1,0 +1,261 @@
+"""End-to-end tests for the production (PostgreSQL) API against a real Postgres.
+
+These reproduce what the mock-backed tests cannot: request persistence,
+history restore after sign-in, request lifecycle actions, and donor matching
+on real enum and timestamptz columns.
+
+Run them with `pip install pgserver` (a pip-installable PostgreSQL). Without
+it the whole module is skipped, so CI and Docker builds are unaffected.
+"""
+from __future__ import annotations
+
+import asyncio
+import tempfile
+import uuid
+from datetime import datetime, timedelta, timezone
+from urllib.parse import parse_qs, urlsplit
+
+import pytest
+
+pgserver = pytest.importorskip("pgserver")
+
+import httpx  # noqa: E402
+from sqlalchemy import text  # noqa: E402
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
+
+from app import db_models  # noqa: E402
+from app.db import get_db_session  # noqa: E402
+from app.main_postgres import app  # noqa: E402
+from app.security import Principal, get_postgres_principal  # noqa: E402
+
+# The hosted database uses PostGIS geography columns; a plain Postgres has no
+# such type, and no test here reads those columns.
+db_models.GeographyPoint.get_col_spec = lambda self, **kw: "TEXT"  # type: ignore[method-assign]
+
+
+@pytest.fixture(scope="module")
+def pg_url() -> str:
+    server = pgserver.get_server(tempfile.mkdtemp(prefix="lifelink-pg-"))
+    host = parse_qs(urlsplit(server.get_uri()).query)["host"][0]
+    yield f"postgresql+asyncpg://postgres@/postgres?host={host}"
+    server.cleanup()
+
+
+def run_scenario(pg_url: str, scenario):
+    """Fresh schema, real API app, per-request DB sessions like production."""
+
+    async def main():
+        engine = create_async_engine(pg_url)
+        async with engine.begin() as conn:
+            await conn.execute(text("DROP SCHEMA public CASCADE"))
+            await conn.execute(text("CREATE SCHEMA public"))
+            await conn.run_sync(db_models.Base.metadata.create_all)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        current = {"id": "nobody"}
+
+        async def session_dependency():
+            async with sessions() as session:
+                yield session
+
+        app.dependency_overrides[get_db_session] = session_dependency
+        app.dependency_overrides[get_postgres_principal] = lambda: Principal(
+            subject=current["id"], email=f"{current['id']}@example.com"
+        )
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+        try:
+            async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+
+                async def run_sql(statement: str):
+                    async with engine.begin() as conn:
+                        await conn.execute(text(statement))
+
+                await scenario(client, current, run_sql)
+        finally:
+            app.dependency_overrides.clear()
+            await engine.dispose()
+
+    asyncio.run(main())
+
+
+def new_user(label: str) -> str:
+    return f"{label}-{uuid.uuid4().hex[:8]}"
+
+
+def request_payload(requester_id: str, *, hours: float = 1.0) -> dict:
+    return {
+        "requester_id": requester_id,
+        "blood_type": "O+",
+        "units": 2,
+        "urgency": "urgent",
+        "response_deadline": (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat(),
+        "location": {
+            "facility_id": None,
+            "facility_name": "Test Hospital",
+            "area": "Tacloban",
+            "latitude": 11.2433,
+            "longitude": 125.0,
+            "precision_meters": 100,
+            "verified": False,
+        },
+        "contact_method": "in_app",
+        "note": "",
+        "genuine_request_confirmed": True,
+        "sharing_consent_confirmed": True,
+        "ai_matching_enabled": True,
+        "idempotency_key": uuid.uuid4().hex,
+    }
+
+
+async def setup_donor(client, current, donor_id: str, *, claim_verified: bool = False) -> None:
+    current["id"] = donor_id
+    profile = await client.put(
+        "/v1/profile",
+        json={"role": "donor", "display_name": "Test Donor", "can_request": True, "can_donate": True},
+    )
+    assert profile.status_code == 200, profile.text
+    saved = await client.put(
+        f"/v1/donors/{donor_id}",
+        json={
+            "donor_id": donor_id,
+            "display_name": "Test Donor",
+            "blood_type": "O+",
+            "latitude": 11.2440,
+            "longitude": 125.0010,
+            "service_radius_km": 15,
+            "verified": claim_verified,
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    available = await client.patch(f"/v1/donors/{donor_id}/availability", json={"availability": "available"})
+    assert available.status_code == 200, available.text
+
+
+async def submit_request(client, current, requester_id: str, **kwargs) -> dict:
+    current["id"] = requester_id
+    response = await client.post("/v1/emergency-requests", json=request_payload(requester_id, **kwargs))
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_self_registered_donor_receives_the_matched_request(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+
+        created = await submit_request(client, current, requester)
+        assert created["notifications_created"] == 1
+        assert [m["donor_id"] for m in created["matches"]] == [donor]
+
+        current["id"] = donor
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert [item["request_id"] for item in inbox.json()] == [created["request_id"]]
+
+    run_scenario(pg_url, scenario)
+
+
+def test_request_history_survives_the_deadline_passing(pg_url):
+    async def scenario(client, current, run_sql):
+        requester = new_user("requester")
+        created = await submit_request(client, current, requester)
+
+        # "Sign out, sign back in": history is the only thing the app has to restore from.
+        history = await client.get("/v1/emergency-requests")
+        assert history.status_code == 200, history.text
+        assert [item["request_id"] for item in history.json()] == [created["request_id"]]
+
+        # Time passes: the deadline is now behind us.
+        await run_sql("UPDATE emergency_requests SET response_deadline = now() - interval '5 minutes'")
+
+        history = await client.get("/v1/emergency-requests")
+        assert history.status_code == 200, history.text
+        items = history.json()
+        assert [item["request_id"] for item in items] == [created["request_id"]]
+        assert items[0]["status"] == "expired"
+
+        status = await client.get(f"/v1/emergency-requests/{created['request_id']}")
+        assert status.status_code == 200, status.text
+        assert status.json()["status"] == "expired"
+
+        # An old expired request must not stop a new one from being saved or listed.
+        second = await submit_request(client, current, requester)
+        history = await client.get("/v1/emergency-requests")
+        assert history.status_code == 200, history.text
+        assert {item["request_id"] for item in history.json()} == {created["request_id"], second["request_id"]}
+
+    run_scenario(pg_url, scenario)
+
+
+def test_cancel_fulfill_and_manual_broadcast_succeed(pg_url):
+    async def scenario(client, current, run_sql):
+        requester = new_user("requester")
+
+        first = await submit_request(client, current, requester)
+        cancelled = await client.post(f"/v1/emergency-requests/{first['request_id']}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
+        assert cancelled.json()["status"] == "cancelled"
+
+        second = await submit_request(client, current, requester)
+        fulfilled = await client.post(f"/v1/emergency-requests/{second['request_id']}/fulfill")
+        assert fulfilled.status_code == 200, fulfilled.text
+        assert fulfilled.json()["status"] == "fulfilled"
+
+        third = await submit_request(client, current, requester)
+        broadcast = await client.post(f"/v1/emergency-requests/{third['request_id']}/manual-broadcast")
+        assert broadcast.status_code == 200, broadcast.text
+
+        history = await client.get("/v1/emergency-requests")
+        assert history.status_code == 200, history.text
+        statuses = {item["request_id"]: item["status"] for item in history.json()}
+        assert statuses[first["request_id"]] == "cancelled"
+        assert statuses[second["request_id"]] == "fulfilled"
+        assert statuses[third["request_id"]] == "manual_broadcast"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_response_is_saved_and_survives_a_new_session(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = donor
+        accepted = await client.post(
+            f"/v1/donors/{donor}/requests/{created['request_id']}/response", json={"response": "accepted"}
+        )
+        assert accepted.status_code == 200, accepted.text
+
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert inbox.json()[0]["status"] == "confirmed"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_strict_mode_only_matches_verified_donors(pg_url, monkeypatch):
+    monkeypatch.setenv("LIFELINK_REQUIRE_VERIFIED_DONORS", "true")
+
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        assert created["notifications_created"] == 0
+
+        await run_sql(f"UPDATE donors SET verified = TRUE WHERE id = '{donor}'")
+        created = await submit_request(client, current, requester)
+        assert created["notifications_created"] == 1
+
+    run_scenario(pg_url, scenario)
+
+
+def test_a_client_cannot_mark_itself_verified(pg_url):
+    async def scenario(client, current, run_sql):
+        donor = new_user("donor")
+        await setup_donor(client, current, donor, claim_verified=True)
+        current["id"] = donor
+        profile = await client.get(f"/v1/donors/{donor}")
+        assert profile.status_code == 200, profile.text
+        assert profile.json()["verified"] is False
+
+    run_scenario(pg_url, scenario)
