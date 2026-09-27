@@ -458,8 +458,9 @@ private fun formatContactTimestamp(value: String): String = runCatching {
 }.getOrDefault(value)
 
 @Composable private fun Progress(step: Int, total: Int) {
+    val labels = listOf("Blood need", "Timing", "Location", "Contact", "Review", "Results")
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        Text("${step + 1} of $total", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
+        Text("Step ${step + 1} of $total · ${labels.getOrElse(step) { "Request" }}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             repeat(total) { index -> Surface(Modifier.weight(1f).height(5.dp), color = if (index <= step) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, shape = MaterialTheme.shapes.small) {} }
         }
@@ -469,7 +470,7 @@ private fun formatContactTimestamp(value: String): String = runCatching {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable private fun BloodNeedStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Heading("What blood is needed?", "Select the type and amount required.")
+        Heading("Blood need", "Select the type and amount required.")
         Text("Blood type", fontWeight = FontWeight.SemiBold)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             BloodType.entries.forEach { type -> Chip(type.label, draft.bloodType == type) { onAction(EmergencyRequestAction.UpdateDraft { it.copy(bloodType = type, typeUnknown = false) }) } }
@@ -481,7 +482,7 @@ private fun formatContactTimestamp(value: String): String = runCatching {
 
 @Composable private fun UrgencyStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Heading("How soon is help needed?", "Choose the closest accurate option.")
+        Heading("Timing", "Choose the closest accurate response window.")
         Urgency.entries.forEach { urgency ->
             Card(
                 modifier = Modifier.fillMaxWidth().clickable(role = Role.RadioButton) { onAction(EmergencyRequestAction.UpdateDraft { it.copy(urgency = urgency) }) },
@@ -495,7 +496,7 @@ private fun formatContactTimestamp(value: String): String = runCatching {
             }
         }
         TextField(draft.responseDeadline, { value -> onAction(EmergencyRequestAction.UpdateDraft { draftValue -> draftValue.copy(responseDeadline = value) }) }, "Latest acceptable response", "Today, 12:30 PM")
-        TextField(draft.note, { value -> if (value.length <= 180) onAction(EmergencyRequestAction.UpdateDraft { draftValue -> draftValue.copy(note = value) }) }, "Request note (optional)", "Do not include patient names or diagnoses.", minLines = 3, supporting = "${draft.note.length}/180 characters")
+        TextField(draft.note, { value -> if (value.length <= 180) onAction(EmergencyRequestAction.UpdateDraft { draftValue -> draftValue.copy(note = value) }) }, "Request note (optional)", "Avoid names or medical records.", minLines = 3, supporting = "${draft.note.length}/180 characters")
     }
 }
 
@@ -627,7 +628,7 @@ private fun LocationMapPicker(
         )
     }
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
-        Heading("Where are you requesting help?", "Your approximate location is used only to find nearby potential donors.")
+        Heading("Approximate location", "Used to find nearby potential donors. Your exact location stays private.")
         locationMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
@@ -640,7 +641,7 @@ private fun LocationMapPicker(
                 )
             }
         ) { Text(if (draft.requesterLatitude == null) "Show my location" else "Show my location again") }
-        Text("Choose on map", fontWeight = FontWeight.SemiBold)
+        Text("Choose a point", fontWeight = FontWeight.SemiBold)
         LocationMapPicker(
             draft = draft,
             onLocationSelected = { latitude, longitude -> onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500)) },
@@ -652,7 +653,7 @@ private fun LocationMapPicker(
                 Text("Open full map")
             }
         }
-        Text("Or enter an approximate location manually", fontWeight = FontWeight.SemiBold)
+        Text("Or enter coordinates", fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(
                 value = manualLatitude,
@@ -709,17 +710,18 @@ private fun LocationMapPicker(
 
 @Composable private fun ContactStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Heading("How should responses work?", "Choose how potential donors can contact you after they accept. Eligibility is confirmed by a licensed facility.")
+        Heading("Contact preferences", "Choose how an accepting donor can reach you.")
         Text("Preferred contact", fontWeight = FontWeight.SemiBold)
         ContactMethod.entries.forEach { method -> SelectableRow(method.label, draft.contactMethod == method) { onAction(EmergencyRequestAction.UpdateDraft { it.copy(contactMethod = method) }) } }
         CheckRow(draft.genuineRequestConfirmed, "I confirm this is a genuine blood request.") { checked -> onAction(EmergencyRequestAction.UpdateDraft { draftValue -> draftValue.copy(genuineRequestConfirmed = checked) }) }
         CheckRow(draft.sharingConsentConfirmed, "I agree to share the listed request details with potential donors for this request.") { checked -> onAction(EmergencyRequestAction.UpdateDraft { draftValue -> draftValue.copy(sharingConsentConfirmed = checked) }) }
+        Text("A licensed facility remains responsible for eligibility, screening, and care.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
     }
 }
 
 @Composable private fun ReviewStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Heading("Check everything before sending", "Notifications will go only to eligible, relevant donors.")
+        Heading("Review request", "Check the essentials before notifying potential donors.")
         Surface(Modifier.fillMaxWidth(), color = if (draft.urgency == Urgency.CRITICAL) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.large) { Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("${draft.bloodType?.label ?: "Unknown type"} · ${draft.units} unit${if (draft.units == 1) "" else "s"}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("${draft.urgency.label.uppercase()} · ${displayDeadline(draft)}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold); Text(locationSummary(draft)) } }
         Summary("Blood need", "${draft.bloodType?.label ?: "Unknown type"} · ${draft.units} unit${if (draft.units == 1) "" else "s"}", 0, onAction)
         Summary("Urgency", "${draft.urgency.label} · ${draft.urgency.description}", 1, onAction)
@@ -727,8 +729,8 @@ private fun LocationMapPicker(
         Summary("Contact", draft.contactMethod.label, 3, onAction)
         CheckRow(
             checked = draft.aiMatchingEnabled,
-            label = "Use AI-assisted donor ranking",
-            supporting = "When enabled, LifeLink weighs distance, travel estimate, availability, verification, urgency, and response likelihood. When disabled, results are sorted by GPS distance only."
+            label = "Use assisted donor ranking",
+            supporting = "Ranks matches using distance, availability, urgency, and other matching signals."
         ) { enabled -> onAction(EmergencyRequestAction.UpdateDraft { it.copy(aiMatchingEnabled = enabled) }) }
     }
 }
