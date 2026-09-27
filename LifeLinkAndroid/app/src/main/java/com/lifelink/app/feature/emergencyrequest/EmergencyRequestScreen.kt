@@ -210,9 +210,22 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
     val donorsWithinTenKm = state.discoveredDonors.count { it.distanceKm > 5.0 && it.distanceKm <= 10.0 }
     val donorsBeyondTenKm = state.discoveredDonors.count { it.distanceKm > 10.0 }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Heading("Donor results", "Select potential donors to contact. A licensed facility confirms eligibility. Their exact locations remain private.")
+        Heading("Potential donors", "Review matches and choose who to contact.")
+        Surface(
+            Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("${state.discoveredDonors.size} potential match${if (state.discoveredDonors.size == 1) "" else "es"}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(if (state.selectedDonorIds.isEmpty()) "Select one or more donors to continue." else "${state.selectedDonorIds.size} selected", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+                if (state.contacts.isNotEmpty()) Text("${state.contacts.size} contacted", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+        }
         if (state.contacts.isNotEmpty()) {
-            Text("Donor contact", fontWeight = FontWeight.SemiBold)
+            Text("Contact activity", fontWeight = FontWeight.SemiBold)
             state.contacts.forEach { contact ->
                 AcceptedContactCard(
                     contact = contact,
@@ -239,7 +252,6 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
             Text("Switch to Donors to select people and send contact requests.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (!showMap) {
-            Text("Donor list", fontWeight = FontWeight.SemiBold)
             if (state.discoveredDonors.isEmpty()) {
                 InfoCard("No potential donors yet", "No donor cards are available for this request right now. Keep the request active and check the request status again later.", MaterialTheme.colorScheme.secondary)
             }
@@ -261,10 +273,10 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
             if (state.contactRequestSent) {
                 SuccessBanner("Contact request sent to ${state.selectedDonorIds.size} selected donor(s).")
             } else {
-                Button(onClick = { onAction(EmergencyRequestAction.ContactSelectedDonors) }, enabled = state.selectedDonorIds.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Contact selected donors") }
+                Button(onClick = { onAction(EmergencyRequestAction.ContactSelectedDonors) }, enabled = state.selectedDonorIds.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Contact ${state.selectedDonorIds.size} selected donor${if (state.selectedDonorIds.size == 1) "" else "s"}") }
             }
         }
-        Text("This is a discovery and contact aid, not medical screening.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        Text("LifeLink supports discovery and contact only. Screening remains with a licensed facility.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
     }
 }
 

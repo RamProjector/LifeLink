@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,9 +37,9 @@ fun UpdatesScreen(
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Updates", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("Activity", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        if (unread == 0) "You’re up to date." else "$unread update${if (unread == 1) "" else "s"} need your attention.",
+                        if (unread == 0) "You’re up to date." else "$unread item${if (unread == 1) "" else "s"} need your attention.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -71,7 +70,7 @@ private fun UpdateRow(update: UpdateItem, onOpen: (UpdateItem) -> Unit) {
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = if (update.isRead) 1.dp else 2.dp)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(update.title, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                 Text(
@@ -80,10 +79,8 @@ private fun UpdateRow(update: UpdateItem, onOpen: (UpdateItem) -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Text(update.body, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (update.requestId != null) {
-                OutlinedButton(onClick = { onOpen(update) }) { Text("Open request") }
-            }
+            Text(update.body, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            update.requestId?.let { Text("Tap to open request", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }
         }
     }
 }
