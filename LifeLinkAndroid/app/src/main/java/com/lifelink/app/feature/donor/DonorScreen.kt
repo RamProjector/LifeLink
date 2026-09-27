@@ -48,6 +48,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -162,7 +164,7 @@ private fun DonorHomeContent(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 20.dp)
     ) {
         item {
-            Text("Ready to help", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Ready to help", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text("Manage your availability, profile, and private location settings.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (!state.profile.isSetupComplete) item { SetupRequiredCard(state.profile) }
@@ -193,7 +195,7 @@ private fun DonorRequestsContent(state: DonorUiState, onAction: (DonorAction) ->
         contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 20.dp)
     ) {
         item {
-            Text("Requests near you", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Requests near you", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text("Only requests matching your saved profile and availability appear here.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (state.requestsRefreshing) item { StatusMessage("Refreshing eligible requests…", compact = true, loading = true) }
@@ -282,7 +284,7 @@ private fun ProfileCard(
     var showMoreSettings by rememberSaveable(profile.donorId) { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Donor profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Donor profile", Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             OutlinedTextField(profile.displayName, { value -> onAction(DonorAction.UpdateDraft { it.copy(displayName = value) }) }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
             OutlinedTextField(profile.area, { value -> onAction(DonorAction.UpdateDraft { it.copy(area = value) }) }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
             OutlinedButton(onClick = { showMoreSettings = !showMoreSettings }, modifier = Modifier.fillMaxWidth()) {

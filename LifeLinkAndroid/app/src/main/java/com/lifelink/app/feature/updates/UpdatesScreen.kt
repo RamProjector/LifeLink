@@ -18,6 +18,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.domain.UpdateItem
@@ -37,7 +40,7 @@ fun UpdatesScreen(
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Activity", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("Activity", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text(
                         if (unread == 0) "You’re up to date." else "$unread item${if (unread == 1) "" else "s"} need your attention.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -64,7 +67,9 @@ fun UpdatesScreen(
 @Composable
 private fun UpdateRow(update: UpdateItem, onOpen: (UpdateItem) -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onOpen(update) },
+        modifier = Modifier.fillMaxWidth().clickable { onOpen(update) }.semantics {
+            contentDescription = if (update.requestId != null) "Open activity for request" else "Open activity"
+        },
         colors = CardDefaults.cardColors(
             containerColor = if (update.isRead) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primaryContainer
         ),
