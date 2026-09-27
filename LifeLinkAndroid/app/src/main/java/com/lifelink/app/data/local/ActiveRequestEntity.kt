@@ -22,10 +22,10 @@ data class ActiveRequestEntity(
 
 @Dao
 interface ActiveRequestDao {
-    @Query("SELECT * FROM active_requests ORDER BY lastUpdatedEpochMillis DESC LIMIT 1")
+    @Query("SELECT * FROM active_requests WHERE ownerId = :ownerId ORDER BY lastUpdatedEpochMillis DESC LIMIT 1")
     fun observeLatest(ownerId: String): Flow<ActiveRequestEntity?>
 
-    @Query("SELECT * FROM active_requests ORDER BY lastUpdatedEpochMillis DESC")
+    @Query("SELECT * FROM active_requests WHERE ownerId = :ownerId ORDER BY lastUpdatedEpochMillis DESC")
     fun observeAll(ownerId: String): Flow<List<ActiveRequestEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
