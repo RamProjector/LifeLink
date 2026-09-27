@@ -35,6 +35,7 @@ import com.lifelink.app.domain.Urgency
 import com.lifelink.app.domain.RequesterContact
 import com.lifelink.app.domain.RequestHistoryItem
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -60,9 +61,11 @@ class EmergencyRequestRepositoryImpl(
         activeRequestDao.observeAll(requireRequesterId()).map { requests -> requests.map { it.toDomain() } }
 
     override suspend fun refreshRequestHistory(): List<RequestHistoryItem> = withContext(Dispatchers.IO) {
+        val refreshStarted = System.currentTimeMillis()
+        val ownerId = requireRequesterId()
         val response = api.requestHistory()
         if (!response.isSuccessful) throw IOException("Request history could not be loaded (${response.code()}).")
-        response.body().orEmpty().map { item ->
+        val history = (response.body() ?: throw IOException("Request history returned an empty response.")).map { item ->
             RequestHistoryItem(
                 requestId = item.requestId,
                 status = runCatching { ActiveRequestStatus.valueOf(item.status.uppercase()) }.getOrDefault(ActiveRequestStatus.MATCHING),
@@ -78,6 +81,24 @@ class EmergencyRequestRepositoryImpl(
                 contactStatuses = item.contactStatuses
             )
         }
+        // Logout clears local account data. Restore a submitted request from this
+        // account's server history so Home and status polling can resume.
+        if (activeRequestDao.observeLatest(ownerId).first() == null) {
+            val request = history.firstOrNull {
+                it.status !in setOf(ActiveRequestStatus.FULFILLED, ActiveRequestStatus.EXPIRED, ActiveRequestStatus.CANCELLED)
+            } ?: history.firstOrNull()
+            request?.let {
+                activeRequestDao.upsert(ActiveRequestSnapshot(
+                    requestId = it.requestId,
+                    status = it.status,
+                    notificationsCreated = it.notificationsCreated,
+                    matchesResponded = it.matchesResponded,
+                    // A request submitted during this fetch remains the latest.
+                    lastUpdatedEpochMillis = refreshStarted
+                ).toEntity(ownerId))
+            }
+        }
+        history
     }
 
     override suspend fun refreshActiveRequest(requestId: String): ActiveRequestSnapshot? = withContext(Dispatchers.IO) {

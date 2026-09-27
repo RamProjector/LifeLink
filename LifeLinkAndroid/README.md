@@ -33,6 +33,7 @@ Firebase Messaging uses the project's `app/google-services.json`. Remote deliver
 ## Account persistence and offline behavior
 
 - Drafts, pending submissions, active requests, donor profiles/inboxes, and activity updates are queried using their account owner.
+- After sign-in, server request history restores the active/latest request when the local cache is empty. History failures remain visible and can be retried even with no cached requests. Logout removes local drafts and offline submissions; only submitted server requests can be restored this way.
 - Session removal schedules account cleanup in the application scope, including sign-out, account switches, and token expiration, without depending on an open screen. Signing back into the same account waits for cleanup before publishing the new session.
 - Repository instances and network credentials are bound to one account. Account ViewModels are retained across rotation and cleared when leaving the account UI.
 - Room schema version 9 gives drafts, pending submissions, and updates composite owner/item keys. Migrations from versions 6–8 preserve rows; data without trustworthy ownership receives an empty owner and stays hidden. The existing reset fallback remains limited to unsupported versions 1–5.

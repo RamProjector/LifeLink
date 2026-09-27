@@ -11,6 +11,7 @@ import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.DiscoveredDonor
 import com.lifelink.app.domain.RequesterContact
 import com.lifelink.app.domain.RequestHistoryItem
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,7 +45,8 @@ data class EmergencyRequestUiState(
     val contacts: List<RequesterContact> = emptyList(),
     val contactActionInFlightDonorId: String? = null,
     val requestHistory: List<RequestHistoryItem> = emptyList(),
-    val historyRefreshing: Boolean = false
+    val historyRefreshing: Boolean = false,
+    val historyError: String? = null
 )
 
 sealed interface EmergencyRequestAction {
@@ -79,6 +81,7 @@ class EmergencyRequestViewModel(
     private val _uiState = MutableStateFlow(EmergencyRequestUiState())
     val uiState: StateFlow<EmergencyRequestUiState> = _uiState.asStateFlow()
     private var draftSaveJob: Job? = null
+    private var historyRefreshJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -323,11 +326,19 @@ class EmergencyRequestViewModel(
     }
 
     private fun refreshHistory() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(historyRefreshing = true) }
-            runCatching { repository.refreshRequestHistory() }
-                .onSuccess { history -> _uiState.update { it.copy(requestHistory = history) } }
-            _uiState.update { it.copy(historyRefreshing = false) }
+        if (historyRefreshJob?.isActive == true) return
+        historyRefreshJob = viewModelScope.launch {
+            _uiState.update { it.copy(historyRefreshing = true, historyError = null) }
+            try {
+                val history = repository.refreshRequestHistory()
+                _uiState.update { it.copy(requestHistory = history) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.update { it.copy(historyError = "Couldn’t load your requests. Check your connection and try again.") }
+            } finally {
+                _uiState.update { it.copy(historyRefreshing = false) }
+            }
         }
     }
 

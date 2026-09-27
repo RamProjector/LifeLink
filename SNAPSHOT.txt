@@ -1,4 +1,1 @@
-LifeLink source snapshot
-Commit: 94558661d447ee9393e74eafc55e5d169955d684
-Includes every tracked project file except two existing prebuilt APKs in artifacts/.
-Git history and local build files are excluded.
+Source snapshot: base94558661d447ee9393e74eafc55e5d169955d684 plus local request-history recovery fix. Includes tests. Older prebuilt APKs omitted. These changes are not pushed or deployed.

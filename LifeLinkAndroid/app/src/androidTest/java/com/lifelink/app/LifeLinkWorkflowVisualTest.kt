@@ -31,7 +31,7 @@ class LifeLinkWorkflowVisualTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
-    private fun render(state: EmergencyRequestUiState = EmergencyRequestUiState(), updates: List<com.lifelink.app.domain.UpdateItem> = emptyList()) {
+    private fun render(state: EmergencyRequestUiState = EmergencyRequestUiState(), updates: List<com.lifelink.app.domain.UpdateItem> = emptyList(), onAction: (com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction) -> Unit = {}) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.getSharedPreferences("lifelink_welcome", 0)
             .edit()
@@ -43,7 +43,7 @@ class LifeLinkWorkflowVisualTest {
                 LifeLinkTheme(themeMode = testTheme) {
                     LifeLinkShell(
                         state = state,
-                        onAction = {},
+                        onAction = onAction,
                         donorState = DonorUiState(),
                         onDonorAction = {},
                         role = UserRole.REQUESTER,
@@ -140,6 +140,17 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithText("A donor responded").performScrollTo().performClick()
         assertVisible("Activity")
         assertVisible("A donor responded")
+    }
+
+    @Test
+    fun failedHistoryLoadShowsRetryEvenWhenThereAreNoCachedRequests() {
+        val actions = mutableListOf<com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction>()
+        render(state = EmergencyRequestUiState(historyError = "Couldn’t load your requests."), onAction = { actions += it })
+        tapTab("Requests")
+        assertVisible("Requests unavailable")
+        composeRule.onNodeWithText("No active request").assertDoesNotExist()
+        composeRule.onNodeWithText("Retry").performScrollTo().performClick()
+        org.junit.Assert.assertEquals(listOf(com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction.RefreshHistory), actions)
     }
 
     @Test

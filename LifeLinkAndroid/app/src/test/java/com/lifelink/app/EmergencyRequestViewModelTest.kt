@@ -42,6 +42,27 @@ class EmergencyRequestViewModelTest {
     }
 
     @Test
+    fun failed_history_load_is_visible_and_retry_restores_requests() = runTest {
+        val repository = FakeRepository()
+        repository.historyFailure = java.io.IOException("offline")
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.historyError != null)
+        assertTrue(!viewModel.uiState.value.historyRefreshing)
+        repository.historyFailure = null
+        repository.history = listOf(RequestHistoryItem("saved-request", com.lifelink.app.domain.ActiveRequestStatus.AWAITING_RESPONSES))
+        viewModel.onAction(EmergencyRequestAction.RefreshHistory)
+        advanceUntilIdle()
+        assertEquals("saved-request", viewModel.uiState.value.requestHistory.single().requestId)
+        assertEquals(null, viewModel.uiState.value.historyError)
+        repository.historyFailure = java.io.IOException("offline again")
+        viewModel.onAction(EmergencyRequestAction.RefreshHistory)
+        advanceUntilIdle()
+        assertEquals("saved-request", viewModel.uiState.value.requestHistory.single().requestId)
+        assertTrue(viewModel.uiState.value.historyError != null)
+    }
+
+    @Test
     fun continue_without_blood_type_exposes_validation_error() = runTest {
         val viewModel = EmergencyRequestViewModel(FakeRepository(), enablePolling = false)
         viewModel.onAction(EmergencyRequestAction.Continue)
@@ -115,6 +136,8 @@ private class FakeRepository(
     private val submitResult: SubmitResult = SubmitResult.OfflineQueued("draft-1")
 ) : EmergencyRequestRepository {
     var savedDrafts = 0
+    var historyFailure: Exception? = null
+    var history: List<RequestHistoryItem> = emptyList()
     var contactResult: SubmitResult = SubmitResult.Error("not configured")
     var lastContactedDonors: List<String> = emptyList()
     override suspend fun saveDraft(draft: EmergencyRequestDraft) { savedDrafts++ }
@@ -133,6 +156,9 @@ private class FakeRepository(
     override suspend fun blockContact(requestId: String, donorId: String): String = "blocked"
     override fun observeActiveRequest(): Flow<ActiveRequestSnapshot?> = flowOf(null)
     override fun observeRequestHistory(): Flow<List<ActiveRequestSnapshot>> = flowOf(emptyList())
-    override suspend fun refreshRequestHistory(): List<RequestHistoryItem> = emptyList()
+    override suspend fun refreshRequestHistory(): List<RequestHistoryItem> {
+        historyFailure?.let { throw it }
+        return history
+    }
     override suspend fun refreshActiveRequest(requestId: String): ActiveRequestSnapshot? = null
 }

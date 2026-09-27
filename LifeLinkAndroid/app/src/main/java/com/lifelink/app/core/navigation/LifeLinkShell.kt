@@ -269,8 +269,8 @@ private fun ShellNavigationIcon(tab: ShellTab, unread: Int) {
             } else {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("No active request", style = MaterialTheme.typography.titleMedium)
-                        Text("When you need blood, start with the type, amount, and location.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(if (state.historyRefreshing) "Loading your requests…" else if (state.historyError != null) "Requests unavailable" else "No active request", style = MaterialTheme.typography.titleMedium)
+                        Text(if (state.historyRefreshing || state.historyError != null) "Your saved requests will appear after they load." else "When you need blood, start with the type, amount, and location.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -282,17 +282,18 @@ private fun ShellNavigationIcon(tab: ShellTab, unread: Int) {
                 Text("Create emergency request")
             }
         }
-        if (state.requestHistory.isNotEmpty()) {
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Request history", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { onAction(EmergencyRequestAction.RefreshHistory) }, enabled = !state.historyRefreshing) {
-                        Text(if (state.historyRefreshing) "Refreshing…" else "Refresh")
-                    }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Request history", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                TextButton(onClick = { onAction(EmergencyRequestAction.RefreshHistory) }, enabled = !state.historyRefreshing) {
+                    Text(if (state.historyRefreshing) "Refreshing…" else if (state.historyError != null) "Retry" else "Refresh")
                 }
             }
-            items(state.requestHistory, key = { it.requestId }) { RequestHistoryCard(it) }
         }
+        state.historyError?.let { error ->
+            item { Text(error, color = MaterialTheme.colorScheme.error) }
+        }
+        items(state.requestHistory, key = { it.requestId }) { RequestHistoryCard(it) }
     }
 }
 
@@ -348,8 +349,8 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
                     ActiveRequestSummary(state, onActive)
                 } else {
                     Column(Modifier.padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("No active request", style = MaterialTheme.typography.bodyLarge)
-                        Text("Create a request to find nearby blood donors.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(if (state.historyRefreshing) "Loading your requests…" else if (state.historyError != null) "Requests unavailable" else "No active request", style = MaterialTheme.typography.bodyLarge)
+                        Text(state.historyError ?: if (state.historyRefreshing) "Checking your account for saved requests." else "Create a request to find nearby blood donors.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Button(onClick = onCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = MaterialTheme.shapes.small) {
