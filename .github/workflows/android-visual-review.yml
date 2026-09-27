@@ -45,6 +45,25 @@ jobs:
       - name: Build visual-test APKs
         run: ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon --stacktrace
 
+      - name: Prepare emulator test script
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/lifelink-visual-test.sh" <<'EOF'
+          #!/usr/bin/env bash
+          set +e
+          cd "$GITHUB_WORKSPACE/LifeLinkAndroid" || exit 1
+          ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+          test_exit=$?
+          mkdir -p "$GITHUB_WORKSPACE/visual-artifacts"
+          for remote_file in $(adb shell ls /sdcard/lifelink-*.png 2>/dev/null | tr -d '\r'); do
+            adb pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
+          done
+          adb logcat -d > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" || true
+          echo "$test_exit" > "$GITHUB_WORKSPACE/visual-artifacts/visual-test-exit-code.txt"
+          exit "$test_exit"
+          EOF
+          chmod +x "$RUNNER_TEMP/lifelink-visual-test.sh"
+
       - name: Run visual smoke test on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -62,17 +81,7 @@ jobs:
           disable-spellchecker: true
           disable-animations: true
           script: |
-            set +e
-            cd "$GITHUB_WORKSPACE/LifeLinkAndroid" || exit 1
-            ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
-            test_exit=$?
-            mkdir -p "$GITHUB_WORKSPACE/visual-artifacts"
-            for remote_file in $(adb shell ls /sdcard/lifelink-*.png 2>/dev/null | tr -d '\r'); do
-              adb pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
-            done
-            adb logcat -d > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" || true
-            echo "$test_exit" > "$GITHUB_WORKSPACE/visual-artifacts/visual-test-exit-code.txt"
-            exit "$test_exit"
+            bash "$RUNNER_TEMP/lifelink-visual-test.sh"
 
       - name: Collect visual test reports
         if: always()
