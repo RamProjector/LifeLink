@@ -86,42 +86,54 @@ class MainActivity : ComponentActivity() {
                     return@LifeLinkTheme
                 }
                 val roleSyncScope = rememberCoroutineScope()
-                var role by remember { mutableStateOf(roleStore.get()) }
+                var role by remember { mutableStateOf<UserRole?>(null) }
                 var displayName by remember { mutableStateOf("") }
+                var canRequest by remember { mutableStateOf(true) }
+                var canDonate by remember { mutableStateOf(false) }
                 var profileSaving by remember { mutableStateOf(false) }
                 var profileMessage by remember { mutableStateOf<String?>(null) }
                 val signedInSession = (authState as? AuthState.SignedIn)?.session
                 val accountUserId = signedInSession?.userId.orEmpty()
                 LaunchedEffect(accountUserId) {
+                    role = null
+                    displayName = ""
+                    canRequest = true
+                    canDonate = false
                     if (accountUserId.isNotBlank()) {
                         val api = RetrofitProvider.create(
                                 tokenProvider = { app.container.authRepository.session.value?.accessToken ?: signedInSession?.accessToken },
                                 onUnauthorized = app.container.authRepository::refreshAccessToken
                             )
                         runCatching { api.getProfile() }.onSuccess { response ->
-                            if (response.isSuccessful) displayName = response.body()?.displayName.orEmpty()
+                            if (response.isSuccessful) {
+                                response.body()?.let { profile ->
+                                    displayName = profile.displayName.orEmpty()
+                                    canRequest = profile.canRequest
+                                    canDonate = profile.canDonate
+                                    role = if (profile.role.equals("donor", ignoreCase = true)) UserRole.DONOR else UserRole.REQUESTER
+                                    roleStore.save(accountUserId, role!!)
+                                }
+                            } else if (response.code() == 404) {
+                                // A newly authenticated account starts in requester mode,
+                                // with donor mode available later from Profile. Do not show
+                                // the old mandatory role-choice screen.
+                                role = UserRole.REQUESTER
+                                canRequest = true
+                                canDonate = false
+                                roleStore.save(accountUserId, UserRole.REQUESTER)
+                                roleSyncScope.launch {
+                                    runCatching { api.upsertProfile(ProfileRequest("requester", canRequest = true, canDonate = false)) }
+                                }
+                            }
+                        }.onFailure {
+                            // Keep the shell from guessing a donor role when the profile is unavailable.
+                            role = UserRole.REQUESTER
                         }
                         runCatching { fetchFirebaseToken() }
                             .onSuccess { token -> runCatching { api.registerPushToken(PushTokenRequest(token)) } }
                     }
                 }
                 if (role == null) {
-                    RoleSelectionScreen { selectedRole ->
-                        roleStore.save(selectedRole)
-                        role = selectedRole
-                        roleSyncScope.launch {
-                            val session = (authState as? AuthState.SignedIn)?.session
-                            if (session != null) {
-                                runCatching {
-                                    RetrofitProvider.create(
-                                        tokenProvider = { app.container.authRepository.session.value?.accessToken ?: session.accessToken },
-                                        onUnauthorized = app.container.authRepository::refreshAccessToken
-                                    )
-                                        .upsertProfile(ProfileRequest(selectedRole.name.lowercase(), canRequest = true, canDonate = selectedRole == UserRole.DONOR))
-                                }
-                            }
-                        }
-                    }
                     return@LifeLinkTheme
                 }
                 val viewModel: EmergencyRequestViewModel = viewModel(
@@ -198,7 +210,7 @@ class MainActivity : ComponentActivity() {
                                 RetrofitProvider.create(
                                     tokenProvider = { app.container.authRepository.session.value?.accessToken ?: signedInSession?.accessToken },
                                     onUnauthorized = app.container.authRepository::refreshAccessToken
-                                        ).upsertProfile(ProfileRequest(role?.name?.lowercase() ?: "requester", updatedName.trim(), canRequest = true, canDonate = role == UserRole.DONOR))
+                                        ).upsertProfile(ProfileRequest(role?.name?.lowercase() ?: "requester", updatedName.trim(), canRequest = canRequest, canDonate = canDonate))
                             }.onSuccess { response ->
                                 if (response.isSuccessful) {
                                     displayName = response.body()?.displayName.orEmpty()

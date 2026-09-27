@@ -28,36 +28,36 @@ class DonorRepositoryImpl(
 
     override fun observeProfile(): Flow<DonorProfile> = dao.observeProfile(donorId()).map { it?.toDomain() ?: DonorProfile(donorId = donorId()) }
     override fun observeRequests(): Flow<List<DonorRequest>> = dao.observeRequests(donorId()).map { list -> list.map { it.toDomain() } }
+
     override suspend fun saveProfile(profile: DonorProfile) {
         withContext(Dispatchers.IO) {
-        val ownerId = donorId()
-        val effectiveProfile = profile.copy(donorId = ownerId)
-        require(effectiveProfile.displayName.trim().length >= 2) { "Add a display name before saving your donor profile." }
-        require(effectiveProfile.bloodType != null) { "Select your blood type before saving your donor profile." }
-        require(effectiveProfile.latitude != null && effectiveProfile.longitude != null) { "Capture your approximate location before saving your donor profile." }
-        require(effectiveProfile.serviceRadiusKm in 1..100) { "Service radius must be between 1 and 100 km." }
-        api?.let { remote ->
-            val response = remote.registerDonor(
-                ownerId, DonorProfileRequest(
-                ownerId, effectiveProfile.displayName.trim(), effectiveProfile.bloodType?.label?.replace('−', '-') ?: "UNKNOWN",
-                effectiveProfile.latitude, effectiveProfile.longitude, effectiveProfile.serviceRadiusKm.toDouble(), effectiveProfile.verified,
-                effectiveProfile.donorNote.trim(), effectiveProfile.preferredContactMethod,
-                effectiveProfile.pauseReason?.trim()?.takeIf { it.isNotEmpty() }, effectiveProfile.profileVisible
-                )
-            )
-            check(response.isSuccessful) {
-                val detail = response.errorBody()?.string()?.takeIf { it.isNotBlank() }
-                "Profile could not be saved on the server (${response.code()})${detail?.let { ": $it" } ?: "."}"
+            val ownerId = donorId()
+            val effectiveProfile = profile.copy(donorId = ownerId)
+            require(effectiveProfile.displayName.trim().length >= 2) { "Add a display name before saving your donor profile." }
+            require(effectiveProfile.bloodType != null) { "Select your blood type before saving your donor profile." }
+            require(effectiveProfile.latitude != null && effectiveProfile.longitude != null) { "Capture your approximate location before saving your donor profile." }
+            require(effectiveProfile.serviceRadiusKm in 1..100) { "Service radius must be between 1 and 100 km." }
+            api?.let { remote ->
+                val response = remote.registerDonor(ownerId, DonorProfileRequest(
+                    ownerId, effectiveProfile.displayName.trim(), effectiveProfile.bloodType.label.replace('−', '-'),
+                    effectiveProfile.latitude, effectiveProfile.longitude, effectiveProfile.serviceRadiusKm.toDouble(), effectiveProfile.verified,
+                    effectiveProfile.donorNote.trim(), effectiveProfile.preferredContactMethod,
+                    effectiveProfile.pauseReason?.trim()?.takeIf { it.isNotEmpty() }, effectiveProfile.profileVisible
+                ))
+                check(response.isSuccessful) {
+                    val detail = response.errorBody()?.string()?.takeIf { it.isNotBlank() }
+                    "Profile could not be saved on the server (${response.code()})${detail?.let { ": $it" } ?: "."}"
+                }
+                val availability = remote.updateDonorAvailability(ownerId, DonorAvailabilityRequest(effectiveProfile.availability.name.lowercase()))
+                check(availability.isSuccessful) {
+                    val detail = availability.errorBody()?.string()?.takeIf { it.isNotBlank() }
+                    "Availability could not be updated (${availability.code()})${detail?.let { ": $it" } ?: "."}"
+                }
             }
-            val availability = remote.updateDonorAvailability(ownerId, DonorAvailabilityRequest(effectiveProfile.availability.name.lowercase()))
-            check(availability.isSuccessful) {
-                val detail = availability.errorBody()?.string()?.takeIf { it.isNotBlank() }
-                "Availability could not be updated (${availability.code()})${detail?.let { ": $it" } ?: "."}"
-            }
-        }
-        dao.upsertProfile(effectiveProfile.toEntity())
+            dao.upsertProfile(effectiveProfile.toEntity())
         }
     }
+
     override suspend fun setAvailability(availability: DonorAvailability) {
         withContext(Dispatchers.IO) {
             val ownerId = donorId()
@@ -71,12 +71,31 @@ class DonorRepositoryImpl(
             dao.upsertProfile(current.copy(availability = availability).toEntity())
         }
     }
+
     override suspend fun refresh() = withContext(Dispatchers.IO) {
         val remote = api ?: return@withContext
-        val profile = dao.observeProfile(donorId()).first()
+        val ownerId = donorId()
+        runCatching { remote.getDonorProfile(ownerId) }.getOrNull()?.takeIf { it.isSuccessful }?.body()?.let { response ->
+            val bloodType = BloodType.values().firstOrNull { it.label.replace('−', '-') == response.bloodType }
+            dao.upsertProfile(DonorProfile(
+                donorId = ownerId,
+                displayName = response.displayName,
+                bloodType = bloodType,
+                serviceRadiusKm = response.serviceRadiusKm.toInt(),
+                availability = runCatching { DonorAvailability.valueOf(response.availability.uppercase()) }.getOrDefault(DonorAvailability.OFFLINE),
+                verified = response.verified,
+                latitude = response.latitude,
+                longitude = response.longitude,
+                donorNote = response.donorNote,
+                preferredContactMethod = response.preferredContactMethod,
+                pauseReason = response.pauseReason,
+                profileVisible = response.profileVisible
+            ).toEntity())
+        }
+        val profile = dao.observeProfile(ownerId).first()
         if (profile != null && profile.toDomain().isSetupComplete) {
-            remote.donorRequests(profile.donorId).body().orEmpty().forEach { request ->
-                dao.upsertRequest(DonorRequestEntity(profile.donorId, request.requestId, request.bloodType, request.units, request.urgency, request.facilityName, request.area, request.distanceKm, request.status.takeUnless { it == "not_responded" }))
+            remote.donorRequests(ownerId).body().orEmpty().forEach { request ->
+                dao.upsertRequest(DonorRequestEntity(ownerId, request.requestId, request.bloodType, request.units, request.urgency, request.facilityName, request.area, request.distanceKm, request.status.takeUnless { it == "not_responded" }))
             }
         }
     }

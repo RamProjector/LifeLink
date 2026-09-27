@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
 @Entity(tableName = "active_requests")
 data class ActiveRequestEntity(
     @androidx.room.PrimaryKey val requestId: String,
+    val ownerId: String,
     val status: String,
     val notificationsCreated: Int,
     val matchesResponded: Int,
@@ -22,10 +23,10 @@ data class ActiveRequestEntity(
 @Dao
 interface ActiveRequestDao {
     @Query("SELECT * FROM active_requests ORDER BY lastUpdatedEpochMillis DESC LIMIT 1")
-    fun observeLatest(): Flow<ActiveRequestEntity?>
+    fun observeLatest(ownerId: String): Flow<ActiveRequestEntity?>
 
     @Query("SELECT * FROM active_requests ORDER BY lastUpdatedEpochMillis DESC")
-    fun observeAll(): Flow<List<ActiveRequestEntity>>
+    fun observeAll(ownerId: String): Flow<List<ActiveRequestEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(request: ActiveRequestEntity)
@@ -46,8 +47,9 @@ fun ActiveRequestEntity.toDomain(): ActiveRequestSnapshot = ActiveRequestSnapsho
     lastUpdatedEpochMillis = lastUpdatedEpochMillis
 )
 
-fun ActiveRequestSnapshot.toEntity(): ActiveRequestEntity = ActiveRequestEntity(
+fun ActiveRequestSnapshot.toEntity(ownerId: String): ActiveRequestEntity = ActiveRequestEntity(
     requestId = requestId,
+    ownerId = ownerId,
     status = status.name,
     notificationsCreated = notificationsCreated,
     matchesResponded = matchesResponded,

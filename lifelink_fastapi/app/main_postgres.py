@@ -103,6 +103,8 @@ async def _token_for_user(session: AsyncSession, user_id: str) -> list[str]:
 class ProfileIn(BaseModel):
     role: str = Field(pattern="^(requester|donor)$")
     display_name: str | None = Field(default=None, max_length=160)
+    can_request: bool = True
+    can_donate: bool = False
 
 
 class ProfileOut(BaseModel):
@@ -110,6 +112,8 @@ class ProfileOut(BaseModel):
     email: str
     role: str
     display_name: str | None = None
+    can_request: bool = True
+    can_donate: bool = False
 
 
 class PushTokenIn(BaseModel):
@@ -156,12 +160,16 @@ async def upsert_profile(
             user_id=principal.subject,
             email=principal.email or "",
             role=LifeLinkRoleEnum(payload.role),
+            can_request=payload.can_request,
+            can_donate=payload.can_donate,
             display_name=payload.display_name,
         )
         session.add(row)
     else:
         row.email = principal.email or row.email
         row.role = LifeLinkRoleEnum(payload.role)
+        row.can_request = payload.can_request
+        row.can_donate = payload.can_donate
         row.display_name = payload.display_name
     await session.commit()
     return ProfileOut(
@@ -562,6 +570,36 @@ async def fulfill_emergency_request(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await store.record_audit_async(principal.subject, "request_fulfilled", request_id)
     return RequestActionOut(request_id=record.request_id, status=record.status, reason="Marked fulfilled by requester")
+
+
+@app.get("/v1/donors/{donor_id}", response_model=DonorProfileOut)
+async def get_donor_postgres(
+    donor_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    if principal.subject != "development-user" and principal.subject != donor_id:
+        raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
+    row = await session.get(DonorRow, donor_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Donor profile not found")
+    donor = Donor(
+        donor_id=row.id,
+        display_name=row.display_name,
+        blood_type=row.blood_type.value,
+        latitude=float(row.latitude),
+        longitude=float(row.longitude),
+        available=row.available,
+        availability_updated_at=row.availability_updated_at,
+        verified=row.verified,
+        service_radius_km=float(row.service_radius_km),
+        estimated_response_probability=float(row.estimated_response_probability),
+        donor_note=row.donor_note,
+        preferred_contact_method=row.preferred_contact_method,
+        pause_reason=row.pause_reason,
+        profile_visible=row.profile_visible,
+    )
+    return profile_to_out(donor, DonorAvailability.AVAILABLE if row.available else DonorAvailability.OFFLINE)
 
 
 @app.put("/v1/donors/{donor_id}", response_model=DonorProfileOut)
