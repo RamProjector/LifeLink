@@ -272,48 +272,54 @@ private fun ProfileCard(
     var serviceRadius by remember(profile.donorId) { mutableStateOf(profile.serviceRadiusKm.toString()) }
     var manualLatitude by remember(profile.donorId) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
     var manualLongitude by remember(profile.donorId) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
+    var showMoreSettings by rememberSaveable(profile.donorId) { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Donor profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             OutlinedTextField(profile.displayName, { value -> onAction(DonorAction.UpdateDraft { it.copy(displayName = value) }) }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
             OutlinedTextField(profile.area, { value -> onAction(DonorAction.UpdateDraft { it.copy(area = value) }) }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
-            OutlinedTextField(
-                value = profile.donorNote,
-                onValueChange = { if (it.length <= 500) onAction(DonorAction.UpdateDraft { draft -> draft.copy(donorNote = it) }) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Optional donor note") },
-                minLines = 2,
-                maxLines = 4
-            )
-            Text("Preferred contact method", fontWeight = FontWeight.SemiBold)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("in_app" to "In-app", "phone" to "Phone").forEach { (value, label) ->
-                    FilterChip(
-                        selected = profile.preferredContactMethod == value,
-                        onClick = { onAction(DonorAction.UpdateDraft { it.copy(preferredContactMethod = value) }) },
-                        label = { Text(label) }
-                    )
-                }
+            OutlinedButton(onClick = { showMoreSettings = !showMoreSettings }, modifier = Modifier.fillMaxWidth()) {
+                Text(if (showMoreSettings) "Hide optional settings" else "Show optional settings")
             }
-            if (profile.availability == DonorAvailability.PAUSED) {
+            if (showMoreSettings) {
                 OutlinedTextField(
-                    value = profile.pauseReason.orEmpty(),
-                    onValueChange = { if (it.length <= 240) onAction(DonorAction.UpdateDraft { draft -> draft.copy(pauseReason = it) }) },
+                    value = profile.donorNote,
+                    onValueChange = { if (it.length <= 500) onAction(DonorAction.UpdateDraft { draft -> draft.copy(donorNote = it) }) },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Why are you paused? (optional)") },
-                    singleLine = true
+                    label = { Text("Optional donor note") },
+                    minLines = 2,
+                    maxLines = 4
                 )
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(Modifier.weight(1f)) {
-                    Text("Profile visible to requesters", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        if (profile.profileVisible) "You can appear in matching results when available." else "You will not appear in new matching results.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall
+                Text("Preferred contact method", fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("in_app" to "In-app", "phone" to "Phone").forEach { (value, label) ->
+                        FilterChip(
+                            selected = profile.preferredContactMethod == value,
+                            onClick = { onAction(DonorAction.UpdateDraft { it.copy(preferredContactMethod = value) }) },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+                if (profile.availability == DonorAvailability.PAUSED) {
+                    OutlinedTextField(
+                        value = profile.pauseReason.orEmpty(),
+                        onValueChange = { if (it.length <= 240) onAction(DonorAction.UpdateDraft { draft -> draft.copy(pauseReason = it) }) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Why are you paused? (optional)") },
+                        singleLine = true
                     )
                 }
-                Switch(checked = profile.profileVisible, onCheckedChange = { value -> onAction(DonorAction.UpdateDraft { it.copy(profileVisible = value) }) })
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Profile visible to requesters", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (profile.profileVisible) "You can appear in matching results when available." else "You will not appear in new matching results.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Switch(checked = profile.profileVisible, onCheckedChange = { value -> onAction(DonorAction.UpdateDraft { it.copy(profileVisible = value) }) })
+                }
             }
             Text("Blood type", fontWeight = FontWeight.SemiBold)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

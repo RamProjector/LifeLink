@@ -248,37 +248,35 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     onDonor: () -> Unit
 ) {
     Column(
-        Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp, vertical = 24.dp),
+        Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        Text(if (role == UserRole.DONOR) "Donor home" else "Requester home", style = androidx.compose.material3.MaterialTheme.typography.labelLarge, color = androidx.compose.material3.MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
         Text(if (role == UserRole.DONOR) "Ready to help nearby?" else "Find help when it matters", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(if (role == UserRole.DONOR) "Keep your availability current so requests can reach you." else "LifeLink helps you reach potential donors while keeping exact locations private.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(if (role == UserRole.DONOR) "Keep your availability current so matching stays clear." else "Create a request, follow responses, and share details only when you choose.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         if (role == UserRole.DONOR) {
             DonorDashboardSummary(profile = donorState.profile, requestCount = donorState.requests.size, onOpen = onDonor)
         }
         if (role == UserRole.REQUESTER) {
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer), elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Need blood? Start here.", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Tell us the blood type, urgency, and approximate area. We will show potential matches before you contact anyone.")
-                    Button(onClick = onCreate, Modifier.fillMaxWidth()) { Text("Open Requests") }
+                    Text("Share the essentials and review potential matches before contacting anyone.")
+                    Button(onClick = onCreate, Modifier.fillMaxWidth()) { Text("Create emergency request") }
                 }
             }
         }
         state.activeRequest?.let { active ->
             Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Your active request", fontWeight = FontWeight.Bold)
-                    Text(active.status.label)
+                    Text("Active request", style = androidx.compose.material3.MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(active.status.label, color = androidx.compose.material3.MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                     TextButton(onClick = onActive) { Text("View live status") }
                 }
             }
         }
-        if (role == UserRole.REQUESTER) Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("What happens next?", fontWeight = FontWeight.Bold)
-                Text("Open Requests to create or follow a request. Donor contact details are shared only after a donor accepts.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+        if (role == UserRole.REQUESTER && state.activeRequest == null) {
+            Text("Exact locations stay private. Contact details are shared only after donor acceptance.", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
         }
     }
 }

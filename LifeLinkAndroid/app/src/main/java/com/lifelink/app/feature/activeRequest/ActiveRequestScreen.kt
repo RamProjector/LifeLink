@@ -16,7 +16,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,18 +55,16 @@ fun ActiveRequestScreen(
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("Your request", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("Request ${active.requestId.take(12)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
             StatusCard(active)
             ProgressCard(active)
             if (active.status == ActiveRequestStatus.MANUAL_BROADCAST) {
                 Button(onClick = { onAction(EmergencyRequestAction.SendManualBroadcast) }, modifier = Modifier.fillMaxWidth()) { Text("Send manual broadcast") }
             }
             if (!active.isTerminal) {
-                Button(onClick = { onAction(EmergencyRequestAction.FulfillRequest) }, enabled = !state.statusRefreshing, modifier = Modifier.fillMaxWidth()) { Text("Mark fulfilled") }
-                OutlinedButton(onClick = { showCancelConfirmation = true }, modifier = Modifier.fillMaxWidth()) { Text("Cancel request") }
+                Button(onClick = { onAction(EmergencyRequestAction.FulfillRequest) }, enabled = !state.statusRefreshing, modifier = Modifier.fillMaxWidth()) { Text("Mark request fulfilled") }
+                TextButton(onClick = { showCancelConfirmation = true }, modifier = Modifier.fillMaxWidth()) { Text("Cancel request") }
             }
-            Text("Updates automatically while active.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            Text("Request ${active.requestId.take(12)} · Updates automatically while active.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }
     }
     if (showCancelConfirmation) {
@@ -84,7 +81,8 @@ fun ActiveRequestScreen(
 @Composable private fun StatusCard(active: ActiveRequestSnapshot) {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(active.status.label, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Text("Current status", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(active.status.label, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             active.reason?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Text(if (active.isTerminal) "This request is no longer accepting responses." else "Eligible donors are notified according to the matching rules.")
         }
