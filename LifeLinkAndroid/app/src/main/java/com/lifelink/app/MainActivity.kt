@@ -70,7 +70,6 @@ class MainActivity : ComponentActivity() {
                         hadSignedInSession = true
                     } else if (hadSignedInSession) {
                         hadSignedInSession = false
-                        roleStore.clear()
                         authCleanupScope.launch { app.clearLocalAccountData() }
                     }
                 }
@@ -238,7 +237,7 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onSignOut = {
-                        roleStore.clear()
+                        roleStore.clear(accountUserId)
                         roleSyncScope.launch {
                             app.clearLocalAccountData()
                             authViewModel.signOut()
