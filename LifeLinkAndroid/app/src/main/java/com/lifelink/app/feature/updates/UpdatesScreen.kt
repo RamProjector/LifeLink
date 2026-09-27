@@ -50,8 +50,8 @@ fun UpdatesScreen(
             item {
                 Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Nothing new", fontWeight = FontWeight.SemiBold)
-                        Text("Request changes, donor responses, and account notices will appear here.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Nothing needs your attention", fontWeight = FontWeight.SemiBold)
+                        Text("Request changes, donor responses, and account notices will appear here when something changes.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

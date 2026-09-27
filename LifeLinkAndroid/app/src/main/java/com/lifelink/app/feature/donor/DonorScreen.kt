@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -195,14 +196,14 @@ private fun DonorRequestsContent(state: DonorUiState, onAction: (DonorAction) ->
             Text("Requests near you", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text("Only requests matching your saved profile and availability appear here.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (state.requestsRefreshing) item { StatusMessage("Refreshing eligible requests…") }
-        state.message?.let { message -> if (!state.requestsRefreshing) item { StatusMessage(message) } }
+        if (state.requestsRefreshing) item { StatusMessage("Refreshing eligible requests…", compact = true, loading = true) }
+        state.message?.let { message -> if (!state.requestsRefreshing) item { StatusMessage(message, compact = true) } }
         if (!state.profile.isSetupComplete) item { SetupRequiredCard(state.profile) }
         else if (state.requests.isEmpty()) item {
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("No eligible requests right now", fontWeight = FontWeight.SemiBold)
-                    Text("New matching requests will appear here when available. Pulling a refresh does not change your availability.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No matching requests", fontWeight = FontWeight.SemiBold)
+                    Text("New requests will appear here when available. Refreshing does not change your availability.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedButton(onClick = { onAction(DonorAction.RefreshRequests) }, enabled = !state.requestsRefreshing) { Text("Refresh requests") }
                 }
             }
@@ -213,18 +214,24 @@ private fun DonorRequestsContent(state: DonorUiState, onAction: (DonorAction) ->
 }
 
 @Composable
-private fun StatusMessage(message: String, compact: Boolean = false) {
+private fun StatusMessage(message: String, compact: Boolean = false, loading: Boolean = false) {
     Card(
         Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Text(
-            message,
+        Row(
             Modifier.padding(if (compact) 12.dp else 14.dp),
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium
-        )
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (loading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+            Text(
+                message,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium
+            )
+        }
     }
 }
 
