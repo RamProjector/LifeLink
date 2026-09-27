@@ -51,14 +51,30 @@ jobs:
           cat > "$RUNNER_TEMP/lifelink-visual-test.sh" <<'EOF'
           #!/usr/bin/env bash
           set +e
+          device_serial="${ANDROID_SERIAL:-emulator-5554}"
+          device_ready=0
+          for attempt in $(seq 1 90); do
+            adb reconnect offline >/dev/null 2>&1 || true
+            device_state="$(adb -s "$device_serial" get-state 2>/dev/null || true)"
+            boot_completed="$(adb -s "$device_serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+            if [[ "$device_state" == "device" && "$boot_completed" == "1" ]]; then
+              device_ready=1
+              break
+            fi
+            sleep 5
+          done
+          if [[ "$device_ready" != "1" ]]; then
+            adb devices -l || true
+            exit 2
+          fi
           cd "$GITHUB_WORKSPACE/LifeLinkAndroid" || exit 1
           ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
           test_exit=$?
           mkdir -p "$GITHUB_WORKSPACE/visual-artifacts"
-          for remote_file in $(adb shell ls /sdcard/Download/lifelink-*.png 2>/dev/null | tr -d '\r'); do
-            adb pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
+          for remote_file in $(adb -s "$device_serial" shell ls /sdcard/Download/lifelink-*.png 2>/dev/null | tr -d '\r'); do
+            adb -s "$device_serial" pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
           done
-          adb logcat -d > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" || true
+          adb -s "$device_serial" logcat -d > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" || true
           echo "$test_exit" > "$GITHUB_WORKSPACE/visual-artifacts/visual-test-exit-code.txt"
           exit "$test_exit"
           EOF
