@@ -27,8 +27,13 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
+      - name: Install PostgreSQL integration-test server
+        run: pip install pgserver
+      - name: Require PostgreSQL integration-test server
+        run: python -c "import pgserver; print('pgserver is available; PostgreSQL end-to-end tests must run')"
       - run: python -m compileall -q app tests
-      - run: pytest -q
+      - name: Run backend tests including PostgreSQL end-to-end tests
+        run: pytest -q -rs
 
   android:
     runs-on: ubuntu-latest
