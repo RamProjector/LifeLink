@@ -2,8 +2,14 @@ package com.lifelink.app
 
 import android.app.Application
 import android.net.ConnectivityManager
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.await
+import androidx.work.workDataOf
 import com.lifelink.app.data.local.LifeLinkDatabase
 import com.lifelink.app.data.repository.EmergencyRequestRepositoryImpl
 import com.lifelink.app.data.repository.LifeLinkAccountContainer
@@ -14,7 +20,9 @@ import com.lifelink.app.core.auth.AccountDataCoordinator
 import com.lifelink.app.core.auth.AuthSessionStore
 import com.lifelink.app.core.auth.SupabaseAuthRepository
 import com.lifelink.app.core.notifications.LifeLinkNotifications
+import com.lifelink.app.core.notifications.PushTokenRegistrationWorker
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,6 +37,30 @@ class LifeLinkApplication : Application() {
 
     internal fun launchAccountWrite(ownerId: String, block: suspend () -> Unit) =
         applicationScope.launch { accountData.runForOwner(ownerId, block) }
+
+    internal fun enqueuePushTokenRegistration(ownerId: String, token: String) {
+        if (ownerId.isBlank() || token.isBlank()) return
+        val work = OneTimeWorkRequestBuilder<PushTokenRegistrationWorker>()
+            .setInputData(
+                workDataOf(
+                    PushTokenRegistrationWorker.OWNER_ID to ownerId,
+                    PushTokenRegistrationWorker.TOKEN to token
+                )
+            )
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .addTag("lifelink-account-$ownerId")
+            .build()
+        WorkManager.getInstance(this).enqueueUniqueWork(
+            "lifelink-push-token-$ownerId",
+            ExistingWorkPolicy.REPLACE,
+            work
+        )
+    }
 
     private suspend fun clearLocalAccountData(ownerId: String) = accountData.cleanup {
         WorkManager.getInstance(this).cancelAllWorkByTag("lifelink-account-$ownerId").await()
