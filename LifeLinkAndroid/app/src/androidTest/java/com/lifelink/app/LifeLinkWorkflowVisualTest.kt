@@ -29,7 +29,12 @@ class LifeLinkWorkflowVisualTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
-    private fun render(state: EmergencyRequestUiState = EmergencyRequestUiState(), updates: List<com.lifelink.app.domain.UpdateItem> = emptyList(), onAction: (com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction) -> Unit = {}) {
+    private fun render(
+        state: EmergencyRequestUiState = EmergencyRequestUiState(),
+        updates: List<com.lifelink.app.domain.UpdateItem> = emptyList(),
+        role: UserRole = UserRole.REQUESTER,
+        onAction: (com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction) -> Unit = {}
+    ) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.getSharedPreferences("lifelink_welcome", 0)
             .edit()
@@ -44,7 +49,7 @@ class LifeLinkWorkflowVisualTest {
                         onAction = onAction,
                         donorState = DonorUiState(),
                         onDonorAction = {},
-                        role = UserRole.REQUESTER,
+                        role = role,
                         accountEmail = "visual-test@example.invalid",
                         accountUserId = "visual-account",
                         accountDisplayName = "Visual Test",
@@ -123,6 +128,13 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithText("Create emergency request").performScrollTo().performClick()
         assertVisible("Blood need")
         capture("request-form")
+    }
+
+    @Test
+    fun returningDonorOpensDonorWorkspace() {
+        render(role = UserRole.DONOR)
+        assertVisible("Donor workspace")
+        assertVisible("Finish donor setup")
     }
 
     @Test

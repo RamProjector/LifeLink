@@ -32,7 +32,10 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 export LIFELINK_DATABASE_URL='postgresql+asyncpg://lifelink:lifelink@localhost:5432/lifelink'
-psql "postgresql://lifelink:lifelink@localhost:5432/lifelink" -f sql/001_initial_schema.sql
+for migration in sql/00*.sql; do
+  psql "postgresql://lifelink:lifelink@localhost:5432/lifelink" \
+    -v ON_ERROR_STOP=1 -f "$migration"
+done
 uvicorn app.main_postgres:app --reload --port 8000
 ```
 
@@ -47,9 +50,15 @@ Open the API documentation at `http://localhost:8000/docs`.
 
 ```bash
 cd lifelink_fastapi
-psql "postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require" \
-  -f sql/001_initial_schema.sql
+for migration in sql/00*.sql; do
+  psql "postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require" \
+    -v ON_ERROR_STOP=1 -f "$migration"
+done
 ```
+
+Run this loop only for a new, empty LifeLink database. It applies the versioned
+schema changes in filename order; do not rerun the initial SQL files against a
+database whose migrations have already been applied.
 
 5. Configure and start the PostgreSQL-backed API without committing the password:
 
@@ -88,7 +97,7 @@ Outbound push notifications are enabled by setting `FIREBASE_SERVICE_ACCOUNT_JSO
 
 ## PostgreSQL package
 
-- `sql/001_initial_schema.sql` — PostgreSQL/PostGIS DDL, enums, constraints, indexes, geography triggers, and tables.
+- `sql/001_initial_schema.sql`–`sql/006_donor_operational_profile.sql` — ordered PostgreSQL/PostGIS schema migrations, constraints, indexes, triggers, and operational profile fields.
 - `app/db_models.py` — SQLAlchemy 2.0 typed models.
 - `app/db.py` — async engine and session dependency.
 - `app/repositories.py` — PostgreSQL donor and request repositories.

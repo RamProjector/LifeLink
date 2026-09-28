@@ -498,7 +498,7 @@ async def list_emergency_request_history(
             facility_name=record.payload.location.facility_name,
             area=record.payload.location.area,
             notifications_created=len(record.matches),
-            matches_responded=sum(1 for contact in contacts if contact["status"] in {"accepted", "declined"}),
+            matches_responded=sum(1 for contact in contacts if contact["status"] in {"accepted", "arrived", "declined"}),
             contact_statuses=[contact["status"] for contact in contacts],
         ))
     return items

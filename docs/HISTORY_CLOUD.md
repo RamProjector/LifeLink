@@ -93,7 +93,7 @@ Supabase was selected as a convenient hosted PostgreSQL option for an MVP. The s
 1. Create a Supabase project.
 2. Enable PostGIS.
 3. Copy the PostgreSQL connection string.
-4. Run `sql/001_initial_schema.sql`.
+4. On a new, empty database, apply every `sql/00*.sql` migration in filename order with `psql -v ON_ERROR_STOP=1`; do not replay migrations on an existing database.
 5. Set `LIFELINK_DATABASE_URL`.
 6. Start `app.main_postgres:app`.
 

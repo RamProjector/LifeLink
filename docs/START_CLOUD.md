@@ -7,20 +7,17 @@ This package uses hosted PostgreSQL, recommended with Supabase Free. The databas
 1. Create a Supabase project.
 2. Enable `postgis` under Database → Extensions.
 3. Copy the PostgreSQL connection string from Connect.
-4. Run the schema:
+4. On a new, empty database, apply every versioned schema migration in filename order:
 
 ```bash
 cd lifelink_fastapi
-psql "postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require" \
-  -f sql/001_initial_schema.sql
+for migration in sql/00*.sql; do
+  psql "postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require" \
+    -v ON_ERROR_STOP=1 -f "$migration"
+done
 ```
 
-5. Apply the GPS-first request-location migration:
-
-```bash
-psql "postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require" \
-  -f sql/002_gps_request_location.sql
-```
+Do not rerun these migrations against a database that already has them applied.
 
 Facility discovery is intentionally deferred. Requests now use a private approximate requester location for donor matching; facility metadata remains optional for future use.
 

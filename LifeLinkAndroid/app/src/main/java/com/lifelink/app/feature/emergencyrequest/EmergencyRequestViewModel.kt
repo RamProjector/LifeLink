@@ -62,6 +62,7 @@ sealed interface EmergencyRequestAction {
     data object SendManualBroadcast : EmergencyRequestAction
     data object RefreshStatus : EmergencyRequestAction
     data class OpenRequest(val requestId: String) : EmergencyRequestAction
+    data class ShowContactResults(val requestId: String) : EmergencyRequestAction
     data object RefreshHistory : EmergencyRequestAction
     data object CancelRequest : EmergencyRequestAction
     data object FulfillRequest : EmergencyRequestAction
@@ -136,6 +137,9 @@ class EmergencyRequestViewModel(
             EmergencyRequestAction.SendManualBroadcast -> sendManualBroadcast()
             EmergencyRequestAction.RefreshStatus -> refreshStatus()
             is EmergencyRequestAction.OpenRequest -> openRequest(action.requestId)
+            is EmergencyRequestAction.ShowContactResults -> _uiState.update {
+                it.copy(step = RequestStep.RESULTS, submission = SubmissionState.Matching(action.requestId))
+            }
             EmergencyRequestAction.RefreshHistory -> refreshHistory()
             EmergencyRequestAction.CancelRequest -> cancelRequest()
             EmergencyRequestAction.FulfillRequest -> fulfillRequest()
@@ -247,7 +251,7 @@ class EmergencyRequestViewModel(
     private fun toggleDonor(donorId: String) {
         _uiState.update { state ->
             val next = state.selectedDonorIds.toMutableSet().apply { if (!add(donorId)) remove(donorId) }
-            state.copy(selectedDonorIds = next)
+            state.copy(selectedDonorIds = next, contactRequestSent = false)
         }
     }
 
@@ -255,11 +259,20 @@ class EmergencyRequestViewModel(
         val state = _uiState.value
         val requestId = (state.submission as? SubmissionState.Matching)?.requestId ?: return
         if (state.selectedDonorIds.isEmpty()) return
+        val alreadyContacted = state.contacts.mapTo(mutableSetOf()) { it.donorId }
+        val donorIds = state.selectedDonorIds.filterNot { it in alreadyContacted }
+        if (donorIds.isEmpty()) return
         viewModelScope.launch {
-            when (val result = repository.contactSelectedDonors(requestId, state.selectedDonorIds.toList())) {
+            when (val result = repository.contactSelectedDonors(requestId, donorIds)) {
                 is SubmitResult.ContactRequested -> {
                     val contacts = runCatching { repository.refreshContacts(requestId) }.getOrDefault(emptyList())
-                    _uiState.update { it.copy(contactRequestSent = true, contacts = contacts) }
+                    _uiState.update {
+                        it.copy(
+                            contactRequestSent = true,
+                            contacts = contacts,
+                            selectedDonorIds = emptySet()
+                        )
+                    }
                 }
                 is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
                 else -> Unit

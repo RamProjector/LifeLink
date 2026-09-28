@@ -12,12 +12,16 @@ The Android app never connects directly to PostgreSQL. FastAPI owns database cre
 
 ## Database setup
 
-Create a Supabase project, enable PostGIS, and run `lifelink_fastapi/sql/001_initial_schema.sql`. Configure the API with a hosted PostgreSQL URL:
+Create a Supabase project, enable PostGIS, and apply all SQL migrations in `lifelink_fastapi/sql/` in filename order to a new, empty database. Configure the API with a hosted PostgreSQL URL:
 
 ```bash
 export LIFELINK_DATABASE_URL='postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require'
 export LIFELINK_AUTH_REQUIRED=true
 ```
+
+Run the migrations once, before starting the API; do not replay them against
+an existing database. The current deployment's migration state is documented
+in [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
 
 The API converts hosted `sslmode=require` URLs into the asyncpg-compatible SSL option.
 
