@@ -160,6 +160,16 @@ class EmergencyRequestViewModelTest {
         val repository = FakeRepository(SubmitResult.MatchingStarted("req-3"))
         repository.contactResult = SubmitResult.ContactRequested("req-3", listOf("donor-1"))
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(EmergencyRequestAction.UpdateDraft {
+            it.copy(
+                bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                facility = facility,
+                requesterLatitude = 14.6466,
+                requesterLongitude = 121.0437,
+                genuineRequestConfirmed = true,
+                sharingConsentConfirmed = true
+            )
+        })
         viewModel.onAction(EmergencyRequestAction.Submit)
         advanceUntilIdle()
         repository.contactsFailure = java.io.IOException("temporary status failure")
@@ -188,6 +198,16 @@ class EmergencyRequestViewModelTest {
         val repository = FakeRepository(SubmitResult.MatchingStarted("req-4"))
         repository.contactResult = SubmitResult.ContactRequestUncertain("req-4", listOf("donor-1"))
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(EmergencyRequestAction.UpdateDraft {
+            it.copy(
+                bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                facility = facility,
+                requesterLatitude = 14.6466,
+                requesterLongitude = 121.0437,
+                genuineRequestConfirmed = true,
+                sharingConsentConfirmed = true
+            )
+        })
         viewModel.onAction(EmergencyRequestAction.Submit)
         advanceUntilIdle()
 

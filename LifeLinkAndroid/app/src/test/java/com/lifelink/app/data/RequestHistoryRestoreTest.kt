@@ -109,6 +109,16 @@ class RequestHistoryRestoreTest {
         assertEquals("/v1/emergency-requests/request-1/contact", server.takeRequest().path)
     }
 
+    @Test fun successfulContactResponseMapsTheConfirmedDonors() = runBlocking {
+        server.enqueue(MockResponse().setBody(
+            """{"request_id":"request-1","donor_ids":["donor-1"],"status":"contact_requested"}"""
+        ))
+
+        val result = repository("alice").contactSelectedDonors("request-1", listOf("donor-1"))
+
+        assertEquals(SubmitResult.ContactRequested("request-1", listOf("donor-1")), result)
+    }
+
     private fun historyItem(id: String, status: String) = """{
         "request_id":"$id","status":"$status","created_at":"2026-09-27T10:00:00Z",
         "expires_at":"2026-09-28T10:00:00Z","blood_type":"O+","units":1,"urgency":"urgent",
