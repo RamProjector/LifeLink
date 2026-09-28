@@ -13,6 +13,7 @@ Read this file and `docs/PROJECT_CONTEXT_AND_REGRESSION_GUARDRAILS.md` before ch
 - Users must never see or accept their own emergency requests as donor opportunities. Keep both server-side exclusion and response-time self-request rejection.
 - Do not “fix” a client timeout by adding a database migration. First distinguish connectivity, authentication, server validation, and schema errors.
 - Do not remove the Room migration or replace account scoping with destructive resets. Legacy unowned cache rows should be ignored, not shown to another account.
+- Route any account-owned write that must outlive the tapping screen — donor Accept/Decline included — through `AccountDataCoordinator`/`launchAccountWrite`, not a bare `viewModelScope.launch`. A sign-out racing the tap clears `accountModels.viewModelStore` in `MainActivity` and silently cancels a `viewModelScope`-only write before it reaches the server.
 
 ## Verification minimum
 
@@ -26,3 +27,4 @@ Read this file and `docs/PROJECT_CONTEXT_AND_REGRESSION_GUARDRAILS.md` before ch
 - `DonorRepository.kt` restores `/v1/donors/{donorId}` before loading the donor inbox and scopes donor requests by owner ID.
 - `LifeLinkDatabase.kt` is version 9. Migrations 6→7→8→9 preserve legacy rows while introducing account ownership; drafts, pending submissions, and updates have composite owner/item keys. Legacy unowned rows have an empty owner and must not be returned.
 - `main_postgres.py` returns `can_request` and `can_donate` in profile responses and exposes authenticated donor profile GET.
+- `LifeLinkNotifications` and `DonorViewModel.respond()` (Accept/Decline) both write through `AccountDataCoordinator`/`launchAccountWrite`, so an in-flight write finishes even if the screen or account is torn down mid-request.

@@ -8,11 +8,17 @@ import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
 import com.lifelink.app.feature.donor.DonorAction
 import com.lifelink.app.feature.donor.DonorViewModel
+import androidx.lifecycle.ViewModelStore
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -60,6 +66,57 @@ class DonorViewModelTest {
         assertEquals(15, profile.serviceRadiusKm)
         assertEquals(14.6466, profile.latitude!!, 0.000001)
         assertTrue(viewModel.state.value.profileDirty)
+    }
+
+    @Test
+    fun accept_response_survives_view_model_store_being_cleared_mid_write() = runTest {
+        val started = CompletableDeferred<Unit>()
+        val releaseWrite = CompletableDeferred<Unit>()
+        var wroteResponse = false
+        val repository = SlowRespondDonorRepository(started, releaseWrite) { wroteResponse = true }
+        // Stands in for MainActivity's applicationScope-backed launchAccountWrite: a scope
+        // with no relationship to the ViewModel's own viewModelScope.
+        val durableScope = CoroutineScope(Job())
+        lateinit var durableJob: Job
+        val viewModel = DonorViewModel(
+            repository = repository,
+            enablePolling = false,
+            launchDurableWrite = { block ->
+                durableJob = durableScope.launch(start = CoroutineStart.UNDISPATCHED) { block() }
+            }
+        )
+        // A real ViewModelStore, so .clear() below exercises the exact teardown path
+        // MainActivity's DisposableEffect triggers on sign-out (accountModels.viewModelStore.clear()).
+        val store = ViewModelStore().apply { put("donor", viewModel) }
+
+        viewModel.onAction(DonorAction.Respond("req-1", DonorResponse.ACCEPTED))
+        started.await()
+
+        // Simulate a sign-out landing a split second after the tap.
+        store.clear()
+
+        releaseWrite.complete(Unit)
+        durableJob.join()
+
+        assertTrue("the response should still reach the repository after the store is cleared", wroteResponse)
+    }
+}
+
+private class SlowRespondDonorRepository(
+    private val started: CompletableDeferred<Unit>,
+    private val release: CompletableDeferred<Unit>,
+    private val onRespond: () -> Unit
+) : DonorRepository {
+    override fun observeProfile(): Flow<DonorProfile> = flowOf(DonorProfile())
+    override fun observeRequests(): Flow<List<DonorRequest>> = flowOf(emptyList())
+    override suspend fun saveProfile(profile: DonorProfile) = Unit
+    override suspend fun setAvailability(availability: DonorAvailability) = Unit
+    override suspend fun refresh() = Unit
+    override suspend fun respond(requestId: String, response: DonorResponse): Result<Unit> {
+        started.complete(Unit)
+        release.await()
+        onRespond()
+        return Result.success(Unit)
     }
 }
 

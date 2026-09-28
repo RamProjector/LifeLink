@@ -169,7 +169,10 @@ class MainActivity : ComponentActivity() {
                 val donorViewModel: DonorViewModel = viewModel(
                     viewModelStoreOwner = accountModels,
                     key = "donor-$accountUserId",
-                    factory = DonorViewModelFactory(account.donorRepository)
+                    factory = DonorViewModelFactory(
+                        account.donorRepository,
+                        launchDurableWrite = { block -> app.launchAccountWrite(accountUserId, block) }
+                    )
                 )
                 val donorState by donorViewModel.state.collectAsStateWithLifecycle()
                 val updatesViewModel: UpdatesViewModel = viewModel(

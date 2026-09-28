@@ -36,8 +36,16 @@ sealed interface DonorAction {
 
 class DonorViewModel(
     private val repository: DonorRepository,
-    private val enablePolling: Boolean = true
+    private val enablePolling: Boolean = true,
+    launchDurableWrite: ((suspend () -> Unit) -> Unit)? = null
 ) : ViewModel() {
+    // Accept/Decline must survive this ViewModel being torn down mid-write — e.g. a
+    // sign-out that clears accountModels.viewModelStore a split second after the tap
+    // (see MainActivity). Falls back to viewModelScope for callers (tests, previews)
+    // that don't wire a real durable write.
+    private val launchDurableWrite: (suspend () -> Unit) -> Unit =
+        launchDurableWrite ?: { block -> viewModelScope.launch { block() } }
+
     private val _state = MutableStateFlow(DonorUiState())
     val state: StateFlow<DonorUiState> = _state.asStateFlow()
 
@@ -115,8 +123,8 @@ class DonorViewModel(
     }
 
     private fun respond(requestId: String, response: DonorResponse) {
-        viewModelScope.launch {
-            _state.value = _state.value.copy(saving = true)
+        _state.value = _state.value.copy(saving = true)
+        launchDurableWrite {
             repository.respond(requestId, response)
                 .onSuccess { _state.value = _state.value.copy(saving = false, message = "Response sent") }
                 .onFailure { _state.value = _state.value.copy(saving = false, message = "Response could not be sent") }
@@ -138,7 +146,11 @@ class DonorViewModel(
     }
 }
 
-class DonorViewModelFactory(private val repository: DonorRepository) : ViewModelProvider.Factory {
+class DonorViewModelFactory(
+    private val repository: DonorRepository,
+    private val launchDurableWrite: ((suspend () -> Unit) -> Unit)? = null
+) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T = DonorViewModel(repository) as T
+    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+        DonorViewModel(repository, launchDurableWrite = launchDurableWrite) as T
 }
