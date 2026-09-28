@@ -74,6 +74,7 @@ internal class PendingSubmissionProcessor(
         return when (val result = submit(ownerId, draft)) {
             is SubmitResult.MatchingStarted,
             is SubmitResult.ContactRequested,
+            is SubmitResult.ContactRequestUncertain,
             is SubmitResult.ManualFallback,
             is SubmitResult.Cancelled,
             is SubmitResult.Fulfilled -> {

@@ -13,6 +13,7 @@ import com.lifelink.app.data.remote.LifeLinkApi
 import com.lifelink.app.data.repository.EmergencyRequestRepositoryImpl
 import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.ActiveRequestStatus
+import com.lifelink.app.domain.SubmitResult
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -97,6 +98,25 @@ class RequestHistoryRestoreTest {
         server.enqueue(MockResponse().setBody("[${historyItem("other", "awaiting_responses")}]"))
         repository.refreshRequestHistory()
         assertEquals("selected", repository.observeActiveRequest().first()?.requestId)
+    }
+
+    @Test fun emptySuccessfulContactResponseIsUncertainRatherThanRetryableFailure() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200))
+
+        val result = repository("alice").contactSelectedDonors("request-1", listOf("donor-1"))
+
+        assertEquals(SubmitResult.ContactRequestUncertain("request-1", listOf("donor-1")), result)
+        assertEquals("/v1/emergency-requests/request-1/contact", server.takeRequest().path)
+    }
+
+    @Test fun successfulContactResponseMapsTheConfirmedDonors() = runBlocking {
+        server.enqueue(MockResponse().setBody(
+            """{"request_id":"request-1","donor_ids":["donor-1"],"status":"contact_requested"}"""
+        ))
+
+        val result = repository("alice").contactSelectedDonors("request-1", listOf("donor-1"))
+
+        assertEquals(SubmitResult.ContactRequested("request-1", listOf("donor-1")), result)
     }
 
     private fun historyItem(id: String, status: String) = """{

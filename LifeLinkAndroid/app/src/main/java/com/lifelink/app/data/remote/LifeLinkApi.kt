@@ -2,6 +2,7 @@ package com.lifelink.app.data.remote
 
 import com.google.gson.annotations.SerializedName
 import com.lifelink.app.domain.EmergencyRequestDraft
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Header
 import retrofit2.http.POST
@@ -47,7 +48,7 @@ interface LifeLinkApi {
     suspend fun fulfillEmergencyRequest(@Path("requestId") requestId: String): Response<RequestActionResponse>
 
     @POST("v1/emergency-requests/{requestId}/contact")
-    suspend fun contactSelectedDonors(@Path("requestId") requestId: String, @Body request: ContactSelectedDonorsRequest): Response<ContactSelectedDonorsResponse>
+    suspend fun contactSelectedDonors(@Path("requestId") requestId: String, @Body request: ContactSelectedDonorsRequest): Response<ResponseBody>
 
     @GET("v1/emergency-requests/{requestId}/contacts")
     suspend fun requesterContacts(@Path("requestId") requestId: String): Response<List<RequesterContactResponse>>

@@ -160,6 +160,16 @@ class EmergencyRequestViewModelTest {
         val repository = FakeRepository(SubmitResult.MatchingStarted("req-3"))
         repository.contactResult = SubmitResult.ContactRequested("req-3", listOf("donor-1"))
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(EmergencyRequestAction.UpdateDraft {
+            it.copy(
+                bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                facility = facility,
+                requesterLatitude = 14.6466,
+                requesterLongitude = 121.0437,
+                genuineRequestConfirmed = true,
+                sharingConsentConfirmed = true
+            )
+        })
         viewModel.onAction(EmergencyRequestAction.Submit)
         advanceUntilIdle()
         repository.contactsFailure = java.io.IOException("temporary status failure")
@@ -168,6 +178,7 @@ class EmergencyRequestViewModelTest {
         viewModel.onAction(EmergencyRequestAction.ContactSelectedDonors)
         advanceUntilIdle()
 
+        assertEquals(listOf("donor-1"), repository.lastContactedDonors)
         assertTrue(viewModel.uiState.value.contactRequestSent)
         assertEquals("donor-1", viewModel.uiState.value.contacts.single().donorId)
         assertTrue("confirmed selection remains available until refresh succeeds", "donor-1" in viewModel.uiState.value.selectedDonorIds)
@@ -180,6 +191,52 @@ class EmergencyRequestViewModelTest {
         assertTrue(viewModel.uiState.value.selectedDonorIds.isEmpty())
         assertEquals("donor-1", viewModel.uiState.value.contacts.single().donorId)
         assertEquals(null, viewModel.uiState.value.contactsError)
+    }
+
+    @Test
+    fun empty_contact_acknowledgment_checks_status_without_request_submission_error() = runTest {
+        val repository = FakeRepository(SubmitResult.MatchingStarted("req-4"))
+        repository.contactResult = SubmitResult.ContactRequestUncertain("req-4", listOf("donor-1"))
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(EmergencyRequestAction.UpdateDraft {
+            it.copy(
+                bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                facility = facility,
+                requesterLatitude = 14.6466,
+                requesterLongitude = 121.0437,
+                genuineRequestConfirmed = true,
+                sharingConsentConfirmed = true
+            )
+        })
+        viewModel.onAction(EmergencyRequestAction.Submit)
+        advanceUntilIdle()
+
+        viewModel.onAction(EmergencyRequestAction.ToggleDonorSelection("donor-1"))
+        viewModel.onAction(EmergencyRequestAction.ContactSelectedDonors)
+        advanceUntilIdle()
+
+        assertEquals(SubmissionState.Matching("req-4"), viewModel.uiState.value.submission)
+        assertTrue(!viewModel.uiState.value.contactRequestSent)
+        assertTrue(viewModel.uiState.value.contactsError?.contains("empty") == true)
+        assertTrue("uncertain contacts stay selected until status confirms them", "donor-1" in viewModel.uiState.value.selectedDonorIds)
+    }
+
+    @Test
+    fun active_request_refresh_does_not_replace_another_open_results_request() = runTest {
+        val repository = FakeRepository().apply {
+            activeRequest = ActiveRequestSnapshot("active-request", com.lifelink.app.domain.ActiveRequestStatus.MATCHING)
+        }
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        advanceUntilIdle()
+        viewModel.onAction(EmergencyRequestAction.ShowContactResults("open-results-request"))
+        advanceUntilIdle()
+
+        viewModel.onAction(EmergencyRequestAction.RefreshStatus)
+        advanceUntilIdle()
+
+        assertEquals("active-request", repository.lastRefreshedActiveRequestId)
+        assertEquals("open-results-request", viewModel.uiState.value.resultsRequestId)
+        assertEquals(SubmissionState.Matching("open-results-request"), viewModel.uiState.value.submission)
     }
 }
 
@@ -194,6 +251,8 @@ private class FakeRepository(
     var contactsFailure: Exception? = null
     var contactResult: SubmitResult = SubmitResult.Error("not configured")
     var lastContactedDonors: List<String> = emptyList()
+    var activeRequest: ActiveRequestSnapshot? = null
+    var lastRefreshedActiveRequestId: String? = null
     var contacts: List<RequesterContact> = emptyList()
     override suspend fun saveDraft(draft: EmergencyRequestDraft) { savedDrafts++ }
     override suspend fun loadDraft(id: String): EmergencyRequestDraft? = null
@@ -225,11 +284,14 @@ private class FakeRepository(
     override suspend fun updateContactStatus(requestId: String, donorId: String, status: String): RequesterContact = RequesterContact(donorId, "Donor", status)
     override suspend fun reportContact(requestId: String, donorId: String, reason: String): String = "reported"
     override suspend fun blockContact(requestId: String, donorId: String): String = "blocked"
-    override fun observeActiveRequest(): Flow<ActiveRequestSnapshot?> = flowOf(null)
+    override fun observeActiveRequest(): Flow<ActiveRequestSnapshot?> = flowOf(activeRequest)
     override fun observeRequestHistory(): Flow<List<ActiveRequestSnapshot>> = flowOf(emptyList())
     override suspend fun refreshRequestHistory(): List<RequestHistoryItem> {
         historyFailure?.let { throw it }
         return history
     }
-    override suspend fun refreshActiveRequest(requestId: String): ActiveRequestSnapshot? = null
+    override suspend fun refreshActiveRequest(requestId: String): ActiveRequestSnapshot? {
+        lastRefreshedActiveRequestId = requestId
+        return activeRequest
+    }
 }
