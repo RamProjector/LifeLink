@@ -10,6 +10,29 @@ import org.junit.Test
 
 class AccountDataCoordinatorTest {
     @Test
+    fun registrationWaitsForCleanupAndSurvivesItsCancellation() = runBlocking {
+        val coordinator = AccountDataCoordinator { "alice" }
+        val releaseCleanup = CompletableDeferred<Unit>()
+        val scheduled = mutableListOf("old token")
+        val cleaning = launch(start = CoroutineStart.UNDISPATCHED) {
+            coordinator.cleanup {
+                releaseCleanup.await()
+                scheduled.clear()
+            }
+        }
+        val registering = launch(start = CoroutineStart.UNDISPATCHED) {
+            coordinator.runForOwner("alice") { scheduled.add("new token") }
+        }
+
+        assertFalse(registering.isCompleted)
+        assertEquals(listOf("old token"), scheduled)
+        releaseCleanup.complete(Unit)
+        cleaning.join()
+        registering.join()
+        assertEquals(listOf("new token"), scheduled)
+    }
+
+    @Test
     fun cleanupWaitsForInFlightWriteAndRejectsLateWrite() = runBlocking {
         var owner: String? = "alice"
         val coordinator = AccountDataCoordinator { owner }
