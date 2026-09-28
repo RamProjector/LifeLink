@@ -39,10 +39,15 @@ data class EmergencyRequestUiState(
     val draftSavedManually: Boolean = false,
     val activeRequest: ActiveRequestSnapshot? = null,
     val statusRefreshing: Boolean = false,
+    val resultsRequestId: String? = null,
     val discoveredDonors: List<DiscoveredDonor> = emptyList(),
+    val matchesRefreshing: Boolean = false,
+    val matchesError: String? = null,
     val selectedDonorIds: Set<String> = emptySet(),
     val contactRequestSent: Boolean = false,
     val contacts: List<RequesterContact> = emptyList(),
+    val contactsRefreshing: Boolean = false,
+    val contactsError: String? = null,
     val contactActionInFlightDonorId: String? = null,
     val requestHistory: List<RequestHistoryItem> = emptyList(),
     val historyRefreshing: Boolean = false,
@@ -63,6 +68,7 @@ sealed interface EmergencyRequestAction {
     data object RefreshStatus : EmergencyRequestAction
     data class OpenRequest(val requestId: String) : EmergencyRequestAction
     data class ShowContactResults(val requestId: String) : EmergencyRequestAction
+    data class RefreshContacts(val requestId: String) : EmergencyRequestAction
     data object RefreshHistory : EmergencyRequestAction
     data object CancelRequest : EmergencyRequestAction
     data object FulfillRequest : EmergencyRequestAction
@@ -112,8 +118,7 @@ class EmergencyRequestViewModel(
                     val current = _uiState.value.activeRequest
                     if (current != null && !current.isTerminal) {
                         runCatching { repository.refreshActiveRequest(current.requestId) }
-                        runCatching { repository.refreshContacts(current.requestId) }
-                            .onSuccess { contacts -> _uiState.update { it.copy(contacts = contacts) } }
+                        refreshContacts(current.requestId)
                     }
                 }
             }
@@ -137,9 +142,8 @@ class EmergencyRequestViewModel(
             EmergencyRequestAction.SendManualBroadcast -> sendManualBroadcast()
             EmergencyRequestAction.RefreshStatus -> refreshStatus()
             is EmergencyRequestAction.OpenRequest -> openRequest(action.requestId)
-            is EmergencyRequestAction.ShowContactResults -> _uiState.update {
-                it.copy(step = RequestStep.RESULTS, submission = SubmissionState.Matching(action.requestId))
-            }
+            is EmergencyRequestAction.ShowContactResults -> showContactResults(action.requestId)
+            is EmergencyRequestAction.RefreshContacts -> refreshContacts(action.requestId)
             EmergencyRequestAction.RefreshHistory -> refreshHistory()
             EmergencyRequestAction.CancelRequest -> cancelRequest()
             EmergencyRequestAction.FulfillRequest -> fulfillRequest()
@@ -216,11 +220,18 @@ class EmergencyRequestViewModel(
                         it.copy(
                             step = RequestStep.RESULTS,
                             submission = SubmissionState.Matching(result.requestId),
-                            discoveredDonors = result.donors
+                            resultsRequestId = result.requestId,
+                            discoveredDonors = result.donors,
+                            matchesRefreshing = false,
+                            matchesError = null,
+                            selectedDonorIds = emptySet(),
+                            contactRequestSent = false,
+                            contacts = emptyList(),
+                            contactsRefreshing = false,
+                            contactsError = null
                         )
                     }
-                    runCatching { repository.refreshContacts(result.requestId) }
-                        .onSuccess { contacts -> _uiState.update { it.copy(contacts = contacts) } }
+                    refreshContacts(result.requestId)
                 }
                 is SubmitResult.ContactRequested -> _uiState.update { it.copy(contactRequestSent = true) }
                 is SubmitResult.ManualFallback -> _uiState.update { it.copy(submission = SubmissionState.ManualFallback(result.requestId, result.reason)) }
@@ -265,13 +276,40 @@ class EmergencyRequestViewModel(
         viewModelScope.launch {
             when (val result = repository.contactSelectedDonors(requestId, donorIds)) {
                 is SubmitResult.ContactRequested -> {
-                    val contacts = runCatching { repository.refreshContacts(requestId) }.getOrDefault(emptyList())
-                    _uiState.update {
-                        it.copy(
-                            contactRequestSent = true,
-                            contacts = contacts,
-                            selectedDonorIds = emptySet()
+                    val current = _uiState.value
+                    if (current.resultsRequestId != requestId) return@launch
+                    val newlyConfirmedIds = result.donorIds.distinct()
+                    val localContacts = newlyConfirmedIds.map { id ->
+                        current.contacts.firstOrNull { it.donorId == id } ?: RequesterContact(
+                            donorId = id,
+                            displayName = current.discoveredDonors.firstOrNull { it.donorId == id }?.displayName ?: "Selected donor",
+                            status = "pending"
                         )
+                    }
+                    val refreshed = try {
+                        repository.refreshContacts(requestId)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        null
+                    }
+                    _uiState.update { state ->
+                        if (state.resultsRequestId != requestId) state else {
+                            val contacts = if (refreshed == null) {
+                                mergeContacts(state.contacts, localContacts)
+                            } else {
+                                mergeContacts(state.contacts + localContacts, refreshed)
+                            }
+                            val selected = if (refreshed == null) state.selectedDonorIds
+                                else state.selectedDonorIds - contacts.map { it.donorId }.toSet()
+                            state.copy(
+                                contactRequestSent = state.contactRequestSent || newlyConfirmedIds.isNotEmpty(),
+                                contacts = contacts,
+                                selectedDonorIds = selected,
+                                contactsRefreshing = false,
+                                contactsError = if (refreshed == null) "The contact request was sent, but its latest status could not be loaded. Check again shortly." else null
+                            )
+                        }
                     }
                 }
                 is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
@@ -311,22 +349,107 @@ class EmergencyRequestViewModel(
             runCatching { repository.refreshActiveRequest(requestId) }
                 .onFailure { _uiState.update { it.copy(submission = SubmissionState.Error("Status could not be refreshed. Try again.")) } }
             _uiState.update { it.copy(statusRefreshing = false) }
+            refreshContacts(requestId)
         }
     }
 
     private fun openRequest(requestId: String) {
+        refreshContacts(requestId)
         viewModelScope.launch {
             _uiState.update { it.copy(statusRefreshing = true) }
             val loaded = repository.refreshActiveRequest(requestId)
             _uiState.update {
                 it.copy(
                     statusRefreshing = false,
-                    submission = if (loaded == null) SubmissionState.Error("This request could not be loaded. Try refreshing.") else it.submission
+                    submission = if (loaded == null) SubmissionState.Error("This request could not be loaded. Try refreshing.") else SubmissionState.Matching(requestId)
                 )
             }
-            runCatching { repository.refreshContacts(requestId) }
-                .onSuccess { contacts -> _uiState.update { it.copy(contacts = contacts) } }
         }
+    }
+
+    private fun showContactResults(requestId: String) {
+        val previous = _uiState.value
+        val sameRequest = previous.resultsRequestId == requestId
+        _uiState.update {
+            it.copy(
+                step = RequestStep.RESULTS,
+                submission = SubmissionState.Matching(requestId),
+                resultsRequestId = requestId,
+                discoveredDonors = emptyList(),
+                matchesRefreshing = true,
+                matchesError = null,
+                selectedDonorIds = emptySet(),
+                contactRequestSent = sameRequest && it.contactRequestSent,
+                contacts = if (sameRequest) it.contacts else emptyList(),
+                contactsError = if (sameRequest) it.contactsError else null
+            )
+        }
+        viewModelScope.launch {
+            try {
+                val matches = repository.refreshMatches(requestId)
+                _uiState.update { state ->
+                    if (state.resultsRequestId == requestId) state.copy(discoveredDonors = matches, matchesError = null) else state
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.update { state ->
+                    if (state.resultsRequestId == requestId) state.copy(matchesError = "Saved donor matches could not be loaded. Check your connection and retry.") else state
+                }
+            } finally {
+                _uiState.update { state ->
+                    if (state.resultsRequestId == requestId) state.copy(matchesRefreshing = false) else state
+                }
+            }
+        }
+        refreshContacts(requestId)
+    }
+
+    private fun refreshContacts(requestId: String) {
+        val switchingRequest = _uiState.value.resultsRequestId != requestId
+        _uiState.update { state ->
+            state.copy(
+                resultsRequestId = requestId,
+                discoveredDonors = if (switchingRequest) emptyList() else state.discoveredDonors,
+                selectedDonorIds = if (switchingRequest) emptySet() else state.selectedDonorIds,
+                contactRequestSent = if (switchingRequest) false else state.contactRequestSent,
+                contacts = if (switchingRequest) emptyList() else state.contacts,
+                matchesError = if (switchingRequest) null else state.matchesError,
+                contactsRefreshing = true,
+                contactsError = null
+            )
+        }
+        viewModelScope.launch {
+            try {
+                val refreshed = repository.refreshContacts(requestId)
+                _uiState.update { state ->
+                    if (state.resultsRequestId != requestId) state else {
+                        val contacts = mergeContacts(state.contacts, refreshed)
+                        state.copy(
+                            contacts = contacts,
+                            selectedDonorIds = state.selectedDonorIds - contacts.map { it.donorId }.toSet(),
+                            contactsRefreshing = false,
+                            contactsError = null
+                        )
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.update { state ->
+                    if (state.resultsRequestId == requestId) state.copy(
+                        contactsRefreshing = false,
+                        contactsError = "Contact activity could not be loaded. Check your connection and retry."
+                    ) else state
+                }
+            }
+        }
+    }
+
+    private fun mergeContacts(existing: List<RequesterContact>, latest: List<RequesterContact>): List<RequesterContact> {
+        val contacts = linkedMapOf<String, RequesterContact>()
+        (existing + latest).forEach { contacts[it.donorId] = it }
+        return contacts.values.toList()
     }
 
     private fun moderateContact(donorId: String, action: suspend (String, String) -> String) {

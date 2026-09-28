@@ -223,7 +223,8 @@ data class EmergencyRequestStatusResponse(
     val status: String,
     @SerializedName("notifications_created") val notificationsCreated: Int = 0,
     @SerializedName("matches_responded") val matchesResponded: Int = 0,
-    val reason: String? = null
+    val reason: String? = null,
+    val matches: List<DonorMatchResponse> = emptyList()
 )
 
 data class RequestActionResponse(

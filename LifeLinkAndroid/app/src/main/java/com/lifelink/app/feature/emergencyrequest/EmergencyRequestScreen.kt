@@ -210,8 +210,21 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
     val donorsWithinFiveKm = state.discoveredDonors.count { it.distanceKm <= 5.0 }
     val donorsWithinTenKm = state.discoveredDonors.count { it.distanceKm > 5.0 && it.distanceKm <= 10.0 }
     val donorsBeyondTenKm = state.discoveredDonors.count { it.distanceKm > 10.0 }
+    val requestId = (state.submission as? SubmissionState.Matching)?.requestId
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Heading("Potential donors", "Review matches and choose who to contact.")
+        if (state.matchesRefreshing) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                Text("Loading saved matches…", Modifier.padding(start = 10.dp))
+            }
+        }
+        if (state.matchesError != null && requestId != null) {
+            ErrorBanner(state.matchesError) { onAction(EmergencyRequestAction.ShowContactResults(requestId)) }
+        }
+        if (state.contactsError != null && state.resultsRequestId != null) {
+            ErrorBanner(state.contactsError) { onAction(EmergencyRequestAction.RefreshContacts(state.resultsRequestId)) }
+        }
         Surface(
             Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.primaryContainer,
@@ -253,7 +266,7 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
             Text("Switch to Donors to select people and send contact requests.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (!showMap) {
-            if (state.discoveredDonors.isEmpty()) {
+            if (state.discoveredDonors.isEmpty() && !state.matchesRefreshing && state.matchesError == null) {
                 InfoCard("No potential donors yet", "No donor cards are available for this request right now. Keep the request active and check the request status again later.", MaterialTheme.colorScheme.secondary)
             }
             state.discoveredDonors.forEach { donor ->

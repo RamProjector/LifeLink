@@ -13,7 +13,7 @@ This package uses hosted PostgreSQL, recommended with Supabase Free. The databas
 cd lifelink_fastapi
 for migration in sql/00*.sql; do
   psql "postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require" \
-    -v ON_ERROR_STOP=1 -f "$migration"
+    -v ON_ERROR_STOP=1 -f "$migration" || exit 1
 done
 ```
 

@@ -247,6 +247,11 @@ def test_donor_response_is_saved_and_survives_a_new_session(pg_url):
         donor, requester = new_user("donor"), new_user("requester")
         await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
+        restored = await client.get(f"/v1/emergency-requests/{created['request_id']}")
+        assert restored.status_code == 200, restored.text
+        assert [match["donor_id"] for match in restored.json()["matches"]] == [donor]
+        assert "latitude" not in restored.json()["matches"][0]
+        assert "longitude" not in restored.json()["matches"][0]
 
         current["id"] = donor
         accepted = await client.post(
@@ -295,6 +300,57 @@ def test_donor_arrival_does_not_block_requester_contact_completion(pg_url):
         )
         assert shared.status_code == 200, shared.text
         assert shared.json()["status"] == "contact_shared"
+
+        repeated = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/contact",
+            json={"donor_ids": [donor]},
+        )
+        assert repeated.status_code == 200, repeated.text
+        assert repeated.json()["donor_ids"] == []
+        contacts_after_repeat = await client.get(f"/v1/emergency-requests/{created['request_id']}/contacts")
+        assert contacts_after_repeat.status_code == 200, contacts_after_repeat.text
+        assert contacts_after_repeat.json()[0]["status"] == "contact_shared"
+        assert contacts_after_repeat.json()[0]["contact_shared_at"] is not None
+
+        current["id"] = donor
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert inbox.json()[0]["status"] == "contact_shared"
+
+        current["id"] = requester
+        history = await client.get("/v1/emergency-requests")
+        assert history.status_code == 200, history.text
+        assert history.json()[0]["matches_responded"] == 1
+        status = await client.get(f"/v1/emergency-requests/{created['request_id']}")
+        assert status.status_code == 200, status.text
+        assert status.json()["matches_responded"] == 1
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_response_before_requester_selection_is_preserved(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = donor
+        accepted = await client.post(
+            f"/v1/donors/{donor}/requests/{created['request_id']}/response", json={"response": "accepted"}
+        )
+        assert accepted.status_code == 200, accepted.text
+
+        current["id"] = requester
+        selected = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/contact",
+            json={"donor_ids": [donor]},
+        )
+        assert selected.status_code == 200, selected.text
+        assert selected.json()["donor_ids"] == [donor]
+        contacts = await client.get(f"/v1/emergency-requests/{created['request_id']}/contacts")
+        assert contacts.status_code == 200, contacts.text
+        assert contacts.json()[0]["status"] == "accepted"
+        assert contacts.json()[0]["accepted_at"] is not None
 
     run_scenario(pg_url, scenario)
 

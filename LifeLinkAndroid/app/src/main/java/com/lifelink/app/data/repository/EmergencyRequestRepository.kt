@@ -27,6 +27,7 @@ import com.lifelink.app.domain.DiscoveredDonor
 import com.lifelink.app.data.remote.ContactSelectedDonorsRequest
 import com.lifelink.app.data.remote.ContactStatusUpdateRequest
 import com.lifelink.app.data.remote.ContactModerationRequest
+import com.lifelink.app.data.remote.DonorMatchResponse
 import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.EmergencyRequestRepository
 import com.lifelink.app.domain.Facility
@@ -135,9 +136,7 @@ class EmergencyRequestRepositoryImpl(
                     pendingSubmissionDao.delete(requireRequesterId(), draft.id)
                     SubmitResult.MatchingStarted(
                         body.requestId,
-                        body.matches.map { match ->
-                            DiscoveredDonor(match.donorId, match.displayName, match.bloodType, match.distanceKm, match.travelMinutes, match.score, match.explanation?.factors.orEmpty())
-                        }
+                        body.matches.map { it.toDiscoveredDonor() }
                     )
                 }
             }
@@ -174,7 +173,10 @@ class EmergencyRequestRepositoryImpl(
     override suspend fun contactSelectedDonors(requestId: String, donorIds: List<String>): SubmitResult = withContext(Dispatchers.IO) {
         try {
             val response = api.contactSelectedDonors(requestId, ContactSelectedDonorsRequest(donorIds))
-            if (response.isSuccessful) SubmitResult.ContactRequested(requestId, donorIds)
+            if (response.isSuccessful) {
+                val body = response.body() ?: throw IOException("The contact request returned an empty response.")
+                SubmitResult.ContactRequested(body.requestId, body.donorIds)
+            }
             else SubmitResult.Error("Selected donors could not be contacted (${response.code()}).")
         } catch (_: IOException) {
             SubmitResult.Error("You’re offline. No donor contact request was sent.")
@@ -185,10 +187,18 @@ class EmergencyRequestRepositoryImpl(
         }
     }
 
+    override suspend fun refreshMatches(requestId: String): List<DiscoveredDonor> = withContext(Dispatchers.IO) {
+        val response = api.getEmergencyRequest(requestId)
+        if (!response.isSuccessful) throw IOException("Matching results could not be loaded (${response.code()}).")
+        val body = response.body() ?: throw IOException("Matching results returned an empty response.")
+        body.matches.map { it.toDiscoveredDonor() }
+    }
+
     override suspend fun refreshContacts(requestId: String): List<RequesterContact> = withContext(Dispatchers.IO) {
         val response = api.requesterContacts(requestId)
-        if (!response.isSuccessful) return@withContext emptyList()
-        response.body().orEmpty().map {
+        if (!response.isSuccessful) throw IOException("Contact activity could not be loaded (${response.code()}).")
+        val body = response.body() ?: throw IOException("Contact activity returned an empty response.")
+        body.map {
             RequesterContact(it.donorId, it.displayName, it.status, it.acceptedAt, it.contactSharedAt, it.updatedAt, it.contactEmail)
         }
     }
@@ -311,4 +321,14 @@ private fun com.lifelink.app.data.remote.EmergencyRequestStatusResponse.toSnapsh
     notificationsCreated = notificationsCreated,
     matchesResponded = matchesResponded,
     reason = reason
+)
+
+private fun DonorMatchResponse.toDiscoveredDonor() = DiscoveredDonor(
+    donorId = donorId,
+    displayName = displayName,
+    bloodType = bloodType,
+    distanceKm = distanceKm,
+    travelMinutes = travelMinutes,
+    score = score,
+    explanation = explanation?.factors.orEmpty()
 )

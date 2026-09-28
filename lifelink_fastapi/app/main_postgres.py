@@ -347,19 +347,24 @@ async def contact_selected_donors_postgres(
         raise HTTPException(status_code=403, detail="You cannot contact your own donor profile")
     enforce_rate_limit(f"contact-request:{principal.subject}", 20, 300)
     try:
-        await store.contact_selected_donors_async(request_id, payload.donor_ids)
+        _, newly_contacted, donors_to_notify = await store.contact_selected_donors_async(request_id, payload.donor_ids)
     except KeyError:
         raise HTTPException(status_code=404, detail="Request not found") from None
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    await store.record_audit_async(principal.subject, "contact_requested", request_id, metadata={"donor_count": len(payload.donor_ids)})
-    await send_push_safely(
-        await _push_recipients_for_donors(session, payload.donor_ids),
-        "LifeLink contact request",
-        "A requester selected you for contact. Open LifeLink to review the request.",
-        {"type": "contact_request", "request_id": request_id},
-    )
-    return ContactSelectedDonorsOut(request_id=request_id, donor_ids=payload.donor_ids)
+    if newly_contacted:
+        await store.record_audit_async(
+            principal.subject, "contact_requested", request_id,
+            metadata={"donor_count": len(newly_contacted)},
+        )
+    if donors_to_notify:
+        await send_push_safely(
+            await _push_recipients_for_donors(session, donors_to_notify),
+            "LifeLink contact request",
+            "A requester selected you for contact. Open LifeLink to review the request.",
+            {"type": "contact_request", "request_id": request_id},
+        )
+    return ContactSelectedDonorsOut(request_id=request_id, donor_ids=newly_contacted)
 
 
 @app.get("/v1/emergency-requests/{request_id}/contacts", response_model=list[RequesterContactOut])
@@ -498,7 +503,10 @@ async def list_emergency_request_history(
             facility_name=record.payload.location.facility_name,
             area=record.payload.location.area,
             notifications_created=len(record.matches),
-            matches_responded=sum(1 for contact in contacts if contact["status"] in {"accepted", "arrived", "declined"}),
+            matches_responded=sum(
+                1 for contact in contacts
+                if contact["accepted_at"] is not None or contact["status"] == "declined"
+            ),
             contact_statuses=[contact["status"] for contact in contacts],
         ))
     return items
@@ -515,16 +523,22 @@ async def get_emergency_request_status(
         raise HTTPException(status_code=404, detail="Request not found")
     if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
         raise HTTPException(status_code=403, detail="Not allowed to view this request")
+    store = SqlAlchemyRequestStore(session)
+    contacts = await store.requester_contacts_async(request_id, record.payload.requester_id)
     return EmergencyRequestStatusOut(
         request_id=record.request_id,
         status=record.status,
         notifications_created=len(record.matches),
-        matches_responded=0,
+        matches_responded=sum(
+            1 for contact in contacts
+            if contact["accepted_at"] is not None or contact["status"] == "declined"
+        ),
         reason=(
             "Automatic matching is unavailable; manual review is required."
             if record.status == RequestStatus.MANUAL_BROADCAST
             else None
         ),
+        matches=record.matches,
     )
 
 
