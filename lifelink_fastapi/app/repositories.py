@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from .db_models import (
     BloodTypeEnum,
@@ -259,7 +259,12 @@ class SqlAlchemyRequestStore(RequestStore):
         return refreshed
 
     async def contact_selected_donors_async(self, request_id: str, donor_ids: list[str]) -> RequestRecord:
-        row = await self.session.get(EmergencyRequestRow, request_id)
+        row_result = await self.session.execute(
+            select(EmergencyRequestRow)
+            .options(selectinload(EmergencyRequestRow.matches))
+            .where(EmergencyRequestRow.id == request_id)
+        )
+        row = row_result.scalar_one_or_none()
         if row is None:
             raise KeyError(request_id)
         if await self._expire_if_needed(row):
@@ -343,6 +348,7 @@ class SqlAlchemyRequestStore(RequestStore):
             raise KeyError(request_id)
         transitions = {
             "accepted": {"contact_shared", "cancelled"},
+            "arrived": {"contact_shared", "cancelled"},
             "contact_shared": {"meeting_arranged", "fulfilled", "cancelled"},
             "meeting_arranged": {"fulfilled", "cancelled"},
             "fulfilled": set(),

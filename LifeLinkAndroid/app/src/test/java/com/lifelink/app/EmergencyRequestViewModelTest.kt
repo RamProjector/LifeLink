@@ -115,7 +115,7 @@ class EmergencyRequestViewModelTest {
     }
 
     @Test
-    fun contact_selected_donors_marks_request_as_sent() = runTest {
+    fun requester_can_contact_an_additional_batch_without_resending_prior_donors() = runTest {
         val repository = FakeRepository(SubmitResult.MatchingStarted("req-2"))
         repository.contactResult = SubmitResult.ContactRequested("req-2", listOf("donor-1"))
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
@@ -129,6 +129,14 @@ class EmergencyRequestViewModelTest {
         advanceUntilIdle()
         assertTrue(viewModel.uiState.value.contactRequestSent)
         assertEquals(listOf("donor-1"), repository.lastContactedDonors)
+        assertTrue(viewModel.uiState.value.selectedDonorIds.isEmpty())
+
+        viewModel.onAction(EmergencyRequestAction.ToggleDonorSelection("donor-1"))
+        viewModel.onAction(EmergencyRequestAction.ToggleDonorSelection("donor-2"))
+        viewModel.onAction(EmergencyRequestAction.ContactSelectedDonors)
+        advanceUntilIdle()
+        assertEquals(listOf("donor-2"), repository.lastContactedDonors)
+        assertEquals(setOf("donor-1", "donor-2"), viewModel.uiState.value.contacts.map { it.donorId }.toSet())
     }
 }
 
@@ -140,17 +148,27 @@ private class FakeRepository(
     var history: List<RequestHistoryItem> = emptyList()
     var contactResult: SubmitResult = SubmitResult.Error("not configured")
     var lastContactedDonors: List<String> = emptyList()
+    var contacts: List<RequesterContact> = emptyList()
     override suspend fun saveDraft(draft: EmergencyRequestDraft) { savedDrafts++ }
     override suspend fun loadDraft(id: String): EmergencyRequestDraft? = null
     override suspend fun submit(draft: EmergencyRequestDraft): SubmitResult = submitResult
     override suspend fun contactSelectedDonors(requestId: String, donorIds: List<String>): SubmitResult {
         lastContactedDonors = donorIds
-        return contactResult
+        return when (contactResult) {
+            is SubmitResult.ContactRequested -> {
+                contacts = (contacts.map { it.donorId to it } + donorIds.map { it to RequesterContact(it, it, "pending") })
+                    .associate { it.first to it.second }
+                    .values
+                    .toList()
+                SubmitResult.ContactRequested(requestId, donorIds)
+            }
+            else -> contactResult
+        }
     }
     override suspend fun sendManualBroadcast(requestId: String): SubmitResult = SubmitResult.MatchingStarted(requestId)
     override suspend fun cancelRequest(requestId: String): SubmitResult = SubmitResult.Cancelled(requestId)
     override suspend fun fulfillRequest(requestId: String): SubmitResult = SubmitResult.Fulfilled(requestId)
-    override suspend fun refreshContacts(requestId: String): List<RequesterContact> = emptyList()
+    override suspend fun refreshContacts(requestId: String): List<RequesterContact> = contacts
     override suspend fun updateContactStatus(requestId: String, donorId: String, status: String): RequesterContact = RequesterContact(donorId, "Donor", status)
     override suspend fun reportContact(requestId: String, donorId: String, reason: String): String = "reported"
     override suspend fun blockContact(requestId: String, donorId: String): String = "blocked"

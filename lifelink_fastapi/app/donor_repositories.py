@@ -17,15 +17,15 @@ from .db_models import (
     RequestStatusEnum,
 )
 from .donor_api import DonorAvailability, DonorProfileIn, DonorResponseIn
-from .expiry import is_request_expired
+from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
 
 
 def apply_donor_response_to_contact(contact, response: DonorResponseIn, now: datetime):
     """Persist donor consent without treating acceptance as contact disclosure."""
     contact.status = response.response
     contact.updated_at = now
-    if response.response == "accepted":
-        contact.accepted_at = now
+    if response.response in {"accepted", "arrived"}:
+        contact.accepted_at = contact.accepted_at or now
     return contact
 
 
@@ -99,7 +99,12 @@ class SqlAlchemyDonorStore:
                 (DonorContactRequest.request_id == RequestRow.id) & (DonorContactRequest.donor_id == donor_id),
             )
             .options(joinedload(RequestRow.facility))
-            .where(MatchRow.donor_id == donor_id, RequestRow.requester_id != donor_id)
+            .where(
+                MatchRow.donor_id == donor_id,
+                RequestRow.requester_id != donor_id,
+                RequestRow.status.in_(ACTIVE_REQUEST_STATUSES),
+                RequestRow.response_deadline > datetime.now(timezone.utc),
+            )
             .order_by(RequestRow.created_at.desc())
         )
         return list(result.unique().all())

@@ -154,6 +154,34 @@ def test_self_registered_donor_receives_the_matched_request(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_donor_inbox_excludes_expired_and_closed_requests(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+
+        active = await submit_request(client, current, requester)
+        expired = await submit_request(client, current, requester)
+        cancelled = await submit_request(client, current, requester)
+        fulfilled = await submit_request(client, current, requester)
+        await run_sql(
+            "UPDATE emergency_requests SET response_deadline = now() - interval '5 minutes' "
+            f"WHERE id = '{expired['request_id']}'"
+        )
+        await run_sql(
+            f"UPDATE emergency_requests SET status = 'cancelled' WHERE id = '{cancelled['request_id']}'"
+        )
+        await run_sql(
+            f"UPDATE emergency_requests SET status = 'fulfilled' WHERE id = '{fulfilled['request_id']}'"
+        )
+
+        current["id"] = donor
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert [item["request_id"] for item in inbox.json()] == [active["request_id"]]
+
+    run_scenario(pg_url, scenario)
+
+
 def test_request_history_survives_the_deadline_passing(pg_url):
     async def scenario(client, current, run_sql):
         requester = new_user("requester")
@@ -229,6 +257,44 @@ def test_donor_response_is_saved_and_survives_a_new_session(pg_url):
         inbox = await client.get(f"/v1/donors/{donor}/requests")
         assert inbox.status_code == 200, inbox.text
         assert inbox.json()[0]["status"] == "confirmed"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_arrival_does_not_block_requester_contact_completion(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        selected = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/contact",
+            json={"donor_ids": [donor]},
+        )
+        assert selected.status_code == 200, selected.text
+
+        current["id"] = donor
+        accepted = await client.post(
+            f"/v1/donors/{donor}/requests/{created['request_id']}/response", json={"response": "accepted"}
+        )
+        assert accepted.status_code == 200, accepted.text
+        arrived = await client.post(
+            f"/v1/donors/{donor}/requests/{created['request_id']}/response", json={"response": "arrived"}
+        )
+        assert arrived.status_code == 200, arrived.text
+
+        current["id"] = requester
+        contacts = await client.get(f"/v1/emergency-requests/{created['request_id']}/contacts")
+        assert contacts.status_code == 200, contacts.text
+        assert contacts.json()[0]["status"] == "arrived"
+        assert contacts.json()[0]["accepted_at"] is not None
+        shared = await client.patch(
+            f"/v1/emergency-requests/{created['request_id']}/contacts/{donor}",
+            json={"status": "contact_shared"},
+        )
+        assert shared.status_code == 200, shared.text
+        assert shared.json()["status"] == "contact_shared"
 
     run_scenario(pg_url, scenario)
 

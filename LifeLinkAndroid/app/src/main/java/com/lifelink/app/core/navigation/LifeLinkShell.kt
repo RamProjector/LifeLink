@@ -133,6 +133,12 @@ fun LifeLinkShell(
         if (accountUserId.isNotBlank()) welcomePrefs.edit().putBoolean("seen_$accountUserId", true).apply()
         showStart = false
     }
+    LaunchedEffect(accountUserId, role) {
+        if (accountUserId.isNotBlank() && role == UserRole.DONOR) {
+            showStart = false
+            showDonor = true
+        }
+    }
     LaunchedEffect(notificationRequestId) {
         notificationRequestId?.takeIf { it.isNotBlank() }?.let {
             showStart = false
@@ -161,8 +167,18 @@ fun LifeLinkShell(
         return
     }
     if (showActive && state.activeRequest != null) {
+        val activeRequestId = state.activeRequest.requestId
         BackHandler { showActive = false }
-        ActiveRequestScreen(state = state, onAction = onAction, onBack = { showActive = false })
+        ActiveRequestScreen(
+            state = state,
+            onAction = onAction,
+            onBack = { showActive = false },
+            onReviewContacts = {
+                onAction(EmergencyRequestAction.ShowContactResults(activeRequestId))
+                showActive = false
+                showRequest = true
+            }
+        )
         return
     }
     if (showDonor) {

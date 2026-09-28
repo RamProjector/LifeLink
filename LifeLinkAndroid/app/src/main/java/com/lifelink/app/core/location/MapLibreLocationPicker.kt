@@ -83,9 +83,9 @@ fun MapLibreLocationPicker(
                 mapView.apply {
                 addOnDidFailLoadingMapListener {
                     mapLoading = false
-                    mapError = "Map preview unavailable. You can still enter an approximate location manually."
+                    mapError = "Map preview unavailable. You can enter coordinates manually or retry the map."
                     onLoadingChanged(false)
-                    onMapError("Map tiles could not be loaded. Your location is still saved; retry the preview or use the full map.")
+                    onMapError("Map tiles could not be loaded. You can enter coordinates manually or retry the map.")
                 }
                 setOnTouchListener { view, event ->
                     when (event.actionMasked) {

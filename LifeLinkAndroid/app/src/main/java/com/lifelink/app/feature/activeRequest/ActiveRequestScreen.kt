@@ -41,7 +41,8 @@ import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
 fun ActiveRequestScreen(
     state: EmergencyRequestUiState,
     onAction: (EmergencyRequestAction) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onReviewContacts: () -> Unit
 ) {
     val active = state.activeRequest ?: return
     var showCancelConfirmation by remember { mutableStateOf(false) }
@@ -57,6 +58,21 @@ fun ActiveRequestScreen(
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             StatusCard(active)
             ProgressCard(active)
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Donor contact activity", fontWeight = FontWeight.SemiBold)
+                    if (state.contacts.isEmpty()) {
+                        Text("Selected donors and their responses will appear here.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        state.contacts.forEach { contact ->
+                            Text("${contact.displayName} · ${contact.status.replace('_', ' ')}")
+                        }
+                    }
+                    Button(onClick = onReviewContacts, enabled = state.contacts.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+                        Text("Review contact activity")
+                    }
+                }
+            }
             if (active.status == ActiveRequestStatus.MANUAL_BROADCAST) {
                 Button(onClick = { onAction(EmergencyRequestAction.SendManualBroadcast) }, modifier = Modifier.fillMaxWidth()) { Text("Send manual broadcast") }
             }

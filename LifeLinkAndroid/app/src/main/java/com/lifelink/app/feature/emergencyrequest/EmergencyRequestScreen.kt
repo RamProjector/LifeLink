@@ -272,9 +272,20 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
                 }
             }
             if (state.contactRequestSent) {
-                SuccessBanner("Contact request sent to ${state.selectedDonorIds.size} selected donor(s).")
-            } else {
-                Button(onClick = { onAction(EmergencyRequestAction.ContactSelectedDonors) }, enabled = state.selectedDonorIds.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Contact ${state.selectedDonorIds.size} selected donor${if (state.selectedDonorIds.size == 1) "" else "s"}") }
+                SuccessBanner("Contact request sent. You can select more matches to contact additional donors.")
+            }
+            val alreadyContactedIds = state.contacts.mapTo(mutableSetOf()) { it.donorId }
+            val newSelectionCount = state.selectedDonorIds.count { it !in alreadyContactedIds }
+            Button(
+                onClick = { onAction(EmergencyRequestAction.ContactSelectedDonors) },
+                enabled = newSelectionCount > 0,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    if (newSelectionCount > 0) "Contact $newSelectionCount new donor${if (newSelectionCount == 1) "" else "s"}"
+                    else if (state.selectedDonorIds.isNotEmpty()) "Selected donors already contacted"
+                    else "Select donors to contact"
+                )
             }
         }
         Text("LifeLink supports discovery and contact only. Screening remains with a licensed facility.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
@@ -305,7 +316,7 @@ private fun AcceptedContactCard(
     onAction: (EmergencyRequestAction) -> Unit
 ) {
     val status = contact.status.lowercase()
-    val accepted = status in setOf("accepted", "contact_shared", "meeting_arranged", "fulfilled")
+    val accepted = status in setOf("accepted", "arrived", "contact_shared", "meeting_arranged", "fulfilled")
     val statusLabel = status.replace('_', ' ').replaceFirstChar { it.uppercase() }
     val context = LocalContext.current
     var reportDialogVisible by remember { mutableStateOf(false) }
@@ -330,7 +341,7 @@ private fun AcceptedContactCard(
                 contact.contactSharedAt?.let { Text("Contact shared ${formatContactTimestamp(it)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 contact.updatedAt?.let { Text("Last updated ${formatContactTimestamp(it)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 Text("Contact details are shared only after donor consent.", style = MaterialTheme.typography.bodySmall)
-                if (status == "accepted" && contact.contactEmail == null) {
+                if (status in setOf("accepted", "arrived") && contact.contactEmail == null) {
                     OutlinedButton(
                         onClick = { contactConsentVisible = true },
                         enabled = !actionInFlight,
@@ -352,12 +363,12 @@ private fun AcceptedContactCard(
                     }
                 }
                 when (status) {
-                    "accepted" -> if (contact.contactEmail == null) Text("Continue above to request the authorized contact details.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    "accepted", "arrived" -> if (contact.contactEmail == null) Text("Continue above to request the authorized contact details.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     "contact_shared" -> OutlinedButton(enabled = !actionInFlight, onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "meeting_arranged")) }, modifier = Modifier.fillMaxWidth()) { Text("Mark meeting arranged") }
                     "meeting_arranged" -> OutlinedButton(enabled = !actionInFlight, onClick = { fulfillDialogVisible = true }, modifier = Modifier.fillMaxWidth()) { Text("Mark fulfilled") }
                     "fulfilled" -> Text("Fulfilled", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                 }
-                if (status in setOf("accepted", "contact_shared", "meeting_arranged")) TextButton(enabled = !actionInFlight, onClick = { cancelDialogVisible = true }) { Text("Cancel contact") }
+                if (status in setOf("accepted", "arrived", "contact_shared", "meeting_arranged")) TextButton(enabled = !actionInFlight, onClick = { cancelDialogVisible = true }) { Text("Cancel contact") }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { reportDialogVisible = true }) { Text("Report") }
                     TextButton(onClick = { blockDialogVisible = true }) { Text("Block") }
@@ -528,56 +539,48 @@ private fun LocationMapPicker(
             delay(30_000)
             if (mapLoading) {
                 mapLoading = false
-                mapError = "Map preview is unavailable right now. Your location is still captured; retry the preview or use the full map."
+                mapError = "Map preview is unavailable right now. Retry the map or enter coordinates manually."
             }
         }
     }
-    if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
-        Box(modifier.fillMaxWidth()) {
-            key(retryRequest) {
-                MapLibreLocationPicker(
-                    draft.requesterLatitude,
-                    draft.requesterLongitude,
-                    onLocationSelected,
-                    recenterRequest + retryRequest,
-                    onLoadingChanged = { mapLoading = it; if (it) mapError = null },
-                    onMapError = { mapLoading = false; mapError = it },
-                    modifier = modifier
-                )
-            }
-            if (mapLoading) {
-                Surface(Modifier.align(Alignment.TopCenter).padding(12.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), shape = MaterialTheme.shapes.medium) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Text("Loading map…", style = MaterialTheme.typography.labelLarge)
-                    }
+    Box(modifier.fillMaxWidth()) {
+        key(retryRequest) {
+            MapLibreLocationPicker(
+                draft.requesterLatitude,
+                draft.requesterLongitude,
+                onLocationSelected,
+                recenterRequest + retryRequest,
+                onLoadingChanged = { mapLoading = it; if (it) mapError = null },
+                onMapError = { mapLoading = false; mapError = it },
+                modifier = modifier
+            )
+        }
+        if (mapLoading) {
+            Surface(Modifier.align(Alignment.TopCenter).padding(12.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), shape = MaterialTheme.shapes.medium) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text("Loading map…", style = MaterialTheme.typography.labelLarge)
                 }
             }
-            mapError?.let { error ->
-                Card(Modifier.align(Alignment.Center).padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
-                        OutlinedButton(onClick = { mapError = null; mapLoading = true; retryRequest++ }) { Text("Retry map") }
-                    }
+        }
+        mapError?.let { error ->
+            Card(Modifier.align(Alignment.Center).padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick = { mapError = null; mapLoading = true; retryRequest++ }) { Text("Retry map") }
                 }
             }
-            OutlinedButton(onClick = { retryRequest++ }, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)) { Text("Recenter") }
         }
-        Text(if (retryRequest > 0) "Pin selected manually or recentered from the latest location." else "Using the current selected location. Tap or long-press to move the pin.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    } else {
-        Card(
-            modifier = Modifier.fillMaxWidth().height(260.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    "Map preview appears after you capture or choose a location.",
-                    modifier = Modifier.padding(24.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+        OutlinedButton(onClick = { retryRequest++ }, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)) { Text("Reload map") }
     }
+    Text(
+        if (draft.requesterLatitude != null && draft.requesterLongitude != null)
+            "Tap or long-press to move the selected approximate pin."
+        else
+            "Pan and zoom to an area, then tap or long-press to choose your approximate location. No location is selected until you choose a point.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -661,10 +664,8 @@ private fun LocationMapPicker(
             recenterRequest = locationCaptureRequest,
             modifier = Modifier.height(260.dp)
         )
-        if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
-            OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { fullMapVisible = true }) {
-                Text("Open full map")
-            }
+        OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { fullMapVisible = true }) {
+            Text("Open full map")
         }
         Text("Or enter coordinates", fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -702,7 +703,7 @@ private fun LocationMapPicker(
             }
         }
     }
-    if (fullMapVisible && draft.requesterLatitude != null && draft.requesterLongitude != null) {
+    if (fullMapVisible) {
         ModalBottomSheet(onDismissRequest = { fullMapVisible = false }) {
             Column(
                 Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp),
