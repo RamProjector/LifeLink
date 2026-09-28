@@ -81,9 +81,12 @@ The repository includes `Dockerfile` and `render.yaml` for deploying the Postgre
 ```text
 LIFELINK_DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require
 LIFELINK_AUTH_REQUIRED=true
+LIFELINK_DONOR_LOCATION_MAX_AGE_MINUTES=1440
 DB_POOL_SIZE=3
 DB_MAX_OVERFLOW=5
 ```
+
+`LIFELINK_DONOR_LOCATION_MAX_AGE_MINUTES` defaults to `1440` (24 hours). An available donor whose availability/location snapshot is older than this cutoff is excluded from new matching rather than merely receiving a lower freshness score. Donors can become eligible again by refreshing availability from the app.
 
 Render Free services sleep after 15 minutes without inbound traffic and take about a minute to wake. They also have monthly free instance-hour and bandwidth limits, so this is suitable for an MVP or testing, not guaranteed production availability. See the [official Render free-service limits](https://render.com/docs/free).
 
