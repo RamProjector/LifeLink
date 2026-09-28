@@ -47,7 +47,6 @@ import com.lifelink.app.domain.UpdateType
 import com.lifelink.app.feature.updates.UpdatesViewModel
 import com.lifelink.app.feature.updates.UpdatesViewModelFactory
 import com.lifelink.app.data.remote.ProfileRequest
-import com.lifelink.app.data.remote.PushTokenRequest
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.launch
@@ -134,7 +133,7 @@ class MainActivity : ComponentActivity() {
                             roleLoadError = "Your profile could not be loaded. Check your connection and retry."
                         }
                         runCatching { fetchFirebaseToken() }
-                            .onSuccess { token -> runCatching { api.registerPushToken(PushTokenRequest(token)) } }
+                            .onSuccess { token -> app.enqueuePushTokenRegistration(accountUserId, token) }
                     }
                 }
                 if (role == null) {

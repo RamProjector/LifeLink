@@ -2,6 +2,7 @@ package com.lifelink.app.core.notifications
 
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import com.lifelink.app.LifeLinkApplication
 
 @Suppress("DEPRECATION")
 class LifeLinkFirebaseMessagingService : FirebaseMessagingService() {
@@ -9,8 +10,9 @@ class LifeLinkFirebaseMessagingService : FirebaseMessagingService() {
     @Deprecated("Required by the FirebaseMessagingService compatibility API.")
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        // Send this token to the authenticated backend user profile when Firebase
-        // project credentials and authentication are connected.
+        val app = application as? LifeLinkApplication ?: return
+        val ownerId = app.authRepository.session.value?.userId ?: return
+        app.enqueuePushTokenRegistration(ownerId, token)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
