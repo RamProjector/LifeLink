@@ -122,6 +122,15 @@ def test_self_registered_donor_is_matchable_by_default(monkeypatch):
     assert match.explanation.score_breakdown["verification"] == 0
 
 
+def test_stale_donor_location_is_not_used_for_matching(monkeypatch):
+    monkeypatch.setenv("LIFELINK_DONOR_LOCATION_MAX_AGE_MINUTES", "60")
+    stale = _donor(verified=True).model_copy(
+        update={"availability_updated_at": datetime.now(timezone.utc) - timedelta(hours=2)}
+    )
+
+    assert score_donor(_request(), stale, datetime.now(timezone.utc)) is None
+
+
 def test_strict_mode_excludes_unverified_donors(monkeypatch):
     monkeypatch.setenv("LIFELINK_REQUIRE_VERIFIED_DONORS", "true")
     assert score_donor(_request(), _donor(verified=False), datetime.now(timezone.utc)) is None

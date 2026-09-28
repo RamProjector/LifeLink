@@ -19,6 +19,8 @@ services:
         sync: false
       - key: LIFELINK_REQUIRE_VERIFIED_DONORS
         value: "false"
+      - key: LIFELINK_DONOR_LOCATION_MAX_AGE_MINUTES
+        value: "1440"
       - key: DB_POOL_SIZE
         value: "3"
       - key: DB_MAX_OVERFLOW

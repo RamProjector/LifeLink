@@ -439,6 +439,22 @@ def require_verified_donors() -> bool:
     return os.getenv("LIFELINK_REQUIRE_VERIFIED_DONORS", "false").strip().lower() in {"1", "true", "yes"}
 
 
+def donor_location_max_age_minutes() -> float:
+    """Return the maximum age of a donor's availability/location snapshot.
+
+    ``availability_updated_at`` is the timestamp currently carried by both the
+    in-memory and PostgreSQL donor models. Treat it as the freshness of the
+    donor's location so old coordinates are not used indefinitely. Deployments
+    may tighten or relax the policy without a schema change.
+    """
+    raw = os.getenv("LIFELINK_DONOR_LOCATION_MAX_AGE_MINUTES", "1440")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return 1440.0
+    return value if value > 0 else 1440.0
+
+
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     earth_radius_km = 6371.0
     d_lat = radians(lat2 - lat1)
@@ -461,6 +477,10 @@ def score_donor(request: EmergencyRequestIn, donor: Donor, now: datetime) -> Don
     if not donor.available or (require_verified_donors() and not donor.verified):
         return None
 
+    age_minutes = max(0.0, (now - donor.availability_updated_at).total_seconds() / 60)
+    if age_minutes > donor_location_max_age_minutes():
+        return None
+
     distance_km = haversine_km(
         request.location.latitude,
         request.location.longitude,
@@ -471,7 +491,6 @@ def score_donor(request: EmergencyRequestIn, donor: Donor, now: datetime) -> Don
         return None
 
     travel_minutes = estimate_travel_minutes(distance_km)
-    age_minutes = max(0.0, (now - donor.availability_updated_at).total_seconds() / 60)
     freshness_score = max(0.0, 1.0 - min(age_minutes, 240.0) / 240.0)
     distance_score = max(0.0, 1.0 - min(distance_km, donor.service_radius_km) / donor.service_radius_km)
     travel_score = max(0.0, 1.0 - min(travel_minutes, 120) / 120.0)
