@@ -55,11 +55,14 @@ class LifeLinkApplication : Application() {
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .addTag("lifelink-account-$ownerId")
             .build()
-        WorkManager.getInstance(this).enqueueUniqueWork(
-            "lifelink-push-token-$ownerId",
-            ExistingWorkPolicy.REPLACE,
-            work
-        )
+        launchAccountWrite(ownerId) {
+            // Finish scheduling under the cleanup lock before sign-out can cancel this work.
+            WorkManager.getInstance(this@LifeLinkApplication).enqueueUniqueWork(
+                "lifelink-push-token-$ownerId",
+                ExistingWorkPolicy.REPLACE,
+                work
+            ).await()
+        }
     }
 
     private suspend fun clearLocalAccountData(ownerId: String) = accountData.cleanup {
