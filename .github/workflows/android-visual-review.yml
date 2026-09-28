@@ -3,8 +3,18 @@ name: Android visual review
 on:
   pull_request:
     paths:
-      - 'LifeLinkAndroid/**'
-      - '.github/workflows/android-visual-review.yml'
+      # Keep visual review focused on UI, resources, and the visual test harness.
+      # Functional/build/unit-test validation still runs on every Android change in validate.yml.
+      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/navigation/**'
+      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/ui/**'
+      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/**/Screen.kt'
+      - 'LifeLinkAndroid/app/src/main/res/**'
+      - 'LifeLinkAndroid/app/src/main/AndroidManifest.xml'
+      - 'LifeLinkAndroid/app/src/androidTest/**'
+      - 'LifeLinkAndroid/app/build.gradle.kts'
+      - 'LifeLinkAndroid/build.gradle.kts'
+      - 'LifeLinkAndroid/settings.gradle.kts'
+      - 'LifeLinkAndroid/gradle/**'
   workflow_dispatch:
 
   workflow_call:
@@ -20,6 +30,7 @@ jobs:
   visual-review:
     name: Capture Android visual evidence
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: LifeLinkAndroid
@@ -52,40 +63,52 @@ jobs:
           #!/usr/bin/env bash
           set +e
           device_serial="${ANDROID_SERIAL:-emulator-5554}"
+          collect_diagnostics() {
+            local script_exit=$?
+            mkdir -p "$GITHUB_WORKSPACE/visual-artifacts"
+            adb devices -l > "$GITHUB_WORKSPACE/visual-artifacts/adb-devices.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" get-state > "$GITHUB_WORKSPACE/visual-artifacts/adb-device-state.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" shell getprop sys.boot_completed > "$GITHUB_WORKSPACE/visual-artifacts/boot-completed.txt" 2>&1 || true
+            timeout 15s adb -s "$device_serial" logcat -d -t 5000 > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" 2>&1 || true
+            for remote_file in $(timeout 10s adb -s "$device_serial" shell ls /sdcard/Android/data/com.lifelink.app/files/lifelink-*.png 2>/dev/null | tr -d '\r'); do
+              timeout 15s adb -s "$device_serial" pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
+            done
+            for evidence_file in $(timeout 10s adb -s "$device_serial" shell run-as com.lifelink.app ls files/lifelink-evidence 2>/dev/null | tr -d '\r' | grep -E '^lifelink-.*\.png$'); do
+              timeout 15s adb -s "$device_serial" exec-out run-as com.lifelink.app cat "files/lifelink-evidence/$evidence_file" > "$GITHUB_WORKSPACE/visual-artifacts/$evidence_file" || true
+            done
+            echo "$script_exit" > "$GITHUB_WORKSPACE/visual-artifacts/visual-test-exit-code.txt"
+            exit "$script_exit"
+          }
+          trap collect_diagnostics EXIT
           device_ready=0
-          for attempt in $(seq 1 90); do
+          boot_wait_started=$(date +%s)
+          for attempt in $(seq 1 24); do
             adb reconnect offline >/dev/null 2>&1 || true
             device_state="$(adb -s "$device_serial" get-state 2>/dev/null || true)"
             boot_completed="$(adb -s "$device_serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
             if [[ "$device_state" == "device" && "$boot_completed" == "1" ]]; then
               device_ready=1
+              echo "Emulator became ready after $(( $(date +%s) - boot_wait_started )) seconds."
               break
             fi
             sleep 5
           done
           if [[ "$device_ready" != "1" ]]; then
             adb devices -l || true
+            echo "::error::Emulator did not become ready within 120 seconds after the emulator action returned."
             exit 2
           fi
           cd "$GITHUB_WORKSPACE/LifeLinkAndroid" || exit 1
+          echo "Starting connected Android instrumentation tests."
           ./gradlew connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --no-daemon --stacktrace
           test_exit=$?
-          mkdir -p "$GITHUB_WORKSPACE/visual-artifacts"
-          for remote_file in $(adb -s "$device_serial" shell ls /sdcard/Android/data/com.lifelink.app/files/lifelink-*.png 2>/dev/null | tr -d '\r'); do
-            adb -s "$device_serial" pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
-          done
-          # While shared storage is still mounting, evidence is saved in app-private storage instead.
-          for evidence_file in $(adb -s "$device_serial" shell run-as com.lifelink.app ls files/lifelink-evidence 2>/dev/null | tr -d '\r' | grep -E '^lifelink-.*\.png$'); do
-            adb -s "$device_serial" exec-out run-as com.lifelink.app cat "files/lifelink-evidence/$evidence_file" > "$GITHUB_WORKSPACE/visual-artifacts/$evidence_file" || true
-          done
-          adb -s "$device_serial" logcat -d > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" || true
-          echo "$test_exit" > "$GITHUB_WORKSPACE/visual-artifacts/visual-test-exit-code.txt"
           exit "$test_exit"
           EOF
           chmod +x "$RUNNER_TEMP/lifelink-visual-test.sh"
 
       - name: Run visual smoke test on emulator
         uses: reactivecircus/android-emulator-runner@v2
+        timeout-minutes: 55
         with:
           api-level: 34
           target: google_apis
@@ -102,6 +125,14 @@ jobs:
           disable-animations: true
           script: |
             bash "$RUNNER_TEMP/lifelink-visual-test.sh"
+
+      - name: Collect emulator diagnostics
+        if: always()
+        run: |
+          mkdir -p ../visual-artifacts
+          adb devices -l > ../visual-artifacts/adb-devices-post-step.txt 2>&1 || true
+          timeout 10s adb -s "${ANDROID_SERIAL:-emulator-5554}" shell getprop sys.boot_completed > ../visual-artifacts/boot-completed-post-step.txt 2>&1 || true
+          timeout 15s adb -s "${ANDROID_SERIAL:-emulator-5554}" logcat -d -t 5000 > ../visual-artifacts/logcat-post-step.txt 2>&1 || true
 
       - name: Collect visual test reports
         if: always()
