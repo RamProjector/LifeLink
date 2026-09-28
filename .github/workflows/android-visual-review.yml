@@ -74,6 +74,10 @@ jobs:
           for remote_file in $(adb -s "$device_serial" shell ls /sdcard/Android/data/com.lifelink.app/files/lifelink-*.png 2>/dev/null | tr -d '\r'); do
             adb -s "$device_serial" pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
           done
+          # While shared storage is still mounting, evidence is saved in app-private storage instead.
+          for evidence_file in $(adb -s "$device_serial" shell run-as com.lifelink.app ls files/lifelink-evidence 2>/dev/null | tr -d '\r' | grep -E '^lifelink-.*\.png$'); do
+            adb -s "$device_serial" exec-out run-as com.lifelink.app cat "files/lifelink-evidence/$evidence_file" > "$GITHUB_WORKSPACE/visual-artifacts/$evidence_file" || true
+          done
           adb -s "$device_serial" logcat -d > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" || true
           echo "$test_exit" > "$GITHUB_WORKSPACE/visual-artifacts/visual-test-exit-code.txt"
           exit "$test_exit"
