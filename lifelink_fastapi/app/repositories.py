@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -18,6 +19,7 @@ from .db_models import (
     DonorContactRequest,
     LifeLinkProfile,
     AuditEvent,
+    MatchStatusEnum,
 )
 from .main import (
     Donor,
@@ -28,8 +30,16 @@ from .main import (
     RequestRecord,
     RequestStore,
     RequestStatus,
+    require_verified_donors,
 )
 from .expiry import is_request_expired
+
+logger = logging.getLogger("lifelink.repositories")
+
+
+def _enum_value(value):
+    """Enum column values are members when loaded but plain strings on rows changed in-session."""
+    return getattr(value, "value", value)
 
 
 MATCHING_VERSION = "v1-explainable-weighted"
@@ -43,9 +53,10 @@ class SqlAlchemyDonorRepository(DonorRepository):
     async def list_active_donors(self, excluded_user_id: str | None = None) -> list[Donor]:
         conditions = [
             DonorRow.available.is_(True),
-            DonorRow.verified.is_(True),
             DonorRow.profile_visible.is_(True),
         ]
+        if require_verified_donors():
+            conditions.append(DonorRow.verified.is_(True))
         if excluded_user_id:
             conditions.append((DonorRow.user_id.is_(None)) | (DonorRow.user_id != excluded_user_id))
         result = await self.session.scalars(
@@ -121,8 +132,8 @@ class SqlAlchemyRequestStore(RequestStore):
         return self._to_record(row) if row else None
 
     async def _expire_if_needed(self, row: EmergencyRequestRow) -> bool:
-        if is_request_expired(row.status.value, row.response_deadline):
-            row.status = RequestStatusEnum.EXPIRED.value
+        if is_request_expired(_enum_value(row.status), row.response_deadline):
+            row.status = RequestStatusEnum.EXPIRED
             await self.session.commit()
             return True
         return False
@@ -136,7 +147,23 @@ class SqlAlchemyRequestStore(RequestStore):
             .order_by(EmergencyRequestRow.created_at.desc())
             .limit(limit)
         )
-        return [self._to_record(row) for row in result.unique().all()]
+        rows = result.unique().all()
+        # Report requests past their deadline as expired, as status polling does.
+        newly_expired = False
+        for row in rows:
+            if is_request_expired(_enum_value(row.status), row.response_deadline):
+                row.status = RequestStatusEnum.EXPIRED
+                newly_expired = True
+        if newly_expired:
+            await self.session.commit()
+        records: list[RequestRecord] = []
+        for row in rows:
+            try:
+                records.append(self._to_record(row))
+            except Exception:
+                # One unreadable row must not hide the rest of the account's history.
+                logger.exception("Skipping unreadable request row id=%s in history", row.id)
+        return records
 
     async def save_async(self, record: RequestRecord) -> None:
         existing = await self.session.get(EmergencyRequestRow, record.request_id)
@@ -198,7 +225,7 @@ class SqlAlchemyRequestStore(RequestStore):
             raise KeyError(request_id)
         if await self._expire_if_needed(row):
             raise ValueError("This request has expired and cannot be broadcast")
-        row.status = RequestStatusEnum.MANUAL_BROADCAST.value
+        row.status = RequestStatusEnum.MANUAL_BROADCAST
         await self.session.commit()
         refreshed = await self.get_by_id_async(request_id)
         if refreshed is None:
@@ -209,7 +236,7 @@ class SqlAlchemyRequestStore(RequestStore):
         row = await self.session.get(EmergencyRequestRow, request_id)
         if row is None:
             raise KeyError(request_id)
-        row.status = RequestStatusEnum.CANCELLED.value
+        row.status = RequestStatusEnum.CANCELLED
         await self.session.commit()
         refreshed = await self.get_by_id_async(request_id)
         if refreshed is None:
@@ -222,9 +249,9 @@ class SqlAlchemyRequestStore(RequestStore):
             raise KeyError(request_id)
         if await self._expire_if_needed(row):
             raise ValueError("An expired request cannot be fulfilled")
-        if row.status.value in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.EXPIRED.value}:
+        if _enum_value(row.status) in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.EXPIRED.value}:
             raise ValueError("A cancelled or expired request cannot be fulfilled")
-        row.status = RequestStatusEnum.FULFILLED.value
+        row.status = RequestStatusEnum.FULFILLED
         await self.session.commit()
         refreshed = await self.get_by_id_async(request_id)
         if refreshed is None:
@@ -237,7 +264,7 @@ class SqlAlchemyRequestStore(RequestStore):
             raise KeyError(request_id)
         if await self._expire_if_needed(row):
             raise ValueError("This request has expired and cannot accept contact requests")
-        if row.status.value in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.EXPIRED.value, RequestStatusEnum.FULFILLED.value}:
+        if _enum_value(row.status) in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.EXPIRED.value, RequestStatusEnum.FULFILLED.value}:
             raise ValueError("This request is no longer accepting contact requests")
         allowed = {match.donor_id for match in row.matches}
         if row.requester_id in donor_ids:
@@ -247,7 +274,7 @@ class SqlAlchemyRequestStore(RequestStore):
         now = datetime.now(timezone.utc)
         for match in row.matches:
             if match.donor_id in donor_ids:
-                match.status = "notified"
+                match.status = MatchStatusEnum.NOTIFIED
                 match.notified_at = now
                 contact = await self.session.scalar(
                     select(DonorContactRequest).where(
@@ -305,7 +332,7 @@ class SqlAlchemyRequestStore(RequestStore):
             raise KeyError(request_id)
         if await self._expire_if_needed(request):
             raise ValueError("This request has expired; contact actions are closed")
-        if request.status.value in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.FULFILLED.value}:
+        if _enum_value(request.status) in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.FULFILLED.value}:
             raise ValueError("This request is terminal; contact actions are closed")
         contact = await self.session.scalar(select(DonorContactRequest).where(
             DonorContactRequest.request_id == request_id,
@@ -334,13 +361,13 @@ class SqlAlchemyRequestStore(RequestStore):
 
     @staticmethod
     def _to_record(row: EmergencyRequestRow) -> RequestRecord:
-        payload = EmergencyRequestIn(
-            requester_id=row.requester_id,
-            blood_type=row.blood_type.value,
-            units=row.units,
-            urgency=row.urgency.value,
-            response_deadline=row.response_deadline,
-            location={
+        payload = EmergencyRequestIn.model_validate({
+            "requester_id": row.requester_id,
+            "blood_type": _enum_value(row.blood_type),
+            "units": row.units,
+            "urgency": _enum_value(row.urgency),
+            "response_deadline": row.response_deadline,
+            "location": {
                 "facility_id": row.facility_id,
                 "facility_name": row.facility.name if row.facility else "Requester location",
                 "area": row.facility.area if row.facility else "Approximate area",
@@ -349,18 +376,18 @@ class SqlAlchemyRequestStore(RequestStore):
                 "precision_meters": row.location_precision_meters,
                 "verified": row.facility.verified if row.facility else False,
             },
-            contact_method=row.contact_method.value,
-            note=row.note,
-            genuine_request_confirmed=row.genuine_request_confirmed,
-            sharing_consent_confirmed=row.sharing_consent_confirmed,
-            ai_matching_enabled=True,
-            idempotency_key=row.idempotency_key,
-        )
+            "contact_method": _enum_value(row.contact_method),
+            "note": row.note,
+            "genuine_request_confirmed": row.genuine_request_confirmed,
+            "sharing_consent_confirmed": row.sharing_consent_confirmed,
+            "ai_matching_enabled": True,
+            "idempotency_key": row.idempotency_key,
+        }, context={"stored": True})
         matches = [
             DonorMatch(
                 donor_id=match.donor_id,
                 display_name=match.donor.display_name,
-                blood_type=match.donor.blood_type.value,
+                blood_type=_enum_value(match.donor.blood_type),
                 distance_km=float(match.distance_km),
                 estimated_travel_minutes=match.estimated_travel_minutes,
                 score=float(match.score),
@@ -372,7 +399,7 @@ class SqlAlchemyRequestStore(RequestStore):
         return RequestRecord(
             request_id=row.id,
             payload=payload,
-            status=RequestStatus(row.status.value),
+            status=RequestStatus(_enum_value(row.status)),
             created_at=row.created_at,
             expires_at=row.response_deadline,
             matches=matches,

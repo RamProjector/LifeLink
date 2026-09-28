@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from enum import Enum
 from math import atan2, cos, radians, sin, sqrt
@@ -7,7 +8,7 @@ from typing import Annotated, Protocol
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 from .security import Principal, get_principal, require_owner
 
 
@@ -84,10 +85,14 @@ class EmergencyRequestIn(BaseModel):
 
     @field_validator("response_deadline")
     @classmethod
-    def deadline_must_be_future(cls, value: datetime) -> datetime:
-        now = datetime.now(timezone.utc)
+    def deadline_must_be_future(cls, value: datetime, info: ValidationInfo) -> datetime:
         normalized = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-        if normalized <= now:
+        # Rows read back from storage are validated with context {"stored": True}.
+        # A saved request whose deadline has since passed is still a valid record;
+        # only *new* input must have a future deadline.
+        if (info.context or {}).get("stored"):
+            return normalized
+        if normalized <= datetime.now(timezone.utc):
             raise ValueError("response_deadline must be in the future")
         return normalized
 
@@ -422,6 +427,17 @@ COMPATIBLE_DONORS: dict[BloodType, set[BloodType]] = {
 }
 
 
+def require_verified_donors() -> bool:
+    """Strict mode: only donors marked verified can be matched.
+
+    Off by default. The app has no donor-verification workflow yet, so with strict
+    matching every self-registered donor was silently excluded and never received a
+    request. Verified donors still rank higher (the score has a verification part).
+    Set LIFELINK_REQUIRE_VERIFIED_DONORS=true to restore verified-only matching.
+    """
+    return os.getenv("LIFELINK_REQUIRE_VERIFIED_DONORS", "false").strip().lower() in {"1", "true", "yes"}
+
+
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     earth_radius_km = 6371.0
     d_lat = radians(lat2 - lat1)
@@ -441,7 +457,7 @@ def score_donor(request: EmergencyRequestIn, donor: Donor, now: datetime) -> Don
         return None
     if donor.blood_type not in COMPATIBLE_DONORS[request.blood_type]:
         return None
-    if not donor.available or not donor.verified:
+    if not donor.available or (require_verified_donors() and not donor.verified):
         return None
 
     distance_km = haversine_km(
@@ -476,7 +492,7 @@ def score_donor(request: EmergencyRequestIn, donor: Donor, now: datetime) -> Don
         f"Estimated travel time is {travel_minutes} minutes",
         f"Donor is approximately {distance_km:.1f} km from the request location",
         "Availability was recently confirmed",
-        "Donor verification is complete",
+        "Donor verification is complete" if donor.verified else "Donor is self-registered and not yet verified",
     ]
 
     return DonorMatch(

@@ -36,6 +36,8 @@ DB_POOL_SIZE=3
 DB_MAX_OVERFLOW=5
 ```
 
+`LIFELINK_REQUIRE_VERIFIED_DONORS` is optional and defaults to `false`: self-registered donors are matched to requests, and verified donors rank higher. Set it to `true` to match **only** donors whose `verified` flag was set by an administrator (the app has no verification workflow yet, so with `true` a new donor receives nothing until you set `donors.verified = true` in Supabase).
+
 8. Deploy the service.
 9. Test the generated URL:
 

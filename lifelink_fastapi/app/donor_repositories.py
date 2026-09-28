@@ -8,7 +8,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from .db_models import Donor as DonorRow, DonorContactRequest, EmergencyRequest as RequestRow, MatchStatusEnum, RequestMatch as MatchRow
+from .db_models import (
+    Donor as DonorRow,
+    DonorContactRequest,
+    EmergencyRequest as RequestRow,
+    MatchStatusEnum,
+    RequestMatch as MatchRow,
+    RequestStatusEnum,
+)
 from .donor_api import DonorAvailability, DonorProfileIn, DonorResponseIn
 from .expiry import is_request_expired
 
@@ -48,7 +55,7 @@ class SqlAlchemyDonorStore:
                 longitude=Decimal(str(payload.longitude)),
                 available=False,
                 availability_updated_at=now,
-                verified=payload.verified,
+                verified=False,  # set by the server/admin, never by the client
                 service_radius_km=Decimal(str(payload.service_radius_km)),
                 estimated_response_probability=Decimal("0.50"),
                 donor_note=payload.donor_note,
@@ -64,7 +71,8 @@ class SqlAlchemyDonorStore:
             row.latitude = Decimal(str(payload.latitude))
             row.longitude = Decimal(str(payload.longitude))
             row.service_radius_km = Decimal(str(payload.service_radius_km))
-            row.verified = payload.verified
+            # `verified` is intentionally left as stored: clients cannot verify themselves,
+            # and re-saving a profile must not un-verify an already verified donor.
             row.donor_note = payload.donor_note
             row.preferred_contact_method = payload.preferred_contact_method
             row.pause_reason = payload.pause_reason
@@ -108,16 +116,17 @@ class SqlAlchemyDonorStore:
             raise KeyError(request_id)
         if request.requester_id == donor_id:
             raise ValueError("You cannot accept or decline your own request")
-        if is_request_expired(request.status.value, request.response_deadline):
-            request.status = "expired"
+        current_status = getattr(request.status, "value", request.status)
+        if is_request_expired(current_status, request.response_deadline):
+            request.status = RequestStatusEnum.EXPIRED
             await self.session.commit()
             raise ValueError("This request has expired and is no longer accepting donor responses")
-        if request.status.value in {"cancelled", "expired", "fulfilled"}:
+        if current_status in {"cancelled", "expired", "fulfilled"}:
             raise ValueError("This request is no longer accepting donor responses")
         match.status = {
-            "accepted": MatchStatusEnum.CONFIRMED.value,
-            "declined": MatchStatusEnum.DECLINED.value,
-            "arrived": MatchStatusEnum.CONFIRMED.value,
+            "accepted": MatchStatusEnum.CONFIRMED,
+            "declined": MatchStatusEnum.DECLINED,
+            "arrived": MatchStatusEnum.CONFIRMED,
         }[response.response]
         now = datetime.now(timezone.utc)
         match.responded_at = now
