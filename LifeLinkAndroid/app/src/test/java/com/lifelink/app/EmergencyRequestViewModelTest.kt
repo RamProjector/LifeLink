@@ -7,6 +7,7 @@ import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.SubmitResult
 import com.lifelink.app.domain.RequesterContact
 import com.lifelink.app.domain.RequestHistoryItem
+import com.lifelink.app.domain.DiscoveredDonor
 import com.lifelink.app.data.remote.EmergencyRequestRequest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -138,6 +139,48 @@ class EmergencyRequestViewModelTest {
         assertEquals(listOf("donor-2"), repository.lastContactedDonors)
         assertEquals(setOf("donor-1", "donor-2"), viewModel.uiState.value.contacts.map { it.donorId }.toSet())
     }
+
+    @Test
+    fun reopening_results_loads_matches_for_the_requested_request_id() = runTest {
+        val repository = FakeRepository()
+        repository.matches = listOf(DiscoveredDonor("donor-1", "Donor One", "O-", 2.0, 8, 0.9))
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+
+        viewModel.onAction(EmergencyRequestAction.ShowContactResults("saved-request"))
+        advanceUntilIdle()
+
+        assertEquals("saved-request", repository.lastMatchesRequestId)
+        assertEquals("donor-1", viewModel.uiState.value.discoveredDonors.single().donorId)
+        assertEquals("saved-request", viewModel.uiState.value.resultsRequestId)
+        assertEquals(null, viewModel.uiState.value.matchesError)
+    }
+
+    @Test
+    fun acknowledged_contact_is_preserved_and_retry_clears_selection_after_refresh() = runTest {
+        val repository = FakeRepository(SubmitResult.MatchingStarted("req-3"))
+        repository.contactResult = SubmitResult.ContactRequested("req-3", listOf("donor-1"))
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(EmergencyRequestAction.Submit)
+        advanceUntilIdle()
+        repository.contactsFailure = java.io.IOException("temporary status failure")
+
+        viewModel.onAction(EmergencyRequestAction.ToggleDonorSelection("donor-1"))
+        viewModel.onAction(EmergencyRequestAction.ContactSelectedDonors)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.contactRequestSent)
+        assertEquals("donor-1", viewModel.uiState.value.contacts.single().donorId)
+        assertTrue("confirmed selection remains available until refresh succeeds", "donor-1" in viewModel.uiState.value.selectedDonorIds)
+        assertTrue(viewModel.uiState.value.contactsError != null)
+
+        repository.contactsFailure = null
+        viewModel.onAction(EmergencyRequestAction.RefreshContacts("req-3"))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.selectedDonorIds.isEmpty())
+        assertEquals("donor-1", viewModel.uiState.value.contacts.single().donorId)
+        assertEquals(null, viewModel.uiState.value.contactsError)
+    }
 }
 
 private class FakeRepository(
@@ -146,6 +189,9 @@ private class FakeRepository(
     var savedDrafts = 0
     var historyFailure: Exception? = null
     var history: List<RequestHistoryItem> = emptyList()
+    var matches: List<DiscoveredDonor> = emptyList()
+    var lastMatchesRequestId: String? = null
+    var contactsFailure: Exception? = null
     var contactResult: SubmitResult = SubmitResult.Error("not configured")
     var lastContactedDonors: List<String> = emptyList()
     var contacts: List<RequesterContact> = emptyList()
@@ -168,7 +214,14 @@ private class FakeRepository(
     override suspend fun sendManualBroadcast(requestId: String): SubmitResult = SubmitResult.MatchingStarted(requestId)
     override suspend fun cancelRequest(requestId: String): SubmitResult = SubmitResult.Cancelled(requestId)
     override suspend fun fulfillRequest(requestId: String): SubmitResult = SubmitResult.Fulfilled(requestId)
-    override suspend fun refreshContacts(requestId: String): List<RequesterContact> = contacts
+    override suspend fun refreshContacts(requestId: String): List<RequesterContact> {
+        contactsFailure?.let { throw it }
+        return contacts
+    }
+    override suspend fun refreshMatches(requestId: String): List<DiscoveredDonor> {
+        lastMatchesRequestId = requestId
+        return matches
+    }
     override suspend fun updateContactStatus(requestId: String, donorId: String, status: String): RequesterContact = RequesterContact(donorId, "Donor", status)
     override suspend fun reportContact(requestId: String, donorId: String, reason: String): String = "reported"
     override suspend fun blockContact(requestId: String, donorId: String): String = "blocked"

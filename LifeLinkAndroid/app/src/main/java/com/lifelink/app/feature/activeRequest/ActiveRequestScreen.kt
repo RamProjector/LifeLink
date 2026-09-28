@@ -24,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +46,9 @@ fun ActiveRequestScreen(
     onReviewContacts: () -> Unit
 ) {
     val active = state.activeRequest ?: return
+    LaunchedEffect(active.requestId) {
+        onAction(EmergencyRequestAction.RefreshContacts(active.requestId))
+    }
     var showCancelConfirmation by remember { mutableStateOf(false) }
     Scaffold(
         topBar = {
@@ -61,15 +65,23 @@ fun ActiveRequestScreen(
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Donor contact activity", fontWeight = FontWeight.SemiBold)
-                    if (state.contacts.isEmpty()) {
+                    if (state.contactsRefreshing && state.contacts.isEmpty()) {
+                        Text("Refreshing contact activity…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else if (state.contacts.isEmpty()) {
                         Text("Selected donors and their responses will appear here.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
                         state.contacts.forEach { contact ->
                             Text("${contact.displayName} · ${contact.status.replace('_', ' ')}")
                         }
                     }
-                    Button(onClick = onReviewContacts, enabled = state.contacts.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
-                        Text("Review contact activity")
+                    state.contactsError?.let { error ->
+                        Text(error, color = MaterialTheme.colorScheme.error)
+                        TextButton(onClick = { onAction(EmergencyRequestAction.RefreshContacts(active.requestId)) }) {
+                            Text("Retry contact refresh")
+                        }
+                    }
+                    Button(onClick = onReviewContacts, modifier = Modifier.fillMaxWidth()) {
+                        Text("Review matches and contacts")
                     }
                 }
             }

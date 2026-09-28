@@ -34,7 +34,7 @@ pip install -r requirements.txt
 export LIFELINK_DATABASE_URL='postgresql+asyncpg://lifelink:lifelink@localhost:5432/lifelink'
 for migration in sql/00*.sql; do
   psql "postgresql://lifelink:lifelink@localhost:5432/lifelink" \
-    -v ON_ERROR_STOP=1 -f "$migration"
+    -v ON_ERROR_STOP=1 -f "$migration" || exit 1
 done
 uvicorn app.main_postgres:app --reload --port 8000
 ```
@@ -52,7 +52,7 @@ Open the API documentation at `http://localhost:8000/docs`.
 cd lifelink_fastapi
 for migration in sql/00*.sql; do
   psql "postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require" \
-    -v ON_ERROR_STOP=1 -f "$migration"
+    -v ON_ERROR_STOP=1 -f "$migration" || exit 1
 done
 ```
 

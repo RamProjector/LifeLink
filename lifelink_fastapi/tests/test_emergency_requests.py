@@ -82,6 +82,16 @@ def test_request_history_returns_owned_summary_without_coordinates():
     assert "longitude" not in item
 
 
+def test_request_status_restores_safe_donor_matches():
+    payload = make_payload(idempotency_key="idempotency-key-status-matches")
+    created = client.post("/v1/emergency-requests", json=payload).json()
+    response = client.get(f"/v1/emergency-requests/{created['request_id']}")
+    assert response.status_code == 200
+    body = response.json()
+    assert [match["donor_id"] for match in body["matches"]] == [match["donor_id"] for match in created["matches"]]
+    assert all("latitude" not in match and "longitude" not in match for match in body["matches"])
+
+
 def test_mismatched_idempotency_header_is_rejected():
     response = client.post(
         "/v1/emergency-requests",

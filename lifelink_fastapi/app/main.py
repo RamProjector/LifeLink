@@ -164,6 +164,7 @@ class EmergencyRequestStatusOut(BaseModel):
     notifications_created: int
     matches_responded: int
     reason: str | None = None
+    matches: list[DonorMatch] = Field(default_factory=list)
 
 
 class RequestActionOut(BaseModel):
@@ -689,13 +690,14 @@ def emergency_request_status(request_id: str, principal: Principal = Depends(get
     if record is None:
         raise HTTPException(status_code=404, detail="Request not found")
     require_owner(principal, record.payload.requester_id)
-    responded = sum(1 for (rid, _), value in match_statuses.items() if rid == request_id and value.get("response") in {"accepted", "arrived"})
+    responded = sum(1 for (rid, _), value in match_statuses.items() if rid == request_id and value.get("response") in {"accepted", "declined", "arrived"})
     return EmergencyRequestStatusOut(
         request_id=request_id,
         status=record.status,
         notifications_created=len(record.matches),
         matches_responded=responded,
         reason="Manual review is required." if record.status == RequestStatus.MANUAL_BROADCAST else None,
+        matches=record.matches,
     )
 
 

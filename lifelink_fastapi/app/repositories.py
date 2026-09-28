@@ -258,7 +258,9 @@ class SqlAlchemyRequestStore(RequestStore):
             raise KeyError(request_id)
         return refreshed
 
-    async def contact_selected_donors_async(self, request_id: str, donor_ids: list[str]) -> RequestRecord:
+    async def contact_selected_donors_async(
+        self, request_id: str, donor_ids: list[str]
+    ) -> tuple[RequestRecord, list[str], list[str]]:
         row_result = await self.session.execute(
             select(EmergencyRequestRow)
             .options(selectinload(EmergencyRequestRow.matches))
@@ -277,32 +279,46 @@ class SqlAlchemyRequestStore(RequestStore):
         if any(donor_id not in allowed for donor_id in donor_ids):
             raise ValueError("One or more selected donors are not eligible for this request")
         now = datetime.now(timezone.utc)
+        newly_contacted: list[str] = []
+        donors_to_notify: list[str] = []
         for match in row.matches:
-            if match.donor_id in donor_ids:
+            if match.donor_id not in donor_ids:
+                continue
+            contact = await self.session.scalar(
+                select(DonorContactRequest).where(
+                    DonorContactRequest.request_id == request_id,
+                    DonorContactRequest.donor_id == match.donor_id,
+                )
+            )
+            if contact is not None:
+                continue
+            prior_match_status = _enum_value(match.status)
+            if prior_match_status == MatchStatusEnum.CONFIRMED.value:
+                contact_status = "accepted"
+                accepted_at = match.responded_at
+            elif prior_match_status == MatchStatusEnum.DECLINED.value:
+                contact_status = "declined"
+                accepted_at = None
+            else:
+                contact_status = "pending"
+                accepted_at = None
                 match.status = MatchStatusEnum.NOTIFIED
                 match.notified_at = now
-                contact = await self.session.scalar(
-                    select(DonorContactRequest).where(
-                        DonorContactRequest.request_id == request_id,
-                        DonorContactRequest.donor_id == match.donor_id,
-                    )
-                )
-                if contact is None:
-                    self.session.add(DonorContactRequest(
-                        id=f"contact_{uuid4().hex}",
-                        request_id=request_id,
-                        donor_id=match.donor_id,
-                        requester_id=row.requester_id,
-                        status="pending",
-                    ))
-                elif contact.status not in {"accepted", "cancelled"}:
-                    contact.status = "pending"
-                    contact.updated_at = now
+                donors_to_notify.append(match.donor_id)
+            newly_contacted.append(match.donor_id)
+            self.session.add(DonorContactRequest(
+                id=f"contact_{uuid4().hex}",
+                request_id=request_id,
+                donor_id=match.donor_id,
+                requester_id=row.requester_id,
+                status=contact_status,
+                accepted_at=accepted_at,
+            ))
         await self.session.commit()
         refreshed = await self.get_by_id_async(request_id)
         if refreshed is None:
             raise KeyError(request_id)
-        return refreshed
+        return refreshed, newly_contacted, donors_to_notify
 
     async def requester_contacts_async(self, request_id: str, requester_id: str) -> list[dict[str, Any]]:
         result = await self.session.execute(
