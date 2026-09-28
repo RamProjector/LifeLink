@@ -15,7 +15,6 @@ import com.lifelink.app.domain.ActiveRequestStatus
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.UiDevice
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
@@ -24,7 +23,6 @@ import com.lifelink.app.feature.donor.DonorUiState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class LifeLinkWorkflowVisualTest {
@@ -179,7 +177,7 @@ class LifeLinkWorkflowVisualTest {
     }
 
     private fun capture(name: String) {
-        val file = File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null), "lifelink-${InstrumentationRegistry.getArguments().getString("scenario", "phone")}-${testTheme.name.lowercase()}-$name.png")
-        check(UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).takeScreenshot(file)) { "Could not save screenshot" }
+        val scenario = InstrumentationRegistry.getArguments().getString("scenario", "phone")
+        VisualEvidence.capture("lifelink-$scenario-${testTheme.name.lowercase()}-$name.png")
     }
 }

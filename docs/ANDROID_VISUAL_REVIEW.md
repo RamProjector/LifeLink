@@ -23,3 +23,7 @@ A failed visual test fails the workflow after the reports are collected. The Cri
 Authenticated donor and requester screens contain live data, maps, timestamps, permissions, and account-specific state. Capturing those without dedicated test accounts and deterministic fixtures would create noisy false positives and could risk exposing user data. The next expansion should use test-only accounts or dependency-injected fixture data, then add stable checkpoints for Welcome, Home, Requests, Donor Home, Donor Requests, Profile, Safety, and the accepted-contact states.
 
 Intentional design changes should be reviewed from the uploaded artifact before establishing or updating a baseline. The bot detects visual/test failures; it does not make aesthetic decisions autonomously.
+
+## Screenshot reliability
+
+Hosted emulators are slow, and two things were seen failing transiently right after boot: `Context.getExternalFilesDir()` returned `null` while the emulated shared-storage volume was still mounting (the screenshot then targeted a relative path on a read-only filesystem), and the first `UiAutomation` screenshot returned `null`. `VisualEvidence.capture()` therefore retries, prefers the app's external files directory, falls back to app-private storage (which the workflow reads with `run-as`), and logs a warning instead of failing a test whose UI assertions passed.

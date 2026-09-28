@@ -8,12 +8,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.UiDevice
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.feature.auth.AuthScreen
 import com.lifelink.app.feature.auth.AuthState
-import java.io.File
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,8 +41,7 @@ class AuthScreenVisualTest {
         composeRule.onNodeWithText("LifeLink").assertIsDisplayed()
         composeRule.onNodeWithText("Email address").assertIsDisplayed()
 
-        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-        check(device.takeScreenshot(File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null), "lifelink-auth-screen.png"))) { "Could not save screenshot" }
+        VisualEvidence.capture("lifelink-auth-screen.png")
 
         composeRule.onNodeWithText("Create an account").performScrollTo().performClick()
         composeRule.onNodeWithText("Confirm password").assertIsDisplayed()
