@@ -66,6 +66,7 @@ data class RequestHistoryItem(
 sealed interface SubmitResult {
     data class MatchingStarted(val requestId: String, val donors: List<DiscoveredDonor> = emptyList()) : SubmitResult
     data class ContactRequested(val requestId: String, val donorIds: List<String>) : SubmitResult
+    data class ContactRequestUncertain(val requestId: String, val donorIds: List<String>) : SubmitResult
     data class ManualFallback(val requestId: String, val reason: String) : SubmitResult
     data class Cancelled(val requestId: String) : SubmitResult
     data class Fulfilled(val requestId: String) : SubmitResult

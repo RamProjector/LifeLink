@@ -118,7 +118,7 @@ class EmergencyRequestViewModel(
                     val current = _uiState.value.activeRequest
                     if (current != null && !current.isTerminal) {
                         runCatching { repository.refreshActiveRequest(current.requestId) }
-                        refreshContacts(current.requestId)
+                        refreshContacts(current.requestId, adopt = false)
                     }
                 }
             }
@@ -143,7 +143,7 @@ class EmergencyRequestViewModel(
             EmergencyRequestAction.RefreshStatus -> refreshStatus()
             is EmergencyRequestAction.OpenRequest -> openRequest(action.requestId)
             is EmergencyRequestAction.ShowContactResults -> showContactResults(action.requestId)
-            is EmergencyRequestAction.RefreshContacts -> refreshContacts(action.requestId)
+            is EmergencyRequestAction.RefreshContacts -> refreshContacts(action.requestId, adopt = true)
             EmergencyRequestAction.RefreshHistory -> refreshHistory()
             EmergencyRequestAction.CancelRequest -> cancelRequest()
             EmergencyRequestAction.FulfillRequest -> fulfillRequest()
@@ -234,6 +234,9 @@ class EmergencyRequestViewModel(
                     refreshContacts(result.requestId)
                 }
                 is SubmitResult.ContactRequested -> _uiState.update { it.copy(contactRequestSent = true) }
+                is SubmitResult.ContactRequestUncertain -> _uiState.update {
+                    it.copy(contactsError = "The server response was empty; contact status could not be confirmed yet.")
+                }
                 is SubmitResult.ManualFallback -> _uiState.update { it.copy(submission = SubmissionState.ManualFallback(result.requestId, result.reason)) }
                 is SubmitResult.Cancelled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
                 is SubmitResult.Fulfilled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
@@ -250,6 +253,9 @@ class EmergencyRequestViewModel(
             when (val result = repository.sendManualBroadcast(fallback.requestId)) {
                 is SubmitResult.MatchingStarted -> _uiState.update { it.copy(submission = SubmissionState.Matching(result.requestId)) }
                 is SubmitResult.ContactRequested -> _uiState.update { it.copy(contactRequestSent = true) }
+                is SubmitResult.ContactRequestUncertain -> _uiState.update {
+                    it.copy(contactsError = "The server response was empty; contact status could not be confirmed yet.")
+                }
                 is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
                 is SubmitResult.ManualFallback -> _uiState.update { it.copy(submission = SubmissionState.ManualFallback(result.requestId, result.reason)) }
                 is SubmitResult.Cancelled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
@@ -275,45 +281,75 @@ class EmergencyRequestViewModel(
         if (donorIds.isEmpty()) return
         viewModelScope.launch {
             when (val result = repository.contactSelectedDonors(requestId, donorIds)) {
-                is SubmitResult.ContactRequested -> {
-                    val current = _uiState.value
-                    if (current.resultsRequestId != requestId) return@launch
-                    val newlyConfirmedIds = result.donorIds.distinct()
-                    val localContacts = newlyConfirmedIds.map { id ->
-                        current.contacts.firstOrNull { it.donorId == id } ?: RequesterContact(
-                            donorId = id,
-                            displayName = current.discoveredDonors.firstOrNull { it.donorId == id }?.displayName ?: "Selected donor",
-                            status = "pending"
-                        )
-                    }
-                    val refreshed = try {
-                        repository.refreshContacts(requestId)
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (_: Exception) {
-                        null
-                    }
-                    _uiState.update { state ->
-                        if (state.resultsRequestId != requestId) state else {
-                            val contacts = if (refreshed == null) {
-                                mergeContacts(state.contacts, localContacts)
-                            } else {
-                                mergeContacts(state.contacts + localContacts, refreshed)
-                            }
-                            val selected = if (refreshed == null) state.selectedDonorIds
-                                else state.selectedDonorIds - contacts.map { it.donorId }.toSet()
-                            state.copy(
-                                contactRequestSent = state.contactRequestSent || newlyConfirmedIds.isNotEmpty(),
-                                contacts = contacts,
-                                selectedDonorIds = selected,
-                                contactsRefreshing = false,
-                                contactsError = if (refreshed == null) "The contact request was sent, but its latest status could not be loaded. Check again shortly." else null
-                            )
-                        }
-                    }
-                }
+                is SubmitResult.ContactRequested -> refreshAfterContactRequest(
+                    requestId, donorIds, result.donorIds, uncertain = false
+                )
+                is SubmitResult.ContactRequestUncertain -> refreshAfterContactRequest(
+                    requestId, donorIds, result.donorIds, uncertain = true
+                )
                 is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
                 else -> Unit
+            }
+        }
+    }
+
+    private suspend fun refreshAfterContactRequest(
+        requestId: String,
+        requestedDonorIds: List<String>,
+        responseDonorIds: List<String>,
+        uncertain: Boolean
+    ) {
+        val current = _uiState.value
+        if (current.resultsRequestId != requestId) return
+
+        val donorIds = (responseDonorIds.ifEmpty { requestedDonorIds }).distinct()
+        val optimisticContacts = if (uncertain) emptyList() else donorIds.map { id ->
+            current.contacts.firstOrNull { it.donorId == id } ?: RequesterContact(
+                donorId = id,
+                displayName = current.discoveredDonors.firstOrNull { it.donorId == id }?.displayName ?: "Selected donor",
+                status = "pending"
+            )
+        }
+        _uiState.update { state ->
+            if (state.resultsRequestId != requestId) state else state.copy(
+                contactRequestSent = state.contactRequestSent || (!uncertain && donorIds.isNotEmpty()),
+                contacts = mergeContacts(state.contacts, optimisticContacts),
+                contactsRefreshing = true,
+                contactsError = if (uncertain) "The server response was empty; checking contact status before you retry." else null
+            )
+        }
+
+        val refreshed = try {
+            repository.refreshContacts(requestId)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+        _uiState.update { state ->
+            if (state.resultsRequestId != requestId) state else if (refreshed == null) {
+                state.copy(
+                    contacts = mergeContacts(state.contacts, optimisticContacts),
+                    contactsRefreshing = false,
+                    contactsError = if (uncertain) {
+                        "The server response was empty, so we could not confirm whether contact was sent. Check contact activity before retrying."
+                    } else {
+                        "The contact request was sent, but its latest status could not be loaded. Check again shortly."
+                    }
+                )
+            } else {
+                val contacts = mergeContacts(state.contacts, refreshed)
+                val visibleDonorIds = contacts.mapTo(mutableSetOf()) { it.donorId }
+                val confirmedIds = if (uncertain) donorIds.filter { it in visibleDonorIds }.toSet() else donorIds.toSet()
+                state.copy(
+                    contactRequestSent = state.contactRequestSent || confirmedIds.isNotEmpty(),
+                    contacts = contacts,
+                    selectedDonorIds = state.selectedDonorIds - confirmedIds,
+                    contactsRefreshing = false,
+                    contactsError = if (uncertain && confirmedIds.isEmpty()) {
+                        "The server response was empty and no new contact is visible yet. Check contact activity before retrying."
+                    } else null
+                )
             }
         }
     }
@@ -349,7 +385,7 @@ class EmergencyRequestViewModel(
             runCatching { repository.refreshActiveRequest(requestId) }
                 .onFailure { _uiState.update { it.copy(submission = SubmissionState.Error("Status could not be refreshed. Try again.")) } }
             _uiState.update { it.copy(statusRefreshing = false) }
-            refreshContacts(requestId)
+            refreshContacts(requestId, adopt = false)
         }
     }
 
@@ -405,8 +441,10 @@ class EmergencyRequestViewModel(
         refreshContacts(requestId)
     }
 
-    private fun refreshContacts(requestId: String) {
-        val switchingRequest = _uiState.value.resultsRequestId != requestId
+    private fun refreshContacts(requestId: String, adopt: Boolean = true) {
+        val currentRequestId = _uiState.value.resultsRequestId
+        if (!adopt && currentRequestId != requestId) return
+        val switchingRequest = currentRequestId != requestId
         _uiState.update { state ->
             state.copy(
                 resultsRequestId = requestId,

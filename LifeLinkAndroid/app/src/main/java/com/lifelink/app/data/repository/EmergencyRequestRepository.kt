@@ -174,8 +174,12 @@ class EmergencyRequestRepositoryImpl(
         try {
             val response = api.contactSelectedDonors(requestId, ContactSelectedDonorsRequest(donorIds))
             if (response.isSuccessful) {
-                val body = response.body() ?: throw IOException("The contact request returned an empty response.")
-                SubmitResult.ContactRequested(body.requestId, body.donorIds)
+                val body = response.body()
+                if (body == null) {
+                    SubmitResult.ContactRequestUncertain(requestId, donorIds)
+                } else {
+                    SubmitResult.ContactRequested(body.requestId, body.donorIds)
+                }
             }
             else SubmitResult.Error("Selected donors could not be contacted (${response.code()}).")
         } catch (_: IOException) {
