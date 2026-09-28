@@ -1,6 +1,6 @@
 # LifeLink Implementation Status
 
-**Status date:** 24 September 2026
+**Status date:** 29 September 2026
 **Repository:** `RamProjector/LifeLink`  
 **Source of live-state confirmation:** repository verification plus user confirmation in the project chat.
 
@@ -40,7 +40,9 @@ The API may use exact coordinates internally for matching, but donor coordinates
 
 ## Remaining work
 
-The following items are not confirmed as production-complete: real-device and live-deployment verification of the contact lifecycle, contact cancellation and expiry enforcement, typed location-source and freshness contract, precise-versus-approximate permission UX, in-flight location cancellation and classified retry states, donor location freshness timestamps and stale-location policy, in-app conversation or controlled phone handoff, push notifications and deep links, abuse reporting, signed Android release configuration, crash reporting, and real-device accessibility/performance validation. Rate-limiting and audit-event infrastructure are implemented and their migrations are applied, but endpoint-level and live-production verification remain required. A previous 401 screenshot was traced to the missing client-side access-token refresh path; the refresh-and-retry fix is now compile-verified. The requester map no longer renders `(0, 0)` when no location has been captured. The prioritized follow-up scope is recorded in `docs/POST_UPDATE_IMPROVEMENT_SCOPE.md`.
+The following items are not confirmed as production-complete: real-device and live-deployment verification of the contact lifecycle, contact cancellation and expiry enforcement, typed location-source contract, precise-versus-approximate permission UX, in-flight location cancellation and classified retry states, in-app conversation or controlled phone handoff, push notifications and deep links, abuse reporting, signed Android release configuration, crash reporting, and real-device accessibility/performance validation. Rate-limiting and audit-event infrastructure are implemented and their migrations are applied, but endpoint-level and live-production verification remain required. A previous 401 screenshot was traced to the missing client-side access-token refresh path; the refresh-and-retry fix is now compile-verified. The requester map no longer renders `(0, 0)` when no location has been captured. The prioritized follow-up scope is recorded in `docs/POST_UPDATE_IMPROVEMENT_SCOPE.md`.
+
+The backend now applies a configurable donor location/availability freshness cutoff through `LIFELINK_DONOR_LOCATION_MAX_AGE_MINUTES`, defaulting to 24 hours. Donors older than the cutoff are excluded from new matches; Android source labeling and explicit freshness UX remain follow-up work.
 
 These are implementation or operational follow-ups. They do not imply that the current SQL migrations are missing or that the live donor schema is corrupt.
 
