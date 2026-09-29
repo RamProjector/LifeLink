@@ -111,6 +111,7 @@ fun LifeLinkShell(
     privacyState: PrivacyUiState,
     onPrivacyAction: (PrivacyAction) -> Unit,
     role: UserRole,
+    onSwitchRole: () -> Unit,
     accountEmail: String,
     accountUserId: String,
     accountDisplayName: String,
@@ -237,7 +238,7 @@ fun LifeLinkShell(
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
                     Surface(Modifier.widthIn(max = 840.dp).fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                         when (tab) {
-                            ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true }, onDonorMap = { showDonorMap = true }, updates = updates, onRequests = { tab = ShellTab.REQUESTS }, onUpdates = { tab = ShellTab.UPDATES })
+                            ShellTab.HOME -> HomeContent(state, donorState, role, onSwitchRole, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true }, onDonorMap = { showDonorMap = true }, updates = updates, onRequests = { tab = ShellTab.REQUESTS }, onUpdates = { tab = ShellTab.UPDATES })
                             ShellTab.REQUESTS -> RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = { showRequest = true }, onActive = { showActive = true })
                             ShellTab.UPDATES -> UpdatesScreen(
                                 updates = updates,
@@ -345,6 +346,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     state: EmergencyRequestUiState,
     donorState: DonorUiState,
     role: UserRole,
+    onSwitchRole: () -> Unit,
     onCreate: () -> Unit,
     onActive: () -> Unit,
     onDonor: () -> Unit,
@@ -359,6 +361,10 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             LifeLinkPageHeader("LifeLink")
+            Spacer(Modifier.weight(1f))
+            OutlinedButton(onClick = onSwitchRole, modifier = Modifier.testTag("role-switcher")) {
+                Text(if (role == UserRole.DONOR) "Switch to requester" else "Switch to donor")
+            }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Column(
@@ -438,7 +444,7 @@ private fun ActiveRequestSummary(state: EmergencyRequestUiState, onOpen: () -> U
 @Preview(name = "Home · dark", widthDp = 360, heightDp = 820, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun HomePreview() {
-    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, {}, emptyList(), {}, {}) }
+    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, {}, {}, emptyList(), {}, {}) }
 }
 
 @Composable
@@ -553,15 +559,6 @@ private fun StartContent(
             if (body != null) {
                 IconButton(onClick = onHelp) { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "More about $title") }
             }
-        }
-    }
-}
-
-@Composable private fun LearnCard(title: String, body: String) {
-    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, fontWeight = FontWeight.SemiBold)
-            Text(body, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

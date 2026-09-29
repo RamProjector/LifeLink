@@ -4,6 +4,9 @@ enum class UpdateType {
     REQUEST_STATUS,
     DONOR_RESPONSE,
     CONTACT_STATUS,
+    MESSAGE,
+    CONTACT_SHARE,
+    LOCATION_SHARE,
     ACCOUNT,
     SYSTEM
 }

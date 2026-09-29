@@ -52,6 +52,7 @@ class LifeLinkWorkflowVisualTest {
                         privacyState = com.lifelink.app.feature.privacy.PrivacyUiState(),
                         onPrivacyAction = {},
                         role = role,
+                        onSwitchRole = {},
                         accountEmail = "visual-test@example.invalid",
                         accountUserId = "visual-account",
                         accountDisplayName = "Visual Test",

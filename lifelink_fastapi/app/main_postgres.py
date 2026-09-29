@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import create_all_tables, get_db_session
-from .db_models import Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum
+from .db_models import Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum
 from .fcm import send_push_safely
 from .main import (
     EmergencyRequestIn,
@@ -59,7 +59,7 @@ from .privacy_api import (
 )
 from .privacy_repositories import SqlAlchemyPrivacyStore
 from .expiry import ACTIVE_REQUEST_STATUSES
-from .security import Principal, get_postgres_principal
+from .security import Principal, get_postgres_principal, require_verified_email
 from .rate_limit import enforce_rate_limit
 
 @asynccontextmanager
@@ -144,6 +144,22 @@ async def _push_recipient_for_user(session: AsyncSession, user_id: str) -> list[
     return [(user_id, token)] if token else []
 
 
+async def _conversation_recipient(
+    session: AsyncSession, conversation: Conversation, sender_id: str
+) -> list[tuple[str, str]]:
+    """The other participant of a conversation, for a chat/contact-share push.
+
+    ``conversation.donor_id`` is the donor row id, so it is resolved to the
+    owning user id before looking up a push token.
+    """
+    donor = await session.get(DonorRow, conversation.donor_id)
+    donor_user_id = (donor.user_id if donor and donor.user_id else conversation.donor_id)
+    recipient = conversation.requester_id if sender_id == donor_user_id else donor_user_id
+    if not recipient or recipient == sender_id:
+        return []
+    return await _push_recipient_for_user(session, recipient)
+
+
 class ProfileIn(BaseModel):
     role: str = Field(pattern="^(requester|donor)$")
     display_name: str | None = Field(default=None, max_length=160)
@@ -198,6 +214,9 @@ async def upsert_profile(
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
+    # An unverified account must never be persisted or served as a real profile.
+    require_verified_email(principal)
+    enforce_rate_limit(f"profile-upsert:{principal.subject}", 20, 300)
     row = await session.get(LifeLinkProfile, principal.subject)
     if row is None:
         row = LifeLinkProfile(
@@ -233,6 +252,7 @@ async def get_profile(
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
+    require_verified_email(principal)
     row = await session.get(LifeLinkProfile, principal.subject)
     if row is None:
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -290,6 +310,7 @@ async def create_emergency_request_postgres(
     validate_business_rules(payload)
     if principal.subject != "development-user" and principal.subject != payload.requester_id:
         raise HTTPException(status_code=403, detail="requester_id must match the authenticated user")
+    require_verified_email(principal)
     enforce_rate_limit(f"request-create:{principal.subject}", 5, 300)
     if idempotency_header and idempotency_header != payload.idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key header must match payload.idempotency_key.")
@@ -671,6 +692,7 @@ async def register_donor_postgres(
 ):
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
+    require_verified_email(principal)
     if donor_id != payload.donor_id:
         raise HTTPException(status_code=400, detail="Path donor_id must match payload donor_id")
     if payload.blood_type.value == "UNKNOWN":
@@ -716,6 +738,7 @@ async def update_donor_availability_postgres(
 ):
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
+    require_verified_email(principal)
     donor_row = await SqlAlchemyDonorStore(session).get_by_identity(donor_id)
     if donor_row is None or not donor_setup_complete(donor_row):
         raise HTTPException(status_code=409, detail="Complete donor setup before choosing availability")
@@ -885,6 +908,14 @@ async def activate_location_share(
     enforce_rate_limit(f"location-share:{principal.subject}", 30, 300)
     share = await store.ensure_location_share(request_id, donor.id, request.requester_id, request.response_deadline)
     await store.record_audit_async(principal.subject, "location_share_activated", request_id, donor.id)
+    # Tell the donor their exact location is now visible to the matched requester,
+    # so the disclosure is never silent and they can revoke it.
+    await send_push_safely(
+        await _push_recipient_for_user(session, donor.user_id or donor.id),
+        "Exact location shared",
+        "A matched requester can now see your exact location for this request. You can revoke it at any time.",
+        {"type": "location_share", "request_id": request_id},
+    )
     return LocationShareOut(
         request_id=request_id,
         donor_id=donor.id,
@@ -1054,6 +1085,12 @@ async def send_conversation_message(
         message = await store.add_message(conversation, principal.subject, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await send_push_safely(
+        await _conversation_recipient(session, conversation, principal.subject),
+        "New message",
+        "You have a new message in your LifeLink conversation.",
+        {"type": "message", "request_id": conversation.request_id, "conversation_id": conversation.id},
+    )
     return MessageOut(
         message_id=message.id,
         conversation_id=message.conversation_id,
@@ -1119,6 +1156,12 @@ async def share_contact_details(
         conversation.request_id,
         conversation.donor_id,
         {"conversation_id": conversation.id},
+    )
+    await send_push_safely(
+        await _conversation_recipient(session, conversation, principal.subject),
+        "Contact details shared",
+        f"The other person shared their {payload.field} with you.",
+        {"type": "contact_share", "request_id": conversation.request_id, "conversation_id": conversation.id},
     )
     return ContactShareOut(
         share_id=share.id,
