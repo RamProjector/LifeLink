@@ -32,6 +32,7 @@ import com.lifelink.app.data.remote.DonorMatchResponse
 import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.EmergencyRequestRepository
 import com.lifelink.app.domain.Facility
+import com.lifelink.app.domain.PrivacyRepository
 import com.lifelink.app.domain.SubmitResult
 import com.lifelink.app.domain.Urgency
 import com.lifelink.app.domain.RequesterContact
