@@ -799,3 +799,94 @@ def test_migration_008_applies_cleanly(pg_url):
         await engine.dispose()
 
     asyncio.run(main())
+
+
+def test_block_is_one_way_and_does_not_silence_the_blocker(pg_url):
+    """A block silences only the blocked participant.
+
+    Regression: ``is_blocked`` used to match on ``blocked_id`` alone, so a
+    requester who blocked a donor also locked themselves out of messaging and
+    contact sharing. The blocker must keep full access.
+    """
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        conversation_id = opened.json()["conversation_id"]
+
+        # The requester blocks the donor.
+        blocked = await client.post(
+            f"/v1/conversations/{conversation_id}/block", json={"reason": "unsafe"}
+        )
+        assert blocked.status_code == 200, blocked.text
+
+        # The blocker is NOT silenced: they can still message and share contact.
+        sent = await client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"body": "Please stop."}
+        )
+        assert sent.status_code == 201, sent.text
+        share = await client.post(
+            f"/v1/conversations/{conversation_id}/contact-shares",
+            json={"field": "phone", "value": "+639170000000"},
+        )
+        assert share.status_code == 201, share.text
+
+        # The blocked donor is silenced.
+        current["id"] = donor
+        denied = await client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"body": "hello?"}
+        )
+        assert denied.status_code == 403, denied.text
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_with_distinct_user_id_can_use_the_conversation(pg_url):
+    """A donor whose owning user id differs from the donor row id is a participant.
+
+    Regression: ``conversation_for_participant`` gated on the donor *row* id, so
+    such a donor was rejected with 403 before the identity-aware helpers ran.
+    """
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert opened.status_code == 200, opened.text
+        conversation_id = opened.json()["conversation_id"]
+
+        # Give the donor row an owning user id that differs from its row id.
+        donor_user = new_user("donor-user")
+        await run_sql(f"UPDATE donors SET user_id = '{donor_user}' WHERE id = '{donor}'")
+
+        # The donor, acting as the owning user, can read, message, report, block.
+        current["id"] = donor_user
+        assert (
+            await client.get(f"/v1/conversations/{conversation_id}/messages")
+        ).status_code == 200
+        sent = await client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"body": "On my way."}
+        )
+        assert sent.status_code == 201, sent.text
+        reported = await client.post(
+            f"/v1/conversations/{conversation_id}/report", json={"reason": "spam"}
+        )
+        assert reported.status_code == 200, reported.text
+        blocked = await client.post(f"/v1/conversations/{conversation_id}/block", json={})
+        assert blocked.status_code == 200, blocked.text
+
+        # The requester is now the blocked party and cannot message the donor.
+        current["id"] = requester
+        denied = await client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"body": "hi"}
+        )
+        assert denied.status_code == 403, denied.text
+
+    run_scenario(pg_url, scenario)
