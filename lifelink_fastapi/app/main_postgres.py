@@ -1058,6 +1058,7 @@ async def list_conversation_messages(
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(get_postgres_principal),
 ):
+    """List the messages of a conversation the caller participates in."""
     store = SqlAlchemyPrivacyStore(session)
     try:
         await store.conversation_for_participant(conversation_id, principal.subject)
@@ -1084,6 +1085,7 @@ async def send_conversation_message(
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(get_postgres_principal),
 ):
+    """Send a message in a conversation, unless the sender is blocked."""
     store = SqlAlchemyPrivacyStore(session)
     try:
         conversation = await store.conversation_for_participant(conversation_id, principal.subject)
@@ -1094,6 +1096,13 @@ async def send_conversation_message(
     enforce_rate_limit(f"message:{principal.subject}", 60, 300)
     # A block is enforceable state: a blocked participant cannot send messages,
     # and no push is delivered to the person who blocked them.
+    #
+    # Accepted race (TOCTOU): a block committed concurrently with this check can
+    # land after the lookup but before the insert, so one message may slip
+    # through. The window is milliseconds, the block still takes effect for every
+    # later message, and closing it would require serializing the block and
+    # message writes in one transaction. Documented as accepted rather than
+    # restructured.
     if await store.is_blocked(conversation, principal.subject):
         raise HTTPException(status_code=403, detail="You cannot message this person")
     try:
@@ -1121,6 +1130,7 @@ async def list_contact_shares(
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(get_postgres_principal),
 ):
+    """List the contact disclosures made in a conversation the caller is in."""
     store = SqlAlchemyPrivacyStore(session)
     try:
         await store.conversation_for_participant(conversation_id, principal.subject)
