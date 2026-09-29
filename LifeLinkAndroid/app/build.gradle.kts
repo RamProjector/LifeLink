@@ -4,6 +4,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
     id("com.google.gms.google-services")
+    id("io.gitlab.arturbosch.detekt")
+    id("com.diffplug.spotless")
 }
 
 android {
@@ -78,6 +80,64 @@ android {
             "**/libdatastore_shared_counter.so",
             "**/libmaplibre.so"
         )
+    }
+
+    // Android Lint is a hard gate: a lint error fails the build. Warnings are
+    // promoted to errors as well, but only once a baseline exists — the
+    // pre-existing findings are recorded in `lint-baseline.xml` so only NEW
+    // warnings fail. Generate/refresh the baseline with
+    // `./gradlew :app:updateLintBaseline` and review the diff; it should only
+    // ever shrink. Until the baseline is committed, errors still fail the build
+    // but warnings do not, so enabling this cannot break CI on legacy code.
+    val lintBaseline = file("lint-baseline.xml")
+    lint {
+        abortOnError = true
+        warningsAsErrors = lintBaseline.exists()
+        checkReleaseBuilds = true
+        baseline = lintBaseline
+        // Keep the report machine-readable for CI annotations.
+        xmlReport = true
+        htmlReport = true
+    }
+}
+
+// Detekt: Kotlin static analysis. `buildUponDefaultConfig` keeps every default
+// rule active; project-specific relaxations live in config/detekt/detekt.yml and
+// pre-existing findings are grandfathered through detekt-baseline.xml.
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    parallel = true
+    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    baseline = file("$rootDir/config/detekt/detekt-baseline.xml")
+    source.setFrom(
+        files(
+            "src/main/java",
+            "src/test/java",
+            "src/androidTest/java"
+        )
+    )
+}
+
+// Spotless: formatting via ktlint. `ratchetFrom` limits the check to files that
+// differ from the base branch, so the existing tree is not reformatted in one
+// giant diff while every new or changed file must be clean.
+spotless {
+    ratchetFrom = "origin/main"
+    kotlin {
+        target("src/**/*.kt")
+        targetExclude("**/build/**")
+        ktlint("1.4.1").editorConfigOverride(
+            mapOf(
+                "max_line_length" to "140",
+                // Compose @Composable functions are PascalCase by convention.
+                "ktlint_standard_function-naming" to "disabled"
+            )
+        )
+    }
+    kotlinGradle {
+        target("*.gradle.kts")
+        ktlint("1.4.1")
     }
 }
 

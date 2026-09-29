@@ -1,0 +1,29 @@
+# gitleaks configuration for LifeLink.
+#
+# Extends the default rule set (all built-in secret detectors stay active) and
+# adds a small allowlist for values that are intentionally public in this repo.
+# Keep the allowlist as narrow as possible — a broad allowlist defeats the scan.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Values that are intentionally public or are test fixtures, not secrets."
+paths = [
+  # Documentation that quotes placeholder values.
+  '''docs/.*\.md$''',
+  # Test fixtures use obviously-fake tokens.
+  '''lifelink_fastapi/tests/.*''',
+  '''LifeLinkAndroid/app/src/test/.*''',
+  '''LifeLinkAndroid/app/src/androidTest/.*''',
+]
+regexes = [
+  # The development-only API token default; not a credential.
+  '''development-user''',
+  # Supabase publishable/anon keys are designed to be shipped in clients.
+  '''SUPABASE_PUBLISHABLE_KEY''',
+  # Placeholder connection strings in examples.
+  '''postgresql://USER:PASSWORD@HOST''',
+  # GitHub Actions expressions, not literal secrets.
+  '''\$\{\{\s*secrets\.[A-Z_]+\s*\}\}''',
+]
