@@ -79,7 +79,7 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk ../android-artifacts/lifelink-debug.apk
 
       - name: Upload APK artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lifelink-android-apks-${{ github.sha }}
           path: android-artifacts/*.apk
@@ -88,7 +88,7 @@ jobs:
 
       - name: Upload validation reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lifelink-android-validation-${{ github.sha }}
           path: |
