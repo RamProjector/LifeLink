@@ -59,7 +59,7 @@ from .privacy_api import (
 )
 from .privacy_repositories import SqlAlchemyPrivacyStore
 from .expiry import ACTIVE_REQUEST_STATUSES
-from .security import Principal, get_postgres_principal
+from .security import Principal, get_postgres_principal, require_verified_email
 from .rate_limit import enforce_rate_limit
 
 @asynccontextmanager
@@ -198,6 +198,9 @@ async def upsert_profile(
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
+    # An unverified account must never be persisted or served as a real profile.
+    require_verified_email(principal)
+    enforce_rate_limit(f"profile-upsert:{principal.subject}", 20, 300)
     row = await session.get(LifeLinkProfile, principal.subject)
     if row is None:
         row = LifeLinkProfile(
@@ -233,6 +236,7 @@ async def get_profile(
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
+    require_verified_email(principal)
     row = await session.get(LifeLinkProfile, principal.subject)
     if row is None:
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -290,6 +294,7 @@ async def create_emergency_request_postgres(
     validate_business_rules(payload)
     if principal.subject != "development-user" and principal.subject != payload.requester_id:
         raise HTTPException(status_code=403, detail="requester_id must match the authenticated user")
+    require_verified_email(principal)
     enforce_rate_limit(f"request-create:{principal.subject}", 5, 300)
     if idempotency_header and idempotency_header != payload.idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key header must match payload.idempotency_key.")
@@ -671,6 +676,7 @@ async def register_donor_postgres(
 ):
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
+    require_verified_email(principal)
     if donor_id != payload.donor_id:
         raise HTTPException(status_code=400, detail="Path donor_id must match payload donor_id")
     if payload.blood_type.value == "UNKNOWN":
@@ -716,6 +722,7 @@ async def update_donor_availability_postgres(
 ):
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
+    require_verified_email(principal)
     donor_row = await SqlAlchemyDonorStore(session).get_by_identity(donor_id)
     if donor_row is None or not donor_setup_complete(donor_row):
         raise HTTPException(status_code=409, detail="Complete donor setup before choosing availability")

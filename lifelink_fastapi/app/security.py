@@ -14,6 +14,8 @@ class Principal:
     subject: str
     email: str | None = None
     role: str | None = None
+    # None means "the issuer did not state it"; False means explicitly unverified.
+    email_verified: bool | None = None
 
 
 def auth_required(default: bool = False) -> bool:
@@ -59,16 +61,52 @@ def _verify_supabase_token(token: str) -> Principal:
     subject = claims.get("sub")
     if not isinstance(subject, str) or not subject:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token subject is missing")
+
+    # Defense in depth: an unverified account must never be treated as an
+    # authenticated principal. Supabase already refuses to issue a session to an
+    # unverified user (mailer_allow_unverified_email_sign_ins=false), so this is
+    # a second gate that also covers a custom access-token hook that surfaces the
+    # claim. A token that carries no verification claim at all is left to the
+    # issuer's own enforcement rather than being rejected outright.
+    if _claim_says_unverified(claims):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email address is not verified",
+        )
+
     user_metadata = claims.get("user_metadata") or {}
     app_metadata = claims.get("app_metadata") or {}
     return Principal(
         subject=subject,
         email=claims.get("email"),
         role=app_metadata.get("role") or user_metadata.get("role"),
+        email_verified=not _claim_says_unverified(claims) if _has_verification_claim(claims) else None,
     )
 
 
-def _get_principal(authorization: str | None, required: bool) -> Principal:
+def _has_verification_claim(claims: dict) -> bool:
+    return any(key in claims for key in ("email_verified", "email_confirmed", "email_confirmed_at"))
+
+
+def _claim_says_unverified(claims: dict) -> bool:
+    """True only when the token explicitly states the email is not verified.
+
+    Supabase access tokens do not carry ``email_confirmed_at`` by default, so an
+    absent claim is treated as "unknown" (the issuer enforces verification) and
+    only an explicit ``false`` is rejected.
+    """
+    for key in ("email_verified", "email_confirmed"):
+        value = claims.get(key)
+        if value is False:
+            return True
+    if claims.get("email_confirmed_at") is None and "email_confirmed_at" in claims:
+        return True
+    return False
+
+
+def _get_principal(
+    authorization: str | None, required: bool, verify_when_present: bool = False
+) -> Principal:
     if not authorization:
         if required:
             raise HTTPException(
@@ -82,7 +120,11 @@ def _get_principal(authorization: str | None, required: bool) -> Principal:
     if scheme.lower() != "bearer" or not token.strip():
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Use a Bearer access token")
 
-    if required:
+    # A supplied Bearer token is ALWAYS verified when the caller asks for it.
+    # Trusting the raw token string as the subject (the old behaviour when auth
+    # was not required) let anyone impersonate any user id by sending
+    # ``Authorization: Bearer <victim-user-id>``.
+    if required or verify_when_present:
         return _verify_supabase_token(token.strip())
     return Principal(subject=token.strip())
 
@@ -93,8 +135,25 @@ def get_principal(authorization: str | None = Header(default=None)) -> Principal
 
 
 def get_postgres_principal(authorization: str | None = Header(default=None)) -> Principal:
-    """Production dependency; authentication is required unless explicitly disabled for local testing."""
-    return _get_principal(authorization, auth_required(default=True))
+    """Production dependency; authentication is required unless explicitly disabled for local testing.
+
+    Even when authentication is disabled for local testing, a Bearer token that
+    is actually supplied is still verified rather than trusted verbatim.
+    """
+    return _get_principal(authorization, auth_required(default=True), verify_when_present=True)
+
+
+def require_verified_email(principal: Principal) -> None:
+    """Reject a principal whose token explicitly marks the email unverified.
+
+    ``_verify_supabase_token`` already enforces this for real tokens; this helper
+    lets an endpoint re-assert the rule for principals built by other paths.
+    """
+    if getattr(principal, "email_verified", None) is False:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email address is not verified",
+        )
 
 
 def require_owner(principal: Principal, resource_owner_id: str) -> None:

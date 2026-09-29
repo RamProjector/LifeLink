@@ -44,6 +44,7 @@ import com.lifelink.app.feature.auth.AuthState
 import com.lifelink.app.feature.auth.AuthViewModel
 import com.lifelink.app.feature.auth.AuthViewModelFactory
 import com.lifelink.app.core.auth.UserRole
+import com.lifelink.app.core.auth.RoleSwitcher
 import com.lifelink.app.core.auth.UserRoleStore
 import com.lifelink.app.domain.UpdateType
 import com.lifelink.app.feature.updates.UpdatesViewModel
@@ -236,6 +237,26 @@ class MainActivity : ComponentActivity() {
                     privacyState = privacyState,
                     onPrivacyAction = privacyViewModel::onAction,
                     role = role ?: UserRole.REQUESTER,
+                    onSwitchRole = {
+                        val next = RoleSwitcher.toggled(role ?: UserRole.REQUESTER)
+                        val caps = RoleSwitcher.capabilities(next, hasDonorProfile = canDonate)
+                        role = next
+                        canRequest = caps.canRequest
+                        canDonate = caps.canDonate
+                        roleStore.save(accountUserId, next)
+                        roleSyncScope.launch {
+                            runCatching {
+                                account.api.upsertProfile(
+                                    ProfileRequest(
+                                        RoleSwitcher.profileRole(next),
+                                        displayName.trim().ifBlank { null },
+                                        canRequest = caps.canRequest,
+                                        canDonate = caps.canDonate
+                                    )
+                                )
+                            }
+                        }
+                    },
                     accountEmail = signedInSession?.email.orEmpty(),
                     accountUserId = accountUserId,
                     accountDisplayName = displayName,

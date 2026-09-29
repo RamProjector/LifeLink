@@ -251,7 +251,6 @@ private interface SupabaseAuthApi {
 
 data class AuthRequest(val email: String, val password: String)
 data class RefreshRequest(@SerializedName("refresh_token") val refreshToken: String)
-data class EmailRequest(val email: String)
 data class PasswordRecoveryRequest(val email: String, val redirect_to: String)
 data class ResendRequest(val type: String, val email: String)
 enum class AuthCallbackKind { RECOVERY, CONFIRMATION }

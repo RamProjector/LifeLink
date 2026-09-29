@@ -92,7 +92,6 @@ import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.core.location.MapLibreLocationPicker
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.google.android.gms.common.api.ResolvableApiException
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.core.content.ContextCompat
 
@@ -544,18 +543,9 @@ private fun LocationMapPicker(
     recenterRequest: Int = 0,
     modifier: Modifier = Modifier
 ) {
-    var mapLoading by remember { mutableStateOf(true) }
-    var mapError by remember { mutableStateOf<String?>(null) }
     var retryRequest by remember { mutableStateOf(0) }
-    LaunchedEffect(retryRequest, mapLoading) {
-        if (mapLoading) {
-            delay(30_000)
-            if (mapLoading) {
-                mapLoading = false
-                mapError = "Map preview is unavailable right now. Retry the map or enter coordinates manually."
-            }
-        }
-    }
+    // MapLibreLocationPicker renders its own loading and error UI, so this screen
+    // must not add a second spinner on top of it.
     Box(modifier.fillMaxWidth()) {
         key(retryRequest) {
             MapLibreLocationPicker(
@@ -563,26 +553,8 @@ private fun LocationMapPicker(
                 draft.requesterLongitude,
                 onLocationSelected,
                 recenterRequest + retryRequest,
-                onLoadingChanged = { mapLoading = it; if (it) mapError = null },
-                onMapError = { mapLoading = false; mapError = it },
                 modifier = modifier
             )
-        }
-        if (mapLoading) {
-            Surface(Modifier.align(Alignment.TopCenter).padding(12.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), shape = MaterialTheme.shapes.medium) {
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Text("Loading map…", style = MaterialTheme.typography.labelLarge)
-                }
-            }
-        }
-        mapError?.let { error ->
-            Card(Modifier.align(Alignment.Center).padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = { mapError = null; mapLoading = true; retryRequest++ }) { Text("Retry map") }
-                }
-            }
         }
         OutlinedButton(onClick = { retryRequest++ }, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)) { Text("Reload map") }
     }
