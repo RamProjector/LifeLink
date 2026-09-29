@@ -44,7 +44,7 @@ cd LifeLinkAndroid
 ./gradlew assembleDebug -PlifelinkApiBaseUrl=https://YOUR-RENDER-SERVICE.onrender.com/
 ```
 
-The cloud-configured development APK is in `artifacts/app-debug-cloud-configured.apk`. The unsigned release build is provided for release configuration inspection and must be signed with a real production keystore before distribution.
+The cloud-configured debug APK is produced by the **Build Android APKs** workflow and attached to the run as the `lifelink-android-apks-<sha>` artifact. Prebuilt APKs are no longer committed to the repository. A release build must be signed with a real production keystore before distribution.
 
 ## Package structure
 
@@ -54,11 +54,29 @@ The cloud-configured development APK is in `artifacts/app-debug-cloud-configured
 | `lifelink_fastapi/` | PostgreSQL-backed FastAPI service, schema, and tests |
 | `lifelink-mobile/` | Expo/React Native mobile source |
 | `docs/` | Cloud startup, Render guide, changelog, history, and quality audit |
-| `artifacts/` | APKs and app icon |
+| `artifacts/` | App icon (APKs are built in CI, not committed) |
 
 ## Documentation
 
 Start with [`docs/START_CLOUD.md`](docs/START_CLOUD.md). For the confirmed live migration and implementation state, read [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md). The concise milestone record is [`docs/CHANGELOG_CLOUD.md`](docs/CHANGELOG_CLOUD.md), and the student-oriented explanation is [`docs/HISTORY_CLOUD.md`](docs/HISTORY_CLOUD.md).
+
+## Status / known limitations
+
+LifeLink Cloud is a working development package, not yet a public production
+service. The authoritative, up-to-date state (live migration version, deployed
+services, and open work) is tracked in
+[`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md). Known
+limitations before public production use:
+
+- **Android toolchain is pinned to AGP 8.7.3 / Gradle 8.10.2 / `compileSdk` 35.**
+  Several dependency upgrades (AGP 9.x, Kotlin/KSP, androidx Compose, okhttp 5)
+  require a coordinated migration to AGP 9 / Gradle 9.6 / `compileSdk` 37.
+- **Rate limiting, audit logging, and a signed release keystore** are still
+  required before distribution; the committed release APK is unsigned.
+- **Medical screening is out of scope** — profile completion enables operational
+  matching only.
+- **`lifelink-mobile/`** is an unmodified Expo/React Native scaffold and is not
+  wired into any workflow; it is not part of the shipped product.
 
 ## Security
 
