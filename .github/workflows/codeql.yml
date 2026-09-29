@@ -62,7 +62,10 @@ jobs:
         working-directory: LifeLinkAndroid
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          # --no-build-cache is required: a cache hit on compileDebugKotlin means
+          # the Kotlin compiler never runs, so CodeQL's extractor sees no code
+          # ("could not process any code written in Java/Kotlin").
+          ./gradlew clean assembleDebug --no-daemon --no-build-cache --stacktrace
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v3
