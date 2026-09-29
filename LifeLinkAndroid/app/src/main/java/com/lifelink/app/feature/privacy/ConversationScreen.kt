@@ -5,9 +5,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -69,7 +72,13 @@ fun ConversationScreen(
 
         if (state.contactShares.isNotEmpty()) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Bounded and independently scrollable: an unbounded list of shares
+                // would otherwise push the Safety card below the viewport, where the
+                // message LazyColumn cannot scroll to it.
+                Column(
+                    Modifier.padding(12.dp).heightIn(max = 180.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Text("Shared contact details", fontWeight = FontWeight.SemiBold)
                     state.contactShares.forEach { share ->
                         Text("${share.field.replaceFirstChar { it.uppercase() }}: ${share.value}", style = MaterialTheme.typography.bodySmall)
@@ -151,7 +160,7 @@ fun ConversationScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    onAction(PrivacyAction.ReportParticipant(requestId, donorId, reportReason))
+                    onAction(PrivacyAction.ReportParticipant(state.conversationId.orEmpty(), reportReason))
                     reportReason = ""
                     showReport = false
                 }) { Text("Submit report") }
@@ -167,7 +176,7 @@ fun ConversationScreen(
             text = { Text("They will no longer be able to contact you through LifeLink.") },
             confirmButton = {
                 TextButton(onClick = {
-                    onAction(PrivacyAction.BlockParticipant(requestId, donorId))
+                    onAction(PrivacyAction.BlockParticipant(state.conversationId.orEmpty()))
                     showBlockConfirm = false
                 }) { Text("Block") }
             },

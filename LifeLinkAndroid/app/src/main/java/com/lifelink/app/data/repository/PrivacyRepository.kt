@@ -1,7 +1,7 @@
 package com.lifelink.app.data.repository
 
-import com.lifelink.app.data.remote.ContactModerationRequest
 import com.lifelink.app.data.remote.ContactShareRequest
+import com.lifelink.app.data.remote.ConversationModerationRequest
 import com.lifelink.app.data.remote.DonorMapVisibilityRequest
 import com.lifelink.app.data.remote.LifeLinkApi
 import com.lifelink.app.data.remote.MessageRequest
@@ -168,18 +168,21 @@ class PrivacyRepositoryImpl(
             }
         }
 
-    override suspend fun reportParticipant(requestId: String, donorId: String, reason: String): Result<Unit> =
+    // Report and Block are conversation-scoped so either participant (requester
+    // or matched donor) can use them; the requester-only contact endpoints would
+    // return 403 for a donor.
+    override suspend fun reportParticipant(conversationId: String, reason: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val response = api.reportContact(requestId, donorId, ContactModerationRequest(reason.trim()))
+                val response = api.reportConversation(conversationId, ConversationModerationRequest(reason.trim()))
                 check(response.isSuccessful) { "Report could not be submitted (${response.code()})." }
             }
         }
 
-    override suspend fun blockParticipant(requestId: String, donorId: String): Result<Unit> =
+    override suspend fun blockParticipant(conversationId: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val response = api.blockContact(requestId, donorId)
+                val response = api.blockConversation(conversationId, ConversationModerationRequest())
                 check(response.isSuccessful) { "Block could not be submitted (${response.code()})." }
             }
         }

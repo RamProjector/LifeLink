@@ -19,6 +19,7 @@ from .db_models import (
     AuditEvent,
     ContactShare,
     Conversation,
+    ConversationBlock,
     Donor as DonorRow,
     DonorLocationShare,
     EmergencyRequest as RequestRow,
@@ -397,6 +398,65 @@ class SqlAlchemyPrivacyStore:
             .order_by(ContactShare.created_at.asc())
         )
         return list(rows.all())
+
+    # ---------------------------------------------------------------- blocks
+    async def other_participant_user_id(self, conversation: Conversation, user_id: str) -> str | None:
+        """The other participant's user id, accepting either donor identity.
+
+        ``conversation.donor_id`` is the donor row id, which may differ from the
+        owning user id, so both are accepted as the donor's identity.
+        """
+        donor = await self.session.get(DonorRow, conversation.donor_id)
+        donor_user_id = donor.user_id if donor and donor.user_id else conversation.donor_id
+        if user_id == conversation.requester_id:
+            return donor_user_id
+        if user_id in {donor_user_id, conversation.donor_id}:
+            return conversation.requester_id
+        return None
+
+    async def block_participant(
+        self, conversation: Conversation, blocker_id: str, blocked_id: str, reason: str = ""
+    ) -> ConversationBlock:
+        """Persist an enforceable block. Idempotent for the same (blocker, blocked) pair."""
+        existing = await self.session.scalar(
+            select(ConversationBlock).where(
+                ConversationBlock.conversation_id == conversation.id,
+                ConversationBlock.blocker_id == blocker_id,
+                ConversationBlock.blocked_id == blocked_id,
+            )
+        )
+        if existing is not None:
+            return existing
+        block = ConversationBlock(
+            id=f"block_{uuid4().hex}",
+            conversation_id=conversation.id,
+            request_id=conversation.request_id,
+            blocker_id=blocker_id,
+            blocked_id=blocked_id,
+            reason=reason,
+        )
+        self.session.add(block)
+        await self.session.commit()
+        return block
+
+    async def is_blocked(self, conversation: Conversation, sender_id: str) -> bool:
+        """True when ``sender_id`` has been blocked by the other participant.
+
+        The donor may be identified by either the donor row id or the owning user
+        id, so every identity of the sender is checked against the stored block.
+        """
+        donor = await self.session.get(DonorRow, conversation.donor_id)
+        donor_user_id = donor.user_id if donor and donor.user_id else conversation.donor_id
+        identities = {sender_id, conversation.donor_id, donor_user_id}
+        block = await self.session.scalar(
+            select(ConversationBlock)
+            .where(
+                ConversationBlock.conversation_id == conversation.id,
+                ConversationBlock.blocked_id.in_(identities),
+            )
+            .limit(1)
+        )
+        return block is not None
 
     # ------------------------------------------------------------- internals
     async def record_audit_async(

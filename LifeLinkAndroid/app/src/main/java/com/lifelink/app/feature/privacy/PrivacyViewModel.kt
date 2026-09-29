@@ -39,8 +39,8 @@ sealed interface PrivacyAction {
     data class OpenConversation(val requestId: String, val donorId: String) : PrivacyAction
     data class SendMessage(val body: String) : PrivacyAction
     data class ShareContact(val field: String, val value: String) : PrivacyAction
-    data class ReportParticipant(val requestId: String, val donorId: String, val reason: String) : PrivacyAction
-    data class BlockParticipant(val requestId: String, val donorId: String) : PrivacyAction
+    data class ReportParticipant(val conversationId: String, val reason: String) : PrivacyAction
+    data class BlockParticipant(val conversationId: String) : PrivacyAction
     data object ClearMessage : PrivacyAction
 }
 
@@ -66,8 +66,8 @@ class PrivacyViewModel(
             is PrivacyAction.OpenConversation -> openConversation(action.requestId, action.donorId)
             is PrivacyAction.SendMessage -> sendMessage(action.body)
             is PrivacyAction.ShareContact -> shareContact(action.field, action.value)
-            is PrivacyAction.ReportParticipant -> reportParticipant(action.requestId, action.donorId, action.reason)
-            is PrivacyAction.BlockParticipant -> blockParticipant(action.requestId, action.donorId)
+            is PrivacyAction.ReportParticipant -> reportParticipant(action.conversationId, action.reason)
+            is PrivacyAction.BlockParticipant -> blockParticipant(action.conversationId)
             PrivacyAction.ClearMessage -> _state.value = _state.value.copy(message = null)
         }
     }
@@ -208,17 +208,19 @@ class PrivacyViewModel(
         }
     }
 
-    private fun reportParticipant(requestId: String, donorId: String, reason: String) {
+    private fun reportParticipant(conversationId: String, reason: String) {
+        if (conversationId.isBlank()) return
         viewModelScope.launch {
-            repository.reportParticipant(requestId, donorId, reason)
+            repository.reportParticipant(conversationId, reason)
                 .onSuccess { _state.value = _state.value.copy(message = "Report submitted. Our team will review it.") }
                 .onFailure { error -> _state.value = _state.value.copy(message = error.message ?: "Report could not be submitted.") }
         }
     }
 
-    private fun blockParticipant(requestId: String, donorId: String) {
+    private fun blockParticipant(conversationId: String) {
+        if (conversationId.isBlank()) return
         viewModelScope.launch {
-            repository.blockParticipant(requestId, donorId)
+            repository.blockParticipant(conversationId)
                 .onSuccess { _state.value = _state.value.copy(message = "This person is now blocked.") }
                 .onFailure { error -> _state.value = _state.value.copy(message = error.message ?: "Block could not be submitted.") }
         }

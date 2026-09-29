@@ -106,6 +106,10 @@ class MainActivity : ComponentActivity() {
                 var hasDonorProfile by remember { mutableStateOf(false) }
                 var profileSaving by remember { mutableStateOf(false) }
                 var profileMessage by remember { mutableStateOf<String?>(null) }
+                // Guards the optimistic role transition: a second tap while the first
+                // write is still in flight could otherwise roll back to a stale role
+                // and desync the UI from the server.
+                var roleSwitchInFlight by remember(accountUserId) { mutableStateOf(false) }
                 val account = remember(accountUserId) { app.accountContainer(accountUserId) }
                 // Serializes profile writes so a role switch cannot be overtaken by an
                 // in-flight write and leave the server on the wrong role.
@@ -251,36 +255,43 @@ class MainActivity : ComponentActivity() {
                     onPrivacyAction = privacyViewModel::onAction,
                     role = role ?: UserRole.REQUESTER,
                     onSwitchRole = {
-                        val previousRole = role ?: UserRole.REQUESTER
-                        val previousCanRequest = canRequest
-                        val previousCanDonate = canDonate
-                        val next = RoleSwitcher.toggled(previousRole)
-                        val caps = RoleSwitcher.capabilities(next, hasDonorProfile = hasDonorProfile)
-                        role = next
-                        canRequest = caps.canRequest
-                        canDonate = caps.canDonate
-                        roleStore.save(accountUserId, next)
-                        roleSyncScope.launch {
-                            val saved = profileWriteMutex.withLock {
-                                runCatching {
-                                    account.api.upsertProfile(
-                                        ProfileRequest(
-                                            RoleSwitcher.profileRole(next),
-                                            displayName.trim().ifBlank { null },
-                                            canRequest = caps.canRequest,
-                                            canDonate = caps.canDonate
-                                        )
-                                    )
+                        if (!roleSwitchInFlight) {
+                            roleSwitchInFlight = true
+                            val previousRole = role ?: UserRole.REQUESTER
+                            val previousCanRequest = canRequest
+                            val previousCanDonate = canDonate
+                            val next = RoleSwitcher.toggled(previousRole)
+                            val caps = RoleSwitcher.capabilities(next, hasDonorProfile = hasDonorProfile)
+                            role = next
+                            canRequest = caps.canRequest
+                            canDonate = caps.canDonate
+                            roleStore.save(accountUserId, next)
+                            roleSyncScope.launch {
+                                try {
+                                    val saved = profileWriteMutex.withLock {
+                                        runCatching {
+                                            account.api.upsertProfile(
+                                                ProfileRequest(
+                                                    RoleSwitcher.profileRole(next),
+                                                    displayName.trim().ifBlank { null },
+                                                    canRequest = caps.canRequest,
+                                                    canDonate = caps.canDonate
+                                                )
+                                            )
+                                        }
+                                    }
+                                    if (saved.getOrNull()?.isSuccessful != true) {
+                                        // The server did not accept the new role: roll the UI back
+                                        // so it never shows a role the backend did not save.
+                                        role = previousRole
+                                        canRequest = previousCanRequest
+                                        canDonate = previousCanDonate
+                                        roleStore.save(accountUserId, previousRole)
+                                        profileMessage = "Role could not be switched. Please try again."
+                                    }
+                                } finally {
+                                    roleSwitchInFlight = false
                                 }
-                            }
-                            if (saved.getOrNull()?.isSuccessful != true) {
-                                // The server did not accept the new role: roll the UI back
-                                // so it never shows a role the backend did not save.
-                                role = previousRole
-                                canRequest = previousCanRequest
-                                canDonate = previousCanDonate
-                                roleStore.save(accountUserId, previousRole)
-                                profileMessage = "Role could not be switched. Please try again."
                             }
                         }
                     },

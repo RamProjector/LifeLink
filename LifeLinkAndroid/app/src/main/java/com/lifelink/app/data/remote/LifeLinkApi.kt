@@ -113,6 +113,12 @@ interface LifeLinkApi {
 
     @POST("v1/conversations/{conversationId}/contact-shares")
     suspend fun shareContactDetails(@Path("conversationId") conversationId: String, @Body request: ContactShareRequest): Response<ContactShareResponse>
+
+    @POST("v1/conversations/{conversationId}/report")
+    suspend fun reportConversation(@Path("conversationId") conversationId: String, @Body request: ConversationModerationRequest): Response<ConversationModerationResponse>
+
+    @POST("v1/conversations/{conversationId}/block")
+    suspend fun blockConversation(@Path("conversationId") conversationId: String, @Body request: ConversationModerationRequest): Response<ConversationModerationResponse>
 }
 
 data class ProfileRequest(
@@ -384,4 +390,12 @@ data class ContactShareResponse(
     val field: String,
     val value: String,
     @SerializedName("created_at") val createdAt: String
+)
+
+data class ConversationModerationRequest(val reason: String = "")
+
+data class ConversationModerationResponse(
+    @SerializedName("conversation_id") val conversationId: String,
+    val action: String,
+    val accepted: Boolean = true
 )
