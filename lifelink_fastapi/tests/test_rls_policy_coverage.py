@@ -16,6 +16,7 @@ SCRIPT = REPO_ROOT / "scripts" / "check_rls_policies.py"
 
 
 def _load_checker():
+    """Import ``scripts/check_rls_policies.py`` as a module for the test."""
     spec = importlib.util.spec_from_file_location("check_rls_policies", SCRIPT)
     assert spec and spec.loader, f"cannot load {SCRIPT}"
     module = importlib.util.module_from_spec(spec)
@@ -25,6 +26,7 @@ def _load_checker():
 
 
 def test_every_table_has_an_rls_decision() -> None:
+    """Every table must have an RLS policy or a documented backend-only exemption."""
     checker = _load_checker()
     assert checker.main() == 0, (
         "A table has neither an RLS policy nor a documented backend-only "

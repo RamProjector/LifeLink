@@ -366,6 +366,33 @@ class ContactShare(Base):
     )
 
 
+class ConversationBlock(Base):
+    """Enforceable block between the two participants of one conversation.
+
+    A block is persisted state, not just an audit event: while a row exists the
+    blocked participant cannot send messages or share contact details, and no
+    push is delivered to the blocker. Either participant may block the other.
+    """
+
+    __tablename__ = "conversation_blocks"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    request_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    blocker_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    blocked_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "blocker_id", "blocked_id", name="uq_conversation_blocks_pair"),
+        Index("ix_conversation_blocks_conversation", "conversation_id"),
+        Index("ix_conversation_blocks_blocked", "blocked_id"),
+    )
+
+
 class PendingSubmission(Base):
     __tablename__ = "pending_submissions"
 
