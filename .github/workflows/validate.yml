@@ -55,7 +55,7 @@ jobs:
           cache: gradle
       - uses: android-actions/setup-android@v4
         with:
-          packages: 'platforms;android-35 build-tools;35.0.0'
+          packages: 'platforms;android-37.2 build-tools;37.0.0'
       - name: Make Gradle executable
         run: chmod +x ./gradlew
       - name: Ensure the Spotless ratchet ref exists
