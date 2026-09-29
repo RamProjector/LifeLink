@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,6 +47,9 @@ fun ConversationScreen(
     var draft by remember { mutableStateOf("") }
     var contactField by remember { mutableStateOf("phone") }
     var contactValue by remember { mutableStateOf("") }
+    var showReport by remember { mutableStateOf(false) }
+    var reportReason by remember { mutableStateOf("") }
+    var showBlockConfirm by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -113,6 +117,62 @@ fun ConversationScreen(
                 )
             }
         }
+
+        // Report and Block are surfaced here so a participant can act on an unsafe
+        // interaction without leaving the conversation.
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Safety", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "If this conversation feels unsafe, report or block the other person. Reports are reviewed by our team.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { showReport = true }, modifier = Modifier.weight(1f)) { Text("Report") }
+                    OutlinedButton(onClick = { showBlockConfirm = true }, modifier = Modifier.weight(1f)) { Text("Block") }
+                }
+            }
+        }
+    }
+
+    if (showReport) {
+        AlertDialog(
+            onDismissRequest = { showReport = false },
+            title = { Text("Report this person") },
+            text = {
+                OutlinedTextField(
+                    value = reportReason,
+                    onValueChange = { if (it.length <= 500) reportReason = it },
+                    label = { Text("What happened? (optional)") },
+                    minLines = 2,
+                    maxLines = 4
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onAction(PrivacyAction.ReportParticipant(requestId, donorId, reportReason))
+                    reportReason = ""
+                    showReport = false
+                }) { Text("Submit report") }
+            },
+            dismissButton = { TextButton(onClick = { showReport = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showBlockConfirm) {
+        AlertDialog(
+            onDismissRequest = { showBlockConfirm = false },
+            title = { Text("Block this person?") },
+            text = { Text("They will no longer be able to contact you through LifeLink.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onAction(PrivacyAction.BlockParticipant(requestId, donorId))
+                    showBlockConfirm = false
+                }) { Text("Block") }
+            },
+            dismissButton = { TextButton(onClick = { showBlockConfirm = false }) { Text("Cancel") } }
+        )
     }
 }
 

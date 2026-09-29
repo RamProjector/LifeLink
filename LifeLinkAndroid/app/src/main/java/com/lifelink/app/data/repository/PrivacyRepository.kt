@@ -1,5 +1,6 @@
 package com.lifelink.app.data.repository
 
+import com.lifelink.app.data.remote.ContactModerationRequest
 import com.lifelink.app.data.remote.ContactShareRequest
 import com.lifelink.app.data.remote.DonorMapVisibilityRequest
 import com.lifelink.app.data.remote.LifeLinkApi
@@ -164,6 +165,22 @@ class PrivacyRepositoryImpl(
                 check(response.isSuccessful) { "Contact details could not be shared (${response.code()})." }
                 val share = checkNotNull(response.body()) { "The server returned an empty contact share." }
                 ContactShare(share.shareId, share.conversationId, share.sharedBy, share.field, share.value, share.createdAt)
+            }
+        }
+
+    override suspend fun reportParticipant(requestId: String, donorId: String, reason: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response = api.reportContact(requestId, donorId, ContactModerationRequest(reason.trim()))
+                check(response.isSuccessful) { "Report could not be submitted (${response.code()})." }
+            }
+        }
+
+    override suspend fun blockParticipant(requestId: String, donorId: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response = api.blockContact(requestId, donorId)
+                check(response.isSuccessful) { "Block could not be submitted (${response.code()})." }
             }
         }
 }

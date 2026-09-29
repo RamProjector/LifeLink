@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.delay
 import org.maplibre.android.MapLibre
 import org.maplibre.android.annotations.Marker
 import org.maplibre.android.annotations.MarkerOptions
@@ -35,6 +37,10 @@ import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapView
 
 private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
+
+// If MapLibre never reports success or failure, the loading state must still end
+// so the picker does not spin forever.
+private const val MAP_LOAD_TIMEOUT_MS = 30_000L
 
 /**
  * Real native MapLibre map. No WebView or JavaScript is used. OpenFreeMap
@@ -73,6 +79,19 @@ fun MapLibreLocationPicker(
             mapView.onPause()
             mapView.onStop()
             mapView.onDestroy()
+        }
+    }
+
+    // A stalled style load (no success and no failure callback) would otherwise
+    // leave the loading UI visible indefinitely. End it with a retryable error.
+    LaunchedEffect(mapLoading) {
+        if (!mapLoading) return@LaunchedEffect
+        delay(MAP_LOAD_TIMEOUT_MS)
+        if (mapLoading) {
+            mapLoading = false
+            mapError = "The map is taking too long to load. You can enter coordinates manually or retry the map."
+            onLoadingChanged(false)
+            onMapError("Map tiles could not be loaded. You can enter coordinates manually or retry the map.")
         }
     }
 

@@ -54,6 +54,8 @@ import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class MainActivity : ComponentActivity() {
     private var recoveryUri by mutableStateOf<Uri?>(null)
@@ -98,15 +100,23 @@ class MainActivity : ComponentActivity() {
                 var displayName by remember { mutableStateOf("") }
                 var canRequest by remember { mutableStateOf(true) }
                 var canDonate by remember { mutableStateOf(false) }
+                // Whether a donor profile actually exists, kept separate from the
+                // canDonate permission flag: a role switch can set canDonate without
+                // the user ever having created a donor profile.
+                var hasDonorProfile by remember { mutableStateOf(false) }
                 var profileSaving by remember { mutableStateOf(false) }
                 var profileMessage by remember { mutableStateOf<String?>(null) }
                 val account = remember(accountUserId) { app.accountContainer(accountUserId) }
+                // Serializes profile writes so a role switch cannot be overtaken by an
+                // in-flight write and leave the server on the wrong role.
+                val profileWriteMutex = remember(accountUserId) { Mutex() }
                 LaunchedEffect(accountUserId, roleAttempt) {
                     roleLoadError = null
                     role = null
                     displayName = ""
                     canRequest = true
                     canDonate = false
+                    hasDonorProfile = false
                     if (accountUserId.isNotBlank()) {
                         val api = account.api
                         runCatching { api.getProfile() }.onSuccess { response ->
@@ -115,6 +125,7 @@ class MainActivity : ComponentActivity() {
                                     displayName = profile.displayName.orEmpty()
                                     canRequest = profile.canRequest
                                     canDonate = profile.canDonate
+                                    hasDonorProfile = profile.canDonate
                                     role = if (profile.role.equals("donor", ignoreCase = true)) UserRole.DONOR else UserRole.REQUESTER
                                     roleStore.save(accountUserId, role!!)
                                 }
@@ -127,7 +138,9 @@ class MainActivity : ComponentActivity() {
                                 canDonate = false
                                 roleStore.save(accountUserId, UserRole.REQUESTER)
                                 roleSyncScope.launch {
-                                    runCatching { api.upsertProfile(ProfileRequest("requester", canRequest = true, canDonate = false)) }
+                                    profileWriteMutex.withLock {
+                                        runCatching { api.upsertProfile(ProfileRequest("requester", canRequest = true, canDonate = false)) }
+                                    }
                                 }
                             }
                             if (role == null) roleLoadError = "Your profile could not be loaded (${response.code()}). Please retry."
@@ -238,22 +251,36 @@ class MainActivity : ComponentActivity() {
                     onPrivacyAction = privacyViewModel::onAction,
                     role = role ?: UserRole.REQUESTER,
                     onSwitchRole = {
-                        val next = RoleSwitcher.toggled(role ?: UserRole.REQUESTER)
-                        val caps = RoleSwitcher.capabilities(next, hasDonorProfile = canDonate)
+                        val previousRole = role ?: UserRole.REQUESTER
+                        val previousCanRequest = canRequest
+                        val previousCanDonate = canDonate
+                        val next = RoleSwitcher.toggled(previousRole)
+                        val caps = RoleSwitcher.capabilities(next, hasDonorProfile = hasDonorProfile)
                         role = next
                         canRequest = caps.canRequest
                         canDonate = caps.canDonate
                         roleStore.save(accountUserId, next)
                         roleSyncScope.launch {
-                            runCatching {
-                                account.api.upsertProfile(
-                                    ProfileRequest(
-                                        RoleSwitcher.profileRole(next),
-                                        displayName.trim().ifBlank { null },
-                                        canRequest = caps.canRequest,
-                                        canDonate = caps.canDonate
+                            val saved = profileWriteMutex.withLock {
+                                runCatching {
+                                    account.api.upsertProfile(
+                                        ProfileRequest(
+                                            RoleSwitcher.profileRole(next),
+                                            displayName.trim().ifBlank { null },
+                                            canRequest = caps.canRequest,
+                                            canDonate = caps.canDonate
+                                        )
                                     )
-                                )
+                                }
+                            }
+                            if (saved.getOrNull()?.isSuccessful != true) {
+                                // The server did not accept the new role: roll the UI back
+                                // so it never shows a role the backend did not save.
+                                role = previousRole
+                                canRequest = previousCanRequest
+                                canDonate = previousCanDonate
+                                roleStore.save(accountUserId, previousRole)
+                                profileMessage = "Role could not be switched. Please try again."
                             }
                         }
                     },
@@ -266,13 +293,16 @@ class MainActivity : ComponentActivity() {
                         roleSyncScope.launch {
                             profileSaving = true
                             profileMessage = null
-                            runCatching {
-                                account.api.upsertProfile(ProfileRequest(role?.name?.lowercase() ?: "requester", updatedName.trim(), canRequest = canRequest, canDonate = canDonate))
-                            }.onSuccess { response ->
-                                if (response.isSuccessful) {
-                                    displayName = response.body()?.displayName.orEmpty()
+                            val response = profileWriteMutex.withLock {
+                                runCatching {
+                                    account.api.upsertProfile(ProfileRequest(role?.name?.lowercase() ?: "requester", updatedName.trim(), canRequest = canRequest, canDonate = canDonate))
+                                }
+                            }
+                            response.onSuccess { saved ->
+                                if (saved.isSuccessful) {
+                                    displayName = saved.body()?.displayName.orEmpty()
                                     profileMessage = "Profile saved"
-                                } else profileMessage = "Profile could not be saved (${response.code()})."
+                                } else profileMessage = "Profile could not be saved (${saved.code()})."
                             }.onFailure { error -> profileMessage = error.message ?: "Profile could not be saved." }
                             profileSaving = false
                         }

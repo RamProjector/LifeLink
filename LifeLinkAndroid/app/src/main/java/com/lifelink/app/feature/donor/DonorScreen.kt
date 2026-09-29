@@ -110,13 +110,21 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
             onFailure = { locationMessage = "Device location is unavailable. Use the map or manual coordinates instead." }
         )
     }
-    val captureLocation = {
+    // Explicitly typed as () -> Unit: the branches below return Int (the post-increment)
+    // and Unit (the launcher call), so an inferred type would be () -> Any and would not
+    // satisfy the () -> Unit parameter of ProfileCard.
+    val captureLocation: () -> Unit = {
         val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (hasPermission) locationCaptureRequest++
         else locationLauncher.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
     }
-    val selectLocation = { latitude: Double, longitude: Double -> onAction(DonorAction.SetLocation(latitude, longitude, 500)) }
+    val selectLocation: (Double, Double) -> Unit = { latitude, longitude -> onAction(DonorAction.SetLocation(latitude, longitude, 500)) }
+    // Unsaved editor input lives here, not inside ProfileCard, so switching between the
+    // tabbed editor and the full-screen editor does not reset what the donor typed.
+    var serviceRadius by remember(state.profile.donorId) { mutableStateOf(state.profile.serviceRadiusKm.toString()) }
+    var manualLatitude by remember(state.profile.donorId) { mutableStateOf(state.profile.latitude?.toString().orEmpty()) }
+    var manualLongitude by remember(state.profile.donorId) { mutableStateOf(state.profile.longitude?.toString().orEmpty()) }
     Scaffold(topBar = {
         TopAppBar(
             title = { Text("Donor workspace") },
@@ -160,9 +168,19 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                                 saving = state.saving,
                                 onAction = onAction,
                                 onCaptureLocation = captureLocation,
-                                onLocationSelected = selectLocation
+                                onLocationSelected = selectLocation,
+                                serviceRadius = serviceRadius,
+                                onServiceRadiusChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value },
+                                manualLatitude = manualLatitude,
+                                onManualLatitudeChange = { manualLatitude = it },
+                                manualLongitude = manualLongitude,
+                                onManualLongitudeChange = { manualLongitude = it }
                             )
                         }
+                        // Keep the same status feedback the tabbed editor shows, so a
+                        // failed save or a denied location permission is still visible
+                        // while the donor is in full-screen mode.
+                        (locationMessage ?: state.message)?.let { message -> item { StatusMessage(message) } }
                     }
                 }
             }
@@ -182,7 +200,13 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                     onToggleProfile = { profileExpanded = !profileExpanded },
                     onAction = onAction,
                     onCaptureLocation = captureLocation,
-                    onLocationSelected = selectLocation
+                    onLocationSelected = selectLocation,
+                    serviceRadius = serviceRadius,
+                    onServiceRadiusChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value },
+                    manualLatitude = manualLatitude,
+                    onManualLatitudeChange = { manualLatitude = it },
+                    manualLongitude = manualLongitude,
+                    onManualLongitudeChange = { manualLongitude = it }
                 )
                 DonorTab.REQUESTS -> DonorRequestsContent(state, onAction)
             }
@@ -200,7 +224,13 @@ private fun DonorHomeContent(
     onToggleProfile: () -> Unit,
     onAction: (DonorAction) -> Unit,
     onCaptureLocation: () -> Unit,
-    onLocationSelected: (Double, Double) -> Unit
+    onLocationSelected: (Double, Double) -> Unit,
+    serviceRadius: String,
+    onServiceRadiusChange: (String) -> Unit,
+    manualLatitude: String,
+    onManualLatitudeChange: (String) -> Unit,
+    manualLongitude: String,
+    onManualLongitudeChange: (String) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
@@ -225,7 +255,13 @@ private fun DonorHomeContent(
                 saving = state.saving,
                 onAction = onAction,
                 onCaptureLocation = onCaptureLocation,
-                onLocationSelected = onLocationSelected
+                onLocationSelected = onLocationSelected,
+                serviceRadius = serviceRadius,
+                onServiceRadiusChange = onServiceRadiusChange,
+                manualLatitude = manualLatitude,
+                onManualLatitudeChange = onManualLatitudeChange,
+                manualLongitude = manualLongitude,
+                onManualLongitudeChange = onManualLongitudeChange
             )
         }
     }
@@ -318,13 +354,18 @@ private fun ProfileCard(
     saving: Boolean,
     onAction: (DonorAction) -> Unit,
     onCaptureLocation: () -> Unit,
-    onLocationSelected: (Double, Double) -> Unit
+    onLocationSelected: (Double, Double) -> Unit,
+    serviceRadius: String,
+    onServiceRadiusChange: (String) -> Unit,
+    manualLatitude: String,
+    onManualLatitudeChange: (String) -> Unit,
+    manualLongitude: String,
+    onManualLongitudeChange: (String) -> Unit
 ) {
-    // Keep the editable profile in the ViewModel, like the emergency-request draft.
-    // GPS can therefore update only coordinates without recreating this form.
-    var serviceRadius by remember(profile.donorId) { mutableStateOf(profile.serviceRadiusKm.toString()) }
-    var manualLatitude by remember(profile.donorId) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
-    var manualLongitude by remember(profile.donorId) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
+    // The editable profile lives in the ViewModel, like the emergency-request draft.
+    // GPS can therefore update only coordinates without recreating this form. The
+    // unsaved service radius and manual coordinates are owned by DonorScreen so they
+    // survive switching between the tabbed and full-screen editors.
     var showMoreSettings by rememberSaveable(profile.donorId) { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -391,7 +432,7 @@ private fun ProfileCard(
             }
             OutlinedTextField(
                 value = serviceRadius,
-                onValueChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value },
+                onValueChange = onServiceRadiusChange,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Service radius (km)") },
                 singleLine = true
@@ -405,8 +446,8 @@ private fun ProfileCard(
             DonorLocationMap(profile.latitude, profile.longitude, onLocationSelected)
             Text("Only you can see this pin. Requesters receive distance and travel estimates, not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(manualLatitude, { manualLatitude = it }, Modifier.weight(1f), label = { Text("Latitude") }, singleLine = true)
-                OutlinedTextField(manualLongitude, { manualLongitude = it }, Modifier.weight(1f), label = { Text("Longitude") }, singleLine = true)
+                OutlinedTextField(manualLatitude, onManualLatitudeChange, Modifier.weight(1f), label = { Text("Latitude") }, singleLine = true)
+                OutlinedTextField(manualLongitude, onManualLongitudeChange, Modifier.weight(1f), label = { Text("Longitude") }, singleLine = true)
             }
             OutlinedButton(
                 onClick = {

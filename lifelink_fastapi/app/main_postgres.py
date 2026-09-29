@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import create_all_tables, get_db_session
-from .db_models import Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum
+from .db_models import Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum
 from .fcm import send_push_safely
 from .main import (
     EmergencyRequestIn,
@@ -142,6 +142,22 @@ async def _push_recipients_for_donors(session: AsyncSession, donor_ids: list[str
 async def _push_recipient_for_user(session: AsyncSession, user_id: str) -> list[tuple[str, str]]:
     token = await session.scalar(select(LifeLinkProfile.fcm_token).where(LifeLinkProfile.user_id == user_id))
     return [(user_id, token)] if token else []
+
+
+async def _conversation_recipient(
+    session: AsyncSession, conversation: Conversation, sender_id: str
+) -> list[tuple[str, str]]:
+    """The other participant of a conversation, for a chat/contact-share push.
+
+    ``conversation.donor_id`` is the donor row id, so it is resolved to the
+    owning user id before looking up a push token.
+    """
+    donor = await session.get(DonorRow, conversation.donor_id)
+    donor_user_id = (donor.user_id if donor and donor.user_id else conversation.donor_id)
+    recipient = conversation.requester_id if sender_id == donor_user_id else donor_user_id
+    if not recipient or recipient == sender_id:
+        return []
+    return await _push_recipient_for_user(session, recipient)
 
 
 class ProfileIn(BaseModel):
@@ -892,6 +908,14 @@ async def activate_location_share(
     enforce_rate_limit(f"location-share:{principal.subject}", 30, 300)
     share = await store.ensure_location_share(request_id, donor.id, request.requester_id, request.response_deadline)
     await store.record_audit_async(principal.subject, "location_share_activated", request_id, donor.id)
+    # Tell the donor their exact location is now visible to the matched requester,
+    # so the disclosure is never silent and they can revoke it.
+    await send_push_safely(
+        await _push_recipient_for_user(session, donor.user_id or donor.id),
+        "Exact location shared",
+        "A matched requester can now see your exact location for this request. You can revoke it at any time.",
+        {"type": "location_share", "request_id": request_id},
+    )
     return LocationShareOut(
         request_id=request_id,
         donor_id=donor.id,
@@ -1061,6 +1085,12 @@ async def send_conversation_message(
         message = await store.add_message(conversation, principal.subject, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await send_push_safely(
+        await _conversation_recipient(session, conversation, principal.subject),
+        "New message",
+        "You have a new message in your LifeLink conversation.",
+        {"type": "message", "request_id": conversation.request_id, "conversation_id": conversation.id},
+    )
     return MessageOut(
         message_id=message.id,
         conversation_id=message.conversation_id,
@@ -1126,6 +1156,12 @@ async def share_contact_details(
         conversation.request_id,
         conversation.donor_id,
         {"conversation_id": conversation.id},
+    )
+    await send_push_safely(
+        await _conversation_recipient(session, conversation, principal.subject),
+        "Contact details shared",
+        f"The other person shared their {payload.field} with you.",
+        {"type": "contact_share", "request_id": conversation.request_id, "conversation_id": conversation.id},
     )
     return ContactShareOut(
         share_id=share.id,

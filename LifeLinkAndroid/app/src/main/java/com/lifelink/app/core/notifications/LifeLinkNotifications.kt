@@ -46,6 +46,9 @@ object LifeLinkNotifications {
         val updateType = when (data["type"]?.lowercase()) {
             "donor_response" -> UpdateType.DONOR_RESPONSE
             "contact_status" -> UpdateType.CONTACT_STATUS
+            "message" -> UpdateType.MESSAGE
+            "contact_share" -> UpdateType.CONTACT_SHARE
+            "location_share" -> UpdateType.LOCATION_SHARE
             "account" -> UpdateType.ACCOUNT
             "request_status" -> UpdateType.REQUEST_STATUS
             else -> UpdateType.SYSTEM

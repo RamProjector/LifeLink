@@ -94,7 +94,7 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
             _state.value = AuthState.Loading
             action()
             _state.value = AuthState.Message(
-                "If that email has a LifeLink account, a reset link is on its way. Check your inbox."
+                "If that email has a LifeLink account, check your inbox for a reset link. If none arrives, try again later."
             )
         }
     }
