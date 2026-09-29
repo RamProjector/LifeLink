@@ -91,7 +91,11 @@ jobs:
           fi
 
       - name: Build visual-test APKs
-        run: ./gradlew assembleDebug assembleDebugAndroidTest --stacktrace
+        # --no-daemon: the runner has 16 GB and the emulator below claims 4 GB
+        # (plus a 512 MB heap). A lingering Gradle daemon (-Xmx4096m) alongside
+        # the emulator can exhaust the runner, so run this build in a
+        # single-use daemon that exits when the step ends.
+        run: ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon --stacktrace
 
       - name: Prepare emulator test script
         shell: bash
@@ -144,7 +148,9 @@ jobs:
           adb -s "$device_serial" uninstall com.lifelink.app.test >/dev/null 2>&1 || true
           cd "$GITHUB_WORKSPACE/LifeLinkAndroid" || exit 1
           echo "Starting connected Android instrumentation tests."
-          ./gradlew connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --stacktrace
+          # --no-daemon: this step runs while the emulator is live, so avoid
+          # keeping a 4 GB Gradle daemon resident next to the 4 GB emulator.
+          ./gradlew connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --no-daemon --stacktrace
           test_exit=$?
           exit "$test_exit"
           EOF
@@ -153,13 +159,19 @@ jobs:
       # Cache the AVD (including its boot snapshot) and the downloaded system
       # image. On a cache hit the emulator boots from the snapshot instead of
       # cold-booting, which removes most of the emulator startup cost.
+      #
+      # Credential hygiene: PR caches are restorable by base-branch runs, so
+      # never cache anything that can hold secrets. We deliberately cache only
+      # the AVD definition/snapshot and the SDK system image. The ADB key pair
+      # (~/.android/adbkey, adbkey.pub) is NOT cached: it is a per-runner
+      # credential, and a cached private key would be readable by other runs.
+      # The emulator regenerates it on first use, which is harmless here.
       - name: Cache AVD snapshot and system image
         id: avd-cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.android/avd/*
-            ~/.android/adb*
             /usr/local/lib/android/sdk/system-images
           key: avd-${{ env.API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_PROFILE }}-${{ env.AVD_CACHE_VERSION }}
 
