@@ -15,6 +15,10 @@ on:
       - 'LifeLinkAndroid/build.gradle.kts'
       - 'LifeLinkAndroid/settings.gradle.kts'
       - 'LifeLinkAndroid/gradle/**'
+      - 'LifeLinkAndroid/gradle.properties'
+      # The workflow itself must be in the trigger list, otherwise a change that
+      # only edits this file would never run it.
+      - '.github/workflows/android-visual-review.yml'
   workflow_dispatch:
 
   workflow_call:
@@ -26,11 +30,24 @@ concurrency:
   group: android-visual-review-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Single source of truth for the emulator image. Bump API_LEVEL only when the
+  # app's minSdk/targetSdk or the visual harness actually requires it; a lower
+  # API level boots faster and keeps the AVD snapshot cache key stable.
+  API_LEVEL: 34
+  AVD_TARGET: google_apis
+  AVD_ARCH: x86_64
+  AVD_PROFILE: pixel_2
+  # Bump to invalidate the cached AVD snapshot after changing emulator options.
+  AVD_CACHE_VERSION: v1
+
 jobs:
   visual-review:
     name: Capture Android visual evidence
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # The job used to allow 60 minutes; with KVM + a cached AVD snapshot it
+    # should finish in a few minutes, so fail fast instead of hanging.
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: LifeLinkAndroid
@@ -43,7 +60,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-          cache: gradle
+
+      # Provides the Gradle build cache and dependency cache. This is what makes
+      # the second and later runs skip recompiling unchanged modules.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -53,8 +74,8 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
-      # GitHub's ubuntu-latest runners expose /dev/kvm but the runner user is not in
-      # the kvm group, so the emulator falls back to pure software emulation
+      # GitHub's ubuntu-latest runners expose /dev/kvm but the runner user is not
+      # in the kvm group, so the emulator falls back to pure software emulation
       # (-accel off), which is the dominant cost of this job. Granting access lets
       # the emulator use hardware acceleration and cuts the run dramatically.
       - name: Enable KVM hardware acceleration
@@ -65,11 +86,12 @@ jobs:
           if [[ -r /dev/kvm && -w /dev/kvm ]]; then
             echo "KVM is available: $(ls -l /dev/kvm)"
           else
-            echo "::warning::/dev/kvm is not accessible; the emulator will fall back to software emulation and this job will be slow."
+            echo "::error::/dev/kvm is not accessible; the emulator would fall back to software emulation and this job would be slow."
+            exit 1
           fi
 
       - name: Build visual-test APKs
-        run: ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon --stacktrace
+        run: ./gradlew assembleDebug assembleDebugAndroidTest --stacktrace
 
       - name: Prepare emulator test script
         shell: bash
@@ -115,30 +137,67 @@ jobs:
           fi
           cd "$GITHUB_WORKSPACE/LifeLinkAndroid" || exit 1
           echo "Starting connected Android instrumentation tests."
-          ./gradlew connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --no-daemon --stacktrace
+          ./gradlew connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --stacktrace
           test_exit=$?
           exit "$test_exit"
           EOF
           chmod +x "$RUNNER_TEMP/lifelink-visual-test.sh"
 
-      - name: Run visual smoke test on emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        timeout-minutes: 55
+      # Cache the AVD (including its boot snapshot) and the downloaded system
+      # image. On a cache hit the emulator boots from the snapshot instead of
+      # cold-booting, which removes most of the emulator startup cost.
+      - name: Cache AVD snapshot and system image
+        id: avd-cache
+        uses: actions/cache@v4
         with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
-          force-avd-creation: true
-          # -no-metrics / -camera-* none / -netfast trim emulator startup and runtime
-          # overhead; -gpu swiftshader_indirect keeps rendering deterministic on a
-          # headless runner. Hardware acceleration is provided by the KVM step above.
-          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -no-snapshot-save -no-metrics -camera-back none -camera-front none -netfast -gpu swiftshader_indirect
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+            /usr/local/lib/android/sdk/system-images
+          key: avd-${{ env.API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_PROFILE }}-${{ env.AVD_CACHE_VERSION }}
+
+      # On a cache miss, boot the emulator once and let it save a snapshot that
+      # the cache step above persists for the next run.
+      - name: Create AVD and generate snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          target: ${{ env.AVD_TARGET }}
+          arch: ${{ env.AVD_ARCH }}
+          profile: ${{ env.AVD_PROFILE }}
+          force-avd-creation: false
+          # No -no-snapshot here: the emulator must be allowed to save a snapshot
+          # on exit so the cache step can persist it.
+          emulator-options: -no-window -no-audio -no-boot-anim -no-metrics -camera-back none -camera-front none -netfast -gpu swiftshader_indirect
           cores: 4
           ram-size: 4096M
           heap-size: 512M
           disk-size: 4096M
-          emulator-boot-timeout: 900
+          emulator-boot-timeout: 300
+          disable-spellchecker: true
+          disable-animations: true
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Run visual smoke test on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          target: ${{ env.AVD_TARGET }}
+          arch: ${{ env.AVD_ARCH }}
+          profile: ${{ env.AVD_PROFILE }}
+          force-avd-creation: false
+          # -no-snapshot-save keeps the cached snapshot pristine; the emulator
+          # still loads it, so boot is fast. -no-metrics / -camera-* none /
+          # -netfast trim startup and runtime overhead; -gpu swiftshader_indirect
+          # keeps rendering deterministic on a headless runner. Hardware
+          # acceleration is provided by the KVM step above.
+          emulator-options: -no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics -camera-back none -camera-front none -netfast -gpu swiftshader_indirect
+          cores: 4
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 4096M
+          emulator-boot-timeout: 300
           disable-spellchecker: true
           disable-animations: true
           script: |
