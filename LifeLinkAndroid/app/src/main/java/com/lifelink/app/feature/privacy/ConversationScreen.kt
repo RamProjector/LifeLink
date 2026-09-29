@@ -44,7 +44,7 @@ fun ConversationScreen(
     donorId: String,
     currentUserId: String,
     onAction: (PrivacyAction) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
 ) {
     LaunchedEffect(requestId, donorId) { onAction(PrivacyAction.OpenConversation(requestId, donorId)) }
     var draft by remember { mutableStateOf("") }
@@ -62,7 +62,7 @@ fun ConversationScreen(
         Text(
             "Only you and the other person can read these messages. Contact details stay hidden until you share them.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
 
@@ -77,11 +77,14 @@ fun ConversationScreen(
                 // message LazyColumn cannot scroll to it.
                 Column(
                     Modifier.padding(12.dp).heightIn(max = 180.dp).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text("Shared contact details", fontWeight = FontWeight.SemiBold)
                     state.contactShares.forEach { share ->
-                        Text("${share.field.replaceFirstChar { it.uppercase() }}: ${share.value}", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "${share.field.replaceFirstChar { it.uppercase() }}: ${share.value}",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
             }
@@ -93,11 +96,14 @@ fun ConversationScreen(
                 onValueChange = { if (it.length <= 2000) draft = it },
                 modifier = Modifier.weight(1f),
                 label = { Text("Message") },
-                maxLines = 4
+                maxLines = 4,
             )
             Button(
-                onClick = { onAction(PrivacyAction.SendMessage(draft)); draft = "" },
-                enabled = draft.isNotBlank() && !state.sending
+                onClick = {
+                    onAction(PrivacyAction.SendMessage(draft))
+                    draft = ""
+                },
+                enabled = draft.isNotBlank() && !state.sending,
             ) { Text(if (state.sending) "Sending…" else "Send") }
         }
 
@@ -113,16 +119,19 @@ fun ConversationScreen(
                     onValueChange = { if (it.length <= 320) contactValue = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(if (contactField == "phone") "Phone number" else "Email address") },
-                    singleLine = true
+                    singleLine = true,
                 )
                 Button(
-                    onClick = { onAction(PrivacyAction.ShareContact(contactField, contactValue)); contactValue = "" },
-                    enabled = contactValue.isNotBlank()
-                ) { Text("Share ${contactField}") }
+                    onClick = {
+                        onAction(PrivacyAction.ShareContact(contactField, contactValue))
+                        contactValue = ""
+                    },
+                    enabled = contactValue.isNotBlank(),
+                ) { Text("Share $contactField") }
                 Text(
                     "Sharing is recorded in an audit log. You can share each field separately.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -135,7 +144,7 @@ fun ConversationScreen(
                 Text(
                     "If this conversation feels unsafe, report or block the other person. Reports are reviewed by our team.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { showReport = true }, modifier = Modifier.weight(1f)) { Text("Report") }
@@ -155,7 +164,7 @@ fun ConversationScreen(
                     onValueChange = { if (it.length <= 500) reportReason = it },
                     label = { Text("What happened? (optional)") },
                     minLines = 2,
-                    maxLines = 4
+                    maxLines = 4,
                 )
             },
             confirmButton = {
@@ -165,7 +174,7 @@ fun ConversationScreen(
                     showReport = false
                 }) { Text("Submit report") }
             },
-            dismissButton = { TextButton(onClick = { showReport = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showReport = false }) { Text("Cancel") } },
         )
     }
 
@@ -180,7 +189,7 @@ fun ConversationScreen(
                     showBlockConfirm = false
                 }) { Text("Block") }
             },
-            dismissButton = { TextButton(onClick = { showBlockConfirm = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showBlockConfirm = false }) { Text("Cancel") } },
         )
     }
 }
@@ -189,9 +198,15 @@ fun ConversationScreen(
 private fun MessageBubble(message: ChatMessage, mine: Boolean) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
         Card(
-            colors = CardDefaults.cardColors(
-                containerColor = if (mine) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
-            )
+            colors =
+                CardDefaults.cardColors(
+                    containerColor =
+                        if (mine) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerLow
+                        },
+                ),
         ) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(message.body)
