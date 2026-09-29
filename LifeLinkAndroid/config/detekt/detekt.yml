@@ -1,0 +1,45 @@
+# Detekt configuration for LifeLink Android.
+#
+# The project starts from the detekt defaults and layers a small number of
+# project-specific decisions on top. `buildUponDefaultConfig = true` (set in
+# app/build.gradle.kts) means every default rule stays active unless it is
+# explicitly disabled here, so new code is held to the full rule set while the
+# pre-existing findings are grandfathered through `detekt-baseline.xml`.
+#
+# Regenerate the baseline after intentionally paying down debt:
+#   ./gradlew detektBaseline
+# Then review the diff — the baseline should only ever shrink.
+
+complexity:
+  LongParameterList:
+    # Compose screens legitimately take many hoisted state parameters.
+    functionThreshold: 8
+    constructorThreshold: 8
+  TooManyFunctions:
+    # ViewModels and repositories expose many small, single-purpose functions.
+    thresholdInFiles: 20
+    thresholdInClasses: 20
+    thresholdInInterfaces: 20
+    thresholdInObjects: 20
+    thresholdInEnums: 20
+
+naming:
+  FunctionNaming:
+    # @Composable functions are PascalCase by convention.
+    ignoreAnnotated: ['Composable']
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][_A-Za-z0-9]*'
+
+style:
+  MagicNumber:
+    # Compose layout/design values are pervasive and self-documenting.
+    ignoreAnnotated: ['Composable']
+    ignorePropertyDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+  MaxLineLength:
+    maxLineLength: 140
+    excludeCommentStatements: true
+  UnusedPrivateMember:
+    ignoreAnnotated: ['Preview']
+  ReturnCount:
+    max: 4
