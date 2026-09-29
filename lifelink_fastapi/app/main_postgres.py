@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import logging
 from contextlib import asynccontextmanager
@@ -57,13 +58,43 @@ from .privacy_api import (
     MessageOut,
 )
 from .privacy_repositories import SqlAlchemyPrivacyStore
+from .expiry import ACTIVE_REQUEST_STATUSES
 from .security import Principal, get_postgres_principal
 from .rate_limit import enforce_rate_limit
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await create_all_tables()
-    yield
+    sweeper = asyncio.create_task(_expire_stale_location_shares_forever())
+    try:
+        yield
+    finally:
+        sweeper.cancel()
+        try:
+            await sweeper
+        except asyncio.CancelledError:
+            pass
+
+
+async def _expire_stale_location_shares_forever() -> None:
+    """Background sweep so exact-location shares expire even without a request action.
+
+    A share is bounded by its own window and by the request deadline, but a
+    request that simply times out never calls cancel/fulfil. This loop closes
+    those shares so a stale client cannot keep reading a pin.
+    """
+    from .db import AsyncSessionLocal
+
+    interval = float(os.getenv("LIFELINK_SHARE_SWEEP_SECONDS", "300"))
+    while True:
+        try:
+            async with AsyncSessionLocal() as session:
+                await SqlAlchemyPrivacyStore(session).expire_stale_shares()
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # pragma: no cover - defensive; never kill the loop
+            logger.exception("Location-share sweep failed")
+        await asyncio.sleep(interval)
 
 
 app = FastAPI(title="LifeLink Matching Service — PostgreSQL", lifespan=lifespan)
@@ -841,8 +872,10 @@ async def activate_location_share(
         raise HTTPException(status_code=404, detail="Request not found")
     if principal.subject != "development-user" and principal.subject != request.requester_id:
         raise HTTPException(status_code=403, detail="Not allowed to share this donor's location")
+    if enum_value(request.status) not in ACTIVE_REQUEST_STATUSES:
+        raise HTTPException(status_code=409, detail="This request is no longer active")
     store = SqlAlchemyPrivacyStore(session)
-    donor = await store._donor_row(donor_id)
+    donor = await store.donor_row(donor_id)
     if donor is None:
         raise HTTPException(status_code=404, detail="Donor profile not found")
     if not await store.donor_matched_to_request(request_id, donor.id):
@@ -874,7 +907,7 @@ async def revoke_location_share(
 ):
     """Donor revokes exact-location sharing for one request at any time."""
     store = SqlAlchemyPrivacyStore(session)
-    donor = await store._donor_row(donor_id)
+    donor = await store.donor_row(donor_id)
     if donor is None:
         raise HTTPException(status_code=404, detail="Donor profile not found")
     if principal.subject != "development-user" and principal.subject != donor.id:
@@ -937,14 +970,15 @@ async def open_conversation(
     if request is None:
         raise HTTPException(status_code=404, detail="Request not found")
     store = SqlAlchemyPrivacyStore(session)
-    donor = await store._donor_row(donor_id)
+    donor = await store.donor_row(donor_id)
     if donor is None:
         raise HTTPException(status_code=404, detail="Donor profile not found")
     if principal.subject not in {request.requester_id, donor.id}:
         raise HTTPException(status_code=403, detail="Not a participant in this request")
-    if not await store.donor_matched_to_request(request_id, donor.id):
-        raise HTTPException(status_code=403, detail="Donor is not matched to this request")
-    conversation = await store.get_or_create_conversation(request_id, donor.id, request.requester_id)
+    try:
+        conversation = await store.get_or_create_conversation(request_id, donor.id, request.requester_id)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Donor is not matched to this request") from None
     return ConversationOut(
         conversation_id=conversation.id,
         request_id=conversation.request_id,
@@ -1016,7 +1050,10 @@ async def send_conversation_message(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
     enforce_rate_limit(f"message:{principal.subject}", 60, 300)
-    message = await store.add_message(conversation, principal.subject, payload)
+    try:
+        message = await store.add_message(conversation, principal.subject, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return MessageOut(
         message_id=message.id,
         conversation_id=message.conversation_id,
@@ -1072,7 +1109,10 @@ async def share_contact_details(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
     enforce_rate_limit(f"contact-share:{principal.subject}", 20, 300)
-    share = await store.add_contact_share(conversation, principal.subject, payload)
+    try:
+        share = await store.add_contact_share(conversation, principal.subject, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     await store.record_audit_async(
         principal.subject,
         f"contact_share_{payload.field}",

@@ -109,7 +109,10 @@ class PrivacyViewModel(
             repository.matchedDonorLocation(requestId, donorId)
                 .onSuccess { _state.value = _state.value.copy(matchedLocation = it, locationLoading = false) }
                 .onFailure { error ->
+                    // Never keep a previously loaded pin on screen after a failed
+                    // refresh: the share may have been revoked or expired.
                     _state.value = _state.value.copy(
+                        matchedLocation = null,
                         locationLoading = false,
                         message = error.message ?: "Donor location could not be loaded."
                     )

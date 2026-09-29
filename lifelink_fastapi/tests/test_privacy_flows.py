@@ -416,3 +416,214 @@ def test_contact_share_audit_row_exists(pg_url):
         assert rows[0][0] == requester
 
     run_scenario(pg_url, scenario)
+
+
+def test_map_visibility_off_revokes_live_share(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        activated = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
+        )
+        assert activated.status_code == 200, activated.text
+        assert (
+            await client.get(f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location")
+        ).json()["shared"] is True
+
+        # The donor keeps the map pin but turns OFF exact-location sharing.
+        current["id"] = donor
+        updated = await client.put(
+            f"/v1/donors/{donor}/map-visibility",
+            json={"map_visible": True, "exact_location_sharing_enabled": False},
+        )
+        assert updated.status_code == 200, updated.text
+
+        current["id"] = requester
+        after = await client.get(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
+        )
+        assert after.json()["shared"] is False
+        assert after.json()["latitude"] is None
+
+    run_scenario(pg_url, scenario)
+
+
+def test_stale_donor_is_hidden_from_the_map(pg_url):
+    async def scenario(client, current, run_sql):
+        donor = new_user("donor")
+        await setup_donor(client, current, donor, map_visible=True)
+        await run_sql(
+            f"UPDATE donors SET availability_updated_at = now() - interval '10 days' WHERE id = '{donor}'"
+        )
+        current["id"] = new_user("viewer")
+        body = (await client.get("/v1/donor-map")).json()
+        assert body["entries"] == []
+
+    run_scenario(pg_url, scenario)
+
+
+def test_exact_location_requires_a_fresh_donor_location(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        await client.post(f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share")
+        assert (
+            await client.get(f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location")
+        ).json()["shared"] is True
+
+        # The donor's snapshot goes stale: the pin must stop being disclosed.
+        await run_sql(
+            f"UPDATE donors SET availability_updated_at = now() - interval '10 days' WHERE id = '{donor}'"
+        )
+        after = await client.get(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
+        )
+        assert after.json()["shared"] is False
+        assert "fresh" in (after.json()["reason"] or "").lower()
+
+    run_scenario(pg_url, scenario)
+
+
+def test_map_coarsening_uses_a_consistent_grid(pg_url):
+    async def scenario(client, current, run_sql):
+        a, b = new_user("donor"), new_user("donor")
+        await setup_donor(client, current, a, latitude=11.2401, longitude=125.0001, map_visible=True)
+        await setup_donor(client, current, b, latitude=11.2499, longitude=125.0099, map_visible=True)
+        current["id"] = new_user("viewer")
+        entries = (await client.get("/v1/donor-map")).json()["entries"]
+        assert len(entries) == 2
+        # Both donors fall in the same ~1 km cell, so both snap to the same point.
+        assert {e["latitude"] for e in entries} == {11.24}
+        assert {e["longitude"] for e in entries} == {125.0}
+
+    run_scenario(pg_url, scenario)
+
+
+def test_contact_share_rejects_invalid_values(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        conversation_id = opened.json()["conversation_id"]
+
+        bad_email = await client.post(
+            f"/v1/conversations/{conversation_id}/contact-shares",
+            json={"field": "email", "value": "not-an-email"},
+        )
+        assert bad_email.status_code == 400
+        bad_phone = await client.post(
+            f"/v1/conversations/{conversation_id}/contact-shares",
+            json={"field": "phone", "value": "call me"},
+        )
+        assert bad_phone.status_code == 400
+        # Nothing invalid was stored.
+        assert (await client.get(f"/v1/conversations/{conversation_id}/contact-shares")).json() == []
+
+    run_scenario(pg_url, scenario)
+
+
+def test_blank_message_is_rejected(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        conversation_id = opened.json()["conversation_id"]
+        blank = await client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"body": "   "}
+        )
+        assert blank.status_code == 400
+
+    run_scenario(pg_url, scenario)
+
+
+def test_location_share_cannot_be_activated_on_an_inactive_request(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        cancelled = await client.post(f"/v1/emergency-requests/{created['request_id']}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
+        blocked = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
+        )
+        assert blocked.status_code == 409
+
+    run_scenario(pg_url, scenario)
+
+
+def test_sweeper_expires_shares_for_timed_out_requests(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        await client.post(f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share")
+
+        # The request deadline passes without an explicit cancel/fulfil.
+        await run_sql(
+            f"UPDATE emergency_requests SET response_deadline = now() - interval '1 hour' "
+            f"WHERE id = '{created['request_id']}'"
+        )
+
+        from app.privacy_repositories import SqlAlchemyPrivacyStore
+
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        async with sessions() as session:
+            closed = await SqlAlchemyPrivacyStore(session).expire_stale_shares()
+        await engine.dispose()
+        assert closed >= 1
+
+        async with create_async_engine(pg_url).connect() as conn:
+            result = await conn.execute(
+                text("SELECT status FROM donor_location_shares WHERE request_id = :rid"),
+                {"rid": created["request_id"]},
+            )
+            assert result.all() == [("expired",)]
+
+    run_scenario(pg_url, scenario)
+
+
+def test_migration_007_applies_cleanly(pg_url):
+    from pathlib import Path
+
+    async def main():
+        engine = create_async_engine(pg_url)
+        async with engine.begin() as conn:
+            await conn.execute(text("DROP SCHEMA public CASCADE"))
+            await conn.execute(text("CREATE SCHEMA public"))
+            await conn.run_sync(db_models.Base.metadata.create_all)
+        sql = (
+            Path(__file__).resolve().parents[1] / "sql" / "007_donor_map_chat_contact_sharing.sql"
+        ).read_text()
+        async with engine.begin() as conn:
+            for statement in [s.strip() for s in sql.split(";") if s.strip()]:
+                await conn.execute(text(statement))
+            columns = await conn.execute(
+                text("SELECT column_name FROM information_schema.columns WHERE table_name = 'donors'")
+            )
+            names = {row[0] for row in columns.all()}
+            assert {"map_visible", "map_visibility_updated_at", "exact_location_sharing_enabled"} <= names
+            tables = await conn.execute(
+                text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+            )
+            table_names = {row[0] for row in tables.all()}
+            assert {"donor_location_shares", "conversations", "messages", "contact_shares"} <= table_names
+        await engine.dispose()
+
+    asyncio.run(main())

@@ -37,7 +37,15 @@ exact (request, donor) pair.
 * **API** — `app/privacy_api.py` defines the request/response contract;
   `app/main_postgres.py` wires the endpoints.
 * **Expiry** — cancelling or fulfilling a request expires every live share for
-  it (`expire_shares_for_request`).
+  it (`expire_shares_for_request`). A background sweeper
+  (`expire_stale_shares`, started in the app lifespan) also closes shares whose
+  window or request deadline has passed, so a request that simply times out
+  never leaves a readable pin behind.
+* **Freshness** — the map hides donors whose location snapshot is older than
+  `LIFELINK_DONOR_LOCATION_MAX_AGE_MINUTES`, and exact location is withheld once
+  the donor's snapshot goes stale, so an old coordinate is never disclosed.
+* **Validation** — contact shares are shape-checked (email/phone) and blank
+  messages are rejected, so a typo cannot be broadcast as a "shared" detail.
 
 ### Endpoints
 
