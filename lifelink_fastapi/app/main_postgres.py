@@ -48,6 +48,8 @@ from .main import Donor
 from .privacy_api import (
     ContactShareIn,
     ContactShareOut,
+    ConversationModerationIn,
+    ConversationModerationOut,
     ConversationOut,
     DonorMapOut,
     DonorMapVisibilityIn,
@@ -154,7 +156,16 @@ async def _conversation_recipient(
     """
     donor = await session.get(DonorRow, conversation.donor_id)
     donor_user_id = (donor.user_id if donor and donor.user_id else conversation.donor_id)
-    recipient = conversation.requester_id if sender_id == donor_user_id else donor_user_id
+    # ``open_conversation`` accepts either the donor row id or the owning user id
+    # as the donor's identity, so both must be recognized here. Otherwise a donor
+    # sending a message would be treated as the requester and the push would go
+    # to the donor's own token instead of the requester.
+    if sender_id == conversation.requester_id:
+        recipient = donor_user_id
+    elif sender_id in {donor_user_id, conversation.donor_id}:
+        recipient = conversation.requester_id
+    else:
+        recipient = donor_user_id
     if not recipient or recipient == sender_id:
         return []
     return await _push_recipient_for_user(session, recipient)
@@ -1081,6 +1092,10 @@ async def send_conversation_message(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
     enforce_rate_limit(f"message:{principal.subject}", 60, 300)
+    # A block is enforceable state: a blocked participant cannot send messages,
+    # and no push is delivered to the person who blocked them.
+    if await store.is_blocked(conversation, principal.subject):
+        raise HTTPException(status_code=403, detail="You cannot message this person")
     try:
         message = await store.add_message(conversation, principal.subject, payload)
     except ValueError as exc:
@@ -1146,6 +1161,8 @@ async def share_contact_details(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
     enforce_rate_limit(f"contact-share:{principal.subject}", 20, 300)
+    if await store.is_blocked(conversation, principal.subject):
+        raise HTTPException(status_code=403, detail="You cannot share contact details with this person")
     try:
         share = await store.add_contact_share(conversation, principal.subject, payload)
     except ValueError as exc:
@@ -1171,3 +1188,69 @@ async def share_contact_details(
         value=share.value,
         created_at=share.created_at,
     )
+
+
+@app.post("/v1/conversations/{conversation_id}/report", response_model=ConversationModerationOut)
+async def report_conversation_participant(
+    conversation_id: str,
+    payload: ConversationModerationIn | None = None,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Report the other participant of a conversation.
+
+    Either participant may report the other, so this is not limited to the
+    requester-only contact endpoints.
+    """
+    store = SqlAlchemyPrivacyStore(session)
+    try:
+        conversation = await store.conversation_for_participant(conversation_id, principal.subject)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Conversation not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
+    enforce_rate_limit(f"conversation-report:{principal.subject}", 10, 300)
+    other = await store.other_participant_user_id(conversation, principal.subject)
+    await store.record_audit_async(
+        principal.subject,
+        "conversation_reported",
+        conversation.request_id,
+        conversation.donor_id,
+        {"conversation_id": conversation.id, "reported_id": other, "reason": (payload.reason if payload else "")},
+    )
+    return ConversationModerationOut(conversation_id=conversation.id, action="reported")
+
+
+@app.post("/v1/conversations/{conversation_id}/block", response_model=ConversationModerationOut)
+async def block_conversation_participant(
+    conversation_id: str,
+    payload: ConversationModerationIn | None = None,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Block the other participant of a conversation.
+
+    The block is persisted as enforceable state: the blocked participant can no
+    longer send messages or share contact details, and no push is delivered to
+    the blocker. Either participant may block the other.
+    """
+    store = SqlAlchemyPrivacyStore(session)
+    try:
+        conversation = await store.conversation_for_participant(conversation_id, principal.subject)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Conversation not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
+    enforce_rate_limit(f"conversation-block:{principal.subject}", 10, 300)
+    other = await store.other_participant_user_id(conversation, principal.subject)
+    if other is None:
+        raise HTTPException(status_code=400, detail="No other participant to block")
+    await store.block_participant(conversation, principal.subject, other, (payload.reason if payload else ""))
+    await store.record_audit_async(
+        principal.subject,
+        "conversation_blocked",
+        conversation.request_id,
+        conversation.donor_id,
+        {"conversation_id": conversation.id, "blocked_id": other},
+    )
+    return ConversationModerationOut(conversation_id=conversation.id, action="blocked")

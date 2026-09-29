@@ -627,3 +627,175 @@ def test_migration_007_applies_cleanly(pg_url):
         await engine.dispose()
 
     asyncio.run(main())
+
+
+def test_block_is_enforced_and_suppresses_push(pg_url, monkeypatch):
+    """A block is enforceable state: the blocked participant cannot message or
+    share contact details, and no push is delivered to the blocker."""
+    from app import main_postgres
+
+    delivered = []
+
+    async def capture(recipients, title, body, data):
+        delivered.append((list(recipients), title))
+
+    monkeypatch.setattr(main_postgres, "send_push_safely", capture)
+
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        conversation_id = opened.json()["conversation_id"]
+
+        # Ignore pushes from setup (e.g. the donor-match notification).
+        delivered.clear()
+
+        # The requester blocks the donor.
+        blocked = await client.post(f"/v1/conversations/{conversation_id}/block", json={"reason": "unsafe"})
+        assert blocked.status_code == 200, blocked.text
+        assert blocked.json()["action"] == "blocked"
+
+        # The block is persisted as state, not just an audit event.
+        async with create_async_engine(pg_url).connect() as conn:
+            result = await conn.execute(
+                text("SELECT blocker_id, blocked_id FROM conversation_blocks WHERE conversation_id = :cid"),
+                {"cid": conversation_id},
+            )
+            rows = result.all()
+        assert len(rows) == 1
+        assert rows[0][0] == requester
+        assert rows[0][1] == donor
+
+        # The blocked donor can no longer send a message or share contact details.
+        current["id"] = donor
+        message = await client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"body": "hello?"}
+        )
+        assert message.status_code == 403, message.text
+        share = await client.post(
+            f"/v1/conversations/{conversation_id}/contact-shares",
+            json={"field": "phone", "value": "+639170000000"},
+        )
+        assert share.status_code == 403, share.text
+
+        # No push was delivered to the blocker for the rejected attempts.
+        assert delivered == []
+
+    run_scenario(pg_url, scenario)
+
+
+def test_conversation_moderation_is_available_to_either_participant(pg_url):
+    """Report and Block are conversation-scoped, so a matched donor can use them
+    (the requester-only contact endpoints would return 403 for a donor)."""
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        conversation_id = opened.json()["conversation_id"]
+
+        # The donor reports the requester.
+        current["id"] = donor
+        reported = await client.post(
+            f"/v1/conversations/{conversation_id}/report", json={"reason": "spam"}
+        )
+        assert reported.status_code == 200, reported.text
+        assert reported.json()["action"] == "reported"
+
+        # The donor blocks the requester.
+        blocked = await client.post(f"/v1/conversations/{conversation_id}/block", json={})
+        assert blocked.status_code == 200, blocked.text
+
+        # The requester is now the blocked party and cannot message the donor.
+        current["id"] = requester
+        message = await client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"body": "hi"}
+        )
+        assert message.status_code == 403, message.text
+
+        # A non-participant cannot moderate the conversation.
+        current["id"] = new_user("stranger")
+        denied = await client.post(f"/v1/conversations/{conversation_id}/block", json={})
+        assert denied.status_code == 403
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_message_notifies_the_requester(pg_url, monkeypatch):
+    """When the donor sends a message, the push must go to the requester, even
+    when the donor row id differs from the donor's user id."""
+    from app import main_postgres
+
+    delivered = []
+
+    async def capture(recipients, title, body, data):
+        delivered.append(list(recipients))
+
+    monkeypatch.setattr(main_postgres, "send_push_safely", capture)
+
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        conversation_id = opened.json()["conversation_id"]
+
+        # The requester needs a profile row to hold a push token.
+        current["id"] = requester
+        profile = await client.put(
+            "/v1/profile",
+            json={"role": "requester", "display_name": "Test Requester", "can_request": True, "can_donate": False},
+        )
+        assert profile.status_code == 200, profile.text
+        await run_sql(
+            f"UPDATE lifelink_profiles SET fcm_token = 'requester-device' WHERE user_id = '{requester}'"
+        )
+
+        # The donor row id differs from the donor's user id.
+        await run_sql(f"UPDATE donors SET user_id = '{donor}-user' WHERE id = '{donor}'")
+
+        delivered.clear()
+        current["id"] = donor
+        sent = await client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"body": "on my way"}
+        )
+        assert sent.status_code == 201, sent.text
+
+        # The push went to the requester, not the donor's own token.
+        assert delivered == [[(requester, "requester-device")]]
+
+    run_scenario(pg_url, scenario)
+
+
+def test_migration_008_applies_cleanly(pg_url):
+    from pathlib import Path
+
+    async def main():
+        engine = create_async_engine(pg_url)
+        async with engine.begin() as conn:
+            await conn.execute(text("DROP SCHEMA public CASCADE"))
+            await conn.execute(text("CREATE SCHEMA public"))
+            await conn.run_sync(db_models.Base.metadata.create_all)
+        sql = (
+            Path(__file__).resolve().parents[1] / "sql" / "008_conversation_blocks.sql"
+        ).read_text()
+        async with engine.begin() as conn:
+            for statement in [s.strip() for s in sql.split(";") if s.strip()]:
+                await conn.execute(text(statement))
+            tables = await conn.execute(
+                text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+            )
+            assert "conversation_blocks" in {row[0] for row in tables.all()}
+        await engine.dispose()
+
+    asyncio.run(main())
