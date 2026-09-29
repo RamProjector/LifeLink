@@ -38,6 +38,20 @@ The FastAPI service includes PostgreSQL/PostGIS support, Supabase JWT verificati
 
 The API may use exact coordinates internally for matching, but donor coordinates are not returned in requester donor-match responses. The requester sees donor distance and estimated travel time. The optional donor map shows only anonymous distance bands and counts; it does not show individual donor pins or donor names.
 
+## Confirmed privacy behavior — "Active matched requesters only" (2026-09-29)
+
+The following behavior is now implemented in the FastAPI service and the Android client, and is covered by end-to-end tests in `lifelink_fastapi/tests/test_privacy_flows.py`:
+
+1. **Donor map visibility** — the map (`GET /v1/donor-map`) shows available donors as approximate areas with a freshness timestamp. Coordinates are coarsened to a ~1 km grid and no donor identity is returned. It never shows individual exact pins.
+2. **Donor control** — donors opt in explicitly via `PUT /v1/donors/{donor_id}/map-visibility` ("Show me on the donor map"), can pause/hide at any time, and see a location-freshness timestamp. Hiding also revokes any live exact-location share.
+3. **Location precision** — the map shows an approximate area/radius by default; exact coordinates are disclosed only after a match and only while the donor allows it.
+4. **Matched-requester-only exact location** — `POST /v1/emergency-requests/{request_id}/donors/{donor_id}/location-share` activates sharing for a matched donor that enabled it; `GET .../location` returns exact coordinates only to the requester of that request while a live, unexpired share exists. The donor can revoke at any time (`DELETE .../location-share`), and shares expire when the request is cancelled, fulfilled, or expires.
+5. **In-app chat** — `POST /v1/emergency-requests/{request_id}/donors/{donor_id}/conversation` opens a conversation scoped to the requester and donor of one request; messages are stored server-side and readable only by those two users.
+6. **Contact details** — phone and email are hidden by default; either participant can explicitly share one field at a time (`POST /v1/conversations/{id}/contact-shares`), and every share writes an append-only audit record.
+7. **Tracking policy** — no always-on/background GPS. Donors refresh location while the app is open or when they press an update button.
+
+Migration `lifelink_fastapi/sql/007_donor_map_chat_contact_sharing.sql` adds the supporting tables (`donor_location_shares`, `conversations`, `messages`, `contact_shares`) and the donor map-visibility columns. It has **not** yet been applied to the live Supabase database; apply it before deploying this behavior.
+
 ## Remaining work
 
 The following items are not confirmed as production-complete: real-device and live-deployment verification of the contact lifecycle, contact cancellation and expiry enforcement, typed location-source contract, precise-versus-approximate permission UX, in-flight location cancellation and classified retry states, in-app conversation or controlled phone handoff, push notifications and deep links, abuse reporting, signed Android release configuration, crash reporting, and real-device accessibility/performance validation. Rate-limiting and audit-event infrastructure are implemented and their migrations are applied, but endpoint-level and live-production verification remain required. A previous 401 screenshot was traced to the missing client-side access-token refresh path; the refresh-and-retry fix is now compile-verified. The requester map no longer renders `(0, 0)` when no location has been captured. The prioritized follow-up scope is recorded in `docs/POST_UPDATE_IMPROVEMENT_SCOPE.md`.

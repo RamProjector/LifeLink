@@ -11,6 +11,7 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.PUT
 import retrofit2.http.PATCH
+import retrofit2.http.DELETE
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -79,6 +80,39 @@ interface LifeLinkApi {
 
     @POST("v1/donors/{donorId}/requests/{requestId}/response")
     suspend fun respondToDonorRequest(@Path("donorId") donorId: String, @Path("requestId") requestId: String, @Body response: DonorResponseRequest): Response<DonorResponseResponse>
+
+    @GET("v1/donor-map")
+    suspend fun donorMap(): Response<DonorMapResponse>
+
+    @PUT("v1/donors/{donorId}/map-visibility")
+    suspend fun setDonorMapVisibility(@Path("donorId") donorId: String, @Body request: DonorMapVisibilityRequest): Response<DonorMapVisibilityResponse>
+
+    @POST("v1/emergency-requests/{requestId}/donors/{donorId}/location-share")
+    suspend fun activateLocationShare(@Path("requestId") requestId: String, @Path("donorId") donorId: String): Response<LocationShareResponse>
+
+    @DELETE("v1/emergency-requests/{requestId}/donors/{donorId}/location-share")
+    suspend fun revokeLocationShare(@Path("requestId") requestId: String, @Path("donorId") donorId: String): Response<LocationShareResponse>
+
+    @GET("v1/emergency-requests/{requestId}/donors/{donorId}/location")
+    suspend fun matchedDonorLocation(@Path("requestId") requestId: String, @Path("donorId") donorId: String): Response<ExactLocationResponse>
+
+    @POST("v1/emergency-requests/{requestId}/donors/{donorId}/conversation")
+    suspend fun openConversation(@Path("requestId") requestId: String, @Path("donorId") donorId: String): Response<ConversationResponse>
+
+    @GET("v1/conversations")
+    suspend fun listConversations(): Response<List<ConversationResponse>>
+
+    @GET("v1/conversations/{conversationId}/messages")
+    suspend fun listMessages(@Path("conversationId") conversationId: String): Response<List<MessageResponse>>
+
+    @POST("v1/conversations/{conversationId}/messages")
+    suspend fun sendMessage(@Path("conversationId") conversationId: String, @Body request: MessageRequest): Response<MessageResponse>
+
+    @GET("v1/conversations/{conversationId}/contact-shares")
+    suspend fun listContactShares(@Path("conversationId") conversationId: String): Response<List<ContactShareResponse>>
+
+    @POST("v1/conversations/{conversationId}/contact-shares")
+    suspend fun shareContactDetails(@Path("conversationId") conversationId: String, @Body request: ContactShareRequest): Response<ContactShareResponse>
 }
 
 data class ProfileRequest(
@@ -267,3 +301,87 @@ data class DonorProfileResponse(
 data class DonorRequestResponse(@SerializedName("request_id") val requestId: String, @SerializedName("blood_type") val bloodType: String, val units: Int, val urgency: String, @SerializedName("facility_name") val facilityName: String, val area: String, @SerializedName("distance_km") val distanceKm: Double, val status: String)
 data class DonorResponseRequest(val response: String)
 data class DonorResponseResponse(@SerializedName("request_id") val requestId: String, @SerializedName("donor_id") val donorId: String, val response: String)
+
+// --- Donor map, matched-requester exact location, chat, and contact sharing ---
+
+data class DonorMapResponse(
+    @SerializedName("generated_at") val generatedAt: String,
+    @SerializedName("approximate_only") val approximateOnly: Boolean = true,
+    val entries: List<DonorMapEntryResponse> = emptyList()
+)
+
+data class DonorMapEntryResponse(
+    @SerializedName("area_label") val areaLabel: String,
+    val latitude: Double,
+    val longitude: Double,
+    @SerializedName("radius_meters") val radiusMeters: Int,
+    @SerializedName("blood_type") val bloodType: String,
+    val availability: String,
+    @SerializedName("freshness_at") val freshnessAt: String,
+    @SerializedName("freshness_age_minutes") val freshnessAgeMinutes: Int,
+    @SerializedName("is_stale") val isStale: Boolean = false
+)
+
+data class DonorMapVisibilityRequest(
+    @SerializedName("map_visible") val mapVisible: Boolean,
+    @SerializedName("exact_location_sharing_enabled") val exactLocationSharingEnabled: Boolean = false
+)
+
+data class DonorMapVisibilityResponse(
+    @SerializedName("donor_id") val donorId: String,
+    @SerializedName("map_visible") val mapVisible: Boolean,
+    @SerializedName("exact_location_sharing_enabled") val exactLocationSharingEnabled: Boolean,
+    @SerializedName("map_visibility_updated_at") val mapVisibilityUpdatedAt: String? = null,
+    @SerializedName("freshness_at") val freshnessAt: String? = null
+)
+
+data class LocationShareResponse(
+    @SerializedName("request_id") val requestId: String,
+    @SerializedName("donor_id") val donorId: String,
+    val status: String,
+    @SerializedName("shared_at") val sharedAt: String? = null,
+    @SerializedName("expires_at") val expiresAt: String? = null,
+    @SerializedName("revoked_at") val revokedAt: String? = null
+)
+
+data class ExactLocationResponse(
+    @SerializedName("request_id") val requestId: String,
+    @SerializedName("donor_id") val donorId: String,
+    val shared: Boolean,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    @SerializedName("precision_meters") val precisionMeters: Int? = null,
+    @SerializedName("freshness_at") val freshnessAt: String? = null,
+    @SerializedName("expires_at") val expiresAt: String? = null,
+    val reason: String? = null
+)
+
+data class ConversationResponse(
+    @SerializedName("conversation_id") val conversationId: String,
+    @SerializedName("request_id") val requestId: String,
+    @SerializedName("donor_id") val donorId: String,
+    @SerializedName("requester_id") val requesterId: String,
+    @SerializedName("last_message_at") val lastMessageAt: String? = null,
+    @SerializedName("created_at") val createdAt: String
+)
+
+data class MessageRequest(val body: String)
+
+data class MessageResponse(
+    @SerializedName("message_id") val messageId: String,
+    @SerializedName("conversation_id") val conversationId: String,
+    @SerializedName("sender_id") val senderId: String,
+    val body: String,
+    @SerializedName("created_at") val createdAt: String
+)
+
+data class ContactShareRequest(val field: String, val value: String)
+
+data class ContactShareResponse(
+    @SerializedName("share_id") val shareId: String,
+    @SerializedName("conversation_id") val conversationId: String,
+    @SerializedName("shared_by") val sharedBy: String,
+    val field: String,
+    val value: String,
+    @SerializedName("created_at") val createdAt: String
+)

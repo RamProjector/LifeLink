@@ -14,6 +14,7 @@ import com.lifelink.app.data.local.LifeLinkDatabase
 import com.lifelink.app.data.repository.EmergencyRequestRepositoryImpl
 import com.lifelink.app.data.repository.LifeLinkAccountContainer
 import com.lifelink.app.data.repository.DonorRepositoryImpl
+import com.lifelink.app.data.repository.PrivacyRepositoryImpl
 import com.lifelink.app.data.repository.UpdatesRepository
 import com.lifelink.app.data.remote.RetrofitProvider
 import com.lifelink.app.core.auth.AccountDataCoordinator
@@ -115,7 +116,8 @@ class LifeLinkApplication : Application() {
                 }
             ),
             donorRepository = DonorRepositoryImpl(database.donorDao(), api, { ownerId }),
-            updatesRepository = UpdatesRepository(database.updateDao(), ownerId)
+            updatesRepository = UpdatesRepository(database.updateDao(), ownerId),
+            privacyRepository = PrivacyRepositoryImpl(api, { ownerId })
         )
     }
 }
