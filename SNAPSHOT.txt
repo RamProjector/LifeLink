@@ -1,1 +1,8 @@
-Source snapshot: base94558661d447ee9393e74eafc55e5d169955d684 plus local request-history recovery fix. Includes tests. Older prebuilt APKs omitted. These changes are not pushed or deployed.
+Source snapshot: LifeLink Cloud, main branch.
+
+The Android app, FastAPI backend, migrations, tests, and documentation are all
+tracked in this repository and built in CI. Prebuilt APKs are no longer
+committed; download the debug APK from the "Build Android APKs" workflow
+artifact instead.
+
+See docs/IMPLEMENTATION_STATUS.md for the current deployment and migration state.
