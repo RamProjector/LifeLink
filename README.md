@@ -52,7 +52,6 @@ The cloud-configured development APK is in `artifacts/app-debug-cloud-configured
 |---|---|
 | `LifeLinkAndroid/` | Native Kotlin/Compose Android application |
 | `lifelink_fastapi/` | PostgreSQL-backed FastAPI service, schema, and tests |
-| `lifelink-mobile/` | Expo/React Native mobile source |
 | `docs/` | Cloud startup, Render guide, changelog, history, and quality audit |
 | `artifacts/` | APKs and app icon |
 
