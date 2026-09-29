@@ -20,11 +20,7 @@ data class DonorMapArea(
     val isStale: Boolean,
 )
 
-data class DonorMap(
-    val generatedAt: String,
-    val approximateOnly: Boolean,
-    val areas: List<DonorMapArea>,
-)
+data class DonorMap(val generatedAt: String, val approximateOnly: Boolean, val areas: List<DonorMapArea>)
 
 data class DonorMapVisibility(
     val mapVisible: Boolean,
@@ -54,13 +50,7 @@ data class Conversation(
     val createdAt: String,
 )
 
-data class ChatMessage(
-    val messageId: String,
-    val conversationId: String,
-    val senderId: String,
-    val body: String,
-    val createdAt: String,
-)
+data class ChatMessage(val messageId: String, val conversationId: String, val senderId: String, val body: String, val createdAt: String)
 
 data class ContactShare(
     val shareId: String,

@@ -33,48 +33,23 @@ data class PrivacyUiState(
 sealed interface PrivacyAction {
     data object LoadMap : PrivacyAction
 
-    data class SetMapVisibility(
-        val mapVisible: Boolean,
-        val exactLocationSharingEnabled: Boolean,
-    ) : PrivacyAction
+    data class SetMapVisibility(val mapVisible: Boolean, val exactLocationSharingEnabled: Boolean) : PrivacyAction
 
-    data class LoadMatchedLocation(
-        val requestId: String,
-        val donorId: String,
-    ) : PrivacyAction
+    data class LoadMatchedLocation(val requestId: String, val donorId: String) : PrivacyAction
 
-    data class ActivateLocationShare(
-        val requestId: String,
-        val donorId: String,
-    ) : PrivacyAction
+    data class ActivateLocationShare(val requestId: String, val donorId: String) : PrivacyAction
 
-    data class RevokeLocationShare(
-        val requestId: String,
-        val donorId: String,
-    ) : PrivacyAction
+    data class RevokeLocationShare(val requestId: String, val donorId: String) : PrivacyAction
 
-    data class OpenConversation(
-        val requestId: String,
-        val donorId: String,
-    ) : PrivacyAction
+    data class OpenConversation(val requestId: String, val donorId: String) : PrivacyAction
 
-    data class SendMessage(
-        val body: String,
-    ) : PrivacyAction
+    data class SendMessage(val body: String) : PrivacyAction
 
-    data class ShareContact(
-        val field: String,
-        val value: String,
-    ) : PrivacyAction
+    data class ShareContact(val field: String, val value: String) : PrivacyAction
 
-    data class ReportParticipant(
-        val conversationId: String,
-        val reason: String,
-    ) : PrivacyAction
+    data class ReportParticipant(val conversationId: String, val reason: String) : PrivacyAction
 
-    data class BlockParticipant(
-        val conversationId: String,
-    ) : PrivacyAction
+    data class BlockParticipant(val conversationId: String) : PrivacyAction
 
     data object ClearMessage : PrivacyAction
 }
@@ -84,9 +59,7 @@ sealed interface PrivacyAction {
  * sharing. Exact coordinates are never cached: [PrivacyAction.LoadMatchedLocation]
  * re-asks the server, which re-checks the live share.
  */
-class PrivacyViewModel(
-    private val repository: PrivacyRepository,
-) : ViewModel() {
+class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() {
     private val _state = MutableStateFlow(PrivacyUiState())
     val state: StateFlow<PrivacyUiState> = _state.asStateFlow()
 
@@ -271,9 +244,7 @@ class PrivacyViewModel(
     }
 }
 
-class PrivacyViewModelFactory(
-    private val repository: PrivacyRepository,
-) : ViewModelProvider.Factory {
+class PrivacyViewModelFactory(private val repository: PrivacyRepository) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
         PrivacyViewModel(repository) as T

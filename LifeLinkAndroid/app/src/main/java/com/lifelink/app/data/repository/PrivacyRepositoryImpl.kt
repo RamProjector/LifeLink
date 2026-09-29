@@ -20,10 +20,7 @@ import kotlinx.coroutines.withContext
  * Remote-only repository for the privacy features. Nothing here caches exact
  * coordinates: every read re-asks the server, which re-checks the live share.
  */
-class PrivacyRepositoryImpl(
-    private val api: LifeLinkApi,
-    private val donorIdProvider: () -> String? = { null },
-) : PrivacyRepository {
+class PrivacyRepositoryImpl(private val api: LifeLinkApi, private val donorIdProvider: () -> String? = { null }) : PrivacyRepository {
     private fun donorId(): String =
         donorIdProvider()?.takeIf { it.isNotBlank() } ?: error("Sign in before using donor mode.")
 
@@ -37,19 +34,19 @@ class PrivacyRepositoryImpl(
                     generatedAt = body.generatedAt,
                     approximateOnly = body.approximateOnly,
                     areas =
-                        body.entries.map {
-                            DonorMapArea(
-                                areaLabel = it.areaLabel,
-                                latitude = it.latitude,
-                                longitude = it.longitude,
-                                radiusMeters = it.radiusMeters,
-                                bloodType = it.bloodType,
-                                availability = it.availability,
-                                freshnessAt = it.freshnessAt,
-                                freshnessAgeMinutes = it.freshnessAgeMinutes,
-                                isStale = it.isStale,
-                            )
-                        },
+                    body.entries.map {
+                        DonorMapArea(
+                            areaLabel = it.areaLabel,
+                            latitude = it.latitude,
+                            longitude = it.longitude,
+                            radiusMeters = it.radiusMeters,
+                            bloodType = it.bloodType,
+                            availability = it.availability,
+                            freshnessAt = it.freshnessAt,
+                            freshnessAgeMinutes = it.freshnessAgeMinutes,
+                            isStale = it.isStale,
+                        )
+                    },
                 )
             }
         }

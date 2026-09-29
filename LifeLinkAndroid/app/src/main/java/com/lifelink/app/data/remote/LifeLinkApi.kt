@@ -210,10 +210,7 @@ data class ProfileResponse(
     @SerializedName("can_donate") val canDonate: Boolean = false,
 )
 
-data class PushTokenRequest(
-    val token: String,
-    val platform: String = "android",
-)
+data class PushTokenRequest(val token: String, val platform: String = "android")
 
 data class EmergencyRequestRequest(
     @SerializedName("requester_id") val requesterId: String,
@@ -239,15 +236,15 @@ data class EmergencyRequestRequest(
                 urgency = draft.urgency.name.lowercase(),
                 responseDeadline = normalizeDeadline(draft),
                 location =
-                    LocationRequest(
-                        facilityId = draft.facility?.id,
-                        facilityName = draft.facility?.name ?: "Requester location",
-                        area = draft.facility?.area ?: "Approximate area",
-                        latitude = requireNotNull(draft.requesterLatitude) { "Requester location is required." },
-                        longitude = requireNotNull(draft.requesterLongitude) { "Requester location is required." },
-                        precisionMeters = draft.locationPrecisionMeters,
-                        verified = draft.facility?.verified == true,
-                    ),
+                LocationRequest(
+                    facilityId = draft.facility?.id,
+                    facilityName = draft.facility?.name ?: "Requester location",
+                    area = draft.facility?.area ?: "Approximate area",
+                    latitude = requireNotNull(draft.requesterLatitude) { "Requester location is required." },
+                    longitude = requireNotNull(draft.requesterLongitude) { "Requester location is required." },
+                    precisionMeters = draft.locationPrecisionMeters,
+                    verified = draft.facility?.verified == true,
+                ),
                 contactMethod = draft.contactMethod.name.lowercase(),
                 note = draft.note,
                 genuineRequestConfirmed = draft.genuineRequestConfirmed,
@@ -297,13 +294,9 @@ data class DonorMatchResponse(
     val explanation: MatchExplanationResponse? = null,
 )
 
-data class MatchExplanationResponse(
-    val factors: List<String> = emptyList(),
-)
+data class MatchExplanationResponse(val factors: List<String> = emptyList())
 
-data class ContactSelectedDonorsRequest(
-    @SerializedName("donor_ids") val donorIds: List<String>,
-)
+data class ContactSelectedDonorsRequest(@SerializedName("donor_ids") val donorIds: List<String>)
 
 data class ContactSelectedDonorsResponse(
     @SerializedName("request_id") val requestId: String,
@@ -321,13 +314,9 @@ data class RequesterContactResponse(
     @SerializedName("contact_email") val contactEmail: String? = null,
 )
 
-data class ContactStatusUpdateRequest(
-    val status: String,
-)
+data class ContactStatusUpdateRequest(val status: String)
 
-data class ContactModerationRequest(
-    val reason: String = "",
-)
+data class ContactModerationRequest(val reason: String = "")
 
 data class ContactModerationResponse(
     @SerializedName("request_id") val requestId: String,
@@ -350,11 +339,7 @@ data class RequestHistoryResponse(
     @SerializedName("contact_statuses") val contactStatuses: List<String> = emptyList(),
 )
 
-data class ManualBroadcastResponse(
-    @SerializedName("request_id") val requestId: String,
-    val status: String,
-    val reason: String,
-)
+data class ManualBroadcastResponse(@SerializedName("request_id") val requestId: String, val status: String, val reason: String)
 
 data class EmergencyRequestStatusResponse(
     @SerializedName("request_id") val requestId: String,
@@ -365,11 +350,7 @@ data class EmergencyRequestStatusResponse(
     val matches: List<DonorMatchResponse> = emptyList(),
 )
 
-data class RequestActionResponse(
-    @SerializedName("request_id") val requestId: String,
-    val status: String,
-    val reason: String? = null,
-)
+data class RequestActionResponse(@SerializedName("request_id") val requestId: String, val status: String, val reason: String? = null)
 
 data class DonorProfileRequest(
     @SerializedName("donor_id") val donorId: String,
@@ -385,9 +366,7 @@ data class DonorProfileRequest(
     @SerializedName("profile_visible") val profileVisible: Boolean = true,
 )
 
-data class DonorAvailabilityRequest(
-    val availability: String,
-)
+data class DonorAvailabilityRequest(val availability: String)
 
 data class DonorProfileResponse(
     @SerializedName("donor_id") val donorId: String,
@@ -416,9 +395,7 @@ data class DonorRequestResponse(
     val status: String,
 )
 
-data class DonorResponseRequest(
-    val response: String,
-)
+data class DonorResponseRequest(val response: String)
 
 data class DonorResponseResponse(
     @SerializedName("request_id") val requestId: String,
@@ -489,9 +466,7 @@ data class ConversationResponse(
     @SerializedName("created_at") val createdAt: String,
 )
 
-data class MessageRequest(
-    val body: String,
-)
+data class MessageRequest(val body: String)
 
 data class MessageResponse(
     @SerializedName("message_id") val messageId: String,
@@ -501,10 +476,7 @@ data class MessageResponse(
     @SerializedName("created_at") val createdAt: String,
 )
 
-data class ContactShareRequest(
-    val field: String,
-    val value: String,
-)
+data class ContactShareRequest(val field: String, val value: String)
 
 data class ContactShareResponse(
     @SerializedName("share_id") val shareId: String,
@@ -515,9 +487,7 @@ data class ContactShareResponse(
     @SerializedName("created_at") val createdAt: String,
 )
 
-data class ConversationModerationRequest(
-    val reason: String = "",
-)
+data class ConversationModerationRequest(val reason: String = "")
 
 data class ConversationModerationResponse(
     @SerializedName("conversation_id") val conversationId: String,
