@@ -10,7 +10,7 @@ plugins {
 
 android {
     namespace = "com.lifelink.app"
-    compileSdk = 36
+    compileSdk = 37
     val apiBaseUrl =
         providers
             .gradleProperty("lifelinkApiBaseUrl")
@@ -39,7 +39,7 @@ android {
     defaultConfig {
         applicationId = "com.lifelink.app"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 37
         versionCode =
             providers
                 .gradleProperty("versionCode")
