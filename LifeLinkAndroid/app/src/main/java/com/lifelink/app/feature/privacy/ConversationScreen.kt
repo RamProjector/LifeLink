@@ -104,7 +104,7 @@ fun ConversationScreen(
                     draft = ""
                 },
                 enabled = draft.isNotBlank() && !state.sending,
-            ) { Text(if (state.sending) "Sending…" else "Send") }
+            ) { Text(if (state.sending) "Sending\u2026" else "Send") }
         }
 
         Card(Modifier.fillMaxWidth()) {

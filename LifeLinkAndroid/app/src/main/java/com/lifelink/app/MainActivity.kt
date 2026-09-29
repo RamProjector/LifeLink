@@ -169,7 +169,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         if (roleLoadError == null) {
                             CircularProgressIndicator()
-                            Text("Loading your profile…")
+                            Text("Loading your profile\u2026")
                         } else {
                             Text(roleLoadError.orEmpty())
                             Button(onClick = { roleAttempt++ }) { Text("Retry") }
