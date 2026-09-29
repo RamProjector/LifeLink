@@ -298,7 +298,8 @@ class LifeLinkAccountContainer(
     val api: LifeLinkApi,
     val emergencyRequestRepository: EmergencyRequestRepository,
     val donorRepository: DonorRepository,
-    val updatesRepository: UpdatesRepository
+    val updatesRepository: UpdatesRepository,
+    val privacyRepository: PrivacyRepository
 )
 
 private fun EmergencyRequestDraft.toEntity(ownerId: String) = EmergencyRequestDraftEntity(

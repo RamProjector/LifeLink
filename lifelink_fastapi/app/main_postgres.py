@@ -44,6 +44,19 @@ from .donor_api import (
 )
 from .donor_repositories import SqlAlchemyDonorStore
 from .main import Donor
+from .privacy_api import (
+    ContactShareIn,
+    ContactShareOut,
+    ConversationOut,
+    DonorMapOut,
+    DonorMapVisibilityIn,
+    DonorMapVisibilityOut,
+    ExactLocationOut,
+    LocationShareOut,
+    MessageIn,
+    MessageOut,
+)
+from .privacy_repositories import SqlAlchemyPrivacyStore
 from .security import Principal, get_postgres_principal
 from .rate_limit import enforce_rate_limit
 
@@ -558,6 +571,7 @@ async def cancel_emergency_request(
         record = await store.set_cancelled_async(request_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Request not found") from None
+    await SqlAlchemyPrivacyStore(session).expire_shares_for_request(request_id)
     await store.record_audit_async(principal.subject, "request_cancelled", request_id)
     return RequestActionOut(
         request_id=record.request_id,
@@ -582,6 +596,7 @@ async def fulfill_emergency_request(
         record = await store.set_fulfilled_async(request_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await SqlAlchemyPrivacyStore(session).expire_shares_for_request(request_id)
     await store.record_audit_async(principal.subject, "request_fulfilled", request_id)
     return RequestActionOut(request_id=record.request_id, status=record.status, reason="Marked fulfilled by requester")
 
@@ -751,4 +766,325 @@ async def donor_response_postgres(
         donor_id=donor_id,
         response=payload.response,
         responded_at=match.responded_at,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Donor map, matched-requester-only exact location, chat, and contact sharing.
+# ---------------------------------------------------------------------------
+
+
+@app.get("/v1/donor-map", response_model=DonorMapOut)
+async def donor_map(
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Approximate donor areas with a freshness timestamp.
+
+    Never returns donor identity or exact coordinates, and never returns
+    individual pins to unauthenticated or unmatched users.
+    """
+    if principal.subject == "development-user":
+        raise HTTPException(status_code=401, detail="An authenticated user is required")
+    store = SqlAlchemyPrivacyStore(session)
+    return DonorMapOut(
+        generated_at=datetime.now(timezone.utc),
+        approximate_only=True,
+        entries=await store.donor_map_entries(),
+    )
+
+
+@app.put("/v1/donors/{donor_id}/map-visibility", response_model=DonorMapVisibilityOut)
+async def set_donor_map_visibility(
+    donor_id: str,
+    payload: DonorMapVisibilityIn,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Donor opt-in for the map and for matched-requester exact location.
+
+    Hiding from the map also revokes any live exact-location share.
+    """
+    if principal.subject != "development-user" and principal.subject != donor_id:
+        raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
+    store = SqlAlchemyPrivacyStore(session)
+    try:
+        row = await store.set_map_visibility(donor_id, payload)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Donor profile not found") from None
+    return DonorMapVisibilityOut(
+        donor_id=row.id,
+        map_visible=row.map_visible,
+        exact_location_sharing_enabled=row.exact_location_sharing_enabled,
+        map_visibility_updated_at=row.map_visibility_updated_at,
+        freshness_at=row.availability_updated_at,
+    )
+
+
+@app.post(
+    "/v1/emergency-requests/{request_id}/donors/{donor_id}/location-share",
+    response_model=LocationShareOut,
+)
+async def activate_location_share(
+    request_id: str,
+    donor_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Activate exact-location sharing for a matched donor.
+
+    Only the requester of the request may call this, and only for a donor that
+    the request actually matched and that enabled exact-location sharing.
+    """
+    request = await session.get(EmergencyRequestRow, request_id)
+    if request is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if principal.subject != "development-user" and principal.subject != request.requester_id:
+        raise HTTPException(status_code=403, detail="Not allowed to share this donor's location")
+    store = SqlAlchemyPrivacyStore(session)
+    donor = await store._donor_row(donor_id)
+    if donor is None:
+        raise HTTPException(status_code=404, detail="Donor profile not found")
+    if not await store.donor_matched_to_request(request_id, donor.id):
+        raise HTTPException(status_code=403, detail="Donor is not matched to this request")
+    if not donor.exact_location_sharing_enabled:
+        raise HTTPException(status_code=409, detail="The donor has not enabled exact location sharing")
+    enforce_rate_limit(f"location-share:{principal.subject}", 30, 300)
+    share = await store.ensure_location_share(request_id, donor.id, request.requester_id, request.response_deadline)
+    await store.record_audit_async(principal.subject, "location_share_activated", request_id, donor.id)
+    return LocationShareOut(
+        request_id=request_id,
+        donor_id=donor.id,
+        status=share.status,
+        shared_at=share.shared_at,
+        expires_at=share.expires_at,
+        revoked_at=share.revoked_at,
+    )
+
+
+@app.delete(
+    "/v1/emergency-requests/{request_id}/donors/{donor_id}/location-share",
+    response_model=LocationShareOut,
+)
+async def revoke_location_share(
+    request_id: str,
+    donor_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Donor revokes exact-location sharing for one request at any time."""
+    store = SqlAlchemyPrivacyStore(session)
+    donor = await store._donor_row(donor_id)
+    if donor is None:
+        raise HTTPException(status_code=404, detail="Donor profile not found")
+    if principal.subject != "development-user" and principal.subject != donor.id:
+        raise HTTPException(status_code=403, detail="Only the donor can revoke this share")
+    try:
+        share = await store.revoke_location_share(request_id, donor.id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Location share not found") from None
+    await store.record_audit_async(principal.subject, "location_share_revoked", request_id, donor.id)
+    return LocationShareOut(
+        request_id=request_id,
+        donor_id=donor.id,
+        status=share.status,
+        shared_at=share.shared_at,
+        expires_at=share.expires_at,
+        revoked_at=share.revoked_at,
+    )
+
+
+@app.get(
+    "/v1/emergency-requests/{request_id}/donors/{donor_id}/location",
+    response_model=ExactLocationOut,
+)
+async def matched_donor_exact_location(
+    request_id: str,
+    donor_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Exact donor location for the matched requester, while a live share exists.
+
+    Returns ``shared: false`` with null coordinates whenever the share is
+    missing, revoked, expired, or the request has ended.
+    """
+    store = SqlAlchemyPrivacyStore(session)
+    try:
+        result = await store.exact_location_for_requester(request_id, donor_id, principal.subject)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Request or donor not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not allowed to view this donor's location") from None
+    return ExactLocationOut(**result)
+
+
+@app.post(
+    "/v1/emergency-requests/{request_id}/donors/{donor_id}/conversation",
+    response_model=ConversationOut,
+)
+async def open_conversation(
+    request_id: str,
+    donor_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Open (or create) the in-app conversation for a matched request and donor.
+
+    Only the requester or the donor of the request may open it.
+    """
+    request = await session.get(EmergencyRequestRow, request_id)
+    if request is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+    store = SqlAlchemyPrivacyStore(session)
+    donor = await store._donor_row(donor_id)
+    if donor is None:
+        raise HTTPException(status_code=404, detail="Donor profile not found")
+    if principal.subject not in {request.requester_id, donor.id}:
+        raise HTTPException(status_code=403, detail="Not a participant in this request")
+    if not await store.donor_matched_to_request(request_id, donor.id):
+        raise HTTPException(status_code=403, detail="Donor is not matched to this request")
+    conversation = await store.get_or_create_conversation(request_id, donor.id, request.requester_id)
+    return ConversationOut(
+        conversation_id=conversation.id,
+        request_id=conversation.request_id,
+        donor_id=conversation.donor_id,
+        requester_id=conversation.requester_id,
+        last_message_at=conversation.last_message_at,
+        created_at=conversation.created_at,
+    )
+
+
+@app.get("/v1/conversations", response_model=list[ConversationOut])
+async def list_conversations(
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    if principal.subject == "development-user":
+        return []
+    store = SqlAlchemyPrivacyStore(session)
+    return [
+        ConversationOut(
+            conversation_id=conversation.id,
+            request_id=conversation.request_id,
+            donor_id=conversation.donor_id,
+            requester_id=conversation.requester_id,
+            last_message_at=conversation.last_message_at,
+            created_at=conversation.created_at,
+        )
+        for conversation in await store.list_conversations_for_user(principal.subject)
+    ]
+
+
+@app.get("/v1/conversations/{conversation_id}/messages", response_model=list[MessageOut])
+async def list_conversation_messages(
+    conversation_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    store = SqlAlchemyPrivacyStore(session)
+    try:
+        await store.conversation_for_participant(conversation_id, principal.subject)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Conversation not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
+    return [
+        MessageOut(
+            message_id=message.id,
+            conversation_id=message.conversation_id,
+            sender_id=message.sender_id,
+            body=message.body,
+            created_at=message.created_at,
+        )
+        for message in await store.list_messages(conversation_id)
+    ]
+
+
+@app.post("/v1/conversations/{conversation_id}/messages", response_model=MessageOut, status_code=201)
+async def send_conversation_message(
+    conversation_id: str,
+    payload: MessageIn,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    store = SqlAlchemyPrivacyStore(session)
+    try:
+        conversation = await store.conversation_for_participant(conversation_id, principal.subject)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Conversation not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
+    enforce_rate_limit(f"message:{principal.subject}", 60, 300)
+    message = await store.add_message(conversation, principal.subject, payload)
+    return MessageOut(
+        message_id=message.id,
+        conversation_id=message.conversation_id,
+        sender_id=message.sender_id,
+        body=message.body,
+        created_at=message.created_at,
+    )
+
+
+@app.get("/v1/conversations/{conversation_id}/contact-shares", response_model=list[ContactShareOut])
+async def list_contact_shares(
+    conversation_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    store = SqlAlchemyPrivacyStore(session)
+    try:
+        await store.conversation_for_participant(conversation_id, principal.subject)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Conversation not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
+    return [
+        ContactShareOut(
+            share_id=share.id,
+            conversation_id=share.conversation_id,
+            shared_by=share.shared_by,
+            field=share.field,
+            value=share.value,
+            created_at=share.created_at,
+        )
+        for share in await store.list_contact_shares(conversation_id)
+    ]
+
+
+@app.post("/v1/conversations/{conversation_id}/contact-shares", response_model=ContactShareOut, status_code=201)
+async def share_contact_details(
+    conversation_id: str,
+    payload: ContactShareIn,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Explicitly share one contact field (phone or email) and record an audit event.
+
+    Contact details are hidden by default; this is the only path that discloses
+    them, and it always writes an append-only audit record.
+    """
+    store = SqlAlchemyPrivacyStore(session)
+    try:
+        conversation = await store.conversation_for_participant(conversation_id, principal.subject)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Conversation not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
+    enforce_rate_limit(f"contact-share:{principal.subject}", 20, 300)
+    share = await store.add_contact_share(conversation, principal.subject, payload)
+    await store.record_audit_async(
+        principal.subject,
+        f"contact_share_{payload.field}",
+        conversation.request_id,
+        conversation.donor_id,
+        {"conversation_id": conversation.id},
+    )
+    return ContactShareOut(
+        share_id=share.id,
+        conversation_id=share.conversation_id,
+        shared_by=share.shared_by,
+        field=share.field,
+        value=share.value,
+        created_at=share.created_at,
     )
