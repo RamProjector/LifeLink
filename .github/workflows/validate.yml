@@ -22,7 +22,7 @@ jobs:
       run:
         working-directory: lifelink_fastapi
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -43,7 +43,7 @@ jobs:
       run:
         working-directory: LifeLinkAndroid
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Spotless ratchets against origin/main; a shallow checkout has no such
           # ref, so fetch enough history for the ratchet to resolve.
@@ -79,5 +79,5 @@ jobs:
   dockerfile:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker build -f lifelink_fastapi/Dockerfile lifelink_fastapi
