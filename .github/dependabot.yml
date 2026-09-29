@@ -1,0 +1,49 @@
+version: 2
+updates:
+  # Android / Kotlin dependencies declared in LifeLinkAndroid/**/*.gradle.kts
+  - package-ecosystem: "gradle"
+    directory: "/LifeLinkAndroid"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "android"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Batch the noisy Compose/AndroidX bumps into one PR.
+      androidx:
+        patterns:
+          - "androidx.*"
+      kotlin:
+        patterns:
+          - "org.jetbrains.kotlin*"
+          - "com.google.devtools.ksp"
+
+  # Python backend dependencies
+  - package-ecosystem: "pip"
+    directory: "/lifelink_fastapi"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # GitHub Actions used by the workflows in .github/workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "chore(ci)"
