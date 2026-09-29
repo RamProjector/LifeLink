@@ -117,3 +117,19 @@ class ContactShareOut(BaseModel):
     field: str
     value: str
     created_at: datetime
+
+
+class ConversationModerationIn(BaseModel):
+    reason: str = Field(default="", max_length=500)
+
+
+class ConversationModerationOut(BaseModel):
+    """Result of a conversation-scoped report or block.
+
+    Either participant of a conversation may report or block the other, so this
+    is not tied to the requester-only contact endpoints.
+    """
+
+    conversation_id: str
+    action: str
+    accepted: bool = True

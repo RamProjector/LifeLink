@@ -19,6 +19,7 @@ from .db_models import (
     AuditEvent,
     ContactShare,
     Conversation,
+    ConversationBlock,
     Donor as DonorRow,
     DonorLocationShare,
     EmergencyRequest as RequestRow,
@@ -47,10 +48,12 @@ _PHONE_RE = re.compile(r"^\+?[0-9][0-9\s().-]{5,}$")
 
 
 def _enum_value(value):
+    """Return the raw value of an enum member, or the value itself if not an enum."""
     return getattr(value, "value", value)
 
 
 def _as_utc(value: datetime) -> datetime:
+    """Return ``value`` as a timezone-aware UTC datetime, assuming UTC if naive."""
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
@@ -67,6 +70,7 @@ def _coarsen(value: float) -> float:
 
 class SqlAlchemyPrivacyStore:
     def __init__(self, session: AsyncSession) -> None:
+        """Bind the store to an open async SQLAlchemy session."""
         self.session = session
 
     # ------------------------------------------------------------------ map
@@ -109,6 +113,12 @@ class SqlAlchemyPrivacyStore:
         return entries
 
     async def set_map_visibility(self, donor_id: str, payload: DonorMapVisibilityIn) -> DonorRow:
+        """Persist a donor's map opt-in and revoke live shares when hiding.
+
+        Turning the map off (or disabling exact-location sharing) immediately
+        revokes every active location share for the donor, so hiding is real
+        rather than cosmetic.
+        """
         row = await self._donor_row(donor_id)
         if row is None:
             raise KeyError(donor_id)
@@ -171,6 +181,10 @@ class SqlAlchemyPrivacyStore:
         return share
 
     async def revoke_location_share(self, request_id: str, donor_id: str) -> DonorLocationShare:
+        """Mark a donor's location share for a request as revoked.
+
+        Raises ``KeyError`` when no share exists for the (request, donor) pair.
+        """
         share = await self.session.scalar(
             select(DonorLocationShare).where(
                 DonorLocationShare.request_id == request_id,
@@ -304,6 +318,11 @@ class SqlAlchemyPrivacyStore:
     async def get_or_create_conversation(
         self, request_id: str, donor_id: str, requester_id: str
     ) -> Conversation:
+        """Return the conversation for a matched (request, donor), creating it once.
+
+        Raises ``KeyError`` when the donor does not exist and ``PermissionError``
+        when the donor is not matched to the request.
+        """
         donor = await self._donor_row(donor_id)
         if donor is None:
             raise KeyError(donor_id)
@@ -327,14 +346,24 @@ class SqlAlchemyPrivacyStore:
         return conversation
 
     async def conversation_for_participant(self, conversation_id: str, user_id: str) -> Conversation:
+        """Return the conversation if ``user_id`` is one of its two participants.
+
+        ``conversation.donor_id`` is the donor *row* id, which may differ from the
+        donor's owning user id, so the donor is accepted under either identity.
+        Raises ``KeyError`` when the conversation does not exist and
+        ``PermissionError`` when the caller is not a participant.
+        """
         conversation = await self.session.get(Conversation, conversation_id)
         if conversation is None:
             raise KeyError(conversation_id)
-        if user_id not in {conversation.requester_id, conversation.donor_id}:
+        donor = await self.session.get(DonorRow, conversation.donor_id)
+        donor_user_id = donor.user_id if donor and donor.user_id else conversation.donor_id
+        if user_id not in {conversation.requester_id, conversation.donor_id, donor_user_id}:
             raise PermissionError("Not a participant in this conversation")
         return conversation
 
     async def list_conversations_for_user(self, user_id: str) -> list[Conversation]:
+        """List a user's conversations, newest activity first."""
         rows = await self.session.scalars(
             select(Conversation)
             .where((Conversation.requester_id == user_id) | (Conversation.donor_id == user_id))
@@ -343,6 +372,7 @@ class SqlAlchemyPrivacyStore:
         return list(rows.all())
 
     async def list_messages(self, conversation_id: str) -> list[Message]:
+        """List a conversation's messages in chronological order."""
         rows = await self.session.scalars(
             select(Message)
             .where(Message.conversation_id == conversation_id)
@@ -351,6 +381,10 @@ class SqlAlchemyPrivacyStore:
         return list(rows.all())
 
     async def add_message(self, conversation: Conversation, sender_id: str, payload: MessageIn) -> Message:
+        """Persist a message and bump the conversation's activity timestamps.
+
+        Raises ``ValueError`` when the trimmed body is empty.
+        """
         body = payload.body.strip()
         if not body:
             raise ValueError("Message body cannot be empty")
@@ -371,6 +405,10 @@ class SqlAlchemyPrivacyStore:
     async def add_contact_share(
         self, conversation: Conversation, shared_by: str, payload: ContactShareIn
     ) -> ContactShare:
+        """Record an explicit phone/email disclosure inside a conversation.
+
+        Raises ``ValueError`` when the value is not a plausible email or phone.
+        """
         value = payload.value.strip()
         if payload.field == "email" and not _EMAIL_RE.match(value):
             raise ValueError("Enter a valid email address")
@@ -391,12 +429,84 @@ class SqlAlchemyPrivacyStore:
         return share
 
     async def list_contact_shares(self, conversation_id: str) -> list[ContactShare]:
+        """List a conversation's contact disclosures in chronological order."""
         rows = await self.session.scalars(
             select(ContactShare)
             .where(ContactShare.conversation_id == conversation_id)
             .order_by(ContactShare.created_at.asc())
         )
         return list(rows.all())
+
+    # ---------------------------------------------------------------- blocks
+    async def other_participant_user_id(self, conversation: Conversation, user_id: str) -> str | None:
+        """The other participant's user id, accepting either donor identity.
+
+        ``conversation.donor_id`` is the donor row id, which may differ from the
+        owning user id, so both are accepted as the donor's identity.
+        """
+        donor = await self.session.get(DonorRow, conversation.donor_id)
+        donor_user_id = donor.user_id if donor and donor.user_id else conversation.donor_id
+        if user_id == conversation.requester_id:
+            return donor_user_id
+        if user_id in {donor_user_id, conversation.donor_id}:
+            return conversation.requester_id
+        return None
+
+    async def block_participant(
+        self, conversation: Conversation, blocker_id: str, blocked_id: str, reason: str = ""
+    ) -> ConversationBlock:
+        """Persist an enforceable block. Idempotent for the same (blocker, blocked) pair."""
+        existing = await self.session.scalar(
+            select(ConversationBlock).where(
+                ConversationBlock.conversation_id == conversation.id,
+                ConversationBlock.blocker_id == blocker_id,
+                ConversationBlock.blocked_id == blocked_id,
+            )
+        )
+        if existing is not None:
+            return existing
+        block = ConversationBlock(
+            id=f"block_{uuid4().hex}",
+            conversation_id=conversation.id,
+            request_id=conversation.request_id,
+            blocker_id=blocker_id,
+            blocked_id=blocked_id,
+            reason=reason,
+        )
+        self.session.add(block)
+        await self.session.commit()
+        return block
+
+    async def is_blocked(self, conversation: Conversation, sender_id: str) -> bool:
+        """True when ``sender_id`` has been blocked by the other participant.
+
+        A block is one-way: only the *blocked* participant is silenced. The
+        sender must therefore be the blocked party and must not be the blocker,
+        otherwise a requester who blocks a donor would also lock themselves out
+        of messaging and contact sharing. The donor may be identified by either
+        the donor row id or the owning user id, so every identity of the sender
+        is checked against the stored block.
+        """
+        donor = await self.session.get(DonorRow, conversation.donor_id)
+        donor_user_id = donor.user_id if donor and donor.user_id else conversation.donor_id
+        # Resolve the sender's own identities. A block silences the sender only
+        # when the sender is the *blocked* party, so the check must be scoped to
+        # the sender's identities rather than to both participants.
+        if sender_id == conversation.requester_id:
+            sender_identities = {conversation.requester_id}
+        elif sender_id in {conversation.donor_id, donor_user_id}:
+            sender_identities = {conversation.donor_id, donor_user_id}
+        else:
+            return False
+        block = await self.session.scalar(
+            select(ConversationBlock)
+            .where(
+                ConversationBlock.conversation_id == conversation.id,
+                ConversationBlock.blocked_id.in_(sender_identities),
+            )
+            .limit(1)
+        )
+        return block is not None
 
     # ------------------------------------------------------------- internals
     async def record_audit_async(
@@ -407,6 +517,7 @@ class SqlAlchemyPrivacyStore:
         donor_id: str | None = None,
         metadata: dict | None = None,
     ) -> None:
+        """Append an audit event and commit it immediately."""
         self.session.add(AuditEvent(
             id=f"audit_{uuid4().hex}",
             actor_id=actor_id,
@@ -418,6 +529,7 @@ class SqlAlchemyPrivacyStore:
         await self.session.commit()
 
     async def donor_matched_to_request(self, request_id: str, donor_row_id: str) -> bool:
+        """True when the donor row is one of the request's matches."""
         match = await self.session.scalar(
             select(RequestMatch).where(
                 RequestMatch.request_id == request_id,
@@ -431,6 +543,7 @@ class SqlAlchemyPrivacyStore:
         return await self._donor_row(donor_id)
 
     async def _donor_row(self, donor_id: str) -> DonorRow | None:
+        """Resolve a donor row by primary key, falling back to the owning user id."""
         row = await self.session.get(DonorRow, donor_id)
         if row is not None:
             return row
@@ -439,6 +552,7 @@ class SqlAlchemyPrivacyStore:
         )
 
     async def _revoke_all_shares_for_donor(self, donor_row_id: str, now: datetime) -> None:
+        """Revoke every active location share for a donor (used when hiding)."""
         shares = await self.session.scalars(
             select(DonorLocationShare).where(
                 DonorLocationShare.donor_id == donor_row_id,

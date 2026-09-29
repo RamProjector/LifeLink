@@ -1,7 +1,7 @@
 package com.lifelink.app.data.repository
 
-import com.lifelink.app.data.remote.ContactModerationRequest
 import com.lifelink.app.data.remote.ContactShareRequest
+import com.lifelink.app.data.remote.ConversationModerationRequest
 import com.lifelink.app.data.remote.DonorMapVisibilityRequest
 import com.lifelink.app.data.remote.LifeLinkApi
 import com.lifelink.app.data.remote.MessageRequest
@@ -20,58 +20,58 @@ import kotlinx.coroutines.withContext
  * Remote-only repository for the privacy features. Nothing here caches exact
  * coordinates: every read re-asks the server, which re-checks the live share.
  */
-class PrivacyRepositoryImpl(
-    private val api: LifeLinkApi,
-    private val donorIdProvider: () -> String? = { null }
-) : PrivacyRepository {
-
+class PrivacyRepositoryImpl(private val api: LifeLinkApi, private val donorIdProvider: () -> String? = { null }) : PrivacyRepository {
     private fun donorId(): String =
         donorIdProvider()?.takeIf { it.isNotBlank() } ?: error("Sign in before using donor mode.")
 
-    override suspend fun donorMap(): Result<DonorMap> = withContext(Dispatchers.IO) {
-        runCatching {
-            val response = api.donorMap()
-            check(response.isSuccessful) { "Donor map could not be loaded (${response.code()})." }
-            val body = checkNotNull(response.body()) { "The server returned an empty donor map." }
-            DonorMap(
-                generatedAt = body.generatedAt,
-                approximateOnly = body.approximateOnly,
-                areas = body.entries.map {
-                    DonorMapArea(
-                        areaLabel = it.areaLabel,
-                        latitude = it.latitude,
-                        longitude = it.longitude,
-                        radiusMeters = it.radiusMeters,
-                        bloodType = it.bloodType,
-                        availability = it.availability,
-                        freshnessAt = it.freshnessAt,
-                        freshnessAgeMinutes = it.freshnessAgeMinutes,
-                        isStale = it.isStale
-                    )
-                }
-            )
+    override suspend fun donorMap(): Result<DonorMap> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response = api.donorMap()
+                check(response.isSuccessful) { "Donor map could not be loaded (${response.code()})." }
+                val body = checkNotNull(response.body()) { "The server returned an empty donor map." }
+                DonorMap(
+                    generatedAt = body.generatedAt,
+                    approximateOnly = body.approximateOnly,
+                    areas =
+                    body.entries.map {
+                        DonorMapArea(
+                            areaLabel = it.areaLabel,
+                            latitude = it.latitude,
+                            longitude = it.longitude,
+                            radiusMeters = it.radiusMeters,
+                            bloodType = it.bloodType,
+                            availability = it.availability,
+                            freshnessAt = it.freshnessAt,
+                            freshnessAgeMinutes = it.freshnessAgeMinutes,
+                            isStale = it.isStale,
+                        )
+                    },
+                )
+            }
         }
-    }
 
     override suspend fun setMapVisibility(
         mapVisible: Boolean,
-        exactLocationSharingEnabled: Boolean
-    ): Result<DonorMapVisibility> = withContext(Dispatchers.IO) {
-        runCatching {
-            val response = api.setDonorMapVisibility(
-                donorId(),
-                DonorMapVisibilityRequest(mapVisible, exactLocationSharingEnabled)
-            )
-            check(response.isSuccessful) { "Map visibility could not be updated (${response.code()})." }
-            val body = checkNotNull(response.body()) { "The server returned an empty visibility response." }
-            DonorMapVisibility(
-                mapVisible = body.mapVisible,
-                exactLocationSharingEnabled = body.exactLocationSharingEnabled,
-                updatedAt = body.mapVisibilityUpdatedAt,
-                freshnessAt = body.freshnessAt
-            )
+        exactLocationSharingEnabled: Boolean,
+    ): Result<DonorMapVisibility> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response =
+                    api.setDonorMapVisibility(
+                        donorId(),
+                        DonorMapVisibilityRequest(mapVisible, exactLocationSharingEnabled),
+                    )
+                check(response.isSuccessful) { "Map visibility could not be updated (${response.code()})." }
+                val body = checkNotNull(response.body()) { "The server returned an empty visibility response." }
+                DonorMapVisibility(
+                    mapVisible = body.mapVisible,
+                    exactLocationSharingEnabled = body.exactLocationSharingEnabled,
+                    updatedAt = body.mapVisibilityUpdatedAt,
+                    freshnessAt = body.freshnessAt,
+                )
+            }
         }
-    }
 
     override suspend fun activateLocationShare(requestId: String, donorId: String): Result<Unit> =
         withContext(Dispatchers.IO) {
@@ -104,7 +104,7 @@ class PrivacyRepositoryImpl(
                     precisionMeters = body.precisionMeters,
                     freshnessAt = body.freshnessAt,
                     expiresAt = body.expiresAt,
-                    reason = body.reason
+                    reason = body.reason,
                 )
             }
         }
@@ -121,7 +121,7 @@ class PrivacyRepositoryImpl(
                     donorId = body.donorId,
                     requesterId = body.requesterId,
                     lastMessageAt = body.lastMessageAt,
-                    createdAt = body.createdAt
+                    createdAt = body.createdAt,
                 )
             }
         }
@@ -168,18 +168,21 @@ class PrivacyRepositoryImpl(
             }
         }
 
-    override suspend fun reportParticipant(requestId: String, donorId: String, reason: String): Result<Unit> =
+    // Report and Block are conversation-scoped so either participant (requester
+    // or matched donor) can use them; the requester-only contact endpoints would
+    // return 403 for a donor.
+    override suspend fun reportParticipant(conversationId: String, reason: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val response = api.reportContact(requestId, donorId, ContactModerationRequest(reason.trim()))
+                val response = api.reportConversation(conversationId, ConversationModerationRequest(reason.trim()))
                 check(response.isSuccessful) { "Report could not be submitted (${response.code()})." }
             }
         }
 
-    override suspend fun blockParticipant(requestId: String, donorId: String): Result<Unit> =
+    override suspend fun blockParticipant(conversationId: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val response = api.blockContact(requestId, donorId)
+                val response = api.blockConversation(conversationId, ConversationModerationRequest())
                 check(response.isSuccessful) { "Block could not be submitted (${response.code()})." }
             }
         }
