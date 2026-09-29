@@ -46,7 +46,7 @@ curl -sS -X PUT \
   -d '{
     "required_status_checks": {
       "strict": true,
-      "contexts": ["backend", "android", "dockerfile", "gitleaks (secret scanning)"]
+      "contexts": ["backend", "android", "dockerfile", "gitleaks (secret scanning)", "Validate and build debug APK", "Capture Android visual evidence"]
     },
     "enforce_admins": true,
     "required_pull_request_reviews": {
