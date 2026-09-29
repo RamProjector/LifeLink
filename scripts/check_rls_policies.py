@@ -50,6 +50,19 @@ BACKEND_ONLY_TABLES: dict[str, str] = {
     "conversation_blocks": "Block state; the API enforces participant membership.",
 }
 
+# SQL comments must be removed before matching: a commented-out
+# `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` or `CREATE POLICY` is not a real
+# protection and must not satisfy the check.
+_SQL_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+_SQL_LINE_COMMENT_RE = re.compile(r"--[^\n]*")
+
+
+def _strip_sql_comments(sql: str) -> str:
+    """Remove SQL block and line comments so only executable text is matched."""
+    without_blocks = _SQL_BLOCK_COMMENT_RE.sub(" ", sql)
+    return _SQL_LINE_COMMENT_RE.sub("", without_blocks)
+
+
 CREATE_TABLE_RE = re.compile(
     r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)",
     re.IGNORECASE,
@@ -65,12 +78,22 @@ CREATE_POLICY_RE = re.compile(
 
 
 def _read_sql() -> str:
+    """Read every migration, with SQL comments stripped.
+
+    Comments are removed so a commented-out RLS statement cannot be mistaken
+    for an enforced one.
+    """
     if not SQL_DIR.is_dir():
         raise SystemExit(f"SQL directory not found: {SQL_DIR}")
-    return "\n".join(path.read_text(encoding="utf-8") for path in sorted(SQL_DIR.glob("*.sql")))
+    raw = "\n".join(path.read_text(encoding="utf-8") for path in sorted(SQL_DIR.glob("*.sql")))
+    return _strip_sql_comments(raw)
 
 
 def main() -> int:
+    """Check every table for an RLS policy or a documented exemption.
+
+    Returns 0 when every table has an explicit decision, 1 otherwise.
+    """
     sql = _read_sql()
 
     tables = {name.lower() for name in CREATE_TABLE_RE.findall(sql)}
