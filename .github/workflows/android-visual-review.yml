@@ -135,6 +135,13 @@ jobs:
             echo "::error::Emulator did not become ready within 120 seconds after the emulator action returned."
             exit 2
           fi
+          # The cached AVD snapshot may already contain the app installed by a
+          # previous run, signed with that runner's debug keystore. The freshly
+          # built APK is signed with this runner's keystore, so installing over
+          # the stale package fails with INSTALL_FAILED_UPDATE_INCOMPATIBLE.
+          # Uninstall first so the install is always clean.
+          adb -s "$device_serial" uninstall com.lifelink.app >/dev/null 2>&1 || true
+          adb -s "$device_serial" uninstall com.lifelink.app.test >/dev/null 2>&1 || true
           cd "$GITHUB_WORKSPACE/LifeLinkAndroid" || exit 1
           echo "Starting connected Android instrumentation tests."
           ./gradlew connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --stacktrace
