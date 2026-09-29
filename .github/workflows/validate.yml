@@ -44,6 +44,10 @@ jobs:
         working-directory: LifeLinkAndroid
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Spotless ratchets against origin/main; a shallow checkout has no such
+          # ref, so fetch enough history for the ratchet to resolve.
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -54,6 +58,8 @@ jobs:
           packages: 'platforms;android-35 build-tools;35.0.0'
       - name: Make Gradle executable
         run: chmod +x ./gradlew
+      - name: Ensure the Spotless ratchet ref exists
+        run: git rev-parse --verify --quiet origin/main || git fetch --no-tags origin main:refs/remotes/origin/main
       - name: Run Android quality gate (lint, detekt, spotless, unit tests, debug build)
         # Mirrors the committed pre-push hook (.githooks/pre-push) so a local
         # pass means a CI pass. `lint` covers debug + release; detekt and

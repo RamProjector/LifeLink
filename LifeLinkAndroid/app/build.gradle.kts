@@ -11,28 +11,41 @@ plugins {
 android {
     namespace = "com.lifelink.app"
     compileSdk = 35
-    val apiBaseUrl = providers.gradleProperty("lifelinkApiBaseUrl")
-        .orElse(providers.environmentVariable("LIFELINK_API_BASE_URL"))
-        .orElse("https://lifelink-api-uzje.onrender.com/")
-        .get()
-    val apiToken = providers.gradleProperty("lifelinkApiToken")
-        .orElse(providers.environmentVariable("LIFELINK_API_TOKEN"))
-        .orElse("development-user")
-        .get()
-    val supabaseUrl = providers.gradleProperty("supabaseUrl")
-        .orElse(providers.environmentVariable("SUPABASE_URL"))
-        .orElse("")
-        .get()
-    val supabasePublishableKey = providers.gradleProperty("supabasePublishableKey")
-        .orElse(providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY"))
-        .orElse("")
-        .get()
+    val apiBaseUrl =
+        providers
+            .gradleProperty("lifelinkApiBaseUrl")
+            .orElse(providers.environmentVariable("LIFELINK_API_BASE_URL"))
+            .orElse("https://lifelink-api-uzje.onrender.com/")
+            .get()
+    val apiToken =
+        providers
+            .gradleProperty("lifelinkApiToken")
+            .orElse(providers.environmentVariable("LIFELINK_API_TOKEN"))
+            .orElse("development-user")
+            .get()
+    val supabaseUrl =
+        providers
+            .gradleProperty("supabaseUrl")
+            .orElse(providers.environmentVariable("SUPABASE_URL"))
+            .orElse("")
+            .get()
+    val supabasePublishableKey =
+        providers
+            .gradleProperty("supabasePublishableKey")
+            .orElse(providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY"))
+            .orElse("")
+            .get()
 
     defaultConfig {
         applicationId = "com.lifelink.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = providers.gradleProperty("versionCode").orElse("1").get().toInt()
+        versionCode =
+            providers
+                .gradleProperty("versionCode")
+                .orElse("1")
+                .get()
+                .toInt()
         versionName = providers.gradleProperty("versionName").orElse("1.0.0").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -49,12 +62,13 @@ android {
             val stableKeyAlias = providers.environmentVariable("LIFELINK_DEBUG_KEY_ALIAS").orNull
             val stableKeyPassword = providers.environmentVariable("LIFELINK_DEBUG_KEY_PASSWORD").orNull
             if (stableKeystore.exists() && stableStorePassword != null && stableKeyAlias != null && stableKeyPassword != null) {
-                signingConfig = signingConfigs.create("stableDebug") {
-                    storeFile = stableKeystore
-                    storePassword = stableStorePassword
-                    keyAlias = stableKeyAlias
-                    keyPassword = stableKeyPassword
-                }
+                signingConfig =
+                    signingConfigs.create("stableDebug") {
+                        storeFile = stableKeystore
+                        storePassword = stableStorePassword
+                        keyAlias = stableKeyAlias
+                        keyPassword = stableKeyPassword
+                    }
             }
         }
         release {
@@ -75,26 +89,31 @@ android {
     testOptions { unitTests.isIncludeAndroidResources = true }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        jniLibs.keepDebugSymbols += setOf(
-            "**/libandroidx.graphics.path.so",
-            "**/libdatastore_shared_counter.so",
-            "**/libmaplibre.so"
-        )
+        jniLibs.keepDebugSymbols +=
+            setOf(
+                "**/libandroidx.graphics.path.so",
+                "**/libdatastore_shared_counter.so",
+                "**/libmaplibre.so",
+            )
     }
 
     // Android Lint is a hard gate: a lint error fails the build. Warnings are
-    // promoted to errors as well, but only once a baseline exists — the
-    // pre-existing findings are recorded in `lint-baseline.xml` so only NEW
-    // warnings fail. Generate/refresh the baseline with
-    // `./gradlew :app:updateLintBaseline` and review the diff; it should only
-    // ever shrink. Until the baseline is committed, errors still fail the build
-    // but warnings do not, so enabling this cannot break CI on legacy code.
+    // promoted to errors only once `lint-baseline.xml` is committed, so turning
+    // this on cannot break the build on the pre-existing tree. Generate the
+    // baseline with `./gradlew :app:updateLintBaseline` and review the diff; it
+    // should only ever shrink.
+    //
+    // The baseline must only be *configured* when the file exists: pointing
+    // `baseline` at a missing path makes Lint write a new baseline and abort the
+    // build ("Aborting build since new baseline file was created").
     val lintBaseline = file("lint-baseline.xml")
     lint {
         abortOnError = true
         warningsAsErrors = lintBaseline.exists()
         checkReleaseBuilds = true
-        baseline = lintBaseline
+        if (lintBaseline.exists()) {
+            baseline = lintBaseline
+        }
         // Keep the report machine-readable for CI annotations.
         xmlReport = true
         htmlReport = true
@@ -114,16 +133,36 @@ detekt {
         files(
             "src/main/java",
             "src/test/java",
-            "src/androidTest/java"
-        )
+            "src/androidTest/java",
+        ),
     )
 }
 
 // Spotless: formatting via ktlint. `ratchetFrom` limits the check to files that
 // differ from the base branch, so the existing tree is not reformatted in one
 // giant diff while every new or changed file must be clean.
+//
+// The ratchet reference must exist locally: a shallow CI checkout has no
+// `origin/main` ref, and Spotless fails the build with "No such reference
+// 'origin/main'". Fall back to the current HEAD (which makes the ratchet a
+// no-op) when the ref is absent, so the gate never breaks on a shallow clone.
 spotless {
-    ratchetFrom = "origin/main"
+    val ratchetRef = "origin/main"
+    val hasRatchetRef =
+        try {
+            val probe =
+                providers
+                    .exec {
+                        commandLine("git", "rev-parse", "--verify", "--quiet", ratchetRef)
+                        isIgnoreExitValue = true
+                    }
+            probe.standardOutput.asText
+                .get()
+                .isNotBlank()
+        } catch (e: Exception) {
+            false
+        }
+    ratchetFrom = if (hasRatchetRef) ratchetRef else "HEAD"
     kotlin {
         target("src/**/*.kt")
         targetExclude("**/build/**")
@@ -131,8 +170,8 @@ spotless {
             mapOf(
                 "max_line_length" to "140",
                 // Compose @Composable functions are PascalCase by convention.
-                "ktlint_standard_function-naming" to "disabled"
-            )
+                "ktlint_standard_function-naming" to "disabled",
+            ),
         )
     }
     kotlinGradle {
