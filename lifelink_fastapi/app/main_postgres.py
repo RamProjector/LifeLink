@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import logging
 from contextlib import asynccontextmanager
@@ -10,7 +11,7 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -72,10 +73,8 @@ async def lifespan(_: FastAPI):
         yield
     finally:
         sweeper.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await sweeper
-        except asyncio.CancelledError:
-            pass
 
 
 async def _expire_stale_location_shares_forever() -> None:
@@ -227,7 +226,7 @@ async def upsert_profile(
         raise HTTPException(status_code=401, detail="An authenticated user is required")
     # An unverified account must never be persisted or served as a real profile.
     require_verified_email(principal)
-    enforce_rate_limit(f"profile-upsert:{principal.subject}", 20, 300)
+    await enforce_rate_limit(f"profile-upsert:{principal.subject}", 20, 300)
     row = await session.get(LifeLinkProfile, principal.subject)
     if row is None:
         row = LifeLinkProfile(
@@ -294,7 +293,29 @@ async def register_push_token(
 
 @app.get("/health")
 async def health() -> dict[str, str]:
+    """Liveness probe: the process is up and serving."""
     return {"status": "ok", "service": "lifelink-matching-postgres"}
+
+
+@app.get("/health/ready")
+async def health_ready(session: AsyncSession = Depends(get_db_session)) -> JSONResponse:
+    """Readiness probe: the process can actually serve traffic.
+
+    Verifies the database answers a trivial query. Returns 503 when it does
+    not, so a load balancer stops routing to a broken instance instead of
+    keeping it in rotation behind a shallow 200.
+    """
+    try:
+        await session.execute(text("SELECT 1"))
+    except Exception:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable", "service": "lifelink-matching-postgres", "database": "unreachable"},
+        )
+    return JSONResponse(
+        status_code=200,
+        content={"status": "ok", "service": "lifelink-matching-postgres", "database": "ok"},
+    )
 
 
 @app.get("/auth/confirmed", response_class=HTMLResponse)
@@ -322,7 +343,7 @@ async def create_emergency_request_postgres(
     if principal.subject != "development-user" and principal.subject != payload.requester_id:
         raise HTTPException(status_code=403, detail="requester_id must match the authenticated user")
     require_verified_email(principal)
-    enforce_rate_limit(f"request-create:{principal.subject}", 5, 300)
+    await enforce_rate_limit(f"request-create:{principal.subject}", 5, 300)
     if idempotency_header and idempotency_header != payload.idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key header must match payload.idempotency_key.")
 
@@ -419,7 +440,7 @@ async def contact_selected_donors_postgres(
         raise HTTPException(status_code=403, detail="Not allowed to contact donors for this request")
     if principal.subject in payload.donor_ids:
         raise HTTPException(status_code=403, detail="You cannot contact your own donor profile")
-    enforce_rate_limit(f"contact-request:{principal.subject}", 20, 300)
+    await enforce_rate_limit(f"contact-request:{principal.subject}", 20, 300)
     try:
         _, newly_contacted, donors_to_notify = await store.contact_selected_donors_async(request_id, payload.donor_ids)
     except KeyError:
@@ -470,9 +491,9 @@ async def update_requester_contact_status(
         raise HTTPException(status_code=404, detail="Request not found")
     if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
         raise HTTPException(status_code=403, detail="Not allowed to update this contact")
-    enforce_rate_limit(f"contact-status:{principal.subject}", 30, 300)
+    await enforce_rate_limit(f"contact-status:{principal.subject}", 30, 300)
     try:
-        item = await store.update_contact_status_async(request_id, donor_id, record.payload.requester_id, payload.status)
+        await store.update_contact_status_async(request_id, donor_id, record.payload.requester_id, payload.status)
     except KeyError:
         raise HTTPException(status_code=404, detail="Contact not found") from None
     except ValueError as exc:
@@ -498,7 +519,7 @@ async def report_requester_contact(
     contacts = await store.requester_contacts_async(request_id, record.payload.requester_id)
     if not any(contact["donor_id"] == donor_id for contact in contacts):
         raise HTTPException(status_code=404, detail="Contact not found")
-    enforce_rate_limit(f"contact-report:{principal.subject}", 10, 300)
+    await enforce_rate_limit(f"contact-report:{principal.subject}", 10, 300)
     await store.record_audit_async(principal.subject, "contact_reported", request_id, donor_id, {"reason": payload.reason})
     return ContactModerationOut(request_id=request_id, donor_id=donor_id, action="reported")
 
@@ -519,7 +540,7 @@ async def block_requester_contact(
     contacts = await store.requester_contacts_async(request_id, record.payload.requester_id)
     if not any(contact["donor_id"] == donor_id for contact in contacts):
         raise HTTPException(status_code=404, detail="Contact not found")
-    enforce_rate_limit(f"contact-block:{principal.subject}", 10, 300)
+    await enforce_rate_limit(f"contact-block:{principal.subject}", 10, 300)
     await store.record_audit_async(principal.subject, "contact_blocked", request_id, donor_id)
     return ContactModerationOut(request_id=request_id, donor_id=donor_id, action="blocked")
 
@@ -536,7 +557,7 @@ async def manual_broadcast_postgres(
         raise HTTPException(status_code=404, detail="Request not found")
     if principal.subject != "development-user" and principal.subject != record.payload.requester_id:
         raise HTTPException(status_code=403, detail="Not allowed to broadcast this request")
-    enforce_rate_limit(f"manual-broadcast:{principal.subject}", 5, 300)
+    await enforce_rate_limit(f"manual-broadcast:{principal.subject}", 5, 300)
     try:
         record = await store.set_manual_broadcast_async(request_id)
     except KeyError:
@@ -923,7 +944,7 @@ async def activate_location_share(
         raise HTTPException(status_code=403, detail="Donor is not matched to this request")
     if not donor.exact_location_sharing_enabled:
         raise HTTPException(status_code=409, detail="The donor has not enabled exact location sharing")
-    enforce_rate_limit(f"location-share:{principal.subject}", 30, 300)
+    await enforce_rate_limit(f"location-share:{principal.subject}", 30, 300)
     share = await store.ensure_location_share(request_id, donor.id, request.requester_id, request.response_deadline)
     await store.record_audit_async(principal.subject, "location_share_activated", request_id, donor.id)
     # Tell the donor their exact location is now visible to the matched requester,
@@ -1100,7 +1121,7 @@ async def send_conversation_message(
         raise HTTPException(status_code=404, detail="Conversation not found") from None
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
-    enforce_rate_limit(f"message:{principal.subject}", 60, 300)
+    await enforce_rate_limit(f"message:{principal.subject}", 60, 300)
     # A block is enforceable state: a blocked participant cannot send messages,
     # and no push is delivered to the person who blocked them.
     #
@@ -1177,7 +1198,7 @@ async def share_contact_details(
         raise HTTPException(status_code=404, detail="Conversation not found") from None
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
-    enforce_rate_limit(f"contact-share:{principal.subject}", 20, 300)
+    await enforce_rate_limit(f"contact-share:{principal.subject}", 20, 300)
     if await store.is_blocked(conversation, principal.subject):
         raise HTTPException(status_code=403, detail="You cannot share contact details with this person")
     try:
@@ -1226,7 +1247,7 @@ async def report_conversation_participant(
         raise HTTPException(status_code=404, detail="Conversation not found") from None
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
-    enforce_rate_limit(f"conversation-report:{principal.subject}", 10, 300)
+    await enforce_rate_limit(f"conversation-report:{principal.subject}", 10, 300)
     other = await store.other_participant_user_id(conversation, principal.subject)
     await store.record_audit_async(
         principal.subject,
@@ -1258,7 +1279,7 @@ async def block_conversation_participant(
         raise HTTPException(status_code=404, detail="Conversation not found") from None
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
-    enforce_rate_limit(f"conversation-block:{principal.subject}", 10, 300)
+    await enforce_rate_limit(f"conversation-block:{principal.subject}", 10, 300)
     other = await store.other_participant_user_id(conversation, principal.subject)
     if other is None:
         raise HTTPException(status_code=400, detail="No other participant to block")

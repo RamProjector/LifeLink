@@ -12,22 +12,21 @@ from __future__ import annotations
 import asyncio
 import tempfile
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
 pgserver = pytest.importorskip("pgserver")
 
-import httpx  # noqa: E402
-from sqlalchemy import text  # noqa: E402
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
+import httpx
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app import db_models  # noqa: E402
-from app.db import get_db_session  # noqa: E402
+from app import db_models, main_postgres
+from app.db import get_db_session
 from app.main_postgres import app
-from app import main_postgres  # noqa: E402
-from app.security import Principal, get_postgres_principal  # noqa: E402
+from app.security import Principal, get_postgres_principal
 
 # The hosted database uses PostGIS geography columns; a plain Postgres has no
 # such type, and no test here reads those columns.
@@ -88,7 +87,7 @@ def request_payload(requester_id: str, *, hours: float = 1.0) -> dict:
         "blood_type": "O+",
         "units": 2,
         "urgency": "urgent",
-        "response_deadline": (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat(),
+        "response_deadline": (datetime.now(UTC) + timedelta(hours=hours)).isoformat(),
         "location": {
             "facility_id": None,
             "facility_name": "Test Hospital",

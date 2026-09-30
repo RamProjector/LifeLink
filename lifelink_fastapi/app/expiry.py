@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 ACTIVE_REQUEST_STATUSES = frozenset({
     "matching",
@@ -12,7 +12,7 @@ ACTIVE_REQUEST_STATUSES = frozenset({
 
 def is_request_expired(status: str, deadline: datetime, now: datetime | None = None) -> bool:
     """Return true only for open requests whose response deadline has passed."""
-    current = now or datetime.now(timezone.utc)
+    current = now or datetime.now(UTC)
     if deadline.tzinfo is None:
-        deadline = deadline.replace(tzinfo=timezone.utc)
+        deadline = deadline.replace(tzinfo=UTC)
     return status in ACTIVE_REQUEST_STATUSES and deadline <= current

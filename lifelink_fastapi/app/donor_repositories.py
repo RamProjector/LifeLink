@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from decimal import Decimal
 from uuid import uuid4
 
@@ -11,11 +11,17 @@ from sqlalchemy.orm import joinedload
 
 from .db_models import (
     Donor as DonorRow,
+)
+from .db_models import (
     DonorContactRequest,
-    EmergencyRequest as RequestRow,
     MatchStatusEnum,
-    RequestMatch as MatchRow,
     RequestStatusEnum,
+)
+from .db_models import (
+    EmergencyRequest as RequestRow,
+)
+from .db_models import (
+    RequestMatch as MatchRow,
 )
 from .donor_api import DonorAvailability, DonorProfileIn, DonorResponseIn
 from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
@@ -53,7 +59,7 @@ class SqlAlchemyDonorStore:
 
     async def upsert_profile(self, donor_id: str, payload: DonorProfileIn) -> DonorRow:
         row = await self.get_by_identity(donor_id)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if row is None:
             row = DonorRow(
                 id=donor_id,
@@ -210,7 +216,7 @@ class SqlAlchemyDonorStore:
         if row is None:
             raise KeyError(donor_id)
         row.available = availability == DonorAvailability.AVAILABLE
-        row.availability_updated_at = datetime.now(timezone.utc)
+        row.availability_updated_at = datetime.now(UTC)
         await self.session.commit()
         return row
 
@@ -227,7 +233,7 @@ class SqlAlchemyDonorStore:
                 MatchRow.donor_id == donor_id,
                 RequestRow.requester_id != donor_id,
                 RequestRow.status.in_(ACTIVE_REQUEST_STATUSES),
-                RequestRow.response_deadline > datetime.now(timezone.utc),
+                RequestRow.response_deadline > datetime.now(UTC),
             )
             .order_by(RequestRow.created_at.desc())
         )
@@ -257,7 +263,7 @@ class SqlAlchemyDonorStore:
             "declined": MatchStatusEnum.DECLINED,
             "arrived": MatchStatusEnum.CONFIRMED,
         }[response.response]
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         match.responded_at = now
         contact = await self.session.scalar(
             select(DonorContactRequest).where(

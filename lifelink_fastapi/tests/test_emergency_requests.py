@@ -1,10 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
 from app.main import app, request_store
 from app.security import Principal
-
 
 client = TestClient(app)
 
@@ -15,7 +14,7 @@ def make_payload(**overrides):
         "blood_type": "O-",
         "units": 2,
         "urgency": "critical",
-        "response_deadline": (datetime.now(timezone.utc) + timedelta(minutes=90)).isoformat(),
+        "response_deadline": (datetime.now(UTC) + timedelta(minutes=90)).isoformat(),
         "location": {
             "facility_id": "facility-1",
             "facility_name": "St. Luke’s Medical Center",
@@ -155,7 +154,6 @@ def test_contact_endpoint_contacts_only_selected_eligible_donors():
 def test_contact_endpoint_rejects_donor_not_in_matches():
     payload = make_payload(idempotency_key="idempotency-key-0009")
     created = client.post("/v1/emergency-requests", json=payload).json()
-    eligible_ids = {match["donor_id"] for match in created["matches"]}
     response = client.post(
         f"/v1/emergency-requests/{created['request_id']}/contact",
         json={"donor_ids": ["donor-not-matched"]},
