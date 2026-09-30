@@ -242,6 +242,22 @@ class SqlAlchemyRequestStore(RequestStore):
         if row is None:
             raise KeyError(request_id)
         row.status = RequestStatusEnum.CANCELLED
+        now = datetime.now(UTC)
+        # Stop the donor search: withdraw every match the broadcast created so the
+        # donor-search result set is no longer live. Without this the matches stayed
+        # 'ranked'/'notified' and the search kept looking like it was still running
+        # even though the request was cancelled.
+        matches = await self.session.scalars(
+            select(RequestMatchRow).where(
+                RequestMatchRow.request_id == request_id,
+                RequestMatchRow.status.notin_(
+                    {MatchStatusEnum.WITHDRAWN.value, MatchStatusEnum.DECLINED.value}
+                ),
+            )
+        )
+        for match in matches.all():
+            match.status = MatchStatusEnum.WITHDRAWN
+            match.responded_at = match.responded_at or now
         # Close every open donor contact request so the requester's contact list and
         # the donor inbox both reflect that the request is no longer active. Without
         # this, a cancelled request kept showing pending contacts and donors kept
@@ -252,7 +268,6 @@ class SqlAlchemyRequestStore(RequestStore):
                 DonorContactRequest.status.notin_({"cancelled", "fulfilled"}),
             )
         )
-        now = datetime.now(UTC)
         for contact in contacts.all():
             contact.status = "cancelled"
             contact.updated_at = now
@@ -436,6 +451,9 @@ class SqlAlchemyRequestStore(RequestStore):
             )
             for match in sorted(row.matches, key=lambda item: item.rank)
             if match.donor is not None
+            # A withdrawn match means the donor search for this request was stopped
+            # (e.g. the request was cancelled), so it must not appear as a live match.
+            and _enum_value(match.status) != MatchStatusEnum.WITHDRAWN.value
         ]
         return RequestRecord(
             request_id=row.id,
