@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import logging
 from contextlib import asynccontextmanager
@@ -72,10 +73,8 @@ async def lifespan(_: FastAPI):
         yield
     finally:
         sweeper.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await sweeper
-        except asyncio.CancelledError:
-            pass
 
 
 async def _expire_stale_location_shares_forever() -> None:
@@ -474,7 +473,7 @@ async def update_requester_contact_status(
         raise HTTPException(status_code=403, detail="Not allowed to update this contact")
     enforce_rate_limit(f"contact-status:{principal.subject}", 30, 300)
     try:
-        item = await store.update_contact_status_async(request_id, donor_id, record.payload.requester_id, payload.status)
+        await store.update_contact_status_async(request_id, donor_id, record.payload.requester_id, payload.status)
     except KeyError:
         raise HTTPException(status_code=404, detail="Contact not found") from None
     except ValueError as exc:

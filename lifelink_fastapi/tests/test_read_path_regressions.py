@@ -5,7 +5,7 @@ create-time rule "response_deadline must be in the future" applies to new
 input only; applying it to stored rows made every read of an expired request
 fail, which took the whole request history down with it.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -14,9 +14,11 @@ from pydantic import ValidationError
 from app.db_models import (
     BloodTypeEnum,
     ContactMethodEnum,
-    EmergencyRequest as RequestRow,
     RequestStatusEnum,
     UrgencyEnum,
+)
+from app.db_models import (
+    EmergencyRequest as RequestRow,
 )
 from app.main import Donor, EmergencyRequestIn, score_donor
 from app.repositories import SqlAlchemyRequestStore
@@ -41,7 +43,7 @@ def make_row(deadline: datetime, status=RequestStatusEnum.AWAITING_RESPONSES) ->
         idempotency_key="k" * 32,
         status=status,
         matching_version="v1",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     row.facility = None
     row.matches = []
@@ -49,7 +51,7 @@ def make_row(deadline: datetime, status=RequestStatusEnum.AWAITING_RESPONSES) ->
 
 
 def test_stored_request_is_readable_after_its_deadline_passes():
-    row = make_row(datetime.now(timezone.utc) - timedelta(minutes=5))
+    row = make_row(datetime.now(UTC) - timedelta(minutes=5))
     record = SqlAlchemyRequestStore._to_record(row)
     assert record.request_id == "req_test"
     assert record.payload.blood_type.value == "O+"
@@ -58,7 +60,7 @@ def test_stored_request_is_readable_after_its_deadline_passes():
 def test_stored_request_is_readable_when_status_was_assigned_as_plain_text():
     # Rows changed in-session keep the plain string that was assigned to them
     # (the API session uses expire_on_commit=False), not an enum member.
-    row = make_row(datetime.now(timezone.utc) + timedelta(hours=1))
+    row = make_row(datetime.now(UTC) + timedelta(hours=1))
     row.status = "expired"
     row.blood_type = "O+"
     row.urgency = "urgent"
@@ -73,7 +75,7 @@ def test_new_requests_must_still_have_a_future_deadline():
         "blood_type": "O+",
         "units": 1,
         "urgency": "planned",
-        "response_deadline": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
+        "response_deadline": (datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
         "location": {"latitude": 11.2, "longitude": 125.0},
         "contact_method": "in_app",
         "genuine_request_confirmed": True,
@@ -90,7 +92,7 @@ def _request() -> EmergencyRequestIn:
         blood_type="O+",
         units=1,
         urgency="urgent",
-        response_deadline=datetime.now(timezone.utc) + timedelta(hours=1),
+        response_deadline=datetime.now(UTC) + timedelta(hours=1),
         location={"latitude": 11.2433, "longitude": 125.0},
         contact_method="in_app",
         genuine_request_confirmed=True,
@@ -107,7 +109,7 @@ def _donor(verified: bool) -> Donor:
         latitude=11.2440,
         longitude=125.0010,
         available=True,
-        availability_updated_at=datetime.now(timezone.utc),
+        availability_updated_at=datetime.now(UTC),
         verified=verified,
         service_radius_km=15,
         estimated_response_probability=0.5,
@@ -116,7 +118,7 @@ def _donor(verified: bool) -> Donor:
 
 def test_self_registered_donor_is_matchable_by_default(monkeypatch):
     monkeypatch.delenv("LIFELINK_REQUIRE_VERIFIED_DONORS", raising=False)
-    match = score_donor(_request(), _donor(verified=False), datetime.now(timezone.utc))
+    match = score_donor(_request(), _donor(verified=False), datetime.now(UTC))
     assert match is not None
     assert "not yet verified" in " ".join(match.explanation.factors)
     assert match.explanation.score_breakdown["verification"] == 0
@@ -125,13 +127,13 @@ def test_self_registered_donor_is_matchable_by_default(monkeypatch):
 def test_stale_donor_location_is_not_used_for_matching(monkeypatch):
     monkeypatch.setenv("LIFELINK_DONOR_LOCATION_MAX_AGE_MINUTES", "60")
     stale = _donor(verified=True).model_copy(
-        update={"availability_updated_at": datetime.now(timezone.utc) - timedelta(hours=2)}
+        update={"availability_updated_at": datetime.now(UTC) - timedelta(hours=2)}
     )
 
-    assert score_donor(_request(), stale, datetime.now(timezone.utc)) is None
+    assert score_donor(_request(), stale, datetime.now(UTC)) is None
 
 
 def test_strict_mode_excludes_unverified_donors(monkeypatch):
     monkeypatch.setenv("LIFELINK_REQUIRE_VERIFIED_DONORS", "true")
-    assert score_donor(_request(), _donor(verified=False), datetime.now(timezone.utc)) is None
-    assert score_donor(_request(), _donor(verified=True), datetime.now(timezone.utc)) is not None
+    assert score_donor(_request(), _donor(verified=False), datetime.now(UTC)) is None
+    assert score_donor(_request(), _donor(verified=True), datetime.now(UTC)) is not None

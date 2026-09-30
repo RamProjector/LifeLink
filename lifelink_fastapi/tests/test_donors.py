@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -14,7 +14,7 @@ def request_payload(key: str = "donor-request-key-0001"):
         "blood_type": "O-",
         "units": 1,
         "urgency": "critical",
-        "response_deadline": (datetime.now(timezone.utc) + timedelta(minutes=90)).isoformat(),
+        "response_deadline": (datetime.now(UTC) + timedelta(minutes=90)).isoformat(),
         "location": {
             "facility_id": "facility-1",
             "facility_name": "St. Luke’s Medical Center",

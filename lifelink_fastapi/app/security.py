@@ -99,9 +99,7 @@ def _claim_says_unverified(claims: dict) -> bool:
         value = claims.get(key)
         if value is False:
             return True
-    if claims.get("email_confirmed_at") is None and "email_confirmed_at" in claims:
-        return True
-    return False
+    return claims.get("email_confirmed_at") is None and "email_confirmed_at" in claims
 
 
 def _get_principal(
