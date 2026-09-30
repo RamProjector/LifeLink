@@ -1,20 +1,23 @@
 # LifeLink Implementation Status
 
-**Status date:** 29 September 2026
+**Status date:** 30 September 2026
 **Repository:** `RamProjector/LifeLink`  
 **Source of live-state confirmation:** repository verification plus user confirmation in the project chat.
 
 ## Confirmed deployment state
 
-All five current Supabase SQL migrations have been applied to the live Supabase database, in order:
+The repository now contains eight Supabase SQL migrations. Migrations 001–007 have been applied to the live Supabase database, in order:
 
 1. `lifelink_fastapi/sql/001_initial_schema.sql`
 2. `lifelink_fastapi/sql/002_gps_request_location.sql`
 3. `lifelink_fastapi/sql/003_roles_profiles_contacts.sql`
 4. `lifelink_fastapi/sql/004_contact_lifecycle.sql`
 5. `lifelink_fastapi/sql/005_audit_events.sql`
+6. `lifelink_fastapi/sql/006_donor_operational_profile.sql`
+7. `lifelink_fastapi/sql/007_donor_map_chat_contact_sharing.sql` (applied 2026-09-29)
+8. `lifelink_fastapi/sql/008_conversation_blocks.sql` (added with the conversation block/report feature; confirm its live-application state before relying on it)
 
-This means the live database is expected to support the initial schema, GPS-based requester locations, authenticated requester/donor roles, profiles, controlled contact-request records, expanded contact lifecycle states, and append-only audit events. Future chats should not ask to reapply these migrations unless the live database is recreated or migration state is independently found to be inconsistent.
+This means the live database is expected to support the initial schema, GPS-based requester locations, authenticated requester/donor roles, profiles, controlled contact-request records, expanded contact lifecycle states, append-only audit events, the donor operational profile, donor map/chat/contact sharing, and conversation blocks. Future chats should not ask to reapply these migrations unless the live database is recreated or migration state is independently found to be inconsistent.
 
 The current Render API endpoint is documented as `https://lifelink-api-uzje.onrender.com/`. A live check previously returned HTTP 200 from `/health` and successfully served `/openapi.json`. Render free-tier cold starts can make the first request slow.
 
@@ -50,7 +53,7 @@ The following behavior is now implemented in the FastAPI service and the Android
 6. **Contact details** — phone and email are hidden by default; either participant can explicitly share one field at a time (`POST /v1/conversations/{id}/contact-shares`), and every share writes an append-only audit record.
 7. **Tracking policy** — no always-on/background GPS. Donors refresh location while the app is open or when they press an update button.
 
-Migration `lifelink_fastapi/sql/007_donor_map_chat_contact_sharing.sql` adds the supporting tables (`donor_location_shares`, `conversations`, `messages`, `contact_shares`) and the donor map-visibility columns. It has **not** yet been applied to the live Supabase database; apply it before deploying this behavior.
+Migration `lifelink_fastapi/sql/007_donor_map_chat_contact_sharing.sql` adds the supporting tables (`donor_location_shares`, `conversations`, `messages`, `contact_shares`) and the donor map-visibility columns. It was applied to the live Supabase database on 2026-09-29.
 
 ## Remaining work
 
