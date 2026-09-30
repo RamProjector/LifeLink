@@ -60,6 +60,8 @@ The cloud-configured development APK is in `artifacts/app-debug-cloud-configured
 
 Start with [`docs/START_CLOUD.md`](docs/START_CLOUD.md). For the confirmed live migration and implementation state, read [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md). The concise milestone record is [`docs/CHANGELOG_CLOUD.md`](docs/CHANGELOG_CLOUD.md), and the student-oriented explanation is [`docs/HISTORY_CLOUD.md`](docs/HISTORY_CLOUD.md).
 
+The complete academic-style system integration report is [`docs/LifeLink_System_Functional_Integration_Documentation.pdf`](docs/LifeLink_System_Functional_Integration_Documentation.pdf), with editable Markdown source in [`docs/LifeLink_System_Functional_Integration_Documentation.md`](docs/LifeLink_System_Functional_Integration_Documentation.md).
+
 ## Security
 
 The PostgreSQL adapter fails closed on authentication when `LIFELINK_AUTH_REQUIRED` is omitted. Hosted authentication verifies Supabase JWTs and applies ownership checks; rate limiting, audit logging, signed release configuration, and operational/privacy review are still required before public production use. See [`SECURITY.md`](SECURITY.md).
