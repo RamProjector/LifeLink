@@ -27,22 +27,13 @@ sealed interface SubmissionState {
 
     data object Submitting : SubmissionState
 
-    data class Matching(
-        val requestId: String,
-    ) : SubmissionState
+    data class Matching(val requestId: String) : SubmissionState
 
-    data class ManualFallback(
-        val requestId: String,
-        val reason: String,
-    ) : SubmissionState
+    data class ManualFallback(val requestId: String, val reason: String) : SubmissionState
 
-    data class QueuedOffline(
-        val draftId: String,
-    ) : SubmissionState
+    data class QueuedOffline(val draftId: String) : SubmissionState
 
-    data class Error(
-        val message: String,
-    ) : SubmissionState
+    data class Error(val message: String) : SubmissionState
 }
 
 data class EmergencyRequestUiState(
@@ -71,17 +62,13 @@ data class EmergencyRequestUiState(
 )
 
 sealed interface EmergencyRequestAction {
-    data class UpdateDraft(
-        val update: (EmergencyRequestDraft) -> EmergencyRequestDraft,
-    ) : EmergencyRequestAction
+    data class UpdateDraft(val update: (EmergencyRequestDraft) -> EmergencyRequestDraft) : EmergencyRequestAction
 
     data object Continue : EmergencyRequestAction
 
     data object Back : EmergencyRequestAction
 
-    data class EditStep(
-        val step: RequestStep,
-    ) : EmergencyRequestAction
+    data class EditStep(val step: RequestStep) : EmergencyRequestAction
 
     data object SaveDraft : EmergencyRequestAction
 
@@ -97,17 +84,11 @@ sealed interface EmergencyRequestAction {
 
     data object RefreshStatus : EmergencyRequestAction
 
-    data class OpenRequest(
-        val requestId: String,
-    ) : EmergencyRequestAction
+    data class OpenRequest(val requestId: String) : EmergencyRequestAction
 
-    data class ShowContactResults(
-        val requestId: String,
-    ) : EmergencyRequestAction
+    data class ShowContactResults(val requestId: String) : EmergencyRequestAction
 
-    data class RefreshContacts(
-        val requestId: String,
-    ) : EmergencyRequestAction
+    data class RefreshContacts(val requestId: String) : EmergencyRequestAction
 
     data object RefreshHistory : EmergencyRequestAction
 
@@ -119,37 +100,21 @@ sealed interface EmergencyRequestAction {
 
     data object Retry : EmergencyRequestAction
 
-    data class ToggleDonorSelection(
-        val donorId: String,
-    ) : EmergencyRequestAction
+    data class ToggleDonorSelection(val donorId: String) : EmergencyRequestAction
 
     data object ContactSelectedDonors : EmergencyRequestAction
 
-    data class UpdateContactStatus(
-        val donorId: String,
-        val status: String,
-    ) : EmergencyRequestAction
+    data class UpdateContactStatus(val donorId: String, val status: String) : EmergencyRequestAction
 
-    data class ReportContact(
-        val donorId: String,
-        val reason: String = "",
-    ) : EmergencyRequestAction
+    data class ReportContact(val donorId: String, val reason: String = "") : EmergencyRequestAction
 
-    data class BlockContact(
-        val donorId: String,
-    ) : EmergencyRequestAction
+    data class BlockContact(val donorId: String) : EmergencyRequestAction
 
-    data class SetGpsLocation(
-        val latitude: Double,
-        val longitude: Double,
-        val precisionMeters: Int,
-    ) : EmergencyRequestAction
+    data class SetGpsLocation(val latitude: Double, val longitude: Double, val precisionMeters: Int) : EmergencyRequestAction
 }
 
-class EmergencyRequestViewModel(
-    private val repository: EmergencyRequestRepository,
-    private val enablePolling: Boolean = true,
-) : ViewModel() {
+class EmergencyRequestViewModel(private val repository: EmergencyRequestRepository, private val enablePolling: Boolean = true) :
+    ViewModel() {
     private val _uiState = MutableStateFlow(EmergencyRequestUiState())
     val uiState: StateFlow<EmergencyRequestUiState> = _uiState.asStateFlow()
     private var draftSaveJob: Job? = null
@@ -169,14 +134,14 @@ class EmergencyRequestViewModel(
                     } else {
                         state.copy(
                             requestHistory =
-                                history.map { snapshot ->
-                                    RequestHistoryItem(
-                                        requestId = snapshot.requestId,
-                                        status = snapshot.status,
-                                        notificationsCreated = snapshot.notificationsCreated,
-                                        matchesResponded = snapshot.matchesResponded,
-                                    )
-                                },
+                            history.map { snapshot ->
+                                RequestHistoryItem(
+                                    requestId = snapshot.requestId,
+                                    status = snapshot.status,
+                                    notificationsCreated = snapshot.notificationsCreated,
+                                    matchesResponded = snapshot.matchesResponded,
+                                )
+                            },
                         )
                     }
                 }
@@ -472,11 +437,11 @@ class EmergencyRequestViewModel(
                     contacts = mergeContacts(state.contacts, optimisticContacts),
                     contactsRefreshing = false,
                     contactsError =
-                        if (uncertain) {
-                            "The server response was empty, so we could not confirm whether contact was sent. Check contact activity before retrying."
-                        } else {
-                            "The contact request was sent, but its latest status could not be loaded. Check again shortly."
-                        },
+                    if (uncertain) {
+                        "The server response was empty, so we could not confirm whether contact was sent. Check contact activity before retrying."
+                    } else {
+                        "The contact request was sent, but its latest status could not be loaded. Check again shortly."
+                    },
                 )
             } else {
                 val contacts = mergeContacts(state.contacts, refreshed)
@@ -488,11 +453,11 @@ class EmergencyRequestViewModel(
                     selectedDonorIds = state.selectedDonorIds - confirmedIds,
                     contactsRefreshing = false,
                     contactsError =
-                        if (uncertain && confirmedIds.isEmpty()) {
-                            "The server response was empty and no new contact is visible yet. Check contact activity before retrying."
-                        } else {
-                            null
-                        },
+                    if (uncertain && confirmedIds.isEmpty()) {
+                        "The server response was empty and no new contact is visible yet. Check contact activity before retrying."
+                    } else {
+                        null
+                    },
                 )
             }
         }
@@ -542,13 +507,13 @@ class EmergencyRequestViewModel(
                 it.copy(
                     statusRefreshing = false,
                     submission =
-                        if (loaded ==
-                            null
-                        ) {
-                            SubmissionState.Error("This request could not be loaded. Try refreshing.")
-                        } else {
-                            SubmissionState.Matching(requestId)
-                        },
+                    if (loaded ==
+                        null
+                    ) {
+                        SubmissionState.Error("This request could not be loaded. Try refreshing.")
+                    } else {
+                        SubmissionState.Matching(requestId)
+                    },
                 )
             }
         }
@@ -668,9 +633,9 @@ class EmergencyRequestViewModel(
                     _uiState.update {
                         it.copy(
                             submission =
-                                SubmissionState.Error(
-                                    error.message ?: "Contact safety action could not be completed.",
-                                ),
+                            SubmissionState.Error(
+                                error.message ?: "Contact safety action could not be completed.",
+                            ),
                         )
                     }
                 }
@@ -768,40 +733,38 @@ class EmergencyRequestViewModel(
         }
     }
 
-    private fun validateStep(step: RequestStep, draft: EmergencyRequestDraft): String? =
-        when (step) {
-            RequestStep.BLOOD_NEED ->
-                when {
-                    draft.bloodType == null -> "Select a blood type before continuing."
-                    draft.units !in 1..20 -> "Units must be between 1 and 20."
-                    else -> null
-                }
-            RequestStep.URGENCY -> if (draft.responseDeadline.isBlank()) "Choose a response deadline." else null
-            RequestStep.LOCATION ->
-                if (draft.requesterLatitude == null ||
-                    draft.requesterLongitude == null
-                ) {
-                    "Capture your approximate location or choose a manual location."
-                } else {
-                    null
-                }
-            RequestStep.CONTACT ->
-                when {
-                    !draft.genuineRequestConfirmed -> "Confirm this is a genuine request for a verified facility."
-                    !draft.sharingConsentConfirmed -> "Confirm that request details may be shared with eligible donors."
-                    else -> null
-                }
-            RequestStep.REVIEW -> null
-            RequestStep.RESULTS -> null
-        }
+    private fun validateStep(step: RequestStep, draft: EmergencyRequestDraft): String? = when (step) {
+        RequestStep.BLOOD_NEED ->
+            when {
+                draft.bloodType == null -> "Select a blood type before continuing."
+                draft.units !in 1..20 -> "Units must be between 1 and 20."
+                else -> null
+            }
+        RequestStep.URGENCY -> if (draft.responseDeadline.isBlank()) "Choose a response deadline." else null
+        RequestStep.LOCATION ->
+            if (draft.requesterLatitude == null ||
+                draft.requesterLongitude == null
+            ) {
+                "Capture your approximate location or choose a manual location."
+            } else {
+                null
+            }
+        RequestStep.CONTACT ->
+            when {
+                !draft.genuineRequestConfirmed -> "Confirm this is a genuine request for a verified facility."
+                !draft.sharingConsentConfirmed -> "Confirm that request details may be shared with eligible donors."
+                else -> null
+            }
+        RequestStep.REVIEW -> null
+        RequestStep.RESULTS -> null
+    }
 
-    private fun validateFullDraft(draft: EmergencyRequestDraft): String? =
-        RequestStep.entries.firstNotNullOfOrNull {
-            validateStep(
-                it,
-                draft,
-            )
-        }
+    private fun validateFullDraft(draft: EmergencyRequestDraft): String? = RequestStep.entries.firstNotNullOfOrNull {
+        validateStep(
+            it,
+            draft,
+        )
+    }
 
     override fun onCleared() {
         draftSaveJob?.cancel()
@@ -809,9 +772,7 @@ class EmergencyRequestViewModel(
     }
 }
 
-class EmergencyRequestViewModelFactory(
-    private val repository: EmergencyRequestRepository,
-) : ViewModelProvider.Factory {
+class EmergencyRequestViewModelFactory(private val repository: EmergencyRequestRepository) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         require(modelClass.isAssignableFrom(EmergencyRequestViewModel::class.java))
