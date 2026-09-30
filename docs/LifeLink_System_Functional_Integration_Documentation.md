@@ -763,7 +763,43 @@ For every test case, record the date, environment, account type, input, expected
 | TC-15 | Wrong FCM destination | Android ignores message | Notification log/screenshot | Pending live evidence |
 | TC-16 | Server stopped | User-safe retry message; no crash or stale result | Offline screenshot | Pending live evidence |
 
-## 5.4 Detailed Test Record — Exact Location
+## 5.4 Attached Visual Evidence from Android CI
+
+The following screenshots are attached from the successful GitHub Actions **Android visual review** run `36649362464`, testing commit `d4c667ba90b719cf37e42a417a30002c42d86594` on a Pixel 2 API 34 emulator. They are genuine screenshots from the repository’s instrumentation workflow and provide visual evidence for Android UI composition and navigation.
+
+These images use deterministic synthetic visual-test state. They do **not** prove live authentication, live PostgreSQL data, exact donor pins, donor acceptance, or chat delivery. Those functional cases remain pending the two-account live test described in the matrix.
+
+### E01 — Authentication screen
+
+![E01 — LifeLink authentication screen](evidence/android-visual-review-2026-09-30/lifelink-auth-screen.png)
+
+### E02 — Requester home and map privacy message
+
+![E02 — LifeLink home screen](evidence/android-visual-review-2026-09-30/lifelink-phone-light-workflow-home.png)
+
+### E03 — Emergency request form
+
+![E03 — Emergency request blood-need form](evidence/android-visual-review-2026-09-30/lifelink-phone-light-request-form.png)
+
+### E04 — Request history
+
+![E04 — Request history screen](evidence/android-visual-review-2026-09-30/lifelink-phone-light-request-history.png)
+
+### E05 — Donor workspace
+
+![E05 — Donor workspace screen](evidence/android-visual-review-2026-09-30/lifelink-phone-light-workflow-donor.png)
+
+### E06 — Requests tab
+
+![E06 — Requests screen](evidence/android-visual-review-2026-09-30/lifelink-phone-light-workflow-requests.png)
+
+### E07 — Profile and safety information
+
+![E07 — Profile legal and safety screen](evidence/android-visual-review-2026-09-30/lifelink-phone-light-workflow-settings-legal.png)
+
+The complete dated artifact set, including profile, security, theme, updates, adaptive-home, and checksums, is stored in `docs/evidence/android-visual-review-2026-09-30/`.
+
+## 5.5 Detailed Test Record — Exact Location
 
 | Field | Entry |
 |---|---|
@@ -775,7 +811,7 @@ For every test case, record the date, environment, account type, input, expected
 | Evidence | E09 requester map; E10 donor setting; E11 masked API response; E12 server/database timestamp log |
 | Result | Replace with actual dated Pass/Fail after live two-account run. |
 
-## 5.5 Detailed Test Record — Unauthorized Chat
+## 5.6 Detailed Test Record — Unauthorized Chat
 
 | Field | Entry |
 |---|---|
@@ -787,7 +823,7 @@ For every test case, record the date, environment, account type, input, expected
 | Evidence | E13 API test output; E14 sanitized server log |
 | Result | Replace with actual dated Pass/Fail. |
 
-## 5.6 Issue and Correction Log
+## 5.7 Issue and Correction Log
 
 | Issue | Cause | Correction/current action | Retest |
 |---|---|---|---|
@@ -798,7 +834,7 @@ For every test case, record the date, environment, account type, input, expected
 | Backend tests do not prove new PostgreSQL route behavior | Existing 45-test suite predates the new route slice | Add route authorization and migration integration tests before merge | AT-07/08 |
 | Live exact-location behavior is not confirmed | Requires two authenticated accounts and deployed migration | Run two-device or emulator test and attach masked evidence | TC-09 to TC-14 |
 
-## 5.7 Results Interpretation
+## 5.8 Results Interpretation
 
 The backend baseline is currently regression-green with 45 passing tests. The repository clearly demonstrates a working Android/FastAPI/PostgreSQL integration for the established requester/donor/contact flows. The exact-location/chat extension is architecturally aligned with the privacy boundary and has been wired through schema, backend route, Android models, repositories, and donor UI, but it must not be described as production-complete until the Android build, migration, route tests, and live two-account workflow pass.
 
@@ -857,13 +893,13 @@ Before public or production use, the team should:
 
 | Evidence ID | Required image or log | Caption to write |
 |---|---|---|
-| E01 | Android requester home | Authenticated requester shell opens |
-| E02 | Android donor home/profile | Donor profile restored from server |
-| E03 | Requester request form | Valid blood request and location consent |
-| E04 | Requester results | Ranked donors with distance, no donor coordinates |
-| E05 | Anonymous map | Distance bands/counts only; no donor names/pins |
-| E06 | Donor inbox | Eligible request visible to donor |
-| E07 | Accepted contact | Donor acceptance and requester contact activity |
+| E01 | Attached CI screenshot: authentication screen | LifeLink sign-in UI checkpoint; not live auth proof |
+| E02 | Attached CI screenshot: requester home/map privacy message | Home UI checkpoint; not live account proof |
+| E03 | Attached CI screenshot: emergency request form | Request-form UI checkpoint; not live submission proof |
+| E04 | Attached CI screenshot: request history | History UI checkpoint; not live history proof |
+| E05 | Attached CI screenshot: donor workspace | Donor UI checkpoint; not live donor-account proof |
+| E06 | Attached CI screenshot: requests tab | Requests UI checkpoint; not live donor inbox proof |
+| E07 | Attached CI screenshot: profile/legal/safety | Safety UI checkpoint; not accepted-contact proof |
 | E08 | Backend test output | `45 passed` baseline regression suite |
 | E09 | Donor sharing switch | Exact sharing is explicit and default-off |
 | E10 | Authorized requester map | Accepted requester sees fresh authorized donor pin |

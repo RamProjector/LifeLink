@@ -1,0 +1,12 @@
+123fd944a8fd2cc2b5f76e1b0110089c07ada09aa85cc565967180fd486d87e7  docs/evidence/android-visual-review-2026-09-30/lifelink-auth-screen.png
+82e82dcc5f5e522d4a05a4f3543ca766fa42ae8ebbb09cb13d89130e79af0e1a  docs/evidence/android-visual-review-2026-09-30/lifelink-phone-light-home-adaptive.png
+4a241ea915c1f2c9df7a0642616f434fef5524a60e5c0fb5977ca774c75d340f  docs/evidence/android-visual-review-2026-09-30/lifelink-phone-light-request-form.png
+972c8d65ef57acb58d4fb6e9defb766f39c3d6845d49ba5a7ca20b48ac31be7b  docs/evidence/android-visual-review-2026-09-30/lifelink-phone-light-request-history.png
+d8b6b55a8c08b65b4673c78d5c954d9415c99ef529692431acb3e2f065c00f14  docs/evidence/android-visual-review-2026-09-30/lifelink-phone-light-workflow-donor.png
+1b9352bb845ec53a655897522e0b72b50ad5ee1f94ab2fc44fb1aabfdfcb399e  docs/evidence/android-visual-review-2026-09-30/lifelink-phone-light-workflow-home.png
+7ded4c233cf94a1a70b54d0c095fc86e4d19b35df897d14f91b008cec6b1106e  docs/evidence/android-visual-review-2026-09-30/lifelink-phone-light-workflow-requests.png
+1835571f57a32334f02f6b9fa693c2dfe607765c8730ef026178830032491d4f  docs/evidence/android-visual-review-2026-09-30/lifelink-phone-light-workflow-settings-legal.png
+80c29ae5af6b2aae4afe45978c023b756f760e62c787905f60fc04b48976ca8f  docs/evidence/android-visual-review-2026-09-30/lifelink-phone-light-workflow-settings-profile.png
+6e4f44c5dadbf8be74bc050e21c8ed7b04bdf1b0e200cac3da50e809edfe90bf  docs/evidence/android-visual-review-2026-09-30/lifelink-phone-light-workflow-settings-security.png
+682ec8a68d53d3aec486544d9d26ef23cd0252057f87162f0d91f5e36219d1b4  docs/evidence/android-visual-review-2026-09-30/lifelink-phone-light-workflow-settings-theme.png
+7fc65f0defb583954e98b57c44597c71d690ada1756ae4a129c50b691f670318  docs/evidence/android-visual-review-2026-09-30/lifelink-phone-light-workflow-updates.png
