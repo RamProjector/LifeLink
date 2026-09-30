@@ -96,7 +96,7 @@ The free public architecture is:
 Android app → Render Free FastAPI → Supabase Free PostgreSQL
 ```
 
-Outbound push notifications are enabled by setting `FIREBASE_SERVICE_ACCOUNT_JSON` in the Render dashboard to the complete JSON service-account key for the Firebase project used by the Android app. The API registers Android tokens at `PUT /v1/push-token` and sends notifications for donor matches, requester contact selections, and donor responses. Delivery is skipped safely when the secret is absent, so local development remains usable.
+Outbound push notifications are enabled by setting `FIREBASE_SERVICE_ACCOUNT_JSON` in the Render dashboard to the complete JSON service-account key for the Firebase project used by the Android app. The API registers Android tokens at `PUT /v1/push-token` and sends notifications for requester contact selections and donor responses. Submitting a request does **not** broadcast it: matches are computed and stored for the requester to review, and donors are notified only when the requester contacts selected donors. Delivery is skipped safely when the secret is absent, so local development remains usable.
 
 ## PostgreSQL package
 
