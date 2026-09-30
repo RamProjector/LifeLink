@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy import func, select
@@ -20,11 +20,15 @@ from .db_models import (
     ContactShare,
     Conversation,
     ConversationBlock,
-    Donor as DonorRow,
     DonorLocationShare,
-    EmergencyRequest as RequestRow,
     Message,
     RequestMatch,
+)
+from .db_models import (
+    Donor as DonorRow,
+)
+from .db_models import (
+    EmergencyRequest as RequestRow,
 )
 from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
 from .main import donor_location_max_age_minutes
@@ -54,7 +58,7 @@ def _enum_value(value):
 
 def _as_utc(value: datetime) -> datetime:
     """Return ``value`` as a timezone-aware UTC datetime, assuming UTC if naive."""
-    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
 def _coarsen(value: float) -> float:
@@ -81,7 +85,7 @@ class SqlAlchemyPrivacyStore:
         available and profile-visible appear. Coordinates are coarsened and no
         donor identity is returned.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         max_age = donor_location_max_age_minutes()
         freshness = func.coalesce(DonorRow.availability_updated_at, DonorRow.created_at)
         rows = await self.session.scalars(
@@ -122,7 +126,7 @@ class SqlAlchemyPrivacyStore:
         row = await self._donor_row(donor_id)
         if row is None:
             raise KeyError(donor_id)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         row.map_visible = payload.map_visible
         row.exact_location_sharing_enabled = payload.exact_location_sharing_enabled
         row.map_visibility_updated_at = now
@@ -151,7 +155,7 @@ class SqlAlchemyPrivacyStore:
         Called only after the request has matched the donor. The share expires
         with the request deadline, or sooner if the donor disabled sharing.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         share = await self.session.scalar(
             select(DonorLocationShare).where(
                 DonorLocationShare.request_id == request_id,
@@ -193,7 +197,7 @@ class SqlAlchemyPrivacyStore:
         )
         if share is None:
             raise KeyError(request_id)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         share.status = "revoked"
         share.revoked_at = now
         share.updated_at = now
@@ -218,7 +222,7 @@ class SqlAlchemyPrivacyStore:
                 DonorLocationShare.donor_id == donor.id,
             )
         )
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         freshness_at = _as_utc(donor.availability_updated_at or donor.created_at)
         freshness_age_minutes = max(0.0, (now - freshness_at).total_seconds() / 60)
         reason = None
@@ -266,7 +270,7 @@ class SqlAlchemyPrivacyStore:
 
     async def expire_shares_for_request(self, request_id: str) -> int:
         """Expire every live share for a request that has ended."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         shares = await self.session.scalars(
             select(DonorLocationShare).where(
                 DonorLocationShare.request_id == request_id,
@@ -295,7 +299,7 @@ class SqlAlchemyPrivacyStore:
         (without an explicit cancel/fulfil) still closes its exact-location
         shares. Returns the number of shares closed.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         shares = await self.session.scalars(
             select(DonorLocationShare).where(DonorLocationShare.status == "active")
         )
@@ -388,7 +392,7 @@ class SqlAlchemyPrivacyStore:
         body = payload.body.strip()
         if not body:
             raise ValueError("Message body cannot be empty")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         message = Message(
             id=f"msg_{uuid4().hex}",
             conversation_id=conversation.id,
