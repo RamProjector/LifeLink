@@ -4,7 +4,7 @@ services:
     runtime: docker
     rootDir: lifelink_fastapi
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /health
+    healthCheckPath: /health/ready
     envVars:
       - key: LIFELINK_DATABASE_URL
         sync: false

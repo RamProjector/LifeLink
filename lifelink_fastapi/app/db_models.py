@@ -404,3 +404,17 @@ class PendingSubmission(Base):
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RateLimitCounter(Base):
+    """Shared fixed-window rate-limit counter (see app/rate_limit.py).
+
+    Kept in the database so limits hold across every worker and survive a
+    restart, unlike the in-process fallback.
+    """
+
+    __tablename__ = "rate_limit_counters"
+
+    bucket_key: Mapped[str] = mapped_column(String(256), primary_key=True)
+    window_start: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

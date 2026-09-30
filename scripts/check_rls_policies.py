@@ -48,6 +48,7 @@ BACKEND_ONLY_TABLES: dict[str, str] = {
     "messages": "Chat messages; the API enforces participant membership.",
     "contact_shares": "Explicit contact disclosures; the API enforces participant membership.",
     "conversation_blocks": "Block state; the API enforces participant membership.",
+    "rate_limit_counters": "Rate-limit counters; internal API state, never queried by a client role.",
 }
 
 # SQL comments must be removed before matching: a commented-out
