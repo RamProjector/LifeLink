@@ -283,6 +283,38 @@ def test_sweeper_expires_requests_past_their_deadline(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_sweeper_limit_bounds_a_single_sweep(pg_url):
+    """A single sweep must not transition more than ``limit`` requests.
+
+    A large backlog has to be drained across ticks instead of loading every row
+    into one transaction, so the bound is part of the sweeper's contract.
+    """
+
+    async def scenario(client, current, run_sql):
+        requester = new_user("requester")
+        created = [await submit_request(client, current, requester) for _ in range(3)]
+        ids = ", ".join(f"'{item['request_id']}'" for item in created)
+        await run_sql(
+            f"UPDATE emergency_requests SET response_deadline = now() - interval '1 hour' "
+            f"WHERE id IN ({ids})"
+        )
+
+        from app.repositories import SqlAlchemyRequestStore
+
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        async with sessions() as session:
+            first = await SqlAlchemyRequestStore(session).expire_timed_out_requests_async(limit=2)
+        async with sessions() as session:
+            second = await SqlAlchemyRequestStore(session).expire_timed_out_requests_async(limit=2)
+        await engine.dispose()
+
+        assert first == 2, "the sweep must stop at the requested limit"
+        assert second == 1, "the next tick must pick up the remainder"
+
+    run_scenario(pg_url, scenario)
+
+
 def test_cancel_resets_request_and_allows_a_new_one(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")

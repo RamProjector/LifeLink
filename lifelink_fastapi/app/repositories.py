@@ -50,6 +50,11 @@ def _enum_value(value):
 MATCHING_VERSION = "v1-explainable-weighted"
 CONTACT_EMAIL_VISIBLE_STATUSES = {"contact_shared", "meeting_arranged", "fulfilled"}
 
+# Hard ceiling for a single expiry sweep. A misconfigured
+# LIFELINK_REQUEST_SWEEP_LIMIT must not be able to pull an unbounded number of
+# rows into one transaction, so the store clamps whatever it is handed.
+MAX_SWEEP_LIMIT = 5000
+
 
 class SqlAlchemyDonorRepository(DonorRepository):
     def __init__(self, session: AsyncSession) -> None:
@@ -152,9 +157,12 @@ class SqlAlchemyRequestStore(RequestStore):
         expired by status polling. ``updated_at`` is stamped so the transition is
         observable to operators and audit queries. ``limit`` bounds a single
         sweep so a large backlog cannot hold one transaction open; the next tick
-        picks up the remainder. Returns the number transitioned.
+        picks up the remainder. ``limit`` is clamped to ``[1, MAX_SWEEP_LIMIT]``
+        so a bad value can neither stall the sweep nor load an unbounded batch.
+        Returns the number transitioned.
         """
         now = datetime.now(UTC)
+        limit = max(1, min(int(limit), MAX_SWEEP_LIMIT))
         open_requests = await self.session.scalars(
             select(EmergencyRequestRow)
             .where(

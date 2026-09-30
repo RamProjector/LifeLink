@@ -35,7 +35,15 @@ LIFELINK_AUTH_REQUIRED=true
 DB_POOL_SIZE=3
 DB_MAX_OVERFLOW=5
 FIREBASE_SERVICE_ACCOUNT_JSON=<paste the Firebase service-account JSON>
+LIFELINK_REQUEST_SWEEP_SECONDS=300
+LIFELINK_REQUEST_SWEEP_LIMIT=500
 ```
+
+`LIFELINK_REQUEST_SWEEP_SECONDS` (default `300`) and `LIFELINK_REQUEST_SWEEP_LIMIT`
+(default `500`) tune the background request-expiry sweeper. The limit caps how many
+timed-out requests one tick transitions, so a large backlog is drained across ticks
+instead of holding one long transaction; it is clamped to `1..5000` and a
+non-integer value falls back to the default.
 
 `FIREBASE_SERVICE_ACCOUNT_JSON` is **required for push notifications to work**. It
 is declared in `render.yaml` with `sync: false`, which means Render prompts for

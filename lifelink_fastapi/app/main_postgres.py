@@ -120,7 +120,14 @@ async def _expire_timed_out_requests_forever() -> None:
     from .db import AsyncSessionLocal
 
     interval = float(os.getenv("LIFELINK_REQUEST_SWEEP_SECONDS", "300"))
-    batch = int(os.getenv("LIFELINK_REQUEST_SWEEP_LIMIT", "500"))
+    # A non-integer or non-positive value must not kill the sweeper task or make
+    # it spin without ever expiring anything; fall back to the default instead.
+    try:
+        batch = int(os.getenv("LIFELINK_REQUEST_SWEEP_LIMIT", "500"))
+    except ValueError:
+        logger.warning("LIFELINK_REQUEST_SWEEP_LIMIT is not an integer; using 500")
+        batch = 500
+    batch = max(1, batch)
     while True:
         try:
             async with AsyncSessionLocal() as session:
