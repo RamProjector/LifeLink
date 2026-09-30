@@ -9,10 +9,13 @@ extend-exclude = ["__pycache__", ".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
-# FastAPI's Depends()/Query() in argument defaults is the documented pattern.
-# E501 is off because the tree is not wrapped to 140 yet; RUF001-003 flag
-# typographic quotes in user-facing strings, which are intentional.
-ignore = ["B008", "E501", "RUF001", "RUF002", "RUF003", "UP042"]
+# B008: FastAPI's Depends()/Query() in argument defaults is the documented pattern.
+# E501: the tree is not wrapped to 140 yet.
+# RUF001-003: typographic quotes in user-facing strings are intentional.
+# UP042: str+Enum mixins are the SQLAlchemy/Pydantic pattern in use.
+# UP017: datetime.timezone.utc is used consistently; migrating to UTC is a
+#        separate mechanical change.
+ignore = ["B008", "E501", "RUF001", "RUF002", "RUF003", "UP042", "UP017"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests import the app after installing pgserver / monkeypatching, so imports
@@ -20,10 +23,11 @@ ignore = ["B008", "E501", "RUF001", "RUF002", "RUF003", "UP042"]
 "tests/*" = ["E402"]
 # main.py, main_postgres.py and donor_api.py have a deliberate import order that
 # breaks a circular import (main -> donor_api -> main). Sorting them re-triggers
-# the cycle, so import sorting is off for these three files.
-"app/main.py" = ["E402", "I001"]
-"app/main_postgres.py" = ["I001"]
-"app/donor_api.py" = ["I001"]
+# the cycle, so import sorting is off for these three files. They also carry
+# re-exported names that look unused to the linter.
+"app/main.py" = ["E402", "I001", "F401"]
+"app/main_postgres.py" = ["I001", "F401"]
+"app/donor_api.py" = ["I001", "F401"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -37,6 +37,22 @@ jobs:
       - name: Run backend tests including PostgreSQL end-to-end tests
         run: pytest -q -rs
 
+  backend-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lifelink_fastapi
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-dev.txt
+      - name: Ruff lint
+        run: ruff check app tests
+      - name: Mypy type check
+        run: mypy app
+
   android:
     runs-on: ubuntu-latest
     defaults:
