@@ -237,6 +237,20 @@ class SqlAlchemyRequestStore(RequestStore):
         if row is None:
             raise KeyError(request_id)
         row.status = RequestStatusEnum.CANCELLED
+        # Close every open donor contact request so the requester's contact list and
+        # the donor inbox both reflect that the request is no longer active. Without
+        # this, a cancelled request kept showing pending contacts and donors kept
+        # seeing it as live.
+        contacts = await self.session.scalars(
+            select(DonorContactRequest).where(
+                DonorContactRequest.request_id == request_id,
+                DonorContactRequest.status.notin_({"cancelled", "fulfilled"}),
+            )
+        )
+        now = datetime.now(timezone.utc)
+        for contact in contacts.all():
+            contact.status = "cancelled"
+            contact.updated_at = now
         await self.session.commit()
         refreshed = await self.get_by_id_async(request_id)
         if refreshed is None:

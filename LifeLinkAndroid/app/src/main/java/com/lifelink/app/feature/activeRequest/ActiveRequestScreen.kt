@@ -11,17 +11,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,11 +43,19 @@ fun ActiveRequestScreen(
     state: EmergencyRequestUiState,
     onAction: (EmergencyRequestAction) -> Unit,
     onBack: () -> Unit,
-    onReviewContacts: () -> Unit
+    onReviewContacts: () -> Unit,
 ) {
     val active = state.activeRequest ?: return
     LaunchedEffect(active.requestId) {
         onAction(EmergencyRequestAction.RefreshContacts(active.requestId))
+    }
+    // After a successful cancel the request is terminal: leave the active-request
+    // screen so the user lands back on Home with the request reset to idle.
+    LaunchedEffect(state.cancelCompleted) {
+        if (state.cancelCompleted) {
+            onAction(EmergencyRequestAction.CancelHandled)
+            onBack()
+        }
     }
     var showCancelConfirmation by remember { mutableStateOf(false) }
     Scaffold(
@@ -55,11 +63,22 @@ fun ActiveRequestScreen(
             TopAppBar(
                 title = { Text("Active request") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-                actions = { IconButton(onClick = { onAction(EmergencyRequestAction.RefreshStatus) }, enabled = !state.statusRefreshing) { Icon(Icons.Default.Refresh, "Refresh") } }
+                actions = {
+                    IconButton(onClick = {
+                        onAction(EmergencyRequestAction.RefreshStatus)
+                    }, enabled = !state.statusRefreshing) { Icon(Icons.Default.Refresh, "Refresh") }
+                },
             )
-        }
+        },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             StatusCard(active)
             ProgressCard(active)
             Card(Modifier.fillMaxWidth()) {
@@ -86,13 +105,21 @@ fun ActiveRequestScreen(
                 }
             }
             if (active.status == ActiveRequestStatus.MANUAL_BROADCAST) {
-                Button(onClick = { onAction(EmergencyRequestAction.SendManualBroadcast) }, modifier = Modifier.fillMaxWidth()) { Text("Send manual broadcast") }
+                Button(onClick = {
+                    onAction(EmergencyRequestAction.SendManualBroadcast)
+                }, modifier = Modifier.fillMaxWidth()) { Text("Send manual broadcast") }
             }
             if (!active.isTerminal) {
-                Button(onClick = { onAction(EmergencyRequestAction.FulfillRequest) }, enabled = !state.statusRefreshing, modifier = Modifier.fillMaxWidth()) { Text("Mark request fulfilled") }
+                Button(onClick = {
+                    onAction(EmergencyRequestAction.FulfillRequest)
+                }, enabled = !state.statusRefreshing, modifier = Modifier.fillMaxWidth()) { Text("Mark request fulfilled") }
                 TextButton(onClick = { showCancelConfirmation = true }, modifier = Modifier.fillMaxWidth()) { Text("Cancel request") }
             }
-            Text("Request ${active.requestId.take(12)} · Updates automatically while active.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            Text(
+                "Request ${active.requestId.take(12)} · Updates automatically while active.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
     if (showCancelConfirmation) {
@@ -100,8 +127,13 @@ fun ActiveRequestScreen(
             onDismissRequest = { showCancelConfirmation = false },
             title = { Text("Cancel this request?") },
             text = { Text("Donor alerts will stop and this request will be marked cancelled. This cannot be undone.") },
-            confirmButton = { TextButton(onClick = { showCancelConfirmation = false; onAction(EmergencyRequestAction.CancelRequest) }) { Text("Cancel request") } },
-            dismissButton = { TextButton(onClick = { showCancelConfirmation = false }) { Text("Keep active") } }
+            confirmButton = {
+                TextButton(onClick = {
+                    showCancelConfirmation = false
+                    onAction(EmergencyRequestAction.CancelRequest)
+                }) { Text("Cancel request") }
+            },
+            dismissButton = { TextButton(onClick = { showCancelConfirmation = false }) { Text("Keep active") } },
         )
     }
 }
@@ -110,9 +142,20 @@ fun ActiveRequestScreen(
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Current status", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            Text(active.status.label, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                active.status.label,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
             active.reason?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            Text(if (active.isTerminal) "This request is no longer accepting responses." else "Eligible donors are notified according to the matching rules.")
+            Text(
+                if (active.isTerminal) {
+                    "This request is no longer accepting responses."
+                } else {
+                    "Eligible donors are notified according to the matching rules."
+                },
+            )
         }
     }
 }
@@ -130,5 +173,8 @@ fun ActiveRequestScreen(
 }
 
 @Composable private fun Metric(label: String, value: String) {
-    Column { Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    Column {
+        Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }
