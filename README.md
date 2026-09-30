@@ -62,6 +62,8 @@ Start with [`docs/START_CLOUD.md`](docs/START_CLOUD.md). For the confirmed live 
 
 The complete academic-style system integration report is [`docs/LifeLink_System_Functional_Integration_Documentation.pdf`](docs/LifeLink_System_Functional_Integration_Documentation.pdf), with editable Markdown source in [`docs/LifeLink_System_Functional_Integration_Documentation.md`](docs/LifeLink_System_Functional_Integration_Documentation.md).
 
+The plain-language project assessment is [`docs/LifeLink_Project_Review_Laymans_Terms.pdf`](docs/LifeLink_Project_Review_Laymans_Terms.pdf), with editable Markdown source in [`docs/LifeLink_Project_Review_Laymans_Terms.md`](docs/LifeLink_Project_Review_Laymans_Terms.md).
+
 ## Security
 
 The PostgreSQL adapter fails closed on authentication when `LIFELINK_AUTH_REQUIRED` is omitted. Hosted authentication verifies Supabase JWTs and applies ownership checks; rate limiting, audit logging, signed release configuration, and operational/privacy review are still required before public production use. See [`SECURITY.md`](SECURITY.md).
