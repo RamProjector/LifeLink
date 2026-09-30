@@ -143,27 +143,34 @@ class SqlAlchemyRequestStore(RequestStore):
             return True
         return False
 
-    async def expire_timed_out_requests_async(self) -> int:
-        """Transition every open request past its deadline to ``expired``.
+    async def expire_timed_out_requests_async(self, limit: int = 500) -> int:
+        """Transition open requests past their deadline to ``expired``.
 
         Used by the background sweeper so an open request expires even when no
         read path ever touches it. Applies the same ``is_request_expired`` rule
         as ``_expire_if_needed``, so a swept request looks exactly like one
-        expired by status polling. Returns the number transitioned.
+        expired by status polling. ``updated_at`` is stamped so the transition is
+        observable to operators and audit queries. ``limit`` bounds a single
+        sweep so a large backlog cannot hold one transaction open; the next tick
+        picks up the remainder. Returns the number transitioned.
         """
         now = datetime.now(UTC)
         open_requests = await self.session.scalars(
-            select(EmergencyRequestRow).where(
+            select(EmergencyRequestRow)
+            .where(
                 EmergencyRequestRow.status.in_(
                     [RequestStatusEnum(status) for status in ACTIVE_REQUEST_STATUSES]
                 ),
                 EmergencyRequestRow.response_deadline <= now,
             )
+            .order_by(EmergencyRequestRow.response_deadline)
+            .limit(limit)
         )
         count = 0
         for row in open_requests.all():
             if is_request_expired(_enum_value(row.status), row.response_deadline, now):
                 row.status = RequestStatusEnum.EXPIRED
+                row.updated_at = now
                 count += 1
         if count:
             await self.session.commit()

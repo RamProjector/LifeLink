@@ -248,6 +248,9 @@ def test_sweeper_expires_requests_past_their_deadline(pg_url):
             f"WHERE id = '{created['request_id']}'"
         )
 
+        # A second request that is still inside its deadline must be left alone.
+        still_open = await submit_request(client, current, requester)
+
         from app.repositories import SqlAlchemyRequestStore
 
         engine = create_async_engine(pg_url)
@@ -259,10 +262,23 @@ def test_sweeper_expires_requests_past_their_deadline(pg_url):
 
         async with create_async_engine(pg_url).connect() as conn:
             result = await conn.execute(
-                text("SELECT status::text FROM emergency_requests WHERE id = :rid"),
-                {"rid": created["request_id"]},
+                text(
+                    "SELECT id, status::text, updated_at > created_at "
+                    "FROM emergency_requests WHERE id IN (:rid, :open)"
+                ),
+                {"rid": created["request_id"], "open": still_open["request_id"]},
             )
-            assert result.all() == [("expired",)]
+            rows = {row[0]: (row[1], row[2]) for row in result.all()}
+        assert rows[created["request_id"]][0] == "expired"
+        # The sweep stamps updated_at so the transition is observable.
+        assert rows[created["request_id"]][1] is True
+        # A request still inside its deadline is untouched.
+        assert rows[still_open["request_id"]][0] in {
+            "matching",
+            "awaiting_responses",
+            "partially_fulfilled",
+            "manual_broadcast",
+        }
 
     run_scenario(pg_url, scenario)
 

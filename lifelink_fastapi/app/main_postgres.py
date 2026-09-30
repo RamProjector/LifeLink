@@ -120,10 +120,11 @@ async def _expire_timed_out_requests_forever() -> None:
     from .db import AsyncSessionLocal
 
     interval = float(os.getenv("LIFELINK_REQUEST_SWEEP_SECONDS", "300"))
+    batch = int(os.getenv("LIFELINK_REQUEST_SWEEP_LIMIT", "500"))
     while True:
         try:
             async with AsyncSessionLocal() as session:
-                await SqlAlchemyRequestStore(session).expire_timed_out_requests_async()
+                await SqlAlchemyRequestStore(session).expire_timed_out_requests_async(limit=batch)
         except asyncio.CancelledError:
             raise
         except Exception:  # pragma: no cover - defensive; never kill the loop
