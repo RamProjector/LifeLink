@@ -119,6 +119,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
     val uiState: StateFlow<EmergencyRequestUiState> = _uiState.asStateFlow()
     private var draftSaveJob: Job? = null
     private var historyRefreshJob: Job? = null
+    private var pollJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -149,16 +150,17 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
         }
         refreshHistory()
         if (enablePolling) {
-            viewModelScope.launch {
-                while (true) {
-                    delay(30_000)
-                    val current = _uiState.value.activeRequest
-                    if (current != null && !current.isTerminal) {
-                        runCatching { repository.refreshActiveRequest(current.requestId) }
-                        refreshContacts(current.requestId, adopt = false)
+            pollJob =
+                viewModelScope.launch {
+                    while (true) {
+                        delay(30_000)
+                        val current = _uiState.value.activeRequest
+                        if (current != null && !current.isTerminal) {
+                            runCatching { repository.refreshActiveRequest(current.requestId) }
+                            refreshContacts(current.requestId, adopt = false)
+                        }
                     }
                 }
-            }
         }
     }
 
@@ -666,6 +668,10 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
             _uiState.update { it.copy(statusRefreshing = true) }
             when (val result = repository.cancelRequest(requestId)) {
                 is SubmitResult.Cancelled -> {
+                    // Stop the background donor search: cancel the status/contact poll
+                    // so the client no longer keeps looking for donors for a request
+                    // that has been cancelled.
+                    pollJob?.cancel()
                     // Reset the request flow to idle: drop the cancelled request's
                     // results/contacts and start a fresh draft so a new request can
                     // be created immediately. Without this the wizard kept the old
@@ -768,6 +774,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
 
     override fun onCleared() {
         draftSaveJob?.cancel()
+        pollJob?.cancel()
         super.onCleared()
     }
 }

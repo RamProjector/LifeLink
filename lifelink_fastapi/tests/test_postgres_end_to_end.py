@@ -186,6 +186,49 @@ def test_submit_does_not_broadcast_but_contact_does(pg_url, monkeypatch):
     run_scenario(pg_url, scenario)
 
 
+def test_cancel_stops_the_donor_search_broadcast(pg_url):
+    """Cancelling a request must stop its donor search, not just flip its status.
+
+    The broadcast is the donor-search result set: the matches created at submit
+    time. Cancel must withdraw them so the donor inbox stops showing the request
+    and the requester no longer sees a live match for a cancelled request.
+    """
+
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+
+        created = await submit_request(client, current, requester)
+        assert [m["donor_id"] for m in created["matches"]] == [donor]
+
+        # The donor search is live: the donor sees the request in their inbox.
+        current["id"] = donor
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert [item["request_id"] for item in inbox.json()] == [created["request_id"]]
+
+        # Cancel the request.
+        current["id"] = requester
+        cancelled = await client.post(f"/v1/emergency-requests/{created['request_id']}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
+        assert cancelled.json()["status"] == "cancelled"
+
+        # The donor search is stopped: the request is gone from the donor inbox.
+        current["id"] = donor
+        inbox_after = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox_after.status_code == 200, inbox_after.text
+        assert inbox_after.json() == [], "cancel must stop the donor search broadcast"
+
+        # The match the broadcast created is withdrawn, so the requester no longer
+        # sees it as a live match for the cancelled request.
+        current["id"] = requester
+        status = await client.get(f"/v1/emergency-requests/{created['request_id']}")
+        assert status.status_code == 200, status.text
+        assert status.json()["matches"] == [], "cancel must withdraw the donor-search matches"
+
+    run_scenario(pg_url, scenario)
+
+
 def test_cancel_resets_request_and_allows_a_new_one(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
