@@ -11,23 +11,12 @@ P. Burgos St., Tacloban City
 _______________________
 
 
-### Submitted to:
-
-**[Instructor Name]**
-
-_______________________
-
 ### In Partial Fulfillment of the Requirements for the Subjects
 
 **System Integration & Architectures**  
 **Integrative Programming**
 
 _______________________
-
-### Submitted by:
-
-**[Members’ names — arrange from longest to shortest]**
-
 
 **Repository:** `RamProjector/LifeLink`  
 **Documentation date:** October 1, 2026  
