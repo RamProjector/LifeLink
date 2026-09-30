@@ -389,12 +389,10 @@ async def create_emergency_request_postgres(
         request_id=request_id,
         status=RequestStatus.AWAITING_RESPONSES,
     )
-    await send_push_safely(
-        await _push_recipients_for_donors(session, [match.donor_id for match in record.matches]),
-        "LifeLink donor match",
-        f"A {record.payload.blood_type.value} blood request needs a response near {record.payload.location.area}.",
-        {"type": "donor_match", "request_id": record.request_id},
-    )
+    # Submitting a request must NOT broadcast it. Matches are computed and stored
+    # so the requester can review them, but no donor is notified here. Donors are
+    # notified only when the requester explicitly contacts selected donors via
+    # POST /v1/emergency-requests/{request_id}/contact.
     return EmergencyRequestOut(
         request_id=record.request_id,
         status=record.status,
@@ -402,7 +400,7 @@ async def create_emergency_request_postgres(
         expires_at=record.expires_at,
         matches=record.matches,
         matching_version=matching_version,
-        notifications_created=len(record.matches),
+        notifications_created=0,
     )
 
 
