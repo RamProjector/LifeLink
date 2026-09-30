@@ -68,7 +68,12 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: () -> Unit) {
+fun DonorScreen(
+    state: DonorUiState,
+    onAction: (DonorAction) -> Unit,
+    onBack: () -> Unit,
+    onOpenConversation: (String, String) -> Unit = { _, _ -> }
+) {
     var profileExpanded by rememberSaveable { mutableStateOf(false) }
     var fullScreenProfile by rememberSaveable { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(DonorTab.HOME) }
@@ -208,7 +213,7 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                     manualLongitude = manualLongitude,
                     onManualLongitudeChange = { manualLongitude = it }
                 )
-                DonorTab.REQUESTS -> DonorRequestsContent(state, onAction)
+                DonorTab.REQUESTS -> DonorRequestsContent(state, onAction, onOpenConversation)
             }
         }
     }
@@ -268,7 +273,11 @@ private fun DonorHomeContent(
 }
 
 @Composable
-private fun DonorRequestsContent(state: DonorUiState, onAction: (DonorAction) -> Unit) {
+private fun DonorRequestsContent(
+    state: DonorUiState,
+    onAction: (DonorAction) -> Unit,
+    onOpenConversation: (String, String) -> Unit
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -290,7 +299,9 @@ private fun DonorRequestsContent(state: DonorUiState, onAction: (DonorAction) ->
                 }
             }
         } else {
-            items(state.requests, key = { it.requestId }) { request -> RequestCard(request, onAction, state.saving) }
+            items(state.requests, key = { it.requestId }) { request ->
+                RequestCard(request, onAction, state.saving, state.profile.donorId, onOpenConversation)
+            }
         }
     }
 }
@@ -438,7 +449,13 @@ private fun ProfileCard(
                 singleLine = true
             )
             Text(
-                if (profile.latitude == null) "Location not captured" else "Approximate location saved for matching (±${profile.locationPrecisionMeters} m)",
+                text =
+                    if (profile.latitude == null) {
+                        "Location not captured"
+                    } else {
+                        "Approximate location saved for matching " +
+                            "(±${profile.locationPrecisionMeters} m)"
+                    },
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Button(onClick = onCaptureLocation, enabled = !saving, modifier = Modifier.fillMaxWidth()) { Text(if (profile.latitude == null) "Use my current location" else "Update current location") }
@@ -493,7 +510,13 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
     Text("Tap or long-press to move the approximate donor location.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
-@Composable private fun RequestCard(request: DonorRequest, onAction: (DonorAction) -> Unit, saving: Boolean) {
+@Composable private fun RequestCard(
+    request: DonorRequest,
+    onAction: (DonorAction) -> Unit,
+    saving: Boolean,
+    donorId: String,
+    onOpenConversation: (String, String) -> Unit
+) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -509,7 +532,17 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
                     Button(enabled = !saving, onClick = { onAction(DonorAction.Respond(request.requestId, DonorResponse.ACCEPTED)) }, modifier = Modifier.weight(1f)) { Text("Accept") }
                     OutlinedButton(enabled = !saving, onClick = { onAction(DonorAction.Respond(request.requestId, DonorResponse.DECLINED)) }, modifier = Modifier.weight(1f)) { Text("Decline") }
                 }
-            } else Text("Response: ${request.response.label}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            } else {
+                Text("Response: ${request.response.label}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                // A donor who accepted can open the in-app conversation with the
+                // requester directly from their accepted request.
+                if (request.response == DonorResponse.ACCEPTED || request.response == DonorResponse.ARRIVED) {
+                    OutlinedButton(
+                        onClick = { onOpenConversation(request.requestId, donorId) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Message requester") }
+                }
+            }
         }
     }
 }

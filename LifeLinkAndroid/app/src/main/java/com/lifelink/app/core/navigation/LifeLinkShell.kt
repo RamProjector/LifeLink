@@ -91,6 +91,7 @@ import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestScreen
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
+import com.lifelink.app.feature.privacy.ConversationScreen
 import com.lifelink.app.feature.privacy.DonorMapScreen
 import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
@@ -134,6 +135,19 @@ fun LifeLinkShell(
     var showActive by rememberSaveable { mutableStateOf(false) }
     var showDonor by rememberSaveable { mutableStateOf(false) }
     var showDonorMap by rememberSaveable { mutableStateOf(false) }
+    // The in-app conversation was previously unreachable: ConversationScreen and
+    // PrivacyViewModel.openConversation existed, but nothing navigated to them.
+    // This flag is the single entry point for both the requester (from a contact
+    // card) and the donor (from an accepted request).
+    var showConversation by rememberSaveable { mutableStateOf(false) }
+    var conversationRequestId by rememberSaveable { mutableStateOf("") }
+    var conversationDonorId by rememberSaveable { mutableStateOf("") }
+    val openConversation: (String, String) -> Unit = { requestId, donorId ->
+        conversationRequestId = requestId
+        conversationDonorId = donorId
+        showConversation = true
+        onPrivacyAction(PrivacyAction.OpenConversation(requestId, donorId))
+    }
     var showStart by rememberSaveable(accountUserId) { mutableStateOf(accountUserId.isNotBlank() && !welcomePrefs.getBoolean("seen_$accountUserId", false)) }
     var tab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
     val markWelcomeSeen = {
@@ -169,8 +183,25 @@ fun LifeLinkShell(
         )
         return
     }
+    if (showConversation && conversationRequestId.isNotBlank() && conversationDonorId.isNotBlank()) {
+        BackHandler { showConversation = false }
+        ConversationScreen(
+            state = privacyState,
+            requestId = conversationRequestId,
+            donorId = conversationDonorId,
+            currentUserId = accountUserId,
+            onAction = onPrivacyAction,
+            onBack = { showConversation = false }
+        )
+        return
+    }
     if (showRequest) {
-        EmergencyRequestScreen(state = state, onAction = onAction, onExit = { showRequest = false; tab = ShellTab.HOME })
+        EmergencyRequestScreen(
+            state = state,
+            onAction = onAction,
+            onExit = { showRequest = false; tab = ShellTab.HOME },
+            onOpenConversation = openConversation
+        )
         return
     }
     if (showActive && state.activeRequest != null) {
@@ -190,7 +221,12 @@ fun LifeLinkShell(
     }
     if (showDonor) {
         BackHandler { showDonor = false }
-        DonorScreen(state = donorState, onAction = onDonorAction, onBack = { showDonor = false })
+        DonorScreen(
+            state = donorState,
+            onAction = onDonorAction,
+            onBack = { showDonor = false },
+            onOpenConversation = openConversation
+        )
         return
     }
     if (showDonorMap) {

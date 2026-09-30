@@ -26,7 +26,7 @@ from .db_models import (
 from .db_models import (
     RequestMatch as RequestMatchRow,
 )
-from .expiry import is_request_expired
+from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
 from .main import (
     Donor,
     DonorMatch,
@@ -142,6 +142,32 @@ class SqlAlchemyRequestStore(RequestStore):
             await self.session.commit()
             return True
         return False
+
+    async def expire_timed_out_requests_async(self) -> int:
+        """Transition every open request past its deadline to ``expired``.
+
+        Used by the background sweeper so an open request expires even when no
+        read path ever touches it. Applies the same ``is_request_expired`` rule
+        as ``_expire_if_needed``, so a swept request looks exactly like one
+        expired by status polling. Returns the number transitioned.
+        """
+        now = datetime.now(UTC)
+        open_requests = await self.session.scalars(
+            select(EmergencyRequestRow).where(
+                EmergencyRequestRow.status.in_(
+                    [RequestStatusEnum(status) for status in ACTIVE_REQUEST_STATUSES]
+                ),
+                EmergencyRequestRow.response_deadline <= now,
+            )
+        )
+        count = 0
+        for row in open_requests.all():
+            if is_request_expired(_enum_value(row.status), row.response_deadline, now):
+                row.status = RequestStatusEnum.EXPIRED
+                count += 1
+        if count:
+            await self.session.commit()
+        return count
 
     async def list_by_requester_async(self, requester_id: str, limit: int = 50) -> list[RequestRecord]:
         result = await self.session.scalars(

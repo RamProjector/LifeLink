@@ -22,3 +22,9 @@ services:
         value: "3"
       - key: DB_MAX_OVERFLOW
         value: "5"
+      # Push notifications stay disabled until this is set: app/fcm.py enables FCM
+      # only when FIREBASE_SERVICE_ACCOUNT_JSON is present. Paste the Firebase
+      # service-account JSON as the value in the Render dashboard; it is a secret
+      # and must never be committed to the repository.
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false

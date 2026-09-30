@@ -37,7 +37,7 @@ uvicorn app.main_postgres:app --reload --host 0.0.0.0 --port 8000
 
 ## Deploy publicly with Render
 
-The repository includes `lifelink_fastapi/Dockerfile` and `lifelink_fastapi/render.yaml`. Follow [`docs/RENDER_DEPLOYMENT.md`](docs/RENDER_DEPLOYMENT.md). Configure `LIFELINK_DATABASE_URL`, keep `LIFELINK_AUTH_REQUIRED=true`, and use the Render HTTPS URL in the Android build:
+The repository includes `lifelink_fastapi/Dockerfile` and `lifelink_fastapi/render.yaml`. Follow [`docs/RENDER_DEPLOYMENT.md`](docs/RENDER_DEPLOYMENT.md). Configure `LIFELINK_DATABASE_URL`, keep `LIFELINK_AUTH_REQUIRED=true`, and set `FIREBASE_SERVICE_ACCOUNT_JSON` to the Firebase service-account JSON so push notifications are enabled (without it FCM is off and contacted donors are never notified). Then use the Render HTTPS URL in the Android build:
 
 ```bash
 cd LifeLinkAndroid
@@ -45,6 +45,25 @@ cd LifeLinkAndroid
 ```
 
 The cloud-configured debug APK is produced by the **Build Android APKs** workflow and attached to the run as the `lifelink-android-apks-<sha>` artifact. Prebuilt APKs are no longer committed to the repository. A release build must be signed with a real production keystore before distribution.
+
+## Android release signing
+
+Release builds read their signing material from the environment so no keystore or
+password is ever committed. Supply all four before distributing an APK or App Bundle:
+
+```bash
+export LIFELINK_KEYSTORE_FILE=/absolute/path/to/release.keystore
+export LIFELINK_KEYSTORE_PASSWORD=…
+export LIFELINK_KEY_ALIAS=…
+export LIFELINK_KEY_PASSWORD=…
+cd LifeLinkAndroid
+./gradlew :app:assembleRelease
+```
+
+The same four names work as Gradle properties
+(`-PLIFELINK_KEYSTORE_FILE=…`). When any of them is absent — CI, a fresh clone, or a
+local build — the release build falls back to the debug signing config so it still
+assembles; that artifact is signed with the debug key and is **not** distributable.
 
 ## Package structure
 
@@ -70,8 +89,11 @@ limitations before public production use:
 - **Android toolchain is on AGP 9.4.1 / Gradle 9.6.0 / `compileSdk` 37**
   (Kotlin 2.2.10 built into AGP, KSP 2.3.12). The earlier AGP 8.7.3 / Gradle
   8.10.2 / `compileSdk` 35 pin has been migrated.
-- **A signed release keystore is still required before distribution**; the
-  release build is unsigned and unminified.
+- **A signed release keystore is required before distribution.** The release
+  build reads `LIFELINK_KEYSTORE_FILE`, `LIFELINK_KEYSTORE_PASSWORD`,
+  `LIFELINK_KEY_ALIAS`, and `LIFELINK_KEY_PASSWORD` from the environment or
+  Gradle properties; until they are supplied it falls back to the debug signing
+  config and stays unminified, so the artifact is not distributable.
 - **Rate limiting is in-process** (per-worker, reset on restart) and must move
   to a shared store before public launch.
 - **Medical screening is out of scope** — profile completion enables operational

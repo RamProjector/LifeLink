@@ -166,7 +166,13 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
         }
     }
 
-    private fun openConversation(requestId: String, donorId: String) {
+    /**
+     * Open (or create) the conversation for a matched request and donor.
+     *
+     * Public so the navigation shell can open a conversation directly from a
+     * contact card; [PrivacyAction.OpenConversation] dispatches here too.
+     */
+    fun openConversation(requestId: String, donorId: String) {
         viewModelScope.launch {
             _state.value = _state.value.copy(chatLoading = true, message = null)
             repository

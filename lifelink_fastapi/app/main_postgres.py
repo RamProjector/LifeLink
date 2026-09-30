@@ -68,13 +68,18 @@ from .rate_limit import enforce_rate_limit
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await create_all_tables()
-    sweeper = asyncio.create_task(_expire_stale_location_shares_forever())
+    sweepers = [
+        asyncio.create_task(_expire_stale_location_shares_forever()),
+        asyncio.create_task(_expire_timed_out_requests_forever()),
+    ]
     try:
         yield
     finally:
-        sweeper.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await sweeper
+        for sweeper in sweepers:
+            sweeper.cancel()
+        for sweeper in sweepers:
+            with contextlib.suppress(asyncio.CancelledError):
+                await sweeper
 
 
 async def _expire_stale_location_shares_forever() -> None:
@@ -95,6 +100,30 @@ async def _expire_stale_location_shares_forever() -> None:
             raise
         except Exception:  # pragma: no cover - defensive; never kill the loop
             logger.exception("Location-share sweep failed")
+        await asyncio.sleep(interval)
+
+
+async def _expire_timed_out_requests_forever() -> None:
+    """Background sweep so a request past its deadline expires on its own.
+
+    The lazy read paths (status polling, history, the donor inbox) only flip a
+    request to ``expired`` when something actually reads it, so a request that
+    times out with no further reads would otherwise stay ``awaiting_responses``
+    in the database forever. This loop mirrors the location-share sweeper and
+    reuses the same ``is_request_expired`` rule as those read paths, so a swept
+    request is indistinguishable from one expired by a read.
+    """
+    from .db import AsyncSessionLocal
+
+    interval = float(os.getenv("LIFELINK_REQUEST_SWEEP_SECONDS", "300"))
+    while True:
+        try:
+            async with AsyncSessionLocal() as session:
+                await SqlAlchemyRequestStore(session).expire_timed_out_requests_async()
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # pragma: no cover - defensive; never kill the loop
+            logger.exception("Request-expiry sweep failed")
         await asyncio.sleep(interval)
 
 

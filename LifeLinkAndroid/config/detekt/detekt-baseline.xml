@@ -10,10 +10,10 @@
     <ID>CyclomaticComplexMethod:AuthScreen.kt$@Composable fun AuthScreen( state: AuthState, onSignIn: (String, String) -&gt; Unit, onSignUp: (String, String) -&gt; Unit, onPasswordReset: (String) -&gt; Unit, onResendConfirmation: (String) -&gt; Unit, onUpdatePassword: (String, String) -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:DatabaseMigrationTest.kt$DatabaseMigrationTest$private fun verifyMigration(version: Int, ownedLegacyRows: Boolean = false)</ID>
     <ID>CyclomaticComplexMethod:DonorScreen.kt$@Composable private fun ProfileCard( profile: DonorProfile, saving: Boolean, onAction: (DonorAction) -&gt; Unit, onCaptureLocation: () -&gt; Unit, onLocationSelected: (Double, Double) -&gt; Unit, serviceRadius: String, onServiceRadiusChange: (String) -&gt; Unit, manualLatitude: String, onManualLatitudeChange: (String) -&gt; Unit, manualLongitude: String, onManualLongitudeChange: (String) -&gt; Unit )</ID>
-    <ID>CyclomaticComplexMethod:DonorScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -&gt; Unit, onBack: () -&gt; Unit)</ID>
-    <ID>CyclomaticComplexMethod:EmergencyRequestScreen.kt$@Composable private fun AcceptedContactCard( contact: com.lifelink.app.domain.RequesterContact, actionInFlight: Boolean, onAction: (EmergencyRequestAction) -&gt; Unit )</ID>
-    <ID>CyclomaticComplexMethod:EmergencyRequestScreen.kt$@Composable private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit)</ID>
-    <ID>CyclomaticComplexMethod:EmergencyRequestScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun EmergencyRequestScreen( state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit, onExit: () -&gt; Unit = {} )</ID>
+    <ID>CyclomaticComplexMethod:DonorScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun DonorScreen( state: DonorUiState, onAction: (DonorAction) -&gt; Unit, onBack: () -&gt; Unit, onOpenConversation: (String, String) -&gt; Unit = { _, _ -&gt; } )</ID>
+    <ID>CyclomaticComplexMethod:EmergencyRequestScreen.kt$@Composable private fun AcceptedContactCard( contact: com.lifelink.app.domain.RequesterContact, actionInFlight: Boolean, requestId: String?, onOpenConversation: (String, String) -&gt; Unit, onAction: (EmergencyRequestAction) -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:EmergencyRequestScreen.kt$@Composable private fun DonorPicker( state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit, onOpenConversation: (String, String) -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:EmergencyRequestScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun EmergencyRequestScreen( state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit, onExit: () -&gt; Unit = {}, onOpenConversation: (String, String) -&gt; Unit = { _, _ -&gt; } )</ID>
     <ID>CyclomaticComplexMethod:EmergencyRequestScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -&gt; Unit)</ID>
     <ID>CyclomaticComplexMethod:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$fun onAction(action: EmergencyRequestAction)</ID>
     <ID>CyclomaticComplexMethod:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$private fun validateStep(step: RequestStep, draft: EmergencyRequestDraft): String?</ID>
@@ -31,10 +31,10 @@
     <ID>LongMethod:ConversationScreen.kt$@Composable fun ConversationScreen( state: PrivacyUiState, requestId: String, donorId: String, currentUserId: String, onAction: (PrivacyAction) -&gt; Unit, onBack: () -&gt; Unit, )</ID>
     <ID>LongMethod:DonorMapScreen.kt$@Composable fun DonorMapScreen( state: PrivacyUiState, onAction: (PrivacyAction) -&gt; Unit, onBack: () -&gt; Unit )</ID>
     <ID>LongMethod:DonorScreen.kt$@Composable private fun ProfileCard( profile: DonorProfile, saving: Boolean, onAction: (DonorAction) -&gt; Unit, onCaptureLocation: () -&gt; Unit, onLocationSelected: (Double, Double) -&gt; Unit, serviceRadius: String, onServiceRadiusChange: (String) -&gt; Unit, manualLatitude: String, onManualLatitudeChange: (String) -&gt; Unit, manualLongitude: String, onManualLongitudeChange: (String) -&gt; Unit )</ID>
-    <ID>LongMethod:DonorScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -&gt; Unit, onBack: () -&gt; Unit)</ID>
-    <ID>LongMethod:EmergencyRequestScreen.kt$@Composable private fun AcceptedContactCard( contact: com.lifelink.app.domain.RequesterContact, actionInFlight: Boolean, onAction: (EmergencyRequestAction) -&gt; Unit )</ID>
-    <ID>LongMethod:EmergencyRequestScreen.kt$@Composable private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit)</ID>
-    <ID>LongMethod:EmergencyRequestScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun EmergencyRequestScreen( state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit, onExit: () -&gt; Unit = {} )</ID>
+    <ID>LongMethod:DonorScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun DonorScreen( state: DonorUiState, onAction: (DonorAction) -&gt; Unit, onBack: () -&gt; Unit, onOpenConversation: (String, String) -&gt; Unit = { _, _ -&gt; } )</ID>
+    <ID>LongMethod:EmergencyRequestScreen.kt$@Composable private fun AcceptedContactCard( contact: com.lifelink.app.domain.RequesterContact, actionInFlight: Boolean, requestId: String?, onOpenConversation: (String, String) -&gt; Unit, onAction: (EmergencyRequestAction) -&gt; Unit )</ID>
+    <ID>LongMethod:EmergencyRequestScreen.kt$@Composable private fun DonorPicker( state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit, onOpenConversation: (String, String) -&gt; Unit )</ID>
+    <ID>LongMethod:EmergencyRequestScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun EmergencyRequestScreen( state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit, onExit: () -&gt; Unit = {}, onOpenConversation: (String, String) -&gt; Unit = { _, _ -&gt; } )</ID>
     <ID>LongMethod:EmergencyRequestScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -&gt; Unit)</ID>
     <ID>LongMethod:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$private suspend fun refreshAfterContactRequest( requestId: String, requestedDonorIds: List&lt;String&gt;, responseDonorIds: List&lt;String&gt;, uncertain: Boolean, )</ID>
     <ID>LongMethod:LifeLinkShell.kt$@Composable private fun HomeContent( state: EmergencyRequestUiState, donorState: DonorUiState, role: UserRole, onSwitchRole: () -&gt; Unit, onCreate: () -&gt; Unit, onActive: () -&gt; Unit, onDonor: () -&gt; Unit, onDonorMap: () -&gt; Unit, updates: List&lt;UpdateItem&gt;, onRequests: () -&gt; Unit, onUpdates: () -&gt; Unit )</ID>
@@ -142,12 +142,10 @@
     <ID>MaxLineLength:DonorScreen.kt$Text(request.urgency.replaceFirstChar { it.uppercase() }, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.labelMedium)</ID>
     <ID>MaxLineLength:DonorScreen.kt$if</ID>
     <ID>MaxLineLength:DonorScreen.kt$if (latitude != null &amp;&amp; longitude != null &amp;&amp; latitude in -90.0..90.0 &amp;&amp; longitude in -180.0..180.0) onLocationSelected(latitude, longitude)</ID>
-    <ID>MaxLineLength:DonorScreen.kt$if (profile.latitude == null) "Location not captured" else "Approximate location saved for matching (±${profile.locationPrecisionMeters} m)"</ID>
     <ID>MaxLineLength:DonorScreen.kt$if (profile.profileVisible) "You can appear in matching results when available." else "You will not appear in new matching results."</ID>
     <ID>MaxLineLength:DonorScreen.kt$onServiceRadiusChange = { value -&gt; if (value.length &lt;= 3 &amp;&amp; value.all(Char::isDigit)) serviceRadius = value }</ID>
     <ID>MaxLineLength:DonorScreen.kt$onValueChange = { if (it.length &lt;= 240) onAction(DonorAction.UpdateDraft { draft -&gt; draft.copy(pauseReason = it) }) }</ID>
     <ID>MaxLineLength:DonorScreen.kt$val</ID>
-    <ID>MaxLineLength:DonorViewModel.kt$DonorViewModel$.</ID>
     <ID>MaxLineLength:EmergencyRequestModels.kt$BloodType</ID>
     <ID>MaxLineLength:EmergencyRequestModels.kt$Urgency</ID>
     <ID>MaxLineLength:EmergencyRequestRepository.kt$EmergencyRequestRepositoryImpl$.</ID>
@@ -210,7 +208,6 @@
     <ID>MaxLineLength:EmergencyRequestScreen.kt$donor.explanation.firstOrNull()?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }</ID>
     <ID>MaxLineLength:EmergencyRequestScreen.kt$if</ID>
     <ID>MaxLineLength:EmergencyRequestScreen.kt$if (draft.requesterLatitude != null) Text("Using a selected pin · accuracy about ${draft.locationPrecisionMeters} m", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
-    <ID>MaxLineLength:EmergencyRequestScreen.kt$if (state.contacts.isNotEmpty()) Text("${state.contacts.size} contacted", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)</ID>
     <ID>MaxLineLength:EmergencyRequestScreen.kt$if (status in setOf("accepted", "arrived", "contact_shared", "meeting_arranged")) TextButton(enabled = !actionInFlight, onClick = { cancelDialogVisible = true }) { Text("Cancel contact") }</ID>
     <ID>MaxLineLength:EmergencyRequestScreen.kt$modifier = Modifier.fillMaxWidth().clickable(role = Role.RadioButton) { onAction(EmergencyRequestAction.UpdateDraft { it.copy(urgency = urgency) }) }</ID>
     <ID>MaxLineLength:EmergencyRequestScreen.kt$onLocationSelected = { latitude, longitude -&gt; onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500)) }</ID>

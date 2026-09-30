@@ -55,6 +55,37 @@ android {
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${supabasePublishableKey.replace("\\\"", "\\\\\"")}\"")
     }
 
+    // Release signing material is read from the environment or Gradle properties so
+    // no keystore or password is ever committed. When any value is absent (CI, a
+    // fresh clone, a local build) the release build falls back to the debug signing
+    // config so it still assembles; that artifact is not distributable.
+    fun releaseSecret(name: String): String? {
+        val fromProperty = providers.gradleProperty(name).orNull
+        val fromEnvironment = providers.environmentVariable(name).orNull
+        return (fromProperty ?: fromEnvironment)?.takeIf { it.isNotBlank() }
+    }
+
+    val releaseKeystorePath = releaseSecret("LIFELINK_KEYSTORE_FILE")
+    val releaseStorePassword = releaseSecret("LIFELINK_KEYSTORE_PASSWORD")
+    val releaseKeyAlias = releaseSecret("LIFELINK_KEY_ALIAS")
+    val releaseKeyPassword = releaseSecret("LIFELINK_KEY_PASSWORD")
+    val releaseSigningConfigured =
+        releaseKeystorePath != null &&
+            releaseStorePassword != null &&
+            releaseKeyAlias != null &&
+            releaseKeyPassword != null
+
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         debug {
             val stableKeystore = file("stable-debug.keystore")
@@ -73,6 +104,15 @@ android {
         }
         release {
             isMinifyEnabled = false
+            signingConfig =
+                if (releaseSigningConfigured) {
+                    signingConfigs.getByName("release")
+                } else {
+                    // Fall back to the auto-created debug signing config so an unsigned
+                    // release build still assembles in CI. Signing with the debug key
+                    // means the artifact is not distributable.
+                    runCatching { signingConfigs.getByName("debug") }.getOrNull()
+                }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

@@ -228,6 +228,44 @@ def test_cancel_stops_the_donor_search_broadcast(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_sweeper_expires_requests_past_their_deadline(pg_url):
+    """An open request must expire on its own once its deadline passes.
+
+    The lazy read paths only expire a request that something reads. The
+    background sweeper must close a timed-out request even when nothing reads
+    it, so its status reflects the deadline without any client action.
+    """
+
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+
+        # The deadline passes with no further cancel/fulfil and no read.
+        await run_sql(
+            f"UPDATE emergency_requests SET response_deadline = now() - interval '1 hour' "
+            f"WHERE id = '{created['request_id']}'"
+        )
+
+        from app.repositories import SqlAlchemyRequestStore
+
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        async with sessions() as session:
+            expired = await SqlAlchemyRequestStore(session).expire_timed_out_requests_async()
+        await engine.dispose()
+        assert expired >= 1
+
+        async with create_async_engine(pg_url).connect() as conn:
+            result = await conn.execute(
+                text("SELECT status::text FROM emergency_requests WHERE id = :rid"),
+                {"rid": created["request_id"]},
+            )
+            assert result.all() == [("expired",)]
+
+    run_scenario(pg_url, scenario)
+
+
 def test_cancel_resets_request_and_allows_a_new_one(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")

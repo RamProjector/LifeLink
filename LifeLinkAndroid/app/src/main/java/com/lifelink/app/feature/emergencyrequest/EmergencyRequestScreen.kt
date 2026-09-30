@@ -105,7 +105,8 @@ fun LifeLinkApp(state: EmergencyRequestUiState, onAction: (EmergencyRequestActio
 fun EmergencyRequestScreen(
     state: EmergencyRequestUiState,
     onAction: (EmergencyRequestAction) -> Unit,
-    onExit: () -> Unit = {}
+    onExit: () -> Unit = {},
+    onOpenConversation: (String, String) -> Unit = { _, _ -> }
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val handleBack = {
@@ -187,7 +188,7 @@ fun EmergencyRequestScreen(
                     RequestStep.LOCATION -> LocationStep(state.draft, onAction)
                     RequestStep.CONTACT -> ContactStep(state.draft, onAction)
                     RequestStep.REVIEW -> ReviewStep(state.draft, onAction)
-                    RequestStep.RESULTS -> DonorPicker(state, onAction)
+                    RequestStep.RESULTS -> DonorPicker(state, onAction, onOpenConversation)
                 }
             }
             if (state.step == RequestStep.RESULTS) {
@@ -197,19 +198,25 @@ fun EmergencyRequestScreen(
                     }
                 }
             }
-            if (state.step != RequestStep.RESULTS && state.discoveredDonors.isNotEmpty()) item { DonorPicker(state, onAction) }
+            if (state.step != RequestStep.RESULTS && state.discoveredDonors.isNotEmpty()) {
+                item { DonorPicker(state, onAction, onOpenConversation) }
+            }
         }
     }
     if (state.criticalConfirmationVisible) CriticalSheet(state.draft, onAction)
 }
 
 @Composable
-private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -> Unit) {
+private fun DonorPicker(
+    state: EmergencyRequestUiState,
+    onAction: (EmergencyRequestAction) -> Unit,
+    onOpenConversation: (String, String) -> Unit
+) {
     var showMap by rememberSaveable { mutableStateOf(false) }
     val donorsWithinFiveKm = state.discoveredDonors.count { it.distanceKm <= 5.0 }
     val donorsWithinTenKm = state.discoveredDonors.count { it.distanceKm > 5.0 && it.distanceKm <= 10.0 }
     val donorsBeyondTenKm = state.discoveredDonors.count { it.distanceKm > 10.0 }
-    val requestId = (state.submission as? SubmissionState.Matching)?.requestId
+    val requestId = state.resultsRequestId ?: (state.submission as? SubmissionState.Matching)?.requestId
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Heading("Potential donors", "Review matches and choose who to contact.")
         if (state.matchesRefreshing) {
@@ -234,7 +241,13 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
                     Text("${state.discoveredDonors.size} potential match${if (state.discoveredDonors.size == 1) "" else "es"}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(if (state.selectedDonorIds.isEmpty()) "Select one or more donors to continue." else "${state.selectedDonorIds.size} selected", color = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
-                if (state.contacts.isNotEmpty()) Text("${state.contacts.size} contacted", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                if (state.contacts.isNotEmpty()) {
+                    Text(
+                        "${state.contacts.size} contacted",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
             }
         }
         if (state.contacts.isNotEmpty()) {
@@ -243,6 +256,8 @@ private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequ
                 AcceptedContactCard(
                     contact = contact,
                     actionInFlight = state.contactActionInFlightDonorId == contact.donorId,
+                    requestId = requestId,
+                    onOpenConversation = onOpenConversation,
                     onAction = onAction
                 )
             }
@@ -325,6 +340,8 @@ private fun PrivacySafeDonorMap(
 private fun AcceptedContactCard(
     contact: com.lifelink.app.domain.RequesterContact,
     actionInFlight: Boolean,
+    requestId: String?,
+    onOpenConversation: (String, String) -> Unit,
     onAction: (EmergencyRequestAction) -> Unit
 ) {
     val status = contact.status.lowercase()
@@ -381,6 +398,19 @@ private fun AcceptedContactCard(
                     "fulfilled" -> Text("Fulfilled", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                 }
                 if (status in setOf("accepted", "arrived", "contact_shared", "meeting_arranged")) TextButton(enabled = !actionInFlight, onClick = { cancelDialogVisible = true }) { Text("Cancel contact") }
+                // Open the in-app conversation with this matched donor. The chat was
+                // previously unreachable: ConversationScreen existed but nothing
+                // navigated to it, so an accepted contact had no way to message.
+                if (requestId != null) {
+                    OutlinedButton(
+                        onClick = { onOpenConversation(requestId, contact.donorId) },
+                        enabled = !actionInFlight,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (actionInFlight) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else Text("Message ${contact.displayName}")
+                    }
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { reportDialogVisible = true }) { Text("Report") }
                     TextButton(onClick = { blockDialogVisible = true }) { Text("Block") }
