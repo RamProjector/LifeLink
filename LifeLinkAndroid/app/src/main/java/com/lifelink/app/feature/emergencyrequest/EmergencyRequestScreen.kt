@@ -94,11 +94,18 @@ import com.lifelink.app.domain.RequestStep
 import com.lifelink.app.domain.Urgency
 import kotlinx.coroutines.launch
 
+/** Renders the emergency request flow using the supplied state and action handler. */
 @Composable
 fun LifeLinkApp(state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -> Unit) {
     EmergencyRequestScreen(state = state, onAction = onAction)
 }
 
+/**
+ * Renders the request wizard and donor results, dispatching edits through [onAction].
+ *
+ * [onExit] leaves the flow; [onOpenConversation] opens a contacted donor conversation
+ * using the request ID and donor ID supplied by the contact card.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EmergencyRequestScreen(
@@ -221,6 +228,12 @@ fun EmergencyRequestScreen(
     if (state.criticalConfirmationVisible) CriticalSheet(state.draft, onAction)
 }
 
+/**
+ * Shows donor matches, selection controls, and contact activity for the request.
+ *
+ * Resolves the request ID from saved results or the current matching submission and
+ * forwards conversation actions through [onOpenConversation].
+ */
 @Composable
 private fun DonorPicker(
     state: EmergencyRequestUiState,
@@ -382,6 +395,7 @@ private fun DonorPicker(
     }
 }
 
+/** Shows distance-band donor counts around the request location without displaying individual donor pins. */
 @Composable
 private fun PrivacySafeDonorMap(
     latitude: Double,
@@ -399,6 +413,12 @@ private fun PrivacySafeDonorMap(
     )
 }
 
+/**
+ * Shows contact progress, consent controls, and report or block actions.
+ *
+ * For accepted contacts, messaging requires a non-null [requestId] and is disabled
+ * while [actionInFlight]. [onOpenConversation] receives that ID and the donor ID.
+ */
 @Composable
 private fun AcceptedContactCard(
     contact: com.lifelink.app.domain.RequesterContact,
@@ -648,11 +668,13 @@ private fun AcceptedContactCard(
     }
 }
 
+/** Formats a contact timestamp for display, preserving the original value if parsing fails. */
 private fun formatContactTimestamp(value: String): String =
     runCatching {
         value.take(16).replace('T', ' ')
     }.getOrDefault(value)
 
+/** Displays the current wizard step label and highlights progress through the supplied number of steps. */
 @Composable private fun Progress(step: Int, total: Int) {
     val labels = listOf("Blood need", "Timing", "Location", "Contact", "Review", "Results")
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -680,6 +702,7 @@ private fun formatContactTimestamp(value: String): String =
     }
 }
 
+/** Edits the requested blood type and unit count through draft-update actions. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BloodNeedStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
@@ -698,6 +721,7 @@ private fun BloodNeedStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequ
     }
 }
 
+/** Edits urgency, response timing, and the optional request note through draft-update actions. */
 @Composable private fun UrgencyStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Heading("Timing", "Choose the closest accurate response window.")
@@ -762,6 +786,7 @@ private fun BloodNeedStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequ
     }
 }
 
+/** Displays the request location picker and supports recentering and retrying the map. */
 @Composable
 private fun LocationMapPicker(
     draft: EmergencyRequestDraft,
@@ -795,6 +820,7 @@ private fun LocationMapPicker(
     )
 }
 
+/** Captures or edits request coordinates using device location, map selection, or manual input. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
@@ -966,6 +992,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Edits contact preferences and the genuine-request and sharing-consent confirmations. */
 @Composable private fun ContactStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Heading("Contact preferences", "Choose how an accepting donor can reach you.")
@@ -1000,6 +1027,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Summarizes the request draft with edit actions and an optional matching preference. */
 @Composable private fun ReviewStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Heading("Review request", "Check the essentials before notifying potential donors.")
@@ -1046,6 +1074,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Offers step continuation or submission and draft saving, disabling actions during submission. */
 @Composable private fun BottomBar(state: EmergencyRequestUiState, onContinue: () -> Unit, onSubmit: () -> Unit, onSave: () -> Unit) {
     val submitting = state.submission is SubmissionState.Submitting
     Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background, shadowElevation = 8.dp) {
@@ -1090,6 +1119,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Displays a title and subtitle with heading semantics for accessibility. */
 @Composable private fun Heading(title: String, subtitle: String) {
     Column(Modifier.semantics { heading() }, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -1097,6 +1127,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Displays a selectable option with radio-button semantics and forwards clicks to [onClick]. */
 @Composable private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
         Modifier.height(48.dp).clickable(role = Role.RadioButton, onClick = onClick).semantics {
@@ -1117,6 +1148,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Displays the unit count and invokes [onChange] for permitted increments and decrements. */
 @Composable private fun QuantityStepper(quantity: Int, onChange: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
         OutlinedButton(
@@ -1153,6 +1185,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Displays a checkbox, label, and optional supporting text; clicking the row toggles the value. */
 @Composable private fun CheckRow(checked: Boolean, label: String, supporting: String? = null, onChecked: (Boolean) -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(role = Role.Checkbox) { onChecked(!checked) }.semantics {
@@ -1169,6 +1202,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Displays a titled message using a container color selected by [accent]. */
 @Composable private fun InfoCard(title: String, body: String, accent: Color = MaterialTheme.colorScheme.primary) {
     Surface(
         Modifier.fillMaxWidth(),
@@ -1189,6 +1223,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Displays a selectable facility with its area and an indicator for verified facilities. */
 @Composable private fun FacilityRow(facility: Facility, selected: Boolean, onClick: () -> Unit) {
     Surface(
         Modifier.fillMaxWidth().clickable(role = Role.RadioButton, onClick = onClick).semantics {
@@ -1210,6 +1245,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Displays a labeled radio option and delegates selection to [onClick]. */
 @Composable private fun SelectableRow(label: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
         Modifier.fillMaxWidth().clickable(role = Role.RadioButton, onClick = onClick).semantics {
@@ -1227,6 +1263,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Displays a review value with an edit action for the supplied request-step index. */
 @Composable private fun Summary(title: String, value: String, step: Int, onAction: (EmergencyRequestAction) -> Unit) {
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
@@ -1240,6 +1277,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Displays an error message and delegates retry requests to [onRetry]. */
 @Composable private fun ErrorBanner(message: String, onRetry: () -> Unit) {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1252,6 +1290,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Displays a successful request update in a status card. */
 @Composable private fun SuccessBanner(message: String) {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1261,6 +1300,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Explains why automatic matching is unavailable and offers the manual broadcast action. */
 @Composable private fun ManualFallbackBanner(reason: String, onSend: () -> Unit) {
     Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.medium) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1276,6 +1316,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
 }
 
+/** Displays an outlined request field with optional supporting text and configurable line count. */
 @Composable
 private fun TextField(
     value: String,
@@ -1314,6 +1355,7 @@ private fun TextField(
     )
 }
 
+/** Shows the critical-request summary and dispatches confirmation or dismissal actions. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CriticalSheet(
@@ -1345,6 +1387,7 @@ private fun CriticalSheet(
     }
 }
 
+/** Reports whether both request coordinates are present without exposing their values. */
 private fun locationSummary(draft: EmergencyRequestDraft): String =
     if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
         "Approximate GPS location captured"
@@ -1352,6 +1395,7 @@ private fun locationSummary(draft: EmergencyRequestDraft): String =
         "Approximate GPS location not captured"
     }
 
+/** Describes the response deadline, treating blank text and the hours placeholder as unset. */
 private fun displayDeadline(draft: EmergencyRequestDraft): String =
     if (draft.responseDeadline.isBlank() || draft.responseDeadline.equals("hours", ignoreCase = true)) {
         "response deadline not set"

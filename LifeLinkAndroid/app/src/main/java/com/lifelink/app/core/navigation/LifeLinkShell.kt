@@ -107,6 +107,12 @@ private enum class ShellTab(val label: String) {
 
 private enum class SettingsSection { PROFILE, LEGAL, SAFETY, ABOUT, THEME, SECURITY }
 
+/**
+ * Renders account navigation and routes requester and donor actions to their screens.
+ *
+ * Opening a conversation dispatches [PrivacyAction.OpenConversation] with the request
+ * and donor IDs; closing it returns to the screen that opened it.
+ */
 @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
 @Composable
 fun LifeLinkShell(
@@ -350,6 +356,7 @@ fun LifeLinkShell(
     }
 }
 
+/** Renders the tab icon and caps the visible unread-update badge at 99+. */
 @Composable
 private fun ShellNavigationIcon(tab: ShellTab, unread: Int) {
     val icon =
@@ -364,6 +371,7 @@ private fun ShellNavigationIcon(tab: ShellTab, unread: Int) {
     }
 }
 
+/** Shows request history with actions to create, resume, or view the current request. */
 @Composable private fun RequestsContent(
     state: EmergencyRequestUiState,
     onAction: (EmergencyRequestAction) -> Unit,
@@ -449,6 +457,7 @@ private fun ShellNavigationIcon(tab: ShellTab, unread: Int) {
     }
 }
 
+/** Summarizes a saved request and labels terminal requests as past requests. */
 @Composable
 private fun RequestHistoryCard(request: RequestHistoryItem) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
@@ -501,6 +510,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     }
 }
 
+/** Displays the account dashboard with request, donor, map, and update navigation actions. */
 @Composable private fun HomeContent(
     state: EmergencyRequestUiState,
     donorState: DonorUiState,
@@ -610,6 +620,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     }
 }
 
+/** Shows the current request status and response count, or nothing when no request is loaded. */
 @Composable
 private fun ActiveRequestSummary(state: EmergencyRequestUiState, onOpen: () -> Unit) {
     val active = state.activeRequest ?: return
@@ -642,6 +653,7 @@ private fun HomePreview() {
     LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, {}, {}, emptyList(), {}, {}) }
 }
 
+/** Summarizes donor availability and request count with an action to open donor mode. */
 @Composable
 private fun DonorDashboardSummary(
     profile: com.lifelink.app.domain.DonorProfile,
@@ -687,6 +699,7 @@ private fun DonorDashboardSummary(
     }
 }
 
+/** Shows introductory guidance and delegates request creation or donor navigation to the caller. */
 @Composable
 private fun StartContent(
     role: UserRole,
@@ -744,6 +757,7 @@ private fun StartContent(
     }
 }
 
+/** Lists product guidance topics and opens the selected topic in a dialog. */
 @Composable private fun LearnContent() {
     var selectedTopic by rememberSaveable { mutableStateOf<String?>(null) }
     val topics =
@@ -811,6 +825,7 @@ private fun StartContent(
     }
 }
 
+/** Routes the selected settings section to profile, appearance, security, or guidance content. */
 @Composable private fun SettingsContent(
     role: UserRole,
     accountEmail: String,
@@ -875,6 +890,7 @@ private fun StartContent(
     }
 }
 
+/** Displays accessible theme choices and reports the selected mode through [onThemeModeChange]. */
 @Composable private fun ThemeContent(themeMode: ThemeMode, onThemeModeChange: (ThemeMode) -> Unit) {
     Column(
         Modifier
@@ -920,6 +936,7 @@ private fun StartContent(
     }
 }
 
+/** Requests a password-reset link and shows the callback result alongside session-safety guidance. */
 @Composable private fun SecurityContent(onRequestPasswordReset: ((String) -> Unit) -> Unit) {
     var resetMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var showSessionHelp by rememberSaveable { mutableStateOf(false) }
@@ -951,6 +968,7 @@ private fun StartContent(
     }
 }
 
+/** Displays product limitations, emergency guidance, and legal and safety information. */
 @Composable private fun LegalContent() {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Legal & Safety Center", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -999,6 +1017,7 @@ private fun StartContent(
     }
 }
 
+/** Displays urgent-care guidance and opens the system dialer with 911 when requested. */
 @Composable private fun EmergencyHelpCard() {
     val context = LocalContext.current
     Card(
@@ -1038,6 +1057,7 @@ private fun StartContent(
     }
 }
 
+/** Lists privacy and safety topics and displays details for the selected topic. */
 @Composable private fun SafetyContent() {
     var selectedTopic by rememberSaveable { mutableStateOf<String?>(null) }
     val details =
@@ -1067,6 +1087,7 @@ private fun StartContent(
     }
 }
 
+/** Edits the account display name and exposes donor setup and sign-out actions. */
 @Composable private fun ProfileContent(
     role: UserRole,
     accountEmail: String,

@@ -67,6 +67,10 @@ from .rate_limit import enforce_rate_limit
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """Create tables and run expiry sweepers until application shutdown.
+
+    Cancel and await both background tasks when the lifespan context exits.
+    """
     await create_all_tables()
     sweepers = [
         asyncio.create_task(_expire_stale_location_shares_forever()),

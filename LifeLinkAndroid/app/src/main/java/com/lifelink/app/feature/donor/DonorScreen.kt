@@ -66,6 +66,12 @@ import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
 import kotlinx.coroutines.launch
 
+/**
+ * Displays donor setup, availability, and the request inbox from [state].
+ *
+ * [onOpenConversation] receives the request ID and donor ID when the donor messages
+ * a requester from an accepted or arrived request.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DonorScreen(
@@ -263,6 +269,7 @@ private enum class DonorTab(val label: String) {
     REQUESTS("Requests"),
 }
 
+/** Shows donor availability or setup guidance, status messages, and the expandable profile editor. */
 @Composable
 private fun DonorHomeContent(
     state: DonorUiState,
@@ -326,6 +333,11 @@ private fun DonorHomeContent(
     }
 }
 
+/**
+ * Shows setup guidance until the donor profile is complete, then renders the inbox.
+ *
+ * Passes the profile donor ID and [onOpenConversation] to each request card.
+ */
 @Composable
 private fun DonorRequestsContent(
     state: DonorUiState,
@@ -379,6 +391,7 @@ private fun DonorRequestsContent(
     }
 }
 
+/** Displays a donor status message with optional compact styling and a loading indicator. */
 @Composable
 private fun StatusMessage(message: String, compact: Boolean = false, loading: Boolean = false) {
     Card(
@@ -401,6 +414,7 @@ private fun StatusMessage(message: String, compact: Boolean = false, loading: Bo
     }
 }
 
+/** Displays availability choices and dispatches changes while no save is in progress. */
 @Composable private fun AvailabilityCard(profile: DonorProfile, onAction: (DonorAction) -> Unit, saving: Boolean) {
     Card(
         Modifier.fillMaxWidth(),
@@ -421,6 +435,7 @@ private fun StatusMessage(message: String, compact: Boolean = false, loading: Bo
     }
 }
 
+/** Lists missing donor profile fields and explains why requests remain hidden until setup is complete. */
 @Composable
 private fun SetupRequiredCard(profile: DonorProfile) {
     val missing =
@@ -446,6 +461,12 @@ private fun SetupRequiredCard(profile: DonorProfile) {
     }
 }
 
+/**
+ * Edits donor profile fields through [onAction] and the supplied location callbacks.
+ *
+ * The caller owns unsaved radius and manual coordinate text so it survives switching
+ * between the tabbed and full-screen profile editors.
+ */
 @Composable
 private fun ProfileCard(
     profile: DonorProfile,
@@ -652,6 +673,7 @@ private fun ProfileCard(
     }
 }
 
+/** Lets the donor select an approximate location, defaulting to Manila when coordinates are absent. */
 @Composable
 private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSelected: (Double, Double) -> Unit) {
     val selectedLatitude = latitude ?: 14.5995
@@ -678,6 +700,12 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
     )
 }
 
+/**
+ * Displays a donor request with response actions disabled while [saving].
+ *
+ * Accepted or arrived requests can open a conversation using the request ID and
+ * [donorId]; [onOpenConversation] delegates navigation to the caller.
+ */
 @Composable private fun RequestCard(
     request: DonorRequest,
     onAction: (DonorAction) -> Unit,

@@ -150,6 +150,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
         }
     }
 
+    /** Revokes the location share and clears the displayed location on success, or reports an error. */
     private fun revokeShare(requestId: String, donorId: String) {
         viewModelScope.launch {
             repository

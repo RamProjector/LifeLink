@@ -237,6 +237,7 @@ def test_sweeper_expires_requests_past_their_deadline(pg_url):
     """
 
     async def scenario(client, current, run_sql):
+        """Age a request, run the store sweep, and verify persisted expiry via SQL."""
         donor, requester = new_user("donor"), new_user("requester")
         await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
