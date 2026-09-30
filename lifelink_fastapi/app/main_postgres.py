@@ -727,7 +727,16 @@ async def register_donor_postgres(
             pause_reason=row.pause_reason,
             profile_visible=row.profile_visible,
         )
-        return profile_to_out(donor, DonorAvailability.AVAILABLE if row.available else DonorAvailability.OFFLINE)
+        out = profile_to_out(donor, DonorAvailability.AVAILABLE if row.available else DonorAvailability.OFFLINE)
+        # A blood-type (or location/radius) change must re-evaluate matching
+        # immediately, not only when the next request is submitted. Best-effort:
+        # a recompute failure must not fail the profile save itself.
+        try:
+            await SqlAlchemyDonorStore(session).recompute_matches_for_donor(donor_id)
+        except Exception:
+            await session.rollback()
+            logger.exception("Donor match recompute failed after profile save for donor_id=%s", donor_id)
+        return out
     except SQLAlchemyError as exc:
         await session.rollback()
         logger.exception("Donor profile save database failure for operation donor_profile_save")

@@ -107,7 +107,7 @@ def request_payload(requester_id: str, *, hours: float = 1.0) -> dict:
     }
 
 
-async def setup_donor(client, current, donor_id: str, *, claim_verified: bool = False) -> None:
+async def setup_donor(client, current, donor_id: str, *, claim_verified: bool = False, blood_type: str = "O+") -> None:
     current["id"] = donor_id
     profile = await client.put(
         "/v1/profile",
@@ -119,7 +119,7 @@ async def setup_donor(client, current, donor_id: str, *, claim_verified: bool = 
         json={
             "donor_id": donor_id,
             "display_name": "Test Donor",
-            "blood_type": "O+",
+            "blood_type": blood_type,
             "latitude": 11.2440,
             "longitude": 125.0010,
             "service_radius_km": 15,
@@ -223,6 +223,60 @@ def test_cancel_resets_request_and_allows_a_new_one(pg_url):
         statuses = {item["request_id"]: item["status"] for item in history.json()}
         assert statuses[created["request_id"]] == "cancelled"
         assert statuses[second["request_id"]] == "awaiting_responses"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_blood_type_change_immediately_rematches_active_requests(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        # The donor starts as A+, which is not compatible with an O+ request.
+        await setup_donor(client, current, donor, blood_type="A+")
+
+        created = await submit_request(client, current, requester)
+        assert created["matches"] == []
+
+        current["id"] = donor
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert inbox.json() == []
+
+        # Changing the blood type to O+ must surface the active O+ request at once.
+        saved = await client.put(
+            f"/v1/donors/{donor}",
+            json={
+                "donor_id": donor,
+                "display_name": "Test Donor",
+                "blood_type": "O+",
+                "latitude": 11.2440,
+                "longitude": 125.0010,
+                "service_radius_km": 15,
+                "verified": False,
+            },
+        )
+        assert saved.status_code == 200, saved.text
+
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert [item["request_id"] for item in inbox.json()] == [created["request_id"]]
+
+        # Changing away again removes the now-incompatible request.
+        saved = await client.put(
+            f"/v1/donors/{donor}",
+            json={
+                "donor_id": donor,
+                "display_name": "Test Donor",
+                "blood_type": "A+",
+                "latitude": 11.2440,
+                "longitude": 125.0010,
+                "service_radius_km": 15,
+                "verified": False,
+            },
+        )
+        assert saved.status_code == 200, saved.text
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert inbox.json() == []
 
     run_scenario(pg_url, scenario)
 
