@@ -17,7 +17,7 @@
     <ID>CyclomaticComplexMethod:EmergencyRequestScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -&gt; Unit)</ID>
     <ID>CyclomaticComplexMethod:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$fun onAction(action: EmergencyRequestAction)</ID>
     <ID>CyclomaticComplexMethod:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$private fun validateStep(step: RequestStep, draft: EmergencyRequestDraft): String?</ID>
-    <ID>CyclomaticComplexMethod:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$private suspend fun refreshAfterContactRequest( requestId: String, requestedDonorIds: List&lt;String&gt;, responseDonorIds: List&lt;String&gt;, uncertain: Boolean )</ID>
+    <ID>CyclomaticComplexMethod:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$private suspend fun refreshAfterContactRequest( requestId: String, requestedDonorIds: List&lt;String&gt;, responseDonorIds: List&lt;String&gt;, uncertain: Boolean, )</ID>
     <ID>CyclomaticComplexMethod:LifeLinkNotifications.kt$LifeLinkNotifications$fun showRemoteMessage(context: Context, message: RemoteMessage)</ID>
     <ID>CyclomaticComplexMethod:LifeLinkShell.kt$@Composable private fun ProfileContent( role: UserRole, accountEmail: String, accountUserId: String, accountDisplayName: String, profileSaving: Boolean, profileMessage: String?, onSaveProfile: (String) -&gt; Unit, onOpenDonor: () -&gt; Unit, onSignOut: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:LifeLinkShell.kt$@OptIn(ExperimentalMaterial3WindowSizeClassApi::class) @Composable fun LifeLinkShell( state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit, donorState: DonorUiState, onDonorAction: (DonorAction) -&gt; Unit, privacyState: PrivacyUiState, onPrivacyAction: (PrivacyAction) -&gt; Unit, role: UserRole, onSwitchRole: () -&gt; Unit, accountEmail: String, accountUserId: String, accountDisplayName: String, profileSaving: Boolean, profileMessage: String?, onSaveProfile: (String) -&gt; Unit, themeMode: ThemeMode, onThemeModeChange: (ThemeMode) -&gt; Unit, onRequestPasswordReset: ((String) -&gt; Unit) -&gt; Unit, onSignOut: () -&gt; Unit, updates: List&lt;UpdateItem&gt;, onUpdateRead: (String) -&gt; Unit, onMarkAllUpdatesRead: () -&gt; Unit, notificationOpenUpdates: Boolean = false, notificationRequestId: String? = null )</ID>
@@ -25,7 +25,8 @@
     <ID>CyclomaticComplexMethod:MapLibreLocationPicker.kt$@Composable fun MapLibreLocationPicker( latitude: Double?, longitude: Double?, onLocationSelected: (Double, Double) -&gt; Unit, recenterRequest: Int = 0, onLoadingChanged: (Boolean) -&gt; Unit = {}, onMapError: (String) -&gt; Unit = {}, modifier: Modifier = Modifier )</ID>
     <ID>CyclomaticComplexMethod:SupabaseAuthRepository.kt$SupabaseAuthRepository$suspend fun refreshAccessToken(): String?</ID>
     <ID>EmptyElseBlock:EmergencyRequestScreen.kt$if (state.step == RequestStep.REVIEW) TextButton(onClick = onSave, enabled = !submitting) { Text("Save as draft") }</ID>
-    <ID>LongMethod:ActiveRequestScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ActiveRequestScreen( state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit, onBack: () -&gt; Unit, onReviewContacts: () -&gt; Unit )</ID>
+    <ID>LargeClass:EmergencyRequestViewModel.kt$EmergencyRequestViewModel : ViewModel</ID>
+    <ID>LongMethod:ActiveRequestScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ActiveRequestScreen( state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit, onBack: () -&gt; Unit, onReviewContacts: () -&gt; Unit, )</ID>
     <ID>LongMethod:AuthScreen.kt$@Composable fun AuthScreen( state: AuthState, onSignIn: (String, String) -&gt; Unit, onSignUp: (String, String) -&gt; Unit, onPasswordReset: (String) -&gt; Unit, onResendConfirmation: (String) -&gt; Unit, onUpdatePassword: (String, String) -&gt; Unit )</ID>
     <ID>LongMethod:ConversationScreen.kt$@Composable fun ConversationScreen( state: PrivacyUiState, requestId: String, donorId: String, currentUserId: String, onAction: (PrivacyAction) -&gt; Unit, onBack: () -&gt; Unit, )</ID>
     <ID>LongMethod:DonorMapScreen.kt$@Composable fun DonorMapScreen( state: PrivacyUiState, onAction: (PrivacyAction) -&gt; Unit, onBack: () -&gt; Unit )</ID>
@@ -35,6 +36,7 @@
     <ID>LongMethod:EmergencyRequestScreen.kt$@Composable private fun DonorPicker(state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit)</ID>
     <ID>LongMethod:EmergencyRequestScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun EmergencyRequestScreen( state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit, onExit: () -&gt; Unit = {} )</ID>
     <ID>LongMethod:EmergencyRequestScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -&gt; Unit)</ID>
+    <ID>LongMethod:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$private suspend fun refreshAfterContactRequest( requestId: String, requestedDonorIds: List&lt;String&gt;, responseDonorIds: List&lt;String&gt;, uncertain: Boolean, )</ID>
     <ID>LongMethod:LifeLinkShell.kt$@Composable private fun HomeContent( state: EmergencyRequestUiState, donorState: DonorUiState, role: UserRole, onSwitchRole: () -&gt; Unit, onCreate: () -&gt; Unit, onActive: () -&gt; Unit, onDonor: () -&gt; Unit, onDonorMap: () -&gt; Unit, updates: List&lt;UpdateItem&gt;, onRequests: () -&gt; Unit, onUpdates: () -&gt; Unit )</ID>
     <ID>LongMethod:LifeLinkShell.kt$@Composable private fun ProfileContent( role: UserRole, accountEmail: String, accountUserId: String, accountDisplayName: String, profileSaving: Boolean, profileMessage: String?, onSaveProfile: (String) -&gt; Unit, onOpenDonor: () -&gt; Unit, onSignOut: () -&gt; Unit )</ID>
     <ID>LongMethod:LifeLinkShell.kt$@OptIn(ExperimentalMaterial3WindowSizeClassApi::class) @Composable fun LifeLinkShell( state: EmergencyRequestUiState, onAction: (EmergencyRequestAction) -&gt; Unit, donorState: DonorUiState, onDonorAction: (DonorAction) -&gt; Unit, privacyState: PrivacyUiState, onPrivacyAction: (PrivacyAction) -&gt; Unit, role: UserRole, onSwitchRole: () -&gt; Unit, accountEmail: String, accountUserId: String, accountDisplayName: String, profileSaving: Boolean, profileMessage: String?, onSaveProfile: (String) -&gt; Unit, themeMode: ThemeMode, onThemeModeChange: (ThemeMode) -&gt; Unit, onRequestPasswordReset: ((String) -&gt; Unit) -&gt; Unit, onSignOut: () -&gt; Unit, updates: List&lt;UpdateItem&gt;, onUpdateRead: (String) -&gt; Unit, onMarkAllUpdatesRead: () -&gt; Unit, notificationOpenUpdates: Boolean = false, notificationRequestId: String? = null )</ID>
@@ -81,16 +83,6 @@
     <ID>MagicNumber:SupabaseAuthRepository.kt$SupabaseAuthRepository$403</ID>
     <ID>MagicNumber:SupabaseAuthRepository.kt$SupabaseAuthRepository$429</ID>
     <ID>MatchingDeclarationName:DonorRepository.kt$DonorRepositoryImpl : DonorRepository</ID>
-    <ID>MatchingDeclarationName:PrivacyRepository.kt$PrivacyRepositoryImpl : PrivacyRepository</ID>
-    <ID>MaxLineLength:ActiveRequestScreen.kt$Button(onClick = { onAction(EmergencyRequestAction.FulfillRequest) }, enabled = !state.statusRefreshing, modifier = Modifier.fillMaxWidth()) { Text("Mark request fulfilled") }</ID>
-    <ID>MaxLineLength:ActiveRequestScreen.kt$Button(onClick = { onAction(EmergencyRequestAction.SendManualBroadcast) }, modifier = Modifier.fillMaxWidth()) { Text("Send manual broadcast") }</ID>
-    <ID>MaxLineLength:ActiveRequestScreen.kt$Column</ID>
-    <ID>MaxLineLength:ActiveRequestScreen.kt$Column { Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant) }</ID>
-    <ID>MaxLineLength:ActiveRequestScreen.kt$Text("Request ${active.requestId.take(12)} · Updates automatically while active.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)</ID>
-    <ID>MaxLineLength:ActiveRequestScreen.kt$Text(active.status.label, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)</ID>
-    <ID>MaxLineLength:ActiveRequestScreen.kt$Text(if (active.isTerminal) "This request is no longer accepting responses." else "Eligible donors are notified according to the matching rules.")</ID>
-    <ID>MaxLineLength:ActiveRequestScreen.kt$actions = { IconButton(onClick = { onAction(EmergencyRequestAction.RefreshStatus) }, enabled = !state.statusRefreshing) { Icon(Icons.Default.Refresh, "Refresh") } }</ID>
-    <ID>MaxLineLength:ActiveRequestScreen.kt$confirmButton = { TextButton(onClick = { showCancelConfirmation = false; onAction(EmergencyRequestAction.CancelRequest) }) { Text("Cancel request") } }</ID>
     <ID>MaxLineLength:AuthScreen.kt$AuthState.PasswordResetComplete -&gt; MessageCard("Password updated successfully. Return to sign in with your new password.", isError = false)</ID>
     <ID>MaxLineLength:AuthScreen.kt$AuthState.SessionExpired -&gt; MessageCard("Your session expired. Please sign in again to protect your requests and contact details.", isError = true)</ID>
     <ID>MaxLineLength:AuthScreen.kt$Text(if (resetReady) "Update password" else if (recoveryMode) "Send reset email" else if (createAccount) "Create account" else "Sign in")</ID>
@@ -101,7 +93,6 @@
     <ID>MaxLineLength:AuthScreen.kt$val canSubmit = if (resetReady) passwordValid &amp;&amp; passwordsMatch &amp;&amp; !busy else emailValid &amp;&amp; (recoveryMode || (passwordValid &amp;&amp; passwordsMatch)) &amp;&amp; !busy</ID>
     <ID>MaxLineLength:AuthViewModel.kt$AuthViewModel$.</ID>
     <ID>MaxLineLength:AuthViewModel.kt$AuthViewModel$else</ID>
-    <ID>MaxLineLength:ConversationScreen.kt$Text("${share.field.replaceFirstChar { it.uppercase() }}: ${share.value}", style = MaterialTheme.typography.bodySmall)</ID>
     <ID>MaxLineLength:DatabaseMigrationTest.kt$DatabaseMigrationTest$old.execSQL("INSERT INTO active_requests (requestId, ${ownerColumn}status, notificationsCreated, matchesResponded, reason, lastUpdatedEpochMillis) VALUES ('request', ${ownerValue}'MATCHING', 0, 0, NULL, 1)")</ID>
     <ID>MaxLineLength:DatabaseMigrationTest.kt$DatabaseMigrationTest$old.execSQL("INSERT INTO donor_requests (${donorColumn}requestId, bloodType, units, urgency, facilityName, area, distanceKm, response) VALUES (${donorValue}'donor-request', 'O-', 1, 'urgent', 'Hospital', 'Area', 1.0, NULL)")</ID>
     <ID>MaxLineLength:DatabaseMigrationTest.kt$DatabaseMigrationTest$old.execSQL("INSERT INTO pending_submissions (id, payloadJson, attempts, createdAtEpochMillis) VALUES ('legacy-null-owner', '{}', 0, 1)")</ID>
@@ -230,27 +221,6 @@
     <ID>MaxLineLength:EmergencyRequestScreen.kt$text = { Text("Use this after the donor interaction is complete and the blood need has been handled through the appropriate medical facility.") }</ID>
     <ID>MaxLineLength:EmergencyRequestScreen.kt$title = { Text(if (state.step == RequestStep.REVIEW) "Review request" else "Create request", fontWeight = FontWeight.SemiBold) }</ID>
     <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$"The server response was empty, so we could not confirm whether contact was sent. Check contact activity before retrying."</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$.</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$RequestStep.LOCATION -&gt; if (draft.requesterLatitude == null || draft.requesterLongitude == null) "Capture your approximate location or choose a manual location." else null</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$_uiState.update { it.copy(draft = update(it.draft), draftSaved = false, draftSavedManually = false, submission = SubmissionState.Idle) }</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$else -&gt; _uiState.update { it.copy(statusRefreshing = false, submission = SubmissionState.Error("Unexpected cancellation response.")) }</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$else -&gt; _uiState.update { it.copy(statusRefreshing = false, submission = SubmissionState.Error("Unexpected fulfillment response.")) }</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$if (state.resultsRequestId == requestId) state.copy(matchesError = "Saved donor matches could not be loaded. Check your connection and retry.") else state</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$is EmergencyRequestAction.BlockContact -&gt; moderateContact(action.donorId) { requestId, donorId -&gt; repository.blockContact(requestId, donorId) }</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$is EmergencyRequestAction.ReportContact -&gt; moderateContact(action.donorId) { requestId, donorId -&gt; repository.reportContact(requestId, donorId, action.reason) }</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$is SubmitResult.Error -&gt; _uiState.update { it.copy(statusRefreshing = false, submission = SubmissionState.Error(result.message)) }</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$is SubmitResult.ManualFallback -&gt; _uiState.update { it.copy(submission = SubmissionState.ManualFallback(result.requestId, result.reason)) }</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$is SubmitResult.OfflineQueued -&gt; _uiState.update { it.copy(submission = SubmissionState.Error("You’re offline. No broadcast was sent.")) }</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$private fun validateFullDraft(draft: EmergencyRequestDraft): String?</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$submission = if (loaded == null) SubmissionState.Error("This request could not be loaded. Try refreshing.") else SubmissionState.Matching(requestId)</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModel.kt$EmergencyRequestViewModel$val requestId = (_uiState.value.submission as? SubmissionState.Matching)?.requestId ?: _uiState.value.activeRequest?.requestId ?: return</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModelTest.kt$EmergencyRequestViewModelTest$it.copy(bloodType = com.lifelink.app.domain.BloodType.O_NEG, facility = facility, requesterLatitude = 14.6466, requesterLongitude = 121.0437, genuineRequestConfirmed = true, sharingConsentConfirmed = true)</ID>
-    <ID>MaxLineLength:EmergencyRequestViewModelTest.kt$FakeRepository$override suspend fun updateContactStatus(requestId: String, donorId: String, status: String): RequesterContact</ID>
-    <ID>MaxLineLength:LifeLinkApi.kt$ContactModerationResponse</ID>
-    <ID>MaxLineLength:LifeLinkApi.kt$ContactSelectedDonorsResponse</ID>
-    <ID>MaxLineLength:LifeLinkApi.kt$DonorRequestResponse</ID>
-    <ID>MaxLineLength:LifeLinkApi.kt$DonorResponseResponse</ID>
-    <ID>MaxLineLength:LifeLinkApi.kt$LifeLinkApi$suspend</ID>
     <ID>MaxLineLength:LifeLinkDatabase.kt$LifeLinkDatabase$@Database(entities = [EmergencyRequestDraftEntity::class, PendingSubmissionEntity::class, ActiveRequestEntity::class, DonorProfileEntity::class, DonorRequestEntity::class, UpdateEntity::class], version = 9, exportSchema = false)</ID>
     <ID>MaxLineLength:LifeLinkDatabase.kt$LifeLinkDatabase.Companion$)</ID>
     <ID>MaxLineLength:LifeLinkDatabase.kt$LifeLinkDatabase.Companion$database.execSQL("CREATE TABLE `${table}_owned` (ownerId TEXT NOT NULL, ${definitions.joinToString()}, PRIMARY KEY(ownerId, id))")</ID>
@@ -319,7 +289,6 @@
     <ID>MaxLineLength:LifeLinkShell.kt$val sections = listOf(SettingsSection.PROFILE, SettingsSection.LEGAL, SettingsSection.SAFETY, SettingsSection.ABOUT, SettingsSection.THEME, SettingsSection.SECURITY)</ID>
     <ID>MaxLineLength:LifeLinkShell.kt$var showStart by rememberSaveable(accountUserId) { mutableStateOf(accountUserId.isNotBlank() &amp;&amp; !welcomePrefs.getBoolean("seen_$accountUserId", false)) }</ID>
     <ID>MaxLineLength:LifeLinkShell.kt$}</ID>
-    <ID>MaxLineLength:MainActivity.kt$MainActivity$account.api.upsertProfile(ProfileRequest(role?.name?.lowercase() ?: "requester", updatedName.trim(), canRequest = canRequest, canDonate = canDonate))</ID>
     <ID>MaxLineLength:MapLibreLocationPicker.kt$Text("Map preview unavailable. Donor results remain available in the list.", Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)</ID>
     <ID>MaxLineLength:MapLibreLocationPicker.kt$if</ID>
     <ID>MaxLineLength:RequestHistoryRestoreTest.kt$RequestHistoryRestoreTest$server.enqueue(MockResponse().setBody("[${historyItem("closed-request", "fulfilled")},${historyItem("saved-request", "awaiting_responses")}]"))</ID>

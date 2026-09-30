@@ -21,7 +21,7 @@ data class DonorUiState(
     val saving: Boolean = false,
     val message: String? = null,
     val profileDirty: Boolean = false,
-    val requestsRefreshing: Boolean = false
+    val requestsRefreshing: Boolean = false,
 )
 
 sealed interface DonorAction {
@@ -37,7 +37,7 @@ sealed interface DonorAction {
 class DonorViewModel(
     private val repository: DonorRepository,
     private val enablePolling: Boolean = true,
-    launchDurableWrite: ((suspend () -> Unit) -> Unit)? = null
+    launchDurableWrite: ((suspend () -> Unit) -> Unit)? = null,
 ) : ViewModel() {
     // Accept/Decline must survive this ViewModel being torn down mid-write — e.g. a
     // sign-out that clears accountModels.viewModelStore a split second after the tap
@@ -59,7 +59,7 @@ class DonorViewModel(
                             // while GPS or form edits are still unsaved. Never
                             // replace those local edits with stale persisted data.
                             profile = if (current.profileDirty) current.profile else profile,
-                            requests = if (profile.isSetupComplete) requests else emptyList()
+                            requests = if (profile.isSetupComplete) requests else emptyList(),
                         )
                     }
                 }
@@ -79,17 +79,17 @@ class DonorViewModel(
             is DonorAction.UpdateDraft -> _state.value = _state.value.copy(
                 profile = action.update(_state.value.profile),
                 profileDirty = true,
-                message = null
+                message = null,
             )
             DonorAction.SaveProfile -> saveProfile(_state.value.profile)
             is DonorAction.SetLocation -> _state.value = _state.value.copy(
                 profile = _state.value.profile.copy(
                     latitude = action.latitude,
                     longitude = action.longitude,
-                    locationPrecisionMeters = action.precisionMeters
+                    locationPrecisionMeters = action.precisionMeters,
                 ),
                 message = "Location captured; save your profile to update matching.",
-                profileDirty = true
+                profileDirty = true,
             )
             is DonorAction.SetAvailability -> setAvailability(action.availability)
             is DonorAction.Respond -> respond(action.requestId, action.response)
@@ -102,12 +102,17 @@ class DonorViewModel(
         viewModelScope.launch {
             _state.value = _state.value.copy(saving = true)
             runCatching { repository.saveProfile(profile) }
-                .onSuccess { _state.value = _state.value.copy(profile = profile, saving = false, message = "Profile saved", profileDirty = false) }
+                .onSuccess {
+                    _state.value = _state.value.copy(profile = profile, saving = false, message = "Profile saved", profileDirty = false)
+                    // A blood-type change must re-evaluate matching immediately, so
+                    // pull the donor's inbox again instead of waiting for the poll.
+                    runCatching { repository.refresh() }
+                }
                 .onFailure { error ->
                     _state.value = _state.value.copy(
                         saving = false,
                         profileDirty = true,
-                        message = error.message ?: "Profile could not be saved. Check your connection and try again."
+                        message = error.message ?: "Profile could not be saved. Check your connection and try again.",
                     )
                 }
         }
@@ -118,7 +123,10 @@ class DonorViewModel(
             _state.value = _state.value.copy(saving = true)
             runCatching { repository.setAvailability(availability) }
                 .onSuccess { _state.value = _state.value.copy(saving = false, message = "Availability updated") }
-                .onFailure { error -> _state.value = _state.value.copy(saving = false, message = error.message ?: "Availability could not be updated.") }
+                .onFailure { error ->
+                    _state.value =
+                        _state.value.copy(saving = false, message = error.message ?: "Availability could not be updated.")
+                }
         }
     }
 
@@ -139,7 +147,7 @@ class DonorViewModel(
                 .onFailure { error ->
                     _state.value = _state.value.copy(
                         requestsRefreshing = false,
-                        message = error.message ?: "Requests could not be refreshed. Check your connection and try again."
+                        message = error.message ?: "Requests could not be refreshed. Check your connection and try again.",
                     )
                 }
         }
@@ -148,9 +156,8 @@ class DonorViewModel(
 
 class DonorViewModelFactory(
     private val repository: DonorRepository,
-    private val launchDurableWrite: ((suspend () -> Unit) -> Unit)? = null
+    private val launchDurableWrite: ((suspend () -> Unit) -> Unit)? = null,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        DonorViewModel(repository, launchDurableWrite = launchDurableWrite) as T
+    override fun <T : ViewModel> create(modelClass: Class<T>): T = DonorViewModel(repository, launchDurableWrite = launchDurableWrite) as T
 }

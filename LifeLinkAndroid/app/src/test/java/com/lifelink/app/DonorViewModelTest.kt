@@ -1,5 +1,6 @@
 package com.lifelink.app
 
+import androidx.lifecycle.ViewModelStore
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfile
@@ -8,7 +9,6 @@ import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
 import com.lifelink.app.feature.donor.DonorAction
 import com.lifelink.app.feature.donor.DonorViewModel
-import androidx.lifecycle.ViewModelStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -34,10 +34,35 @@ class DonorViewModelTest {
     private val dispatcher = UnconfinedTestDispatcher()
 
     @Before
-    fun setUp() { Dispatchers.setMain(dispatcher) }
+    fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
 
     @After
-    fun tearDown() { Dispatchers.resetMain() }
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun saving_a_blood_type_change_refreshes_the_inbox_immediately() = runTest {
+        val persisted = MutableStateFlow(
+            DonorProfile(
+                displayName = "Alex Donor",
+                area = "Quezon City",
+                bloodType = BloodType.A_POS,
+                serviceRadiusKm = 25,
+                availability = DonorAvailability.AVAILABLE,
+            ),
+        )
+        val repository = CountingRefreshDonorRepository(persisted)
+        val viewModel = DonorViewModel(repository, enablePolling = false)
+
+        viewModel.onAction(DonorAction.UpdateDraft { it.copy(bloodType = BloodType.O_POS) })
+        viewModel.onAction(DonorAction.SaveProfile)
+
+        // A blood-type change must re-evaluate matching at once, not on the next poll.
+        assertEquals(1, repository.refreshCount)
+    }
 
     @Test
     fun gps_update_does_not_replace_unsaved_profile_fields_with_stale_row() = runTest {
@@ -47,15 +72,17 @@ class DonorViewModelTest {
                 area = "Quezon City",
                 bloodType = BloodType.O_NEG,
                 serviceRadiusKm = 25,
-                availability = DonorAvailability.AVAILABLE
-            )
+                availability = DonorAvailability.AVAILABLE,
+            ),
         )
         val repository = FakeDonorRepository(persisted)
         val viewModel = DonorViewModel(repository, enablePolling = false)
 
-        viewModel.onAction(DonorAction.UpdateDraft {
-            it.copy(displayName = "Edited donor", area = "Makati", bloodType = BloodType.A_POS, serviceRadiusKm = 15)
-        })
+        viewModel.onAction(
+            DonorAction.UpdateDraft {
+                it.copy(displayName = "Edited donor", area = "Makati", bloodType = BloodType.A_POS, serviceRadiusKm = 15)
+            },
+        )
         viewModel.onAction(DonorAction.SetLocation(14.6466, 121.0437, 12))
         persisted.value = DonorProfile()
 
@@ -83,7 +110,7 @@ class DonorViewModelTest {
             enablePolling = false,
             launchDurableWrite = { block ->
                 durableJob = durableScope.launch(start = CoroutineStart.UNDISPATCHED) { block() }
-            }
+            },
         )
         // A real ViewModelStore, so .clear() below exercises the exact teardown path
         // MainActivity's DisposableEffect triggers on sign-out (accountModels.viewModelStore.clear()).
@@ -105,7 +132,7 @@ class DonorViewModelTest {
 private class SlowRespondDonorRepository(
     private val started: CompletableDeferred<Unit>,
     private val release: CompletableDeferred<Unit>,
-    private val onRespond: () -> Unit
+    private val onRespond: () -> Unit,
 ) : DonorRepository {
     override fun observeProfile(): Flow<DonorProfile> = flowOf(DonorProfile())
     override fun observeRequests(): Flow<List<DonorRequest>> = flowOf(emptyList())
@@ -120,13 +147,24 @@ private class SlowRespondDonorRepository(
     }
 }
 
-private class FakeDonorRepository(
-    private val persisted: MutableStateFlow<DonorProfile>
-) : DonorRepository {
+private class FakeDonorRepository(private val persisted: MutableStateFlow<DonorProfile>) : DonorRepository {
     override fun observeProfile(): Flow<DonorProfile> = persisted
     override fun observeRequests(): Flow<List<DonorRequest>> = flowOf(emptyList())
     override suspend fun saveProfile(profile: DonorProfile) = Unit
     override suspend fun setAvailability(availability: DonorAvailability) = Unit
     override suspend fun refresh() = Unit
+    override suspend fun respond(requestId: String, response: DonorResponse): Result<Unit> = Result.success(Unit)
+}
+
+private class CountingRefreshDonorRepository(private val persisted: MutableStateFlow<DonorProfile>) : DonorRepository {
+    var refreshCount = 0
+
+    override fun observeProfile(): Flow<DonorProfile> = persisted
+    override fun observeRequests(): Flow<List<DonorRequest>> = flowOf(emptyList())
+    override suspend fun saveProfile(profile: DonorProfile) = Unit
+    override suspend fun setAvailability(availability: DonorAvailability) = Unit
+    override suspend fun refresh() {
+        refreshCount++
+    }
     override suspend fun respond(requestId: String, response: DonorResponse): Result<Unit> = Result.success(Unit)
 }
