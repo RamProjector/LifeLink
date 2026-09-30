@@ -36,6 +36,12 @@ Donor Accept/Decline ran on `DonorViewModel`'s own `viewModelScope`. A sign-out 
 
 Do not reintroduce any of these patterns. Do not add a migration solely because an HTTPS timeout occurs; first classify the failure as network reachability, authentication, API validation, or schema. Keep server error details visible enough to distinguish those cases without exposing secrets.
 
+## Request lifecycle regressions (2026-09-30)
+
+Submitting a request used to broadcast it: `create_emergency_request_postgres` computed matches and immediately pushed a `donor_match` notification to every matched donor. A request must not be broadcast on submit. Matches are still computed and stored so the requester can review them, but `notifications_created` is now `0` on create and donors are notified only when the requester contacts selected donors (`POST /v1/emergency-requests/{request_id}/contact`), which is the intended broadcast trigger. Do not add a push call back into the create path.
+
+Cancelling a request used to leave it half-reset. The backend set the request status to `cancelled` but left every open `donor_contact_requests` row `pending`, so the requester's contact list still showed live contacts and the donor inbox still listed the request. `set_cancelled_async` now closes open contacts to `cancelled`. On Android, `EmergencyRequestViewModel.cancelRequest()` now resets the flow to idle (step `BLOOD_NEED`, cleared results/contacts) and starts a fresh `EmergencyRequestDraft`, and `ActiveRequestScreen` leaves the screen once `cancelCompleted` is set. Without the fresh draft the wizard kept the old draft id, which is the idempotency key, so the next submit returned the already-cancelled request instead of creating a new one. Keep `tests/test_postgres_end_to_end.py::test_submit_does_not_broadcast_but_contact_does` and `::test_cancel_resets_request_and_allows_a_new_one` passing.
+
 ## Minimum validation before shipping
 
 Run the backend compile and tests:

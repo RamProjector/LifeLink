@@ -23,7 +23,7 @@ import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app import db_models
+from app import db_models, main_postgres
 from app.db import get_db_session
 from app.main_postgres import app
 from app.security import Principal, get_postgres_principal
@@ -106,7 +106,7 @@ def request_payload(requester_id: str, *, hours: float = 1.0) -> dict:
     }
 
 
-async def setup_donor(client, current, donor_id: str, *, claim_verified: bool = False) -> None:
+async def setup_donor(client, current, donor_id: str, *, claim_verified: bool = False, blood_type: str = "O+") -> None:
     current["id"] = donor_id
     profile = await client.put(
         "/v1/profile",
@@ -118,7 +118,7 @@ async def setup_donor(client, current, donor_id: str, *, claim_verified: bool = 
         json={
             "donor_id": donor_id,
             "display_name": "Test Donor",
-            "blood_type": "O+",
+            "blood_type": blood_type,
             "latitude": 11.2440,
             "longitude": 125.0010,
             "service_radius_km": 15,
@@ -143,13 +143,139 @@ def test_self_registered_donor_receives_the_matched_request(pg_url):
         await setup_donor(client, current, donor)
 
         created = await submit_request(client, current, requester)
-        assert created["notifications_created"] == 1
+        # Submitting must not broadcast: matches are stored for review, but no
+        # donor notification is created until the requester contacts them.
+        assert created["notifications_created"] == 0
         assert [m["donor_id"] for m in created["matches"]] == [donor]
 
         current["id"] = donor
         inbox = await client.get(f"/v1/donors/{donor}/requests")
         assert inbox.status_code == 200, inbox.text
         assert [item["request_id"] for item in inbox.json()] == [created["request_id"]]
+
+    run_scenario(pg_url, scenario)
+
+
+def test_submit_does_not_broadcast_but_contact_does(pg_url, monkeypatch):
+    pushes: list[dict] = []
+
+    async def capture(recipients, title, body, data):
+        pushes.append({"recipients": list(recipients), "data": dict(data)})
+
+    monkeypatch.setattr(main_postgres, "send_push_safely", capture)
+
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+
+        pushes.clear()
+        created = await submit_request(client, current, requester)
+        assert created["notifications_created"] == 0
+        assert pushes == [], "submitting a request must not broadcast to donors"
+
+        current["id"] = requester
+        contacted = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/contact",
+            json={"donor_ids": [donor]},
+        )
+        assert contacted.status_code == 200, contacted.text
+        assert pushes, "contacting a selected donor is the intended broadcast trigger"
+        assert pushes[-1]["data"]["type"] == "contact_request"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_cancel_resets_request_and_allows_a_new_one(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        selected = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/contact",
+            json={"donor_ids": [donor]},
+        )
+        assert selected.status_code == 200, selected.text
+
+        cancelled = await client.post(f"/v1/emergency-requests/{created['request_id']}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
+        assert cancelled.json()["status"] == "cancelled"
+
+        # The cancelled request's open contacts are closed, not left pending.
+        contacts = await client.get(f"/v1/emergency-requests/{created['request_id']}/contacts")
+        assert contacts.status_code == 200, contacts.text
+        assert contacts.json()[0]["status"] == "cancelled"
+
+        # The donor no longer sees the cancelled request in their inbox.
+        current["id"] = donor
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert inbox.json() == []
+
+        # A brand-new request can still be created afterwards.
+        current["id"] = requester
+        second = await submit_request(client, current, requester)
+        assert second["request_id"] != created["request_id"]
+        history = await client.get("/v1/emergency-requests")
+        assert history.status_code == 200, history.text
+        statuses = {item["request_id"]: item["status"] for item in history.json()}
+        assert statuses[created["request_id"]] == "cancelled"
+        assert statuses[second["request_id"]] == "awaiting_responses"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_blood_type_change_immediately_rematches_active_requests(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        # The donor starts as A+, which is not compatible with an O+ request.
+        await setup_donor(client, current, donor, blood_type="A+")
+
+        created = await submit_request(client, current, requester)
+        assert created["matches"] == []
+
+        current["id"] = donor
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert inbox.json() == []
+
+        # Changing the blood type to O+ must surface the active O+ request at once.
+        saved = await client.put(
+            f"/v1/donors/{donor}",
+            json={
+                "donor_id": donor,
+                "display_name": "Test Donor",
+                "blood_type": "O+",
+                "latitude": 11.2440,
+                "longitude": 125.0010,
+                "service_radius_km": 15,
+                "verified": False,
+            },
+        )
+        assert saved.status_code == 200, saved.text
+
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert [item["request_id"] for item in inbox.json()] == [created["request_id"]]
+
+        # Changing away again removes the now-incompatible request.
+        saved = await client.put(
+            f"/v1/donors/{donor}",
+            json={
+                "donor_id": donor,
+                "display_name": "Test Donor",
+                "blood_type": "A+",
+                "latitude": 11.2440,
+                "longitude": 125.0010,
+                "service_radius_km": 15,
+                "verified": False,
+            },
+        )
+        assert saved.status_code == 200, saved.text
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert inbox.json() == []
 
     run_scenario(pg_url, scenario)
 
@@ -363,10 +489,12 @@ def test_strict_mode_only_matches_verified_donors(pg_url, monkeypatch):
         await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
         assert created["notifications_created"] == 0
+        assert created["matches"] == []
 
         await run_sql(f"UPDATE donors SET verified = TRUE WHERE id = '{donor}'")
         created = await submit_request(client, current, requester)
-        assert created["notifications_created"] == 1
+        assert created["notifications_created"] == 0
+        assert [m["donor_id"] for m in created["matches"]] == [donor]
 
     run_scenario(pg_url, scenario)
 

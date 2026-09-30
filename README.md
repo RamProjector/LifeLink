@@ -67,15 +67,15 @@ services, and open work) is tracked in
 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md). Known
 limitations before public production use:
 
-- **Android toolchain is pinned to AGP 8.7.3 / Gradle 8.10.2 / `compileSdk` 35.**
-  Several dependency upgrades (AGP 9.x, Kotlin/KSP, androidx Compose, okhttp 5)
-  require a coordinated migration to AGP 9 / Gradle 9.6 / `compileSdk` 37.
-- **Rate limiting, audit logging, and a signed release keystore** are still
-  required before distribution; the committed release APK is unsigned.
+- **Android toolchain is on AGP 9.4.1 / Gradle 9.6.0 / `compileSdk` 37**
+  (Kotlin 2.2.10 built into AGP, KSP 2.3.12). The earlier AGP 8.7.3 / Gradle
+  8.10.2 / `compileSdk` 35 pin has been migrated.
+- **A signed release keystore is still required before distribution**; the
+  release build is unsigned and unminified.
+- **Rate limiting is in-process** (per-worker, reset on restart) and must move
+  to a shared store before public launch.
 - **Medical screening is out of scope** — profile completion enables operational
   matching only.
-- **`lifelink-mobile/`** is an unmodified Expo/React Native scaffold and is not
-  wired into any workflow; it is not part of the shipped product.
 
 ## Security
 
