@@ -8,6 +8,45 @@ plugins {
     id("com.diffplug.spotless")
 }
 
+// --- Release signing inputs -------------------------------------------------
+// Resolved once, at the top level, so the signingConfig below and the
+// `verifyReleaseSigning` task share ONE definition of "signing is configured".
+// The production keystore is NEVER committed. Precedence: an explicit Gradle
+// property first (e.g. -PlifelinkReleaseKeystore=... or a local
+// gradle.properties), then the matching environment variable (used by CI
+// secrets). Keeping the secret values out of the source tree is what makes a
+// release build reproducible on a clean machine.
+val releaseKeystorePath =
+    providers
+        .gradleProperty("lifelinkReleaseKeystore")
+        .orElse(providers.environmentVariable("LIFELINK_RELEASE_KEYSTORE"))
+        .orNull
+val releaseStorePassword =
+    providers
+        .gradleProperty("lifelinkReleaseStorePassword")
+        .orElse(providers.environmentVariable("LIFELINK_RELEASE_STORE_PASSWORD"))
+        .orNull
+val releaseKeyAlias =
+    providers
+        .gradleProperty("lifelinkReleaseKeyAlias")
+        .orElse(providers.environmentVariable("LIFELINK_RELEASE_KEY_ALIAS"))
+        .orNull
+val releaseKeyPassword =
+    providers
+        .gradleProperty("lifelinkReleaseKeyPassword")
+        .orElse(providers.environmentVariable("LIFELINK_RELEASE_KEY_PASSWORD"))
+        .orNull
+val releaseKeystoreFile = releaseKeystorePath?.takeIf { it.isNotBlank() }?.let { file(it) }
+
+// Complete predicate: the keystore file must EXIST and every credential must be
+// non-blank. A partial configuration (e.g. only the path set) is not signed.
+val releaseSigningConfigured =
+    releaseKeystoreFile != null &&
+        releaseKeystoreFile.exists() &&
+        !releaseStorePassword.isNullOrBlank() &&
+        !releaseKeyAlias.isNullOrBlank() &&
+        !releaseKeyPassword.isNullOrBlank()
+
 android {
     namespace = "com.lifelink.app"
     compileSdk = 37
@@ -35,6 +74,29 @@ android {
             .orElse(providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY"))
             .orElse("")
             .get()
+
+    // --- Release signing -----------------------------------------------------
+    // The keystore location and credentials are resolved once at the top of this
+    // file (see `releaseSigningConfigured`), so this signingConfig and the
+    // `verifyReleaseSigning` task share a single definition of "configured".
+    val releaseSigningConfig =
+        if (releaseSigningConfigured) {
+            val keystore = requireNotNull(releaseKeystoreFile)
+            signingConfigs.create("release") {
+                storeFile = keystore
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        } else {
+            logger.lifecycle(
+                "LifeLink: release signing is not configured, so the release APK will be UNSIGNED. " +
+                    "Set lifelinkReleaseKeystore / lifelinkReleaseStorePassword / lifelinkReleaseKeyAlias / " +
+                    "lifelinkReleaseKeyPassword (or the LIFELINK_RELEASE_* environment variables) to build " +
+                    "a signed, distributable APK. See docs/ANDROID_RELEASE_SIGNING.md.",
+            )
+            null
+        }
 
     defaultConfig {
         applicationId = "com.lifelink.app"
@@ -72,7 +134,13 @@ android {
             }
         }
         release {
-            isMinifyEnabled = false
+            // Sign with the configured production keystore when one is present;
+            // otherwise the APK is left unsigned and a warning is printed above.
+            signingConfig = releaseSigningConfig
+            // R8 code shrinking/obfuscation plus resource shrinking. The rules in
+            // proguard-rules.pro keep Retrofit/Gson/Room/Firebase/MapLibre working.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -229,3 +297,45 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
+
+// --- Explicit build actions -------------------------------------------------
+// Convenience tasks so a debug or a release build can be triggered by name from
+// the command line, CI, or an IDE run configuration.
+//
+//   ./gradlew buildDebug    -> app/build/outputs/apk/debug/app-debug.apk
+//   ./gradlew buildRelease  -> app/build/outputs/apk/release/app-release.apk
+//
+// `buildRelease` fails fast with an actionable message when no signing keystore
+// is configured, instead of silently emitting an APK that cannot be published.
+tasks.register("buildDebug") {
+    group = "build"
+    description = "Assembles the debug APK (app-debug.apk)."
+    dependsOn("assembleDebug")
+}
+
+val verifyReleaseSigning =
+    tasks.register("verifyReleaseSigning") {
+        group = "verification"
+        description = "Fails fast when release signing is not configured."
+        doLast {
+            // Same predicate the signingConfig uses: keystore file present AND
+            // every credential non-blank. A partial configuration is not signed,
+            // so buildRelease cannot succeed with an unsigned APK.
+            if (!releaseSigningConfigured) {
+                throw GradleException(
+                    "Release signing is not configured. Set lifelinkReleaseKeystore / " +
+                        "lifelinkReleaseStorePassword / lifelinkReleaseKeyAlias / lifelinkReleaseKeyPassword " +
+                        "(or the LIFELINK_RELEASE_* environment variables). See docs/ANDROID_RELEASE_SIGNING.md.",
+                )
+            }
+        }
+    }
+
+tasks.register("buildRelease") {
+    group = "build"
+    description = "Assembles the release APK; requires release signing to be configured."
+    dependsOn(verifyReleaseSigning, "assembleRelease")
+}
+
+// Make sure the signing guard runs before the release APK is assembled.
+tasks.matching { it.name == "assembleRelease" }.configureEach { mustRunAfter(verifyReleaseSigning) }

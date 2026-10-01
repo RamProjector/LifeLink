@@ -16,3 +16,14 @@ node_modules/
 # Prebuilt APK artifacts (build in CI, do not commit)
 artifacts/*.apk
 *.apk
+
+# Signing material — NEVER commit a keystore or its credentials.
+# The production keystore is supplied at build time through the
+# LIFELINK_RELEASE_* environment variables or lifelinkRelease* Gradle
+# properties. See docs/ANDROID_RELEASE_SIGNING.md.
+*.keystore
+*.jks
+# Belt-and-braces: any local properties file that might carry a password.
+# (LifeLinkAndroid/gradle.properties IS committed and must never hold secrets.)
+secrets.properties
+keystore.properties
