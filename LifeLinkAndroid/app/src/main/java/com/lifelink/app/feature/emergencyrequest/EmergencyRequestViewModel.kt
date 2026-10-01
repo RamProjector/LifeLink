@@ -121,6 +121,11 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
     private var historyRefreshJob: Job? = null
     private var pollJob: Job? = null
 
+    /**
+     * Wires up the active-request/history observers and, when [enablePolling] is
+     * true, starts the background status/contact poll, keeping its [Job] in
+     * [pollJob] so it can be cancelled (e.g. on cancel or [onCleared]).
+     */
     init {
         viewModelScope.launch {
             repository.observeActiveRequest().collect { active ->
@@ -662,6 +667,11 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
             }
     }
 
+    /**
+     * Cancels the active request and, on success, stops the background donor
+     * search poll and resets the wizard to a fresh draft so a new request can be
+     * created immediately.
+     */
     private fun cancelRequest() {
         val requestId = _uiState.value.activeRequest?.requestId ?: return
         viewModelScope.launch {
@@ -772,6 +782,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
         )
     }
 
+    /** Cancels any in-flight draft-save and poll jobs when the ViewModel is destroyed. */
     override fun onCleared() {
         draftSaveJob?.cancel()
         pollJob?.cancel()

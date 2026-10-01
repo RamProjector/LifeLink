@@ -37,7 +37,7 @@ uvicorn app.main_postgres:app --reload --host 0.0.0.0 --port 8000
 
 ## Deploy publicly with Render
 
-The repository includes `lifelink_fastapi/Dockerfile` and `lifelink_fastapi/render.yaml`. Follow [`docs/RENDER_DEPLOYMENT.md`](docs/RENDER_DEPLOYMENT.md). Configure `LIFELINK_DATABASE_URL`, keep `LIFELINK_AUTH_REQUIRED=true`, and set `FIREBASE_SERVICE_ACCOUNT_JSON` to the Firebase service-account JSON so push notifications are enabled (without it FCM is off and contacted donors are never notified). Then use the Render HTTPS URL in the Android build:
+The repository includes `lifelink_fastapi/Dockerfile` and `lifelink_fastapi/render.yaml`. Follow [`docs/RENDER_DEPLOYMENT.md`](docs/RENDER_DEPLOYMENT.md). Configure `LIFELINK_DATABASE_URL`, keep `LIFELINK_AUTH_REQUIRED=true`, and use the Render HTTPS URL in the Android build:
 
 ```bash
 cd LifeLinkAndroid
@@ -45,25 +45,6 @@ cd LifeLinkAndroid
 ```
 
 The cloud-configured debug APK is produced by the **Build Android APKs** workflow and attached to the run as the `lifelink-android-apks-<sha>` artifact. Prebuilt APKs are no longer committed to the repository. A release build must be signed with a real production keystore before distribution.
-
-## Android release signing
-
-Release builds read their signing material from the environment so no keystore or
-password is ever committed. Supply all four before distributing an APK or App Bundle:
-
-```bash
-export LIFELINK_KEYSTORE_FILE=/absolute/path/to/release.keystore
-export LIFELINK_KEYSTORE_PASSWORD=…
-export LIFELINK_KEY_ALIAS=…
-export LIFELINK_KEY_PASSWORD=…
-cd LifeLinkAndroid
-./gradlew :app:assembleRelease
-```
-
-The same four names work as Gradle properties
-(`-PLIFELINK_KEYSTORE_FILE=…`). When any of them is absent — CI, a fresh clone, or a
-local build — the release build falls back to the debug signing config so it still
-assembles; that artifact is signed with the debug key and is **not** distributable.
 
 ## Package structure
 
@@ -78,6 +59,10 @@ assembles; that artifact is signed with the debug key and is **not** distributab
 
 Start with [`docs/START_CLOUD.md`](docs/START_CLOUD.md). For the confirmed live migration and implementation state, read [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md). The concise milestone record is [`docs/CHANGELOG_CLOUD.md`](docs/CHANGELOG_CLOUD.md), and the student-oriented explanation is [`docs/HISTORY_CLOUD.md`](docs/HISTORY_CLOUD.md).
 
+The complete academic-style system integration report is [`docs/LifeLink_System_Functional_Integration_Documentation.pdf`](docs/LifeLink_System_Functional_Integration_Documentation.pdf), with editable Markdown source in [`docs/LifeLink_System_Functional_Integration_Documentation.md`](docs/LifeLink_System_Functional_Integration_Documentation.md).
+
+The plain-language project assessment is [`docs/LifeLink_Project_Review_Laymans_Terms.pdf`](docs/LifeLink_Project_Review_Laymans_Terms.pdf), with editable Markdown source in [`docs/LifeLink_Project_Review_Laymans_Terms.md`](docs/LifeLink_Project_Review_Laymans_Terms.md).
+
 ## Status / known limitations
 
 LifeLink Cloud is a working development package, not yet a public production
@@ -89,11 +74,12 @@ limitations before public production use:
 - **Android toolchain is on AGP 9.4.1 / Gradle 9.6.0 / `compileSdk` 37**
   (Kotlin 2.2.10 built into AGP, KSP 2.3.12). The earlier AGP 8.7.3 / Gradle
   8.10.2 / `compileSdk` 35 pin has been migrated.
-- **A signed release keystore is required before distribution.** The release
-  build reads `LIFELINK_KEYSTORE_FILE`, `LIFELINK_KEYSTORE_PASSWORD`,
-  `LIFELINK_KEY_ALIAS`, and `LIFELINK_KEY_PASSWORD` from the environment or
-  Gradle properties; until they are supplied it falls back to the debug signing
-  config and stays unminified, so the artifact is not distributable.
+- **A signed release keystore is still required before distribution.** The
+  release build type is now wired for real signing (keystore supplied through
+  `LIFELINK_RELEASE_*` env vars or `lifelinkRelease*` Gradle properties) with
+  R8 minification and resource shrinking enabled; without a configured keystore
+  it still produces an unsigned artifact. See
+  [`docs/ANDROID_RELEASE_SIGNING.md`](docs/ANDROID_RELEASE_SIGNING.md).
 - **Rate limiting is in-process** (per-worker, reset on restart) and must move
   to a shared store before public launch.
 - **Medical screening is out of scope** — profile completion enables operational

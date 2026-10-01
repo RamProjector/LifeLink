@@ -194,6 +194,7 @@ def test_cancel_stops_the_donor_search_broadcast(pg_url):
     """
 
     async def scenario(client, current, run_sql):
+        """Submit, verify the broadcast is live, cancel, then verify it is stopped."""
         donor, requester = new_user("donor"), new_user("requester")
         await setup_donor(client, current, donor)
 

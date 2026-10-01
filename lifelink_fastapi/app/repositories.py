@@ -278,6 +278,12 @@ class SqlAlchemyRequestStore(RequestStore):
         return refreshed
 
     async def set_cancelled_async(self, request_id: str) -> RequestRecord:
+        """Mark the request cancelled and stop its donor search.
+
+        Withdraws every still-open match and cancels every open donor contact
+        request so the donor inbox and the requester's match/contact lists both
+        reflect that the request is no longer active.
+        """
         row = await self.session.get(EmergencyRequestRow, request_id)
         if row is None:
             raise KeyError(request_id)
@@ -457,6 +463,11 @@ class SqlAlchemyRequestStore(RequestStore):
 
     @staticmethod
     def _to_record(row: EmergencyRequestRow) -> RequestRecord:
+        """Build a `RequestRecord` from a DB row, excluding withdrawn matches.
+
+        Withdrawn matches belong to a stopped donor search (e.g. a cancelled
+        request), so they are left out of the returned matches list.
+        """
         payload = EmergencyRequestIn.model_validate({
             "requester_id": row.requester_id,
             "blood_type": _enum_value(row.blood_type),
