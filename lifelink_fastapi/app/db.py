@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import AsyncGenerator
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -24,11 +24,44 @@ def async_database_url() -> str:
 
     # Supabase and several hosted PostgreSQL providers document URLs with
     # sslmode=require. asyncpg expects the equivalent ssl=require parameter.
+    url = _encode_password(url)
     parts = urlsplit(url)
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
     if query.pop("sslmode", None) == "require":
         query["ssl"] = "require"
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _encode_password(url: str) -> str:
+    """Percent-encode a raw password in a connection string.
+
+    Supabase pooler passwords are frequently generated with URL-reserved
+    characters such as ``@``, ``#``, ``/``, ``:`` or ``?``. Pasted raw into a
+    connection string they break the URL: ``postgresql://postgres.abc:p@ss#1@
+    aws-0-region.pooler.supabase.com:6543/postgres`` is truncated at the ``#``
+    (a fragment delimiter) and the host parses as ``ss``, so the connection
+    fails with "failed to connect". The password must be percent-encoded.
+
+    The password is the text between the first ``:`` after the scheme and the
+    LAST ``@`` before the host. Encoding happens on the raw string, before
+    ``urlsplit``, so a ``#`` or ``/`` inside the password cannot truncate the
+    URL first. An already-encoded password is decoded first so the operation is
+    idempotent and never double-encodes a ``%``.
+    """
+    scheme, sep, rest = url.partition("://")
+    if not sep:
+        return url
+    at = rest.rfind("@")
+    if at == -1:
+        return url
+    userinfo = rest[:at]
+    remainder = rest[at + 1:]
+    if ":" not in userinfo:
+        return url
+    user, _, password = userinfo.partition(":")
+    if not password:
+        return url
+    return f"{scheme}://{user}:{quote(unquote(password), safe='')}@{remainder}"
 
 
 engine = create_async_engine(
