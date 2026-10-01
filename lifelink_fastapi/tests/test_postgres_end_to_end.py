@@ -106,7 +106,9 @@ def request_payload(requester_id: str, *, hours: float = 1.0) -> dict:
     }
 
 
-async def setup_donor(client, current, donor_id: str, *, claim_verified: bool = False, blood_type: str = "O+") -> None:
+async def setup_donor(
+    client, current, donor_id: str, *, claim_verified: bool = False, blood_type: str = "O+", available: bool = True
+) -> None:
     current["id"] = donor_id
     profile = await client.put(
         "/v1/profile",
@@ -126,8 +128,9 @@ async def setup_donor(client, current, donor_id: str, *, claim_verified: bool = 
         },
     )
     assert saved.status_code == 200, saved.text
-    available = await client.patch(f"/v1/donors/{donor_id}/availability", json={"availability": "available"})
-    assert available.status_code == 200, available.text
+    if available:
+        availability = await client.patch(f"/v1/donors/{donor_id}/availability", json={"availability": "available"})
+        assert availability.status_code == 200, availability.text
 
 
 async def submit_request(client, current, requester_id: str, **kwargs) -> dict:
@@ -704,5 +707,106 @@ def test_a_client_cannot_mark_itself_verified(pg_url):
         profile = await client.get(f"/v1/donors/{donor}")
         assert profile.status_code == 200, profile.text
         assert profile.json()["verified"] is False
+
+    run_scenario(pg_url, scenario)
+
+
+def test_going_available_matches_existing_active_requests(pg_url):
+    """A donor who becomes available must be matched to requests already open.
+
+    Matching runs when a request is submitted, so a donor who was offline at
+    that moment has no stored match. When they later go available they must be
+    matched to the still-open requests, otherwise a donor who turns on
+    availability never receives anything until a brand-new request is created.
+    """
+
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        # The donor completes setup but stays offline while the request is made.
+        await setup_donor(client, current, donor, available=False)
+
+        created = await submit_request(client, current, requester)
+        assert created["matches"] == [], "an offline donor must not be matched at submit time"
+
+        current["id"] = donor
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert inbox.json() == []
+
+        # Going available must surface the already-open request immediately.
+        available = await client.patch(f"/v1/donors/{donor}/availability", json={"availability": "available"})
+        assert available.status_code == 200, available.text
+
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert [item["request_id"] for item in inbox.json()] == [created["request_id"]]
+
+        # The requester can now see and contact the newly matched donor.
+        current["id"] = requester
+        status = await client.get(f"/v1/emergency-requests/{created['request_id']}")
+        assert status.status_code == 200, status.text
+        assert [m["donor_id"] for m in status.json()["matches"]] == [donor]
+
+    run_scenario(pg_url, scenario)
+
+
+def test_going_available_does_not_match_own_or_closed_requests(pg_url):
+    """Becoming available must not match a donor to their own or closed requests."""
+
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, available=False)
+
+        # The donor's own request must never appear as a donor opportunity.
+        own = await submit_request(client, current, donor)
+        # A request that will be cancelled before the donor goes available.
+        cancelled = await submit_request(client, current, requester)
+        current["id"] = requester
+        await client.post(f"/v1/emergency-requests/{cancelled['request_id']}/cancel")
+        # A request that will have expired before the donor goes available.
+        expired = await submit_request(client, current, requester)
+        await run_sql(
+            f"UPDATE emergency_requests SET response_deadline = now() - interval '5 minutes' "
+            f"WHERE id = '{expired['request_id']}'"
+        )
+        # A request that is still open and must match.
+        active = await submit_request(client, current, requester)
+
+        current["id"] = donor
+        available = await client.patch(f"/v1/donors/{donor}/availability", json={"availability": "available"})
+        assert available.status_code == 200, available.text
+
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert [item["request_id"] for item in inbox.json()] == [active["request_id"]]
+        assert own["request_id"] not in {item["request_id"] for item in inbox.json()}
+
+    run_scenario(pg_url, scenario)
+
+
+def test_going_available_does_not_duplicate_an_existing_match(pg_url):
+    """Re-selecting availability must not create a second match for one request."""
+
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        assert [m["donor_id"] for m in created["matches"]] == [donor]
+
+        current["id"] = donor
+        for _ in range(2):
+            available = await client.patch(f"/v1/donors/{donor}/availability", json={"availability": "available"})
+            assert available.status_code == 200, available.text
+
+        inbox = await client.get(f"/v1/donors/{donor}/requests")
+        assert inbox.status_code == 200, inbox.text
+        assert [item["request_id"] for item in inbox.json()] == [created["request_id"]]
+
+        async with create_async_engine(pg_url).connect() as conn:
+            count = await conn.scalar(
+                text("SELECT count(*) FROM request_matches WHERE request_id = :rid AND donor_id = :did"),
+                {"rid": created["request_id"], "did": donor},
+            )
+        assert count == 1, "availability changes must not duplicate a stored match"
 
     run_scenario(pg_url, scenario)
