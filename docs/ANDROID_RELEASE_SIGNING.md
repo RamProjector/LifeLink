@@ -154,3 +154,106 @@ noticeably smaller because R8 and resource shrinking are enabled.
   already have rules.
 - **A release crash stack is obfuscated** — use the matching
   `mapping.txt` with `retrace`.
+
+## Manual trigger: the workflow, its inputs and where the artifacts land
+
+The release workflow `.github/workflows/android-release.yml` (**Android Debug +
+Release Build**) is **manual only** — it has no `push`/`pull_request` trigger,
+so it never runs on its own.
+
+1. Open the repository on GitHub → **Actions** tab.
+2. In the left sidebar pick **Android Debug + Release Build**.
+3. Click **Run workflow** (right-hand side), choose the branch, and fill in:
+
+   | Input | Meaning |
+   |---|---|
+   | `build_type` | `both` (default), `debug` or `release` — which job(s) to run |
+   | `api_base_url` | baked into `BuildConfig.LIFELINK_API_BASE_URL`; defaults to the hosted Render API |
+   | `supabase_url` | optional override; blank uses the `SUPABASE_URL` repository secret |
+
+4. Click the green **Run workflow** button.
+
+When the run finishes, the APKs appear under **Artifacts** on the run page:
+
+| Artifact | Contains | Retention |
+|---|---|---|
+| `lifelink-debug-<sha>` | `lifelink-debug.apk` | 14 days |
+| `lifelink-release-<sha>` | `lifelink-release.apk` | 14 days |
+| `lifelink-release-mapping-<sha>` | R8 `mapping.txt`, `configuration.txt`, `seeds.txt` | **30 days** |
+
+Keep the mapping artifact next to the APK — without it you cannot de-obfuscate
+release crash reports. The release job also runs
+`apksigner verify --print-certs` and **fails** when the signature does not verify
+(skipped when no keystore secret is configured, because the APK is then unsigned
+by design). Selecting `debug` or `release` skips the other job via its `if:`.
+
+## Which secrets already exist
+
+The repository currently has: `GOOGLE_SERVICES_JSON_BASE64`,
+`LIFELINK_API_BASE_URL`, `LIFELINK_DATABASE_URL`,
+`SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`.
+
+**None of the four `LIFELINK_RELEASE_*` secrets exist yet**, so the release build
+currently produces an unsigned APK. Add all four (Step 3 above) to get a
+distributable artifact.
+
+## ⚠️ Watch the exact secret names
+
+The build reads a `lifelinkReleaseKeystore` **Gradle property** first, then the
+`LIFELINK_RELEASE_KEYSTORE` **environment variable**. The workflow maps the
+repository secret `LIFELINK_RELEASE_KEYSTORE_BASE64` onto that variable after
+decoding it.
+
+A secret named `LIFELINK_RELEASE_KEYSTORE_PASSWORD` **does nothing** — the build
+reads `LIFELINK_RELEASE_STORE_PASSWORD`. Use exactly:
+
+| Repository secret (exact) | Consumed as |
+|---|---|
+| `LIFELINK_RELEASE_KEYSTORE_BASE64` | decoded → `LIFELINK_RELEASE_KEYSTORE` |
+| `LIFELINK_RELEASE_STORE_PASSWORD` | `LIFELINK_RELEASE_STORE_PASSWORD` |
+| `LIFELINK_RELEASE_KEY_ALIAS` | `LIFELINK_RELEASE_KEY_ALIAS` |
+| `LIFELINK_RELEASE_KEY_PASSWORD` | `LIFELINK_RELEASE_KEY_PASSWORD` |
+
+A typo here is silent: the workflow takes the "UNSIGNED" warning path and still
+exits green.
+
+## Local build from an encrypted keystore
+
+As an alternative to Options A/B/C in *Step 2*, keep the keystore encrypted at
+rest and decrypt it only for the build:
+
+```bash
+gpg -d --batch --passphrase "$KEYSTORE_GPG_PASSPHRASE" \
+  lifelink-release.keystore.gpg > /tmp/lifelink-release.keystore
+export LIFELINK_RELEASE_KEYSTORE=/tmp/lifelink-release.keystore
+./gradlew buildRelease
+shred -u /tmp/lifelink-release.keystore
+```
+
+## Checklist before distributing a release
+
+- [ ] All four `LIFELINK_RELEASE_*` secrets are present in the repository.
+- [ ] `./gradlew verifyReleaseSigning` passes (or the workflow's verify step is green).
+- [ ] `apksigner verify --print-certs` prints your release certificate and no
+      "DOES NOT VERIFY".
+- [ ] The R8 `mapping.txt` from the same run is archived.
+- [ ] `versionCode` / `versionName` are what you intend (`-PversionCode`, `-PversionName`).
+- [ ] The keystore and its passwords are backed up and restorable.
+
+## Security notes
+
+- **Never commit** a keystore, a `keystore.properties`, or a password. `.gitignore`
+  excludes `*.keystore`, `*.jks`, `secrets.properties` and `keystore.properties`,
+  but the first line of defence is not putting them in the tree at all.
+- Do **not** put the passwords in the committed
+  `LifeLinkAndroid/gradle.properties`. Use `~/.gradle/gradle.properties` (outside
+  the repository) or environment variables.
+- Prefer the **env var** route over `-P` flags on a shared machine: `-P` values
+  are recorded in the shell history and in Gradle's own logs.
+- **Back the keystore up** in a password manager or encrypted vault. Losing it
+  means you can never publish an update for `com.lifelink.app` again — Android
+  rejects an APK signed with a different key, and there is no recovery.
+- On CI the keystore is decoded into `$RUNNER_TEMP` (a throwaway directory wiped
+  with the runner), not the workspace.
+- Secret scanning (`gitleaks`) runs on every push — a committed keystore or
+  password will be flagged and should be treated as compromised and rotated.
