@@ -70,8 +70,12 @@ limitations before public production use:
 - **Android toolchain is on AGP 9.4.1 / Gradle 9.6.0 / `compileSdk` 37**
   (Kotlin 2.2.10 built into AGP, KSP 2.3.12). The earlier AGP 8.7.3 / Gradle
   8.10.2 / `compileSdk` 35 pin has been migrated.
-- **A signed release keystore is still required before distribution**; the
-  release build is unsigned and unminified.
+- **A signed release keystore is still required before distribution.** The
+  release build type is now wired for real signing (keystore supplied through
+  `LIFELINK_RELEASE_*` env vars or `lifelinkRelease*` Gradle properties) with
+  R8 minification and resource shrinking enabled; without a configured keystore
+  it still produces an unsigned artifact. See
+  [`docs/ANDROID_RELEASE_SIGNING.md`](docs/ANDROID_RELEASE_SIGNING.md).
 - **Rate limiting is in-process** (per-worker, reset on restart) and must move
   to a shared store before public launch.
 - **Medical screening is out of scope** — profile completion enables operational

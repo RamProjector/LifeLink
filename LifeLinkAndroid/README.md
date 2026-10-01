@@ -4,7 +4,7 @@ Native Kotlin/Jetpack Compose app for emergency blood requests and donor coordin
 
 ## Build and validate
 
-Use Java 21, the included Gradle 8.10.2 wrapper, and an Android SDK with API 35. The Android Gradle plugin also installs its required build tools when SDK licenses are accepted.
+Use Java 21, the included Gradle 9.6.0 wrapper, and an Android SDK with API 37. The Android Gradle plugin also installs its required build tools when SDK licenses are accepted.
 
 ```bash
 export ANDROID_HOME="$HOME/Android/Sdk"
