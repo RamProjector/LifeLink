@@ -328,4 +328,3 @@ tasks.register("buildRelease") {
 
 // Make sure the signing guard runs before the release APK is assembled.
 tasks.matching { it.name == "assembleRelease" }.configureEach { mustRunAfter(verifyReleaseSigning) }
-
