@@ -42,7 +42,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-debug-release-${{ github.ref }}-${{ github.event.inputs.build_type }}
+  group: android-debug-release-${{ github.ref }}-${{ inputs.build_type || 'both' }}
   cancel-in-progress: true
 
 env:
@@ -68,7 +68,7 @@ env:
 jobs:
   debug:
     name: Build debug APK
-    if: ${{ github.event.inputs.build_type == 'both' || github.event.inputs.build_type == 'debug' }}
+    if: ${{ (inputs.build_type || 'both') == 'both' || (inputs.build_type || 'both') == 'debug' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -118,7 +118,7 @@ jobs:
 
   release:
     name: Build release APK
-    if: ${{ github.event.inputs.build_type == 'both' || github.event.inputs.build_type == 'release' }}
+    if: ${{ (inputs.build_type || 'both') == 'both' || (inputs.build_type || 'both') == 'release' }}
     runs-on: ubuntu-latest
     defaults:
       run:
