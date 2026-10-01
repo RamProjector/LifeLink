@@ -6,7 +6,8 @@ name: Android Debug + Release Build
 # when the LIFELINK_DEBUG_* secrets are present). The release APK is signed with
 # the production keystore supplied through the LIFELINK_RELEASE_* secrets and is
 # minified/shrunk by R8. If the release secrets are absent the release job still
-# runs but produces an UNSIGNED, non-distributable APK and says so.
+# runs, warns, and skips the release artifact upload (an unsigned APK is not
+# distributable).
 #
 # See docs/ANDROID_RELEASE_SIGNING.md for the one-time keystore setup.
 
@@ -55,11 +56,6 @@ env:
   LIFELINK_DEBUG_STORE_PASSWORD: ${{ secrets.LIFELINK_DEBUG_STORE_PASSWORD }}
   LIFELINK_DEBUG_KEY_ALIAS: ${{ secrets.LIFELINK_DEBUG_KEY_ALIAS }}
   LIFELINK_DEBUG_KEY_PASSWORD: ${{ secrets.LIFELINK_DEBUG_KEY_PASSWORD }}
-  # Production release keystore (required for a distributable release APK).
-  LIFELINK_RELEASE_KEYSTORE_BASE64: ${{ secrets.LIFELINK_RELEASE_KEYSTORE_BASE64 }}
-  LIFELINK_RELEASE_STORE_PASSWORD: ${{ secrets.LIFELINK_RELEASE_STORE_PASSWORD }}
-  LIFELINK_RELEASE_KEY_ALIAS: ${{ secrets.LIFELINK_RELEASE_KEY_ALIAS }}
-  LIFELINK_RELEASE_KEY_PASSWORD: ${{ secrets.LIFELINK_RELEASE_KEY_PASSWORD }}
   # Firebase client config, consumed by the com.google.gms.google-services
   # plugin. Optional: when the secret is absent the committed
   # app/google-services.json is used as-is.
@@ -76,6 +72,8 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -120,12 +118,21 @@ jobs:
     name: Build release APK
     if: ${{ (inputs.build_type || 'both') == 'both' || (inputs.build_type || 'both') == 'release' }}
     runs-on: ubuntu-latest
+    env:
+      # Production release keystore (required for a distributable release APK).
+      # Scoped to this job so the debug job never receives the signing secrets.
+      LIFELINK_RELEASE_KEYSTORE_BASE64: ${{ secrets.LIFELINK_RELEASE_KEYSTORE_BASE64 }}
+      LIFELINK_RELEASE_STORE_PASSWORD: ${{ secrets.LIFELINK_RELEASE_STORE_PASSWORD }}
+      LIFELINK_RELEASE_KEY_ALIAS: ${{ secrets.LIFELINK_RELEASE_KEY_ALIAS }}
+      LIFELINK_RELEASE_KEY_PASSWORD: ${{ secrets.LIFELINK_RELEASE_KEY_PASSWORD }}
     defaults:
       run:
         working-directory: LifeLinkAndroid
     steps:
       - name: Check out source
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -172,12 +179,16 @@ jobs:
             exit 1
           fi
 
+      # An unsigned release build emits app-release-unsigned.apk, so staging the
+      # signed path would fail. Only stage/upload when signing is configured.
       - name: Stage release APK
+        if: ${{ env.LIFELINK_RELEASE_KEYSTORE_BASE64 != '' }}
         run: |
           mkdir -p ../android-artifacts
           cp app/build/outputs/apk/release/app-release.apk ../android-artifacts/lifelink-release.apk
 
       - name: Upload release APK
+        if: ${{ env.LIFELINK_RELEASE_KEYSTORE_BASE64 != '' }}
         uses: actions/upload-artifact@v7
         with:
           name: lifelink-release-${{ github.sha }}

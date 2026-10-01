@@ -223,11 +223,17 @@ As an alternative to Options A/B/C in *Step 2*, keep the keystore encrypted at
 rest and decrypt it only for the build:
 
 ```bash
-gpg -d --batch --passphrase "$KEYSTORE_GPG_PASSPHRASE" \
-  lifelink-release.keystore.gpg > /tmp/lifelink-release.keystore
-export LIFELINK_RELEASE_KEYSTORE=/tmp/lifelink-release.keystore
+# Decrypt to a private, unpredictable path (mktemp) rather than a predictable
+# /tmp name, and always clean it up — even if the build fails.
+keystore="$(mktemp "${TMPDIR:-/tmp}/lifelink-release.keystore.XXXXXX")"
+trap 'shred -u "$keystore" 2>/dev/null || rm -f "$keystore"' EXIT
+
+# Let GnuPG prompt via Pinentry instead of passing the passphrase as a process
+# argument, which any local user could read out of the process table.
+gpg -d lifelink-release.keystore.gpg > "$keystore"
+
+export LIFELINK_RELEASE_KEYSTORE="$keystore"
 ./gradlew buildRelease
-shred -u /tmp/lifelink-release.keystore
 ```
 
 ## Checklist before distributing a release

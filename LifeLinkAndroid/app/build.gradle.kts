@@ -8,6 +8,45 @@ plugins {
     id("com.diffplug.spotless")
 }
 
+// --- Release signing inputs -------------------------------------------------
+// Resolved once, at the top level, so the signingConfig below and the
+// `verifyReleaseSigning` task share ONE definition of "signing is configured".
+// The production keystore is NEVER committed. Precedence: an explicit Gradle
+// property first (e.g. -PlifelinkReleaseKeystore=... or a local
+// gradle.properties), then the matching environment variable (used by CI
+// secrets). Keeping the secret values out of the source tree is what makes a
+// release build reproducible on a clean machine.
+val releaseKeystorePath =
+    providers
+        .gradleProperty("lifelinkReleaseKeystore")
+        .orElse(providers.environmentVariable("LIFELINK_RELEASE_KEYSTORE"))
+        .orNull
+val releaseStorePassword =
+    providers
+        .gradleProperty("lifelinkReleaseStorePassword")
+        .orElse(providers.environmentVariable("LIFELINK_RELEASE_STORE_PASSWORD"))
+        .orNull
+val releaseKeyAlias =
+    providers
+        .gradleProperty("lifelinkReleaseKeyAlias")
+        .orElse(providers.environmentVariable("LIFELINK_RELEASE_KEY_ALIAS"))
+        .orNull
+val releaseKeyPassword =
+    providers
+        .gradleProperty("lifelinkReleaseKeyPassword")
+        .orElse(providers.environmentVariable("LIFELINK_RELEASE_KEY_PASSWORD"))
+        .orNull
+val releaseKeystoreFile = releaseKeystorePath?.takeIf { it.isNotBlank() }?.let { file(it) }
+
+// Complete predicate: the keystore file must EXIST and every credential must be
+// non-blank. A partial configuration (e.g. only the path set) is not signed.
+val releaseSigningConfigured =
+    releaseKeystoreFile != null &&
+        releaseKeystoreFile.exists() &&
+        !releaseStorePassword.isNullOrBlank() &&
+        !releaseKeyAlias.isNullOrBlank() &&
+        !releaseKeyPassword.isNullOrBlank()
+
 android {
     namespace = "com.lifelink.app"
     compileSdk = 37
@@ -37,42 +76,14 @@ android {
             .get()
 
     // --- Release signing -----------------------------------------------------
-    // The production keystore is NEVER committed. Its location and credentials
-    // are resolved at build time, taking precedence: an explicit Gradle property
-    // first (e.g. -PlifelinkReleaseKeystore=... or a local gradle.properties),
-    // then the matching environment variable (used by CI secrets). Keeping the
-    // secret values out of the source tree is what makes a release build
-    // reproducible on a clean machine.
-    val releaseKeystorePath =
-        providers
-            .gradleProperty("lifelinkReleaseKeystore")
-            .orElse(providers.environmentVariable("LIFELINK_RELEASE_KEYSTORE"))
-            .orNull
-    val releaseStorePassword =
-        providers
-            .gradleProperty("lifelinkReleaseStorePassword")
-            .orElse(providers.environmentVariable("LIFELINK_RELEASE_STORE_PASSWORD"))
-            .orNull
-    val releaseKeyAlias =
-        providers
-            .gradleProperty("lifelinkReleaseKeyAlias")
-            .orElse(providers.environmentVariable("LIFELINK_RELEASE_KEY_ALIAS"))
-            .orNull
-    val releaseKeyPassword =
-        providers
-            .gradleProperty("lifelinkReleaseKeyPassword")
-            .orElse(providers.environmentVariable("LIFELINK_RELEASE_KEY_PASSWORD"))
-            .orNull
-    val releaseKeystoreFile = releaseKeystorePath?.takeIf { it.isNotBlank() }?.let { file(it) }
+    // The keystore location and credentials are resolved once at the top of this
+    // file (see `releaseSigningConfigured`), so this signingConfig and the
+    // `verifyReleaseSigning` task share a single definition of "configured".
     val releaseSigningConfig =
-        if (releaseKeystoreFile != null &&
-            releaseKeystoreFile.exists() &&
-            !releaseStorePassword.isNullOrBlank() &&
-            !releaseKeyAlias.isNullOrBlank() &&
-            !releaseKeyPassword.isNullOrBlank()
-        ) {
+        if (releaseSigningConfigured) {
+            val keystore = requireNotNull(releaseKeystoreFile)
             signingConfigs.create("release") {
-                storeFile = releaseKeystoreFile
+                storeFile = keystore
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword
@@ -307,10 +318,10 @@ val verifyReleaseSigning =
         group = "verification"
         description = "Fails fast when release signing is not configured."
         doLast {
-            val configured =
-                project.findProperty("lifelinkReleaseKeystore") != null ||
-                    System.getenv("LIFELINK_RELEASE_KEYSTORE") != null
-            if (!configured) {
+            // Same predicate the signingConfig uses: keystore file present AND
+            // every credential non-blank. A partial configuration is not signed,
+            // so buildRelease cannot succeed with an unsigned APK.
+            if (!releaseSigningConfigured) {
                 throw GradleException(
                     "Release signing is not configured. Set lifelinkReleaseKeystore / " +
                         "lifelinkReleaseStorePassword / lifelinkReleaseKeyAlias / lifelinkReleaseKeyPassword " +

@@ -89,9 +89,16 @@ jobs:
       - name: Enable KVM hardware acceleration (best effort)
         id: kvm
         run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
+          # The udev setup is best-effort: on a runner without a udev daemon these
+          # commands fail, and the default fail-fast shell would then abort the
+          # step BEFORE `available` is written. Guard each one so the /dev/kvm
+          # check below always runs and always publishes an output.
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null || \
+            echo "::warning::could not write the udev rule; continuing."
+          sudo udevadm control --reload-rules || \
+            echo "::warning::udevadm control --reload-rules failed; continuing."
+          sudo udevadm trigger --name-match=kvm || \
+            echo "::warning::udevadm trigger failed; continuing."
           if [[ -r /dev/kvm && -w /dev/kvm ]]; then
             echo "KVM is available: $(ls -l /dev/kvm)"
             echo "available=true" >> "$GITHUB_OUTPUT"
