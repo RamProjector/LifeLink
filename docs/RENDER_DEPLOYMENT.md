@@ -54,6 +54,13 @@ recorded but no push is sent. Get the value from the Firebase console
 whole JSON document as the variable value, and redeploy. `.gitignore` deliberately
 does not let this secret reach the repository.
 
+> **Updating an existing Blueprint:** Render only prompts for `sync: false`
+> values during the *initial* Blueprint creation. When you update an existing
+> Blueprint, newly added `sync: false` variables are ignored, so add
+> `FIREBASE_SERVICE_ACCOUNT_JSON` manually in the Render dashboard
+> (**Environment → Add Environment Variable**) and redeploy. Until it is set,
+> `app/fcm.py` reports FCM as disabled and push sending returns without sending.
+
 `LIFELINK_REQUIRE_VERIFIED_DONORS` is optional and defaults to `false`: self-registered donors are matched to requests, and verified donors rank higher. Set it to `true` to match **only** donors whose `verified` flag was set by an administrator (the app has no verification workflow yet, so with `true` a new donor receives nothing until you set `donors.verified = true` in Supabase).
 
 8. Deploy the service.
