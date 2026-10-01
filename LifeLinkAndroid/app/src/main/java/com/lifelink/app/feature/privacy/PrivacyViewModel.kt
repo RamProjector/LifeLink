@@ -175,7 +175,16 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
      */
     fun openConversation(requestId: String, donorId: String) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(chatLoading = true, message = null)
+            // Clear any previously opened conversation so a failed open cannot leave the
+            // previous conversation's id/messages in place (sendMessage would post to it).
+            _state.value =
+                _state.value.copy(
+                    chatLoading = true,
+                    message = null,
+                    conversationId = null,
+                    messages = emptyList(),
+                    contactShares = emptyList(),
+                )
             repository
                 .openConversation(requestId, donorId)
                 .onSuccess { conversation ->

@@ -59,6 +59,7 @@ android {
     // no keystore or password is ever committed. When any value is absent (CI, a
     // fresh clone, a local build) the release build falls back to the debug signing
     // config so it still assembles; that artifact is not distributable.
+
     /**
      * Reads a signing value from Gradle properties, falling back to the environment
      * only when the property is absent. Returns null if the selected value is blank.

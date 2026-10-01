@@ -110,8 +110,9 @@ private enum class SettingsSection { PROFILE, LEGAL, SAFETY, ABOUT, THEME, SECUR
 /**
  * Renders account navigation and routes requester and donor actions to their screens.
  *
- * Opening a conversation dispatches [PrivacyAction.OpenConversation] with the request
- * and donor IDs; closing it returns to the screen that opened it.
+ * Opening a conversation records the request and donor IDs and shows [ConversationScreen],
+ * which dispatches [PrivacyAction.OpenConversation] itself on composition (and after
+ * process-death restoration); closing it returns to the screen that opened it.
  */
 @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
 @Composable
@@ -157,7 +158,6 @@ fun LifeLinkShell(
         conversationRequestId = requestId
         conversationDonorId = donorId
         showConversation = true
-        onPrivacyAction(PrivacyAction.OpenConversation(requestId, donorId))
     }
     var showStart by rememberSaveable(accountUserId) {
         mutableStateOf(
