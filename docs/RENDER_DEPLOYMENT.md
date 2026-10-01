@@ -34,7 +34,32 @@ LIFELINK_DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=requ
 LIFELINK_AUTH_REQUIRED=true
 DB_POOL_SIZE=3
 DB_MAX_OVERFLOW=5
+FIREBASE_SERVICE_ACCOUNT_JSON=<paste the Firebase service-account JSON>
+LIFELINK_REQUEST_SWEEP_SECONDS=300
+LIFELINK_REQUEST_SWEEP_LIMIT=500
 ```
+
+`LIFELINK_REQUEST_SWEEP_SECONDS` (default `300`) and `LIFELINK_REQUEST_SWEEP_LIMIT`
+(default `500`) tune the background request-expiry sweeper. The limit caps how many
+timed-out requests one tick transitions, so a large backlog is drained across ticks
+instead of holding one long transaction; it is clamped to `1..5000` and a
+non-integer value falls back to the default.
+
+`FIREBASE_SERVICE_ACCOUNT_JSON` is **required for push notifications to work**. It
+is declared in `render.yaml` with `sync: false`, which means Render prompts for
+the value instead of reading it from the repository. Without it, `app/fcm.py`
+reports FCM as disabled and a contacted donor is never notified — the contact is
+recorded but no push is sent. Get the value from the Firebase console
+(**Project settings → Service accounts → Generate new private key**), paste the
+whole JSON document as the variable value, and redeploy. `.gitignore` deliberately
+does not let this secret reach the repository.
+
+> **Updating an existing Blueprint:** Render only prompts for `sync: false`
+> values during the *initial* Blueprint creation. When you update an existing
+> Blueprint, newly added `sync: false` variables are ignored, so add
+> `FIREBASE_SERVICE_ACCOUNT_JSON` manually in the Render dashboard
+> (**Environment → Add Environment Variable**) and redeploy. Until it is set,
+> `app/fcm.py` reports FCM as disabled and push sending returns without sending.
 
 `LIFELINK_REQUIRE_VERIFIED_DONORS` is optional and defaults to `false`: self-registered donors are matched to requests, and verified donors rank higher. Set it to `true` to match **only** donors whose `verified` flag was set by an administrator (the app has no verification workflow yet, so with `true` a new donor receives nothing until you set `donors.verified = true` in Supabase).
 

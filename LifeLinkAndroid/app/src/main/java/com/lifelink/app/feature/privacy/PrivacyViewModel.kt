@@ -63,6 +63,14 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     private val _state = MutableStateFlow(PrivacyUiState())
     val state: StateFlow<PrivacyUiState> = _state.asStateFlow()
 
+    /**
+     * Monotonic token identifying the conversation the user is currently viewing.
+     * Bumped whenever a conversation is opened, so results from a superseded
+     * conversation's in-flight jobs are discarded instead of overwriting the
+     * active conversation's id, messages, or contact shares.
+     */
+    private var conversationGeneration = 0
+
     fun onAction(action: PrivacyAction) {
         when (action) {
             PrivacyAction.LoadMap -> loadMap()
@@ -150,6 +158,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
         }
     }
 
+    /** Revokes the location share and clears the displayed location on success, or reports an error. */
     private fun revokeShare(requestId: String, donorId: String) {
         viewModelScope.launch {
             repository
@@ -166,15 +175,37 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
         }
     }
 
-    private fun openConversation(requestId: String, donorId: String) {
+    /**
+     * Open (or create) the conversation for a matched request and donor.
+     *
+     * [PrivacyAction.OpenConversation] dispatches here. Launches asynchronous work
+     * that clears the previous conversation ID, messages, and contact shares before
+     * opening. An open failure is exposed through [PrivacyUiState.message]; success
+     * loads messages and contact shares, using an empty list for each failed read.
+     */
+    fun openConversation(requestId: String, donorId: String) {
+        // Invalidate any earlier conversation's in-flight jobs: their completions
+        // must not overwrite the conversation the user is now viewing.
+        val generation = ++conversationGeneration
         viewModelScope.launch {
-            _state.value = _state.value.copy(chatLoading = true, message = null)
+            // Clear any previously opened conversation so a failed open cannot leave the
+            // previous conversation's id/messages in place (sendMessage would post to it).
+            _state.value =
+                _state.value.copy(
+                    chatLoading = true,
+                    message = null,
+                    conversationId = null,
+                    messages = emptyList(),
+                    contactShares = emptyList(),
+                )
             repository
                 .openConversation(requestId, donorId)
                 .onSuccess { conversation ->
+                    if (generation != conversationGeneration) return@onSuccess
                     _state.value = _state.value.copy(conversationId = conversation.conversationId)
-                    refreshConversation(conversation.conversationId)
+                    refreshConversation(conversation.conversationId, generation)
                 }.onFailure { error ->
+                    if (generation != conversationGeneration) return@onFailure
                     _state.value =
                         _state.value.copy(
                             chatLoading = false,
@@ -184,10 +215,11 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
         }
     }
 
-    private fun refreshConversation(conversationId: String) {
+    private fun refreshConversation(conversationId: String, generation: Int) {
         viewModelScope.launch {
             val messages = repository.messages(conversationId).getOrDefault(emptyList())
             val shares = repository.contactShares(conversationId).getOrDefault(emptyList())
+            if (generation != conversationGeneration) return@launch
             _state.value = _state.value.copy(messages = messages, contactShares = shares, chatLoading = false)
         }
     }
@@ -195,14 +227,17 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     private fun sendMessage(body: String) {
         val conversationId = _state.value.conversationId ?: return
         if (body.isBlank()) return
+        val generation = conversationGeneration
         viewModelScope.launch {
             _state.value = _state.value.copy(sending = true)
             repository
                 .sendMessage(conversationId, body)
                 .onSuccess {
+                    if (generation != conversationGeneration) return@onSuccess
                     _state.value = _state.value.copy(sending = false)
-                    refreshConversation(conversationId)
+                    refreshConversation(conversationId, generation)
                 }.onFailure { error ->
+                    if (generation != conversationGeneration) return@onFailure
                     _state.value = _state.value.copy(sending = false, message = error.message ?: "Message could not be sent.")
                 }
         }
@@ -211,13 +246,16 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     private fun shareContact(field: String, value: String) {
         val conversationId = _state.value.conversationId ?: return
         if (value.isBlank()) return
+        val generation = conversationGeneration
         viewModelScope.launch {
             repository
                 .shareContact(conversationId, field, value)
                 .onSuccess {
+                    if (generation != conversationGeneration) return@onSuccess
                     _state.value = _state.value.copy(message = "Your $field was shared and recorded.")
-                    refreshConversation(conversationId)
+                    refreshConversation(conversationId, generation)
                 }.onFailure { error ->
+                    if (generation != conversationGeneration) return@onFailure
                     _state.value = _state.value.copy(message = error.message ?: "Contact details could not be shared.")
                 }
         }

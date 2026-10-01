@@ -1,7 +1,7 @@
 package com.lifelink.app.feature.donor
 
-import android.app.Activity
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -17,30 +17,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.FullscreenExit
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,16 +59,27 @@ import androidx.core.content.ContextCompat
 import com.google.android.gms.common.api.ResolvableApiException
 import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.core.location.MapLibreLocationPicker
+import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
-import com.lifelink.app.domain.BloodType
 import kotlinx.coroutines.launch
 
+/**
+ * Displays donor setup, availability, and the request inbox from [state].
+ *
+ * [onOpenConversation] receives the request ID and donor ID when the donor messages
+ * a requester from an accepted or arrived request.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: () -> Unit) {
+fun DonorScreen(
+    state: DonorUiState,
+    onAction: (DonorAction) -> Unit,
+    onBack: () -> Unit,
+    onOpenConversation: (String, String) -> Unit = { _, _ -> },
+) {
     var profileExpanded by rememberSaveable { mutableStateOf(false) }
     var fullScreenProfile by rememberSaveable { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(DonorTab.HOME) }
@@ -76,17 +87,26 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
     val scope = rememberCoroutineScope()
     var locationCaptureRequest by remember { mutableStateOf(0) }
     var locationMessage by remember { mutableStateOf<String?>(null) }
-    val settingsResolutionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) locationCaptureRequest++
-        else locationMessage = "Location services remain off. Use the map or manual coordinates instead."
-    }
-    val locationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
-        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true || permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
-            locationCaptureRequest++
-        } else locationMessage = "Location permission was not granted. Use the map or manual coordinates instead."
-    }
+    val settingsResolutionLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.StartIntentSenderForResult(),
+        ) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                locationCaptureRequest++
+            } else {
+                locationMessage = "Location services remain off. Use the map or manual coordinates instead."
+            }
+        }
+    val locationLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            ) {
+                locationCaptureRequest++
+            } else {
+                locationMessage = "Location permission was not granted. Use the map or manual coordinates instead."
+            }
+        }
     LaunchedEffect(locationCaptureRequest) {
         if (locationCaptureRequest == 0) return@LaunchedEffect
         val provider = LocationProvider(context)
@@ -107,24 +127,40 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                     settingsResolutionLauncher.launch(IntentSenderRequest.Builder(error.resolution).build())
                 }.onFailure { locationMessage = "Location settings could not be opened. Use the map or manual coordinates instead." }
             },
-            onFailure = { locationMessage = "Device location is unavailable. Use the map or manual coordinates instead." }
+            onFailure = { locationMessage = "Device location is unavailable. Use the map or manual coordinates instead." },
         )
     }
     // Explicitly typed as () -> Unit: the branches below return Int (the post-increment)
     // and Unit (the launcher call), so an inferred type would be () -> Any and would not
     // satisfy the () -> Unit parameter of ProfileCard.
     val captureLocation: () -> Unit = {
-        val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if (hasPermission) locationCaptureRequest++
-        else locationLauncher.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
+        val hasPermission =
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (hasPermission) {
+            locationCaptureRequest++
+        } else {
+            locationLauncher.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
+        }
     }
     val selectLocation: (Double, Double) -> Unit = { latitude, longitude -> onAction(DonorAction.SetLocation(latitude, longitude, 500)) }
     // Unsaved editor input lives here, not inside ProfileCard, so switching between the
     // tabbed editor and the full-screen editor does not reset what the donor typed.
     var serviceRadius by remember(state.profile.donorId) { mutableStateOf(state.profile.serviceRadiusKm.toString()) }
-    var manualLatitude by remember(state.profile.donorId) { mutableStateOf(state.profile.latitude?.toString().orEmpty()) }
-    var manualLongitude by remember(state.profile.donorId) { mutableStateOf(state.profile.longitude?.toString().orEmpty()) }
+    var manualLatitude by remember(state.profile.donorId) {
+        mutableStateOf(
+            state.profile.latitude
+                ?.toString()
+                .orEmpty(),
+        )
+    }
+    var manualLongitude by remember(state.profile.donorId) {
+        mutableStateOf(
+            state.profile.longitude
+                ?.toString()
+                .orEmpty(),
+        )
+    }
     Scaffold(topBar = {
         TopAppBar(
             title = { Text("Donor workspace") },
@@ -132,18 +168,18 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
             actions = {
                 IconButton(
                     onClick = { fullScreenProfile = !fullScreenProfile },
-                    enabled = profileExpanded || fullScreenProfile
+                    enabled = profileExpanded || fullScreenProfile,
                 ) {
                     Icon(
                         if (fullScreenProfile) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                        if (fullScreenProfile) "Exit full screen profile" else "Open profile in full screen"
+                        if (fullScreenProfile) "Exit full screen profile" else "Open profile in full screen",
                     )
                 }
                 IconButton(
                     onClick = { onAction(DonorAction.RefreshRequests) },
-                    enabled = !state.requestsRefreshing && state.profile.isSetupComplete
+                    enabled = !state.requestsRefreshing && state.profile.isSetupComplete,
                 ) { Icon(Icons.Default.Refresh, "Refresh requests") }
-            }
+            },
         )
     }) { padding ->
         if (fullScreenProfile) {
@@ -153,14 +189,21 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                 Column(Modifier.fillMaxSize().padding(padding)) {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                     ) {
-                        Text("Donor profile", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Donor profile",
+                            Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
                         TextButton(onClick = { fullScreenProfile = false }) { Text("Exit full screen") }
                     }
                     LazyColumn(
                         Modifier.fillMaxSize().padding(horizontal = 20.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)
+                        contentPadding =
+                        androidx.compose.foundation.layout
+                            .PaddingValues(vertical = 12.dp),
                     ) {
                         item {
                             ProfileCard(
@@ -170,11 +213,17 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                                 onCaptureLocation = captureLocation,
                                 onLocationSelected = selectLocation,
                                 serviceRadius = serviceRadius,
-                                onServiceRadiusChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value },
+                                onServiceRadiusChange = { value ->
+                                    if (value.length <= 3 &&
+                                        value.all(Char::isDigit)
+                                    ) {
+                                        serviceRadius = value
+                                    }
+                                },
                                 manualLatitude = manualLatitude,
                                 onManualLatitudeChange = { manualLatitude = it },
                                 manualLongitude = manualLongitude,
-                                onManualLongitudeChange = { manualLongitude = it }
+                                onManualLongitudeChange = { manualLongitude = it },
                             )
                         }
                         // Keep the same status feedback the tabbed editor shows, so a
@@ -193,29 +242,34 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                 }
             }
             when (selectedTab) {
-                DonorTab.HOME -> DonorHomeContent(
-                    state = state,
-                    locationMessage = locationMessage,
-                    profileExpanded = profileExpanded,
-                    onToggleProfile = { profileExpanded = !profileExpanded },
-                    onAction = onAction,
-                    onCaptureLocation = captureLocation,
-                    onLocationSelected = selectLocation,
-                    serviceRadius = serviceRadius,
-                    onServiceRadiusChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value },
-                    manualLatitude = manualLatitude,
-                    onManualLatitudeChange = { manualLatitude = it },
-                    manualLongitude = manualLongitude,
-                    onManualLongitudeChange = { manualLongitude = it }
-                )
-                DonorTab.REQUESTS -> DonorRequestsContent(state, onAction)
+                DonorTab.HOME ->
+                    DonorHomeContent(
+                        state = state,
+                        locationMessage = locationMessage,
+                        profileExpanded = profileExpanded,
+                        onToggleProfile = { profileExpanded = !profileExpanded },
+                        onAction = onAction,
+                        onCaptureLocation = captureLocation,
+                        onLocationSelected = selectLocation,
+                        serviceRadius = serviceRadius,
+                        onServiceRadiusChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value },
+                        manualLatitude = manualLatitude,
+                        onManualLatitudeChange = { manualLatitude = it },
+                        manualLongitude = manualLongitude,
+                        onManualLongitudeChange = { manualLongitude = it },
+                    )
+                DonorTab.REQUESTS -> DonorRequestsContent(state, onAction, onOpenConversation)
             }
         }
     }
 }
 
-private enum class DonorTab(val label: String) { HOME("Home"), REQUESTS("Requests") }
+private enum class DonorTab(val label: String) {
+    HOME("Home"),
+    REQUESTS("Requests"),
+}
 
+/** Shows donor availability or setup guidance, status messages, and the expandable profile editor. */
 @Composable
 private fun DonorHomeContent(
     state: DonorUiState,
@@ -230,124 +284,189 @@ private fun DonorHomeContent(
     manualLatitude: String,
     onManualLatitudeChange: (String) -> Unit,
     manualLongitude: String,
-    onManualLongitudeChange: (String) -> Unit
+    onManualLongitudeChange: (String) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 20.dp)
+        contentPadding =
+        androidx.compose.foundation.layout
+            .PaddingValues(vertical = 20.dp),
     ) {
         item {
-            Text("Ready to help", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Ready to help",
+                Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+            )
             Text("Manage your availability, profile, and private location settings.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (!state.profile.isSetupComplete) item { SetupRequiredCard(state.profile) }
-        else item { AvailabilityCard(state.profile, onAction, state.saving) }
+        if (!state.profile.isSetupComplete) {
+            item { SetupRequiredCard(state.profile) }
+        } else {
+            item { AvailabilityCard(state.profile, onAction, state.saving) }
+        }
         (locationMessage ?: state.message)?.let { message -> item { StatusMessage(message) } }
         item {
             OutlinedButton(onClick = onToggleProfile, modifier = Modifier.fillMaxWidth()) {
                 Text(if (profileExpanded) "Hide profile editor" else "Edit donor profile")
             }
         }
-        if (profileExpanded) item {
-            ProfileCard(
-                profile = state.profile,
-                saving = state.saving,
-                onAction = onAction,
-                onCaptureLocation = onCaptureLocation,
-                onLocationSelected = onLocationSelected,
-                serviceRadius = serviceRadius,
-                onServiceRadiusChange = onServiceRadiusChange,
-                manualLatitude = manualLatitude,
-                onManualLatitudeChange = onManualLatitudeChange,
-                manualLongitude = manualLongitude,
-                onManualLongitudeChange = onManualLongitudeChange
-            )
+        if (profileExpanded) {
+            item {
+                ProfileCard(
+                    profile = state.profile,
+                    saving = state.saving,
+                    onAction = onAction,
+                    onCaptureLocation = onCaptureLocation,
+                    onLocationSelected = onLocationSelected,
+                    serviceRadius = serviceRadius,
+                    onServiceRadiusChange = onServiceRadiusChange,
+                    manualLatitude = manualLatitude,
+                    onManualLatitudeChange = onManualLatitudeChange,
+                    manualLongitude = manualLongitude,
+                    onManualLongitudeChange = onManualLongitudeChange,
+                )
+            }
         }
     }
 }
 
+/**
+ * Shows setup guidance until the donor profile is complete, then renders the inbox.
+ *
+ * Passes the profile donor ID and [onOpenConversation] to each request card.
+ */
 @Composable
-private fun DonorRequestsContent(state: DonorUiState, onAction: (DonorAction) -> Unit) {
+private fun DonorRequestsContent(
+    state: DonorUiState,
+    onAction: (DonorAction) -> Unit,
+    onOpenConversation: (String, String) -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 20.dp)
+        contentPadding =
+        androidx.compose.foundation.layout
+            .PaddingValues(vertical = 20.dp),
     ) {
         item {
-            Text("Requests near you", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("Only requests matching your saved profile and availability appear here.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "Requests near you",
+                Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                "Only requests matching your saved profile and availability appear here.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         if (state.requestsRefreshing) item { StatusMessage("Refreshing eligible requests…", compact = true, loading = true) }
         state.message?.let { message -> if (!state.requestsRefreshing) item { StatusMessage(message, compact = true) } }
-        if (!state.profile.isSetupComplete) item { SetupRequiredCard(state.profile) }
-        else if (state.requests.isEmpty()) item {
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("No matching requests", fontWeight = FontWeight.SemiBold)
-                    Text("New requests will appear here when available. Refreshing does not change your availability.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedButton(onClick = { onAction(DonorAction.RefreshRequests) }, enabled = !state.requestsRefreshing) { Text("Refresh requests") }
+        if (!state.profile.isSetupComplete) {
+            item { SetupRequiredCard(state.profile) }
+        } else if (state.requests.isEmpty()) {
+            item {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("No matching requests", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "New requests will appear here when available. Refreshing does not change your availability.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        OutlinedButton(
+                            onClick = { onAction(DonorAction.RefreshRequests) },
+                            enabled = !state.requestsRefreshing,
+                        ) { Text("Refresh requests") }
+                    }
                 }
             }
         } else {
-            items(state.requests, key = { it.requestId }) { request -> RequestCard(request, onAction, state.saving) }
+            items(state.requests, key = { it.requestId }) { request ->
+                RequestCard(request, onAction, state.saving, state.profile.donorId, onOpenConversation)
+            }
         }
     }
 }
 
+/** Displays a donor status message with optional compact styling and a loading indicator. */
 @Composable
 private fun StatusMessage(message: String, compact: Boolean = false, loading: Boolean = false) {
     Card(
         Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Row(
             Modifier.padding(if (compact) 12.dp else 14.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (loading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
             Text(
                 message,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
-                style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium
+                style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
             )
         }
     }
 }
 
+/** Displays availability choices and dispatches changes while no save is in progress. */
 @Composable private fun AvailabilityCard(profile: DonorProfile, onAction: (DonorAction) -> Unit, saving: Boolean) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Availability", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(profile.availability.label, color = MaterialTheme.colorScheme.onSecondaryContainer)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DonorAvailability.values().forEach { option ->
-                    FilterChip(selected = profile.availability == option, enabled = !saving, onClick = { onAction(DonorAction.SetAvailability(option)) }, label = { Text(option.label) })
+                    FilterChip(selected = profile.availability == option, enabled = !saving, onClick = {
+                        onAction(DonorAction.SetAvailability(option))
+                    }, label = { Text(option.label) })
                 }
             }
         }
     }
 }
 
+/** Lists missing donor profile fields and explains why requests remain hidden until setup is complete. */
 @Composable
 private fun SetupRequiredCard(profile: DonorProfile) {
-    val missing = buildList {
-        if (profile.displayName.trim().length < 2) add("display name")
-        if (profile.bloodType == null) add("blood type")
-        if (profile.latitude == null || profile.longitude == null) add("approximate location")
-        if (profile.serviceRadiusKm !in 1..100) add("service radius")
-    }
+    val missing =
+        buildList {
+            if (profile.displayName.trim().length < 2) add("display name")
+            if (profile.bloodType == null) add("blood type")
+            if (profile.latitude == null || profile.longitude == null) add("approximate location")
+            if (profile.serviceRadiusKm !in 1..100) add("service radius")
+        }
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Finish donor setup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("Complete ${missing.joinToString()}. Requests stay hidden until your profile is ready.", color = MaterialTheme.colorScheme.onPrimaryContainer)
-            Text("Choose availability after setup is saved.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(
+                "Complete ${missing.joinToString()}. Requests stay hidden until your profile is ready.",
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+                "Choose availability after setup is saved.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
         }
     }
 }
 
+/**
+ * Edits donor profile fields through [onAction] and the supplied location callbacks.
+ *
+ * The caller owns unsaved radius and manual coordinate text so it survives switching
+ * between the tabbed and full-screen profile editors.
+ */
 @Composable
 private fun ProfileCard(
     profile: DonorProfile,
@@ -360,7 +479,7 @@ private fun ProfileCard(
     manualLatitude: String,
     onManualLatitudeChange: (String) -> Unit,
     manualLongitude: String,
-    onManualLongitudeChange: (String) -> Unit
+    onManualLongitudeChange: (String) -> Unit,
 ) {
     // The editable profile lives in the ViewModel, like the emergency-request draft.
     // GPS can therefore update only coordinates without recreating this form. The
@@ -369,9 +488,26 @@ private fun ProfileCard(
     var showMoreSettings by rememberSaveable(profile.donorId) { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Donor profile", Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            OutlinedTextField(profile.displayName, { value -> onAction(DonorAction.UpdateDraft { it.copy(displayName = value) }) }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
-            OutlinedTextField(profile.area, { value -> onAction(DonorAction.UpdateDraft { it.copy(area = value) }) }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
+            Text(
+                "Donor profile",
+                Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            OutlinedTextField(profile.displayName, { value ->
+                onAction(
+                    DonorAction.UpdateDraft {
+                        it.copy(displayName = value)
+                    },
+                )
+            }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true)
+            OutlinedTextField(profile.area, { value ->
+                onAction(
+                    DonorAction.UpdateDraft {
+                        it.copy(area = value)
+                    },
+                )
+            }, Modifier.fillMaxWidth(), label = { Text("Area") }, singleLine = true)
             OutlinedButton(onClick = { showMoreSettings = !showMoreSettings }, modifier = Modifier.fillMaxWidth()) {
                 Text(if (showMoreSettings) "Hide optional settings" else "Show optional settings")
             }
@@ -382,7 +518,7 @@ private fun ProfileCard(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Optional donor note") },
                     minLines = 2,
-                    maxLines = 4
+                    maxLines = 4,
                 )
                 Text("Preferred contact method", fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -390,29 +526,41 @@ private fun ProfileCard(
                         FilterChip(
                             selected = profile.preferredContactMethod == value,
                             onClick = { onAction(DonorAction.UpdateDraft { it.copy(preferredContactMethod = value) }) },
-                            label = { Text(label) }
+                            label = { Text(label) },
                         )
                     }
                 }
                 if (profile.availability == DonorAvailability.PAUSED) {
                     OutlinedTextField(
                         value = profile.pauseReason.orEmpty(),
-                        onValueChange = { if (it.length <= 240) onAction(DonorAction.UpdateDraft { draft -> draft.copy(pauseReason = it) }) },
+                        onValueChange = {
+                            if (it.length <=
+                                240
+                            ) {
+                                onAction(DonorAction.UpdateDraft { draft -> draft.copy(pauseReason = it) })
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("Why are you paused? (optional)") },
-                        singleLine = true
+                        singleLine = true,
                     )
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(Modifier.weight(1f)) {
                         Text("Profile visible to requesters", fontWeight = FontWeight.SemiBold)
                         Text(
-                            if (profile.profileVisible) "You can appear in matching results when available." else "You will not appear in new matching results.",
+                            if (profile.profileVisible) {
+                                "You can appear in matching results when available."
+                            } else {
+                                "You will not appear in new matching results."
+                            },
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall
+                            style = MaterialTheme.typography.bodySmall,
                         )
                     }
-                    Switch(checked = profile.profileVisible, onCheckedChange = { value -> onAction(DonorAction.UpdateDraft { it.copy(profileVisible = value) }) })
+                    Switch(checked = profile.profileVisible, onCheckedChange = { value ->
+                        onAction(DonorAction.UpdateDraft { it.copy(profileVisible = value) })
+                    })
                 }
             }
             Text("Blood type", fontWeight = FontWeight.SemiBold)
@@ -424,7 +572,7 @@ private fun ProfileCard(
                                 selected = profile.bloodType == option,
                                 onClick = { onAction(DonorAction.UpdateDraft { it.copy(bloodType = option) }) },
                                 label = { Text(option.label) },
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
                             )
                         }
                     }
@@ -435,27 +583,65 @@ private fun ProfileCard(
                 onValueChange = onServiceRadiusChange,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Service radius (km)") },
-                singleLine = true
+                singleLine = true,
             )
             Text(
-                if (profile.latitude == null) "Location not captured" else "Approximate location saved for matching (±${profile.locationPrecisionMeters} m)",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text =
+                if (profile.latitude == null) {
+                    "Location not captured"
+                } else {
+                    "Approximate location saved for matching " +
+                        "(±${profile.locationPrecisionMeters} m)"
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Button(onClick = onCaptureLocation, enabled = !saving, modifier = Modifier.fillMaxWidth()) { Text(if (profile.latitude == null) "Use my current location" else "Update current location") }
+            Button(onClick = onCaptureLocation, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    if (profile.latitude ==
+                        null
+                    ) {
+                        "Use my current location"
+                    } else {
+                        "Update current location"
+                    },
+                )
+            }
             Text("Choose or adjust your approximate donor location", fontWeight = FontWeight.SemiBold)
             DonorLocationMap(profile.latitude, profile.longitude, onLocationSelected)
-            Text("Only you can see this pin. Requesters receive distance and travel estimates, not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            Text(
+                "Only you can see this pin. Requesters receive distance and travel estimates, not your coordinates.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(manualLatitude, onManualLatitudeChange, Modifier.weight(1f), label = { Text("Latitude") }, singleLine = true)
-                OutlinedTextField(manualLongitude, onManualLongitudeChange, Modifier.weight(1f), label = { Text("Longitude") }, singleLine = true)
+                OutlinedTextField(
+                    manualLatitude,
+                    onManualLatitudeChange,
+                    Modifier.weight(1f),
+                    label = { Text("Latitude") },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    manualLongitude,
+                    onManualLongitudeChange,
+                    Modifier.weight(1f),
+                    label = { Text("Longitude") },
+                    singleLine = true,
+                )
             }
             OutlinedButton(
                 onClick = {
                     val latitude = manualLatitude.toDoubleOrNull()
                     val longitude = manualLongitude.toDoubleOrNull()
-                    if (latitude != null && longitude != null && latitude in -90.0..90.0 && longitude in -180.0..180.0) onLocationSelected(latitude, longitude)
+                    if (latitude != null &&
+                        longitude != null &&
+                        latitude in -90.0..90.0 &&
+                        longitude in -180.0..180.0
+                    ) {
+                        onLocationSelected(latitude, longitude)
+                    }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             ) { Text("Use this approximate location") }
             Button(
                 onClick = {
@@ -464,15 +650,30 @@ private fun ProfileCard(
                         onAction(DonorAction.SaveProfile)
                     }
                 },
-                enabled = !saving && profile.displayName.trim().length >= 2 && profile.bloodType != null &&
-                    profile.latitude != null && profile.longitude != null &&
+                enabled =
+                !saving &&
+                    profile.displayName.trim().length >= 2 &&
+                    profile.bloodType != null &&
+                    profile.latitude != null &&
+                    profile.longitude != null &&
                     serviceRadius.toIntOrNull() in 1..100,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(if (saving) "Saving…" else if (profile.isSetupComplete) "Save changes" else "Complete donor setup") }
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    if (saving) {
+                        "Saving…"
+                    } else if (profile.isSetupComplete) {
+                        "Save changes"
+                    } else {
+                        "Complete donor setup"
+                    },
+                )
+            }
         }
     }
 }
 
+/** Lets the donor select an approximate location, defaulting to Manila when coordinates are absent. */
 @Composable
 private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSelected: (Double, Double) -> Unit) {
     val selectedLatitude = latitude ?: 14.5995
@@ -486,30 +687,77 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
             selectedLongitude,
             onLocationSelected,
             retryRequest,
-            modifier = Modifier.fillMaxWidth().height(260.dp)
+            modifier = Modifier.fillMaxWidth().height(260.dp),
         )
-        OutlinedButton(onClick = { retryRequest++ }, modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(12.dp)) { Text("Recenter") }
+        OutlinedButton(onClick = {
+            retryRequest++
+        }, modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(12.dp)) { Text("Recenter") }
     }
-    Text("Tap or long-press to move the approximate donor location.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(
+        "Tap or long-press to move the approximate donor location.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
-@Composable private fun RequestCard(request: DonorRequest, onAction: (DonorAction) -> Unit, saving: Boolean) {
+/**
+ * Displays a donor request with response actions disabled while [saving].
+ *
+ * Accepted or arrived requests can open a conversation using the request ID and
+ * [donorId]; [onOpenConversation] delegates navigation to the caller.
+ */
+@Composable private fun RequestCard(
+    request: DonorRequest,
+    onAction: (DonorAction) -> Unit,
+    saving: Boolean,
+    donorId: String,
+    onOpenConversation: (String, String) -> Unit,
+) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${request.bloodType} · ${request.units} unit${if (request.units == 1) "" else "s"}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "${request.bloodType} · ${request.units} unit${if (request.units == 1) "" else "s"}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
                 Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.small) {
-                    Text(request.urgency.replaceFirstChar { it.uppercase() }, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        request.urgency.replaceFirstChar {
+                            it.uppercase()
+                        },
+                        modifier =
+                        Modifier.padding(
+                            horizontal = 10.dp,
+                            vertical = 6.dp,
+                        ),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
                 }
             }
             Text(request.facilityName, fontWeight = FontWeight.SemiBold)
             Text("${request.area} · ${request.distanceKm} km away", color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (request.response == null) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(enabled = !saving, onClick = { onAction(DonorAction.Respond(request.requestId, DonorResponse.ACCEPTED)) }, modifier = Modifier.weight(1f)) { Text("Accept") }
-                    OutlinedButton(enabled = !saving, onClick = { onAction(DonorAction.Respond(request.requestId, DonorResponse.DECLINED)) }, modifier = Modifier.weight(1f)) { Text("Decline") }
+                    Button(enabled = !saving, onClick = {
+                        onAction(DonorAction.Respond(request.requestId, DonorResponse.ACCEPTED))
+                    }, modifier = Modifier.weight(1f)) { Text("Accept") }
+                    OutlinedButton(enabled = !saving, onClick = {
+                        onAction(DonorAction.Respond(request.requestId, DonorResponse.DECLINED))
+                    }, modifier = Modifier.weight(1f)) { Text("Decline") }
                 }
-            } else Text("Response: ${request.response.label}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            } else {
+                Text("Response: ${request.response.label}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                // A donor who accepted can open the in-app conversation with the
+                // requester directly from their accepted request.
+                if (request.response == DonorResponse.ACCEPTED || request.response == DonorResponse.ARRIVED) {
+                    OutlinedButton(
+                        onClick = { onOpenConversation(request.requestId, donorId) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Message requester") }
+                }
+            }
         }
     }
 }

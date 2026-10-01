@@ -6,7 +6,7 @@
 
 ## Confirmed deployment state
 
-The repository now contains eight Supabase SQL migrations. Migrations 001–007 have been applied to the live Supabase database, in order:
+The repository now contains nine Supabase SQL migrations. Migrations 001–007 have been applied to the live Supabase database, in order:
 
 1. `lifelink_fastapi/sql/001_initial_schema.sql`
 2. `lifelink_fastapi/sql/002_gps_request_location.sql`
@@ -15,7 +15,17 @@ The repository now contains eight Supabase SQL migrations. Migrations 001–007 
 5. `lifelink_fastapi/sql/005_audit_events.sql`
 6. `lifelink_fastapi/sql/006_donor_operational_profile.sql`
 7. `lifelink_fastapi/sql/007_donor_map_chat_contact_sharing.sql` (applied 2026-09-29)
-8. `lifelink_fastapi/sql/008_conversation_blocks.sql` (added with the conversation block/report feature; confirm its live-application state before relying on it)
+8. `lifelink_fastapi/sql/008_conversation_blocks.sql` (conversation block/report feature; **not yet confirmed applied to the live database**)
+9. `lifelink_fastapi/sql/009_rate_limit_counters.sql` (shared rate-limit counters; **not yet confirmed applied to the live database**)
+
+`008` and `009` still need to be applied to the live Supabase database. The API is
+resilient if they are not, because `create_all_tables()` (`app/db.py`) runs
+`Base.metadata.create_all` at startup and both tables are modelled in
+`app/db_models.py` (`ConversationBlock`, `RateLimitCounter`), so the tables
+self-create on boot. `create_all` only creates tables and indexes, however: it does
+**not** recreate the PostGIS types, triggers, or row-level-security policies that
+the `sql/*.sql` files install. Apply `008` and `009` to Supabase so the live schema,
+the SQL files, and the models stay in agreement.
 
 This means the live database is expected to support the initial schema, GPS-based requester locations, authenticated requester/donor roles, profiles, controlled contact-request records, expanded contact lifecycle states, append-only audit events, the donor operational profile, donor map/chat/contact sharing, and conversation blocks. Future chats should not ask to reapply these migrations unless the live database is recreated or migration state is independently found to be inconsistent.
 
@@ -57,7 +67,31 @@ Migration `lifelink_fastapi/sql/007_donor_map_chat_contact_sharing.sql` adds the
 
 ## Remaining work
 
-The following items are not confirmed as production-complete: real-device and live-deployment verification of the contact lifecycle, contact cancellation and expiry enforcement, typed location-source contract, precise-versus-approximate permission UX, in-flight location cancellation and classified retry states, in-app conversation or controlled phone handoff, push notifications and deep links, abuse reporting, signed Android release configuration, crash reporting, and real-device accessibility/performance validation. Rate-limiting and audit-event infrastructure are implemented and their migrations are applied, but endpoint-level and live-production verification remain required. A previous 401 screenshot was traced to the missing client-side access-token refresh path; the refresh-and-retry fix is now compile-verified. The requester map no longer renders `(0, 0)` when no location has been captured. The prioritized follow-up scope is recorded in `docs/POST_UPDATE_IMPROVEMENT_SCOPE.md`.
+The following items are not confirmed as production-complete: real-device and live-deployment verification of the contact lifecycle, contact cancellation and expiry enforcement, typed location-source contract, precise-versus-approximate permission UX, in-flight location cancellation and classified retry states, controlled phone handoff, signed Android release configuration (scaffolding now in place — see below), crash reporting, and real-device accessibility/performance validation. Rate-limiting and audit-event infrastructure are implemented and their migrations are applied, but endpoint-level and live-production verification remain required. A previous 401 screenshot was traced to the missing client-side access-token refresh path; the refresh-and-retry fix is now compile-verified. The requester map no longer renders `(0, 0)` when no location has been captured. The prioritized follow-up scope is recorded in `docs/POST_UPDATE_IMPROVEMENT_SCOPE.md`.
+
+## Fixes landed 2026-10-01 (end-to-end audit remediation)
+
+1. **In-app conversation is now reachable.** `ConversationScreen` and
+   `PrivacyViewModel.openConversation` existed but nothing navigated to them, so the
+   chat, contact sharing, and conversation-level report/block were dead code. The
+   requester now opens the conversation from a matched contact card ("Message <donor>"),
+   and a donor opens it from an accepted request ("Message requester").
+   `LifeLinkShell` renders `ConversationScreen` when a conversation is open.
+2. **Requests now expire on their own.** A background sweeper
+   (`_expire_timed_out_requests_forever`, mirroring the location-share sweeper) flips
+   open requests past `response_deadline` to `expired` using the same
+   `is_request_expired` rule as the lazy read paths, so a timed-out request no longer
+   sits in `awaiting_responses` until something happens to read it.
+3. **Push notifications are configurable.** `FIREBASE_SERVICE_ACCOUNT_JSON` is declared
+   in `render.yaml` (`sync: false`); push is enabled once the operator pastes the
+   Firebase service-account JSON into the Render dashboard. See
+   `docs/RENDER_DEPLOYMENT.md`.
+4. **Release signing is scaffolded.** The release build reads
+   `LIFELINK_KEYSTORE_FILE`, `LIFELINK_KEYSTORE_PASSWORD`, `LIFELINK_KEY_ALIAS`, and
+   `LIFELINK_KEY_PASSWORD` from the environment or Gradle properties, falling back to
+   the debug signing config when unset so CI and local builds keep working. See the
+   README "Android release signing" section. A crash-reporting SDK and broader
+   automated coverage of the PostgreSQL adapters remain deliberate follow-ups.
 
 The backend now applies a configurable donor location/availability freshness cutoff through `LIFELINK_DONOR_LOCATION_MAX_AGE_MINUTES`, defaulting to 24 hours. Donors older than the cutoff are excluded from new matches; Android source labeling and explicit freshness UX remain follow-up work.
 

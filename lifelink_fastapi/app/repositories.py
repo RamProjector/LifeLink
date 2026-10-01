@@ -26,7 +26,7 @@ from .db_models import (
 from .db_models import (
     RequestMatch as RequestMatchRow,
 )
-from .expiry import is_request_expired
+from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
 from .main import (
     Donor,
     DonorMatch,
@@ -49,6 +49,11 @@ def _enum_value(value):
 
 MATCHING_VERSION = "v1-explainable-weighted"
 CONTACT_EMAIL_VISIBLE_STATUSES = {"contact_shared", "meeting_arranged", "fulfilled"}
+
+# Hard ceiling for a single expiry sweep. A misconfigured
+# LIFELINK_REQUEST_SWEEP_LIMIT must not be able to pull an unbounded number of
+# rows into one transaction, so the store clamps whatever it is handed.
+MAX_SWEEP_LIMIT = 5000
 
 
 class SqlAlchemyDonorRepository(DonorRepository):
@@ -142,6 +147,41 @@ class SqlAlchemyRequestStore(RequestStore):
             await self.session.commit()
             return True
         return False
+
+    async def expire_timed_out_requests_async(self, limit: int = 500) -> int:
+        """Transition open requests at or past their deadline to ``expired``.
+
+        Used by the background sweeper so an open request expires even when no
+        read path ever touches it. Applies the same ``is_request_expired`` rule
+        as ``_expire_if_needed``, selecting the earliest deadlines first.
+        ``updated_at`` is set to the sweep's current UTC time. ``limit`` bounds
+        the selected rows and is clamped to ``[1, MAX_SWEEP_LIMIT]``.
+        Commits the session when any requests transition and returns their
+        count, or zero when none transition. Database query and commit errors
+        propagate to the caller.
+        """
+        now = datetime.now(UTC)
+        limit = max(1, min(int(limit), MAX_SWEEP_LIMIT))
+        open_requests = await self.session.scalars(
+            select(EmergencyRequestRow)
+            .where(
+                EmergencyRequestRow.status.in_(
+                    [RequestStatusEnum(status) for status in ACTIVE_REQUEST_STATUSES]
+                ),
+                EmergencyRequestRow.response_deadline <= now,
+            )
+            .order_by(EmergencyRequestRow.response_deadline)
+            .limit(limit)
+        )
+        count = 0
+        for row in open_requests.all():
+            if is_request_expired(_enum_value(row.status), row.response_deadline, now):
+                row.status = RequestStatusEnum.EXPIRED
+                row.updated_at = now
+                count += 1
+        if count:
+            await self.session.commit()
+        return count
 
     async def list_by_requester_async(self, requester_id: str, limit: int = 50) -> list[RequestRecord]:
         result = await self.session.scalars(

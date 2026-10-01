@@ -67,14 +67,25 @@ from .rate_limit import enforce_rate_limit
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """Create tables and run expiry sweepers until application shutdown.
+
+    Cancel and await both background tasks when the lifespan context exits.
+    Table-creation errors and non-cancellation failures from awaited tasks
+    propagate to the caller.
+    """
     await create_all_tables()
-    sweeper = asyncio.create_task(_expire_stale_location_shares_forever())
+    sweepers = [
+        asyncio.create_task(_expire_stale_location_shares_forever()),
+        asyncio.create_task(_expire_timed_out_requests_forever()),
+    ]
     try:
         yield
     finally:
-        sweeper.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await sweeper
+        for sweeper in sweepers:
+            sweeper.cancel()
+        for sweeper in sweepers:
+            with contextlib.suppress(asyncio.CancelledError):
+                await sweeper
 
 
 async def _expire_stale_location_shares_forever() -> None:
@@ -95,6 +106,41 @@ async def _expire_stale_location_shares_forever() -> None:
             raise
         except Exception:  # pragma: no cover - defensive; never kill the loop
             logger.exception("Location-share sweep failed")
+        await asyncio.sleep(interval)
+
+
+async def _expire_timed_out_requests_forever() -> None:
+    """Background sweep so a request past its deadline expires on its own.
+
+    Applies the same ``is_request_expired`` rule as the lazy read paths.
+    Runs immediately, then waits ``LIFELINK_REQUEST_SWEEP_SECONDS`` seconds
+    (default 300) after each attempt. ``LIFELINK_REQUEST_SWEEP_LIMIT`` defaults
+    to 500 for missing or non-integer text; values are clamped to at least one
+    here and to ``MAX_SWEEP_LIMIT`` by the store.
+
+    Sweep failures are caught and retried after the wait. Cancellation
+    propagates, as does ``ValueError`` for a non-numeric interval setting
+    before the loop starts.
+    """
+    from .db import AsyncSessionLocal
+
+    interval = float(os.getenv("LIFELINK_REQUEST_SWEEP_SECONDS", "300"))
+    # A non-integer or non-positive value must not kill the sweeper task or make
+    # it spin without ever expiring anything; fall back to the default instead.
+    try:
+        batch = int(os.getenv("LIFELINK_REQUEST_SWEEP_LIMIT", "500"))
+    except ValueError:
+        logger.warning("LIFELINK_REQUEST_SWEEP_LIMIT is not an integer; using 500")
+        batch = 500
+    batch = max(1, batch)
+    while True:
+        try:
+            async with AsyncSessionLocal() as session:
+                await SqlAlchemyRequestStore(session).expire_timed_out_requests_async(limit=batch)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # pragma: no cover - defensive; never kill the loop
+            logger.exception("Request-expiry sweep failed")
         await asyncio.sleep(interval)
 
 
