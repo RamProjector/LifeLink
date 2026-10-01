@@ -25,6 +25,14 @@
 # Gson reflects over the DTO fields, so their names must survive.
 -keepattributes *Annotation*
 -keep class com.lifelink.app.data.remote.** { *; }
+# The Supabase auth DTOs live in core.auth, not data.remote. Without this keep
+# rule R8 renames their fields in the release build, so Gson serializes the
+# request as {"a":"...","b":"..."} instead of {"email":"...","password":"..."}.
+# Supabase then rejects the call with "missing email or phone" even though the
+# form sent a valid address. Keep the whole package so every auth request and
+# response DTO (AuthRequest, RefreshRequest, SupabaseAuthResponse, ...) keeps
+# its wire field names.
+-keep class com.lifelink.app.core.auth.** { *; }
 -keepclassmembers,allowobfuscation class * {
     @com.google.gson.annotations.SerializedName <fields>;
 }
