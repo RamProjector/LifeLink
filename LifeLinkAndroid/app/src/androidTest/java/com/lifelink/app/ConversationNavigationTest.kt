@@ -52,6 +52,7 @@ class ConversationNavigationTest {
         )
     private val request = DonorRequest("request-42", "O+", 1, "urgent", "Test Hospital", "Test area", 2.0)
 
+    /** Removes the synthetic account's welcome preference so it cannot affect later tests. */
     @After
     fun clearWelcomePreference() {
         composeRule.activity.getSharedPreferences("lifelink_welcome", 0)
@@ -60,6 +61,7 @@ class ConversationNavigationTest {
             .commit()
     }
 
+    /** Checks requester chat navigation, state restoration, and return to the accepted contact results. */
     @Test
     fun requester_can_open_chat_restore_it_and_return_to_contact_results() {
         val restoration = StateRestorationTester(composeRule)
@@ -79,6 +81,7 @@ class ConversationNavigationTest {
         assertOpenedTimes(2)
     }
 
+    /** Checks that a donor opens chat once and system Back returns to the donor workspace. */
     @Test
     fun donor_can_open_chat_and_system_back_returns_to_the_donor_workspace() {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
@@ -94,6 +97,7 @@ class ConversationNavigationTest {
         assertOpenedTimes(1)
     }
 
+    /** Checks donor message-button visibility and callback IDs across unanswered, declined, and accepted states. */
     @Test
     fun donor_message_action_is_available_only_for_accepted_or_arrived_requests() {
         val state = mutableStateOf(DonorUiState(profile = profile, requests = listOf(request)))
@@ -119,6 +123,7 @@ class ConversationNavigationTest {
         composeRule.runOnIdle { assertEquals(List(2) { "request-42" to "donor-42" }, opened) }
     }
 
+    /** Checks requester chat eligibility across contact states, including a case-insensitive accepted status. */
     @Test
     fun requester_message_action_is_available_for_all_accepted_contact_states_only() {
         val state = mutableStateOf(contactResults("pending"))
@@ -143,6 +148,7 @@ class ConversationNavigationTest {
         composeRule.runOnIdle { assertEquals(List(accepted.size) { "request-42" to "donor-42" }, opened) }
     }
 
+    /** Checks that chat requires a request ID and prefers the saved results ID over the matching fallback. */
     @Test
     fun requester_needs_a_request_id_and_can_use_the_matching_submission_id() {
         val state = mutableStateOf(contactResults("accepted").copy(resultsRequestId = null))
@@ -166,6 +172,7 @@ class ConversationNavigationTest {
         composeRule.runOnIdle { assertEquals("saved-request" to "donor-42", opened.last()) }
     }
 
+    /** Verifies unsaved coordinates and service radius survive entering and leaving the full-screen editor. */
     @Test
     fun unsaved_profile_coordinates_and_radius_survive_full_screen_transitions() {
         composeRule.setContent {
@@ -184,22 +191,26 @@ class ConversationNavigationTest {
         assertEditorValues()
     }
 
+    /** Scrolls the labeled input into view and replaces its text through Compose test semantics. */
     private fun replaceField(label: String, value: String) {
         composeRule.onNodeWithText(label).performScrollTo().performTextReplacement(value)
     }
 
+    /** Asserts that the editor still displays the unsaved radius and coordinates entered by the test. */
     private fun assertEditorValues() {
         composeRule.onNodeWithText("Service radius (km)").performScrollTo().assertTextContains("27")
         composeRule.onNodeWithText("Latitude").performScrollTo().assertTextContains("14.75")
         composeRule.onNodeWithText("Longitude").performScrollTo().assertTextContains("121.25")
     }
 
+    /** Checks on the idle UI thread that every recorded action opens the expected request and donor pair. */
     private fun assertOpenedTimes(count: Int) {
         composeRule.runOnIdle {
             assertEquals(List(count) { PrivacyAction.OpenConversation("request-42", "donor-42") }, actions)
         }
     }
 
+    /** Builds requester results with one synthetic donor contact in the supplied status. */
     private fun contactResults(status: String) =
         EmergencyRequestUiState(
             step = RequestStep.RESULTS,
@@ -207,6 +218,7 @@ class ConversationNavigationTest {
             contacts = listOf(RequesterContact("donor-42", "Alex Donor", status)),
         )
 
+    /** Renders a restorable shell for the supplied role, skips welcome, and records privacy actions. */
     private fun renderShell(restoration: StateRestorationTester, role: UserRole) {
         composeRule.activity.getSharedPreferences("lifelink_welcome", 0)
             .edit()

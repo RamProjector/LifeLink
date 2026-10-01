@@ -19,9 +19,11 @@ NOW = datetime(2026, 10, 1, 12, tzinfo=UTC)
 
 @pytest.fixture
 def frozen_clock(monkeypatch):
+    """Freeze the repository clock so deadline-boundary assertions are deterministic."""
     class FrozenDateTime(datetime):
         @classmethod
         def now(cls, tz=None):
+            """Return the fixed instant in the requested zone, or as a naive UTC datetime."""
             return NOW.astimezone(tz) if tz else NOW.replace(tzinfo=None)
 
     monkeypatch.setattr(repositories, "datetime", FrozenDateTime)
@@ -29,6 +31,7 @@ def frozen_clock(monkeypatch):
 
 @pytest.fixture
 def session():
+    """Provide an async session double with an empty scalar-query result by default."""
     session = AsyncMock(spec=AsyncSession)
     session.scalars.return_value = Mock()
     session.scalars.return_value.all.return_value = []
@@ -38,6 +41,7 @@ def session():
 @pytest.mark.parametrize("status", ["matching", "awaiting_responses", "partially_fulfilled", "manual_broadcast"])
 @pytest.mark.parametrize("plain_status", [False, True], ids=["enum", "string"])
 def test_batch_expires_each_active_status_at_the_deadline(session, frozen_clock, status, plain_status):
+    """Expire every active status at the exact deadline, accepting both enum and string values."""
     row = SimpleNamespace(
         status=status if plain_status else RequestStatusEnum(status),
         response_deadline=NOW,
@@ -53,6 +57,7 @@ def test_batch_expires_each_active_status_at_the_deadline(session, frozen_clock,
 
 
 def test_batch_counts_only_expired_rows_and_commits_once(session, frozen_clock):
+    """Count and timestamp only eligible transitions, then commit the batch once."""
     previous_update = NOW - timedelta(days=1)
     rows = [
         SimpleNamespace(status=status, response_deadline=deadline, updated_at=previous_update)
@@ -80,6 +85,7 @@ def test_batch_counts_only_expired_rows_and_commits_once(session, frozen_clock):
 
 @pytest.mark.parametrize("has_row", [False, True], ids=["empty-query", "no-expiry-transition"])
 def test_batch_does_not_commit_without_a_transition(session, frozen_clock, has_row):
+    """Avoid committing when the query is empty or its rows require no expiry transition."""
     if has_row:
         session.scalars.return_value.all.return_value = [
             SimpleNamespace(status="fulfilled", response_deadline=NOW, updated_at=NOW)
@@ -92,6 +98,7 @@ def test_batch_does_not_commit_without_a_transition(session, frozen_clock, has_r
 
 @pytest.mark.parametrize("limit, expected", [(None, 500), (-10, 1), (0, 1), (1, 1), (23, 23), (5000, 5000), (10**9, MAX_SWEEP_LIMIT)])
 def test_batch_bounds_the_database_query_before_loading_rows(session, limit, expected):
+    """Verify the normalized limit is applied in SQL before any backlog is materialized."""
     kwargs = {} if limit is None else {"limit": limit}
     asyncio.run(SqlAlchemyRequestStore(session).expire_timed_out_requests_async(**kwargs))
 
@@ -104,6 +111,7 @@ def test_batch_bounds_the_database_query_before_loading_rows(session, limit, exp
 
 @pytest.mark.parametrize("operation", ["scalars", "commit"])
 def test_batch_propagates_database_failures_to_the_retry_loop(session, frozen_clock, operation):
+    """Let query and commit failures escape the store so the background loop can retry."""
     session.scalars.return_value.all.return_value = [
         SimpleNamespace(status="matching", response_deadline=NOW, updated_at=NOW)
     ]
@@ -117,6 +125,7 @@ def test_batch_propagates_database_failures_to_the_retry_loop(session, frozen_cl
 
 @pytest.fixture
 def sweep_dependencies(monkeypatch):
+    """Replace sessions, the store, and sleep with doubles that cancel after one sweep by default."""
     monkeypatch.delenv("LIFELINK_REQUEST_SWEEP_SECONDS", raising=False)
     monkeypatch.delenv("LIFELINK_REQUEST_SWEEP_LIMIT", raising=False)
     context = AsyncMock()
@@ -132,6 +141,7 @@ def sweep_dependencies(monkeypatch):
 
 @pytest.mark.parametrize("configured, expected", [(None, 500), ("17", 17), ("invalid", 500), ("1.5", 500), ("0", 1), ("-9", 1)])
 def test_sweeper_sweeps_immediately_and_normalizes_batch_configuration(monkeypatch, sweep_dependencies, configured, expected):
+    """Check immediate execution, batch-setting normalization, and the default wait interval."""
     deps = sweep_dependencies
     if configured is not None:
         monkeypatch.setenv("LIFELINK_REQUEST_SWEEP_LIMIT", configured)
@@ -146,6 +156,7 @@ def test_sweeper_sweeps_immediately_and_normalizes_batch_configuration(monkeypat
 
 
 def test_sweeper_uses_configured_interval_and_a_fresh_session_each_tick(monkeypatch, sweep_dependencies):
+    """Run two ticks to verify each creates a session and waits the configured interval."""
     deps = sweep_dependencies
     monkeypatch.setenv("LIFELINK_REQUEST_SWEEP_SECONDS", "2.5")
     deps.sleep.side_effect = [None, asyncio.CancelledError]
@@ -161,6 +172,7 @@ def test_sweeper_uses_configured_interval_and_a_fresh_session_each_tick(monkeypa
 
 @pytest.mark.parametrize("failure_point", ["session-entry", "sweep"])
 def test_sweeper_retries_after_database_failure(sweep_dependencies, caplog, failure_point):
+    """Verify session-entry and sweep failures are logged and retried on the next tick."""
     deps = sweep_dependencies
     if failure_point == "session-entry":
         deps.context.__aenter__.side_effect = [SQLAlchemyError("offline"), Mock()]
@@ -178,6 +190,7 @@ def test_sweeper_retries_after_database_failure(sweep_dependencies, caplog, fail
 
 
 def test_sweeper_cancellation_closes_session_without_retrying(sweep_dependencies, caplog):
+    """Propagate cancellation after closing the session, without logging a failure or waiting."""
     deps = sweep_dependencies
     deps.sweep.side_effect = asyncio.CancelledError
 
@@ -193,17 +206,21 @@ def test_sweeper_cancellation_closes_session_without_retrying(sweep_dependencies
 
 @pytest.mark.parametrize("exceptional_exit", [False, True])
 def test_lifespan_initializes_then_starts_and_awaits_both_sweepers(monkeypatch, exceptional_exit):
+    """Verify initialization precedes both workers and all cleanup is awaited on either exit path."""
     async def scenario():
+        """Exercise lifespan startup and cancellation within a single event loop."""
         initialized = False
         started = [asyncio.Event(), asyncio.Event()]
         stopped = [False, False]
         tasks = []
 
         async def initialize():
+            """Record successful table initialization before either background worker starts."""
             nonlocal initialized
             initialized = True
 
         async def worker(index):
+            """Signal startup and defer shutdown completion until asynchronous cleanup has run."""
             assert initialized
             tasks.append(asyncio.current_task())
             started[index].set()
@@ -232,6 +249,7 @@ def test_lifespan_initializes_then_starts_and_awaits_both_sweepers(monkeypatch, 
 
 
 def test_lifespan_does_not_start_sweepers_when_table_creation_fails(monkeypatch):
+    """Prevent both background workers from starting if database initialization fails."""
     location_sweep = AsyncMock()
     request_sweep = AsyncMock()
     monkeypatch.setattr(main_postgres, "create_all_tables", AsyncMock(side_effect=SQLAlchemyError("setup failed")))
@@ -239,6 +257,7 @@ def test_lifespan_does_not_start_sweepers_when_table_creation_fails(monkeypatch)
     monkeypatch.setattr(main_postgres, "_expire_timed_out_requests_forever", request_sweep)
 
     async def scenario():
+        """Enter the lifespan context and fail if table initialization unexpectedly succeeds."""
         async with main_postgres.lifespan(main_postgres.app):
             pytest.fail("The application must not start without its tables")
 

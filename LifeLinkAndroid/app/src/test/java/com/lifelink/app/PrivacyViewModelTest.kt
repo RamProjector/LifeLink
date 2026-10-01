@@ -32,6 +32,7 @@ class PrivacyViewModelTest {
     private val repository = ConversationRepositoryFake()
     private lateinit var viewModel: PrivacyViewModel
 
+    /** Installs the test dispatcher and retains the view model for lifecycle cleanup. */
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
@@ -39,12 +40,14 @@ class PrivacyViewModelTest {
         store.put("privacy", viewModel)
     }
 
+    /** Cancels view-model work and restores the main dispatcher after each test. */
     @After
     fun tearDown() {
         store.clear()
         Dispatchers.resetMain()
     }
 
+    /** Verifies that opening a chat loads history and contact shares for the returned conversation ID. */
     @Test
     fun open_action_loads_the_requested_conversation_messages_and_contact_shares() = runTest {
         viewModel.onAction(PrivacyAction.OpenConversation("request-old", "donor-old"))
@@ -59,6 +62,7 @@ class PrivacyViewModelTest {
         assertNull(viewModel.state.value.message)
     }
 
+    /** Keeps prior chat data and write targets cleared while a deferred open is pending and after it fails. */
     @Test
     fun opening_another_chat_clears_old_content_and_disables_writes_while_waiting() = runTest {
         viewModel.openConversation("request-old", "donor-old")
@@ -85,6 +89,7 @@ class PrivacyViewModelTest {
         assertNoConversationContent()
     }
 
+    /** Ensures a failed switch cannot send messages or shared contact details to the previous recipient. */
     @Test
     fun failed_open_does_not_send_messages_or_contact_details_to_the_previous_chat() = runTest {
         viewModel.openConversation("request-old", "donor-old")
@@ -103,6 +108,7 @@ class PrivacyViewModelTest {
         assertEquals(listOf("chat-old"), repository.shareReads)
     }
 
+    /** Checks the fallback error text when the first open fails without an exception message. */
     @Test
     fun failed_first_open_without_an_error_message_uses_the_fallback() = runTest {
         repository.open = { _, _ -> Result.failure(IllegalStateException()) }
@@ -116,6 +122,7 @@ class PrivacyViewModelTest {
         assertTrue(repository.shareReads.isEmpty())
     }
 
+    /** Checks that a retry clears the error, replaces history, and directs writes to the new conversation. */
     @Test
     fun successful_retry_replaces_the_error_and_routes_writes_to_the_new_chat() = runTest {
         viewModel.openConversation("request-old", "donor-old")
@@ -139,6 +146,7 @@ class PrivacyViewModelTest {
         assertEquals(listOf(Triple("chat-new", "email", "new@example.invalid")), repository.shares)
     }
 
+    /** Keeps failed history reads empty after switching chats instead of exposing the previous content. */
     @Test
     fun opening_a_chat_with_failed_history_reads_does_not_restore_previous_content() = runTest {
         viewModel.openConversation("request-old", "donor-old")
@@ -155,6 +163,7 @@ class PrivacyViewModelTest {
         assertEquals(listOf("chat-old", "chat-new"), repository.shareReads)
     }
 
+    /** Asserts that the conversation ID, messages, and contact shares have all been cleared. */
     private fun assertNoConversationContent() {
         assertNull(viewModel.state.value.conversationId)
         assertTrue(viewModel.state.value.messages.isEmpty())
@@ -175,53 +184,68 @@ private class ConversationRepositoryFake : PrivacyRepository {
         Result.success(conversation("chat-old", requestId, donorId))
     }
 
+    /** Records the requested pair and delegates to the configurable open result or suspended operation. */
     override suspend fun openConversation(requestId: String, donorId: String): Result<Conversation> {
         opens += requestId to donorId
         return open(requestId, donorId)
     }
 
+    /** Records the history lookup and returns seeded messages or the configured failure. */
     override suspend fun messages(conversationId: String): Result<List<ChatMessage>> {
         messageReads += conversationId
         return if (failHistory) Result.failure(IllegalStateException("History unavailable")) else Result.success(loadedMessages)
     }
 
+    /** Records the contact-share lookup and returns seeded shares or the configured failure. */
     override suspend fun contactShares(conversationId: String): Result<List<ContactShare>> {
         shareReads += conversationId
         return if (failHistory) Result.failure(IllegalStateException("Shares unavailable")) else Result.success(loadedShares)
     }
 
+    /** Records the destination and body, then returns a synthetic message for that conversation. */
     override suspend fun sendMessage(conversationId: String, body: String): Result<ChatMessage> {
         sends += conversationId to body
         return Result.success(chatMessage(conversationId).copy(body = body))
     }
 
+    /** Records the destination and contact field, then returns a synthetic share with those values. */
     override suspend fun shareContact(conversationId: String, field: String, value: String): Result<ContactShare> {
         shares += Triple(conversationId, field, value)
         return Result.success(contactShare(conversationId).copy(field = field, value = value))
     }
 
+    /** Fails immediately if a conversation test unexpectedly requests the donor map. */
     override suspend fun donorMap(): Result<DonorMap> = error("Unexpected map request")
 
+    /** Fails immediately if a conversation test unexpectedly changes map visibility. */
     override suspend fun setMapVisibility(mapVisible: Boolean, exactLocationSharingEnabled: Boolean): Result<DonorMapVisibility> =
         error("Unexpected visibility change")
 
+    /** Fails immediately if a conversation test unexpectedly activates location sharing. */
     override suspend fun activateLocationShare(requestId: String, donorId: String): Result<Unit> = error("Unexpected location share")
 
+    /** Fails immediately if a conversation test unexpectedly revokes location sharing. */
     override suspend fun revokeLocationShare(requestId: String, donorId: String): Result<Unit> = error("Unexpected location revocation")
 
+    /** Fails immediately if a conversation test unexpectedly requests a matched donor location. */
     override suspend fun matchedDonorLocation(requestId: String, donorId: String): Result<MatchedDonorLocation> =
         error("Unexpected location request")
 
+    /** Fails immediately if a conversation test unexpectedly reports a participant. */
     override suspend fun reportParticipant(conversationId: String, reason: String): Result<Unit> = error("Unexpected report")
 
+    /** Fails immediately if a conversation test unexpectedly blocks a participant. */
     override suspend fun blockParticipant(conversationId: String): Result<Unit> = error("Unexpected block")
 }
 
+/** Builds a deterministic conversation fixture for the supplied request and donor IDs. */
 private fun conversation(id: String, requestId: String, donorId: String) =
     Conversation(id, requestId, donorId, "requester", createdAt = "2026-10-01T12:00:00Z")
 
+/** Builds a deterministic message fixture whose ID identifies its conversation. */
 private fun chatMessage(conversationId: String) =
     ChatMessage("message-$conversationId", conversationId, "requester", "Test message", "2026-10-01T12:00:00Z")
 
+/** Builds a synthetic email-share fixture whose ID identifies its conversation. */
 private fun contactShare(conversationId: String) =
     ContactShare("share-$conversationId", conversationId, "requester", "email", "test@example.invalid", "2026-10-01T12:00:00Z")
