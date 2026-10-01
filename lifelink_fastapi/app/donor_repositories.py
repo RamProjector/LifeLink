@@ -218,6 +218,18 @@ class SqlAlchemyDonorStore:
         row.available = availability == DonorAvailability.AVAILABLE
         row.availability_updated_at = datetime.now(UTC)
         await self.session.commit()
+        # Matching runs when a request is submitted, so a donor who was offline
+        # at that moment has no stored match. Going available must re-evaluate
+        # the still-open requests, otherwise a donor who turns on availability
+        # never receives anything until a brand-new request is created.
+        # Best-effort: the availability change is already committed, so a
+        # recompute failure must not turn a saved availability into an error.
+        if row.available:
+            try:
+                await self.recompute_matches_for_donor(donor_id)
+            except Exception:
+                await self.session.rollback()
+                logger.exception("Donor match recompute failed after availability change for donor_id=%s", donor_id)
         return row
 
     async def inbox(self, donor_id: str) -> list[tuple[RequestRow, MatchRow, DonorContactRequest | None]]:
