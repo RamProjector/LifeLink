@@ -315,6 +315,72 @@ def test_sweeper_limit_bounds_a_single_sweep(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_sweeper_filters_statuses_orders_oldest_first_and_is_idempotent(pg_url, monkeypatch):
+    """Exercise SQL eligibility and batch ordering, which a mocked session cannot prove."""
+    from app import repositories
+    from app.repositories import SqlAlchemyRequestStore
+
+    now = datetime.now(UTC)
+    previous_update = now - timedelta(days=2)
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now.astimezone(tz) if tz else now.replace(tzinfo=None)
+
+    monkeypatch.setattr(repositories, "datetime", FrozenDateTime)
+
+    async def scenario(client, current, run_sql):
+        # Deliberately insert out of deadline order, with terminal and future
+        # rows mixed in. The boundary row is due at exactly the sweep's clock.
+        cases = [
+            ("matching", now - timedelta(minutes=1), True),
+            ("fulfilled", now - timedelta(days=1), False),
+            ("awaiting_responses", now - timedelta(minutes=3), True),
+            ("cancelled", now - timedelta(days=1), False),
+            ("partially_fulfilled", now - timedelta(minutes=2), True),
+            ("expired", now - timedelta(days=1), False),
+            ("manual_broadcast", now, True),
+            ("draft", now - timedelta(days=1), False),
+            ("awaiting_responses", now + timedelta(microseconds=1), False),
+        ]
+        # The sweep is global; distinct owners also avoid the per-user create limit.
+        ids = [(await submit_request(client, current, new_user("requester")))["request_id"] for _ in cases]
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        try:
+            async with engine.begin() as conn:
+                for request_id, (status, deadline, _) in zip(ids, cases, strict=True):
+                    await conn.execute(
+                        text("UPDATE emergency_requests SET status = :status, response_deadline = :deadline, "
+                             "updated_at = :updated WHERE id = :id"),
+                        {"id": request_id, "status": status, "deadline": deadline, "updated": previous_update},
+                    )
+
+            async with sessions() as session:
+                assert await SqlAlchemyRequestStore(session).expire_timed_out_requests_async(limit=2) == 2
+
+            async with engine.connect() as conn:
+                rows = (await conn.execute(text("SELECT id FROM emergency_requests WHERE updated_at = :now"), {"now": now})).all()
+                assert {row[0] for row in rows} == {ids[2], ids[4]}
+
+            async with sessions() as session:
+                assert await SqlAlchemyRequestStore(session).expire_timed_out_requests_async(limit=2) == 2
+            async with sessions() as session:
+                assert await SqlAlchemyRequestStore(session).expire_timed_out_requests_async(limit=2) == 0
+
+            async with engine.connect() as conn:
+                rows = (await conn.execute(text("SELECT id, status::text, updated_at FROM emergency_requests"))).all()
+            persisted = {row[0]: (row[1], row[2]) for row in rows}
+            for request_id, (status, _, eligible) in zip(ids, cases, strict=True):
+                expected = ("expired", now) if eligible else (status, previous_update)
+                assert persisted[request_id] == expected
+        finally:
+            await engine.dispose()
+
+    run_scenario(pg_url, scenario)
+
+
 def test_cancel_resets_request_and_allows_a_new_one(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
