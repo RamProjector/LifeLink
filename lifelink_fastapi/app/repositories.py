@@ -149,17 +149,16 @@ class SqlAlchemyRequestStore(RequestStore):
         return False
 
     async def expire_timed_out_requests_async(self, limit: int = 500) -> int:
-        """Transition open requests past their deadline to ``expired``.
+        """Transition open requests at or past their deadline to ``expired``.
 
         Used by the background sweeper so an open request expires even when no
         read path ever touches it. Applies the same ``is_request_expired`` rule
-        as ``_expire_if_needed``, so a swept request looks exactly like one
-        expired by status polling. ``updated_at`` is stamped so the transition is
-        observable to operators and audit queries. ``limit`` bounds a single
-        sweep so a large backlog cannot hold one transaction open; the next tick
-        picks up the remainder. ``limit`` is clamped to ``[1, MAX_SWEEP_LIMIT]``
-        so a bad value can neither stall the sweep nor load an unbounded batch.
-        Returns the number transitioned.
+        as ``_expire_if_needed``, selecting the earliest deadlines first.
+        ``updated_at`` is set to the sweep's current UTC time. ``limit`` bounds
+        the selected rows and is clamped to ``[1, MAX_SWEEP_LIMIT]``.
+        Commits the session when any requests transition and returns their
+        count, or zero when none transition. Database query and commit errors
+        propagate to the caller.
         """
         now = datetime.now(UTC)
         limit = max(1, min(int(limit), MAX_SWEEP_LIMIT))

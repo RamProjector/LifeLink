@@ -668,7 +668,7 @@ private fun AcceptedContactCard(
     }
 }
 
-/** Formats a contact timestamp for display, preserving the original value if parsing fails. */
+/** Displays up to the first 16 characters with 'T' replaced by a space, without parsing or converting time zones. */
 private fun formatContactTimestamp(value: String): String =
     runCatching {
         value.take(16).replace('T', ' ')

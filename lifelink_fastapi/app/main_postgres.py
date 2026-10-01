@@ -70,6 +70,8 @@ async def lifespan(_: FastAPI):
     """Create tables and run expiry sweepers until application shutdown.
 
     Cancel and await both background tasks when the lifespan context exits.
+    Table-creation errors and non-cancellation failures from awaited tasks
+    propagate to the caller.
     """
     await create_all_tables()
     sweepers = [
@@ -110,12 +112,15 @@ async def _expire_stale_location_shares_forever() -> None:
 async def _expire_timed_out_requests_forever() -> None:
     """Background sweep so a request past its deadline expires on its own.
 
-    The lazy read paths (status polling, history, the donor inbox) only flip a
-    request to ``expired`` when something actually reads it, so a request that
-    times out with no further reads would otherwise stay ``awaiting_responses``
-    in the database forever. This loop mirrors the location-share sweeper and
-    reuses the same ``is_request_expired`` rule as those read paths, so a swept
-    request is indistinguishable from one expired by a read.
+    Applies the same ``is_request_expired`` rule as the lazy read paths.
+    Runs immediately, then waits ``LIFELINK_REQUEST_SWEEP_SECONDS`` seconds
+    (default 300) after each attempt. ``LIFELINK_REQUEST_SWEEP_LIMIT`` defaults
+    to 500 for missing or non-integer text; values are clamped to at least one
+    here and to ``MAX_SWEEP_LIMIT`` by the store.
+
+    Sweep failures are caught and retried after the wait. Cancellation
+    propagates, as does ``ValueError`` for a non-numeric interval setting
+    before the loop starts.
     """
     from .db import AsyncSessionLocal
 

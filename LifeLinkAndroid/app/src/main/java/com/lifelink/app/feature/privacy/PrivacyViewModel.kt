@@ -170,8 +170,10 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     /**
      * Open (or create) the conversation for a matched request and donor.
      *
-     * Public so the navigation shell can open a conversation directly from a
-     * contact card; [PrivacyAction.OpenConversation] dispatches here too.
+     * [PrivacyAction.OpenConversation] dispatches here. Launches asynchronous work
+     * that clears the previous conversation ID, messages, and contact shares before
+     * opening. An open failure is exposed through [PrivacyUiState.message]; success
+     * loads messages and contact shares, using an empty list for each failed read.
      */
     fun openConversation(requestId: String, donorId: String) {
         viewModelScope.launch {
