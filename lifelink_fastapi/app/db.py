@@ -64,7 +64,10 @@ async def create_all_tables() -> None:
             "ADD COLUMN IF NOT EXISTS donor_note TEXT NOT NULL DEFAULT '', "
             "ADD COLUMN IF NOT EXISTS preferred_contact_method VARCHAR(32) NOT NULL DEFAULT 'in_app', "
             "ADD COLUMN IF NOT EXISTS pause_reason VARCHAR(240), "
-            "ADD COLUMN IF NOT EXISTS profile_visible BOOLEAN NOT NULL DEFAULT TRUE"
+            "ADD COLUMN IF NOT EXISTS profile_visible BOOLEAN NOT NULL DEFAULT TRUE, "
+            "ADD COLUMN IF NOT EXISTS map_visible BOOLEAN NOT NULL DEFAULT FALSE, "
+            "ADD COLUMN IF NOT EXISTS map_visibility_updated_at TIMESTAMPTZ, "
+            "ADD COLUMN IF NOT EXISTS exact_location_sharing_enabled BOOLEAN NOT NULL DEFAULT FALSE"
         ))
         await connection.execute(text(
             "ALTER TABLE lifelink_profiles "

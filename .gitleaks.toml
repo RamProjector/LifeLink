@@ -1,0 +1,36 @@
+# gitleaks configuration for LifeLink.
+#
+# Extends the default rule set (all built-in secret detectors stay active) and
+# adds a small allowlist for values that are intentionally public in this repo.
+# Keep the allowlist as narrow as possible — a broad allowlist defeats the scan.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Values that are intentionally public or are test fixtures, not secrets."
+# Narrow, file-specific exceptions only. Do NOT exclude whole directories: a
+# real credential committed under docs/ or a test tree must still be detected.
+paths = [
+  # The example env file ships placeholder values only.
+  '''lifelink_fastapi/\.env\.example$''',
+  # Firebase client config: the API key here is a public identifier shipped in
+  # the APK, not a secret. Access is controlled by Firebase Security Rules and
+  # app/key restrictions, never by hiding this file.
+  '''LifeLinkAndroid/app/google-services\.json$''',
+]
+regexes = [
+  # The development-only API token default; not a credential.
+  '''development-user''',
+  # Test fixtures use sequential, obviously-fake idempotency keys.
+  '''idempotency-key-[0-9]+''',
+  # Supabase publishable/anon keys are designed to be shipped in clients.
+  '''SUPABASE_PUBLISHABLE_KEY''',
+  # Placeholder connection strings in examples and docs.
+  '''postgresql://USER:PASSWORD@HOST''',
+  '''postgresql://user:password@db\.example\.test''',
+  '''postgresql://postgres:CHANGE_ME@''',
+  '''postgresql://lifelink:lifelink@localhost''',
+  # GitHub Actions expressions, not literal secrets.
+  '''\$\{\{\s*secrets\.[A-Z_]+\s*\}\}''',
+]

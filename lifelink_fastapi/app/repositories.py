@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -11,28 +11,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from .db_models import (
-    BloodTypeEnum,
-    Donor as DonorRow,
-    EmergencyRequest as EmergencyRequestRow,
-    RequestMatch as RequestMatchRow,
-    RequestStatusEnum,
+    AuditEvent,
     DonorContactRequest,
     LifeLinkProfile,
-    AuditEvent,
     MatchStatusEnum,
+    RequestStatusEnum,
 )
+from .db_models import (
+    Donor as DonorRow,
+)
+from .db_models import (
+    EmergencyRequest as EmergencyRequestRow,
+)
+from .db_models import (
+    RequestMatch as RequestMatchRow,
+)
+from .expiry import is_request_expired
 from .main import (
     Donor,
+    DonorMatch,
     DonorRepository,
     EmergencyRequestIn,
     MatchExplanation,
-    DonorMatch,
     RequestRecord,
-    RequestStore,
     RequestStatus,
+    RequestStore,
     require_verified_donors,
 )
-from .expiry import is_request_expired
 
 logger = logging.getLogger("lifelink.repositories")
 
@@ -237,6 +242,35 @@ class SqlAlchemyRequestStore(RequestStore):
         if row is None:
             raise KeyError(request_id)
         row.status = RequestStatusEnum.CANCELLED
+        now = datetime.now(UTC)
+        # Stop the donor search: withdraw every match the broadcast created so the
+        # donor-search result set is no longer live. Without this the matches stayed
+        # 'ranked'/'notified' and the search kept looking like it was still running
+        # even though the request was cancelled.
+        matches = await self.session.scalars(
+            select(RequestMatchRow).where(
+                RequestMatchRow.request_id == request_id,
+                RequestMatchRow.status.notin_(
+                    {MatchStatusEnum.WITHDRAWN.value, MatchStatusEnum.DECLINED.value}
+                ),
+            )
+        )
+        for match in matches.all():
+            match.status = MatchStatusEnum.WITHDRAWN
+            match.responded_at = match.responded_at or now
+        # Close every open donor contact request so the requester's contact list and
+        # the donor inbox both reflect that the request is no longer active. Without
+        # this, a cancelled request kept showing pending contacts and donors kept
+        # seeing it as live.
+        contacts = await self.session.scalars(
+            select(DonorContactRequest).where(
+                DonorContactRequest.request_id == request_id,
+                DonorContactRequest.status.notin_({"cancelled", "fulfilled"}),
+            )
+        )
+        for contact in contacts.all():
+            contact.status = "cancelled"
+            contact.updated_at = now
         await self.session.commit()
         refreshed = await self.get_by_id_async(request_id)
         if refreshed is None:
@@ -278,7 +312,7 @@ class SqlAlchemyRequestStore(RequestStore):
             raise ValueError("You cannot select your own donor profile for this request")
         if any(donor_id not in allowed for donor_id in donor_ids):
             raise ValueError("One or more selected donors are not eligible for this request")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         newly_contacted: list[str] = []
         donors_to_notify: list[str] = []
         for match in row.matches:
@@ -372,7 +406,7 @@ class SqlAlchemyRequestStore(RequestStore):
         }
         if status not in transitions.get(contact.status, set()):
             raise ValueError(f"Cannot move contact from {contact.status} to {status}")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         contact.status = status
         contact.updated_at = now
         if status == "contact_shared":
@@ -417,6 +451,9 @@ class SqlAlchemyRequestStore(RequestStore):
             )
             for match in sorted(row.matches, key=lambda item: item.rank)
             if match.donor is not None
+            # A withdrawn match means the donor search for this request was stopped
+            # (e.g. the request was cancelled), so it must not appear as a live match.
+            and _enum_value(match.status) != MatchStatusEnum.WITHDRAWN.value
         ]
         return RequestRecord(
             request_id=row.id,
@@ -441,7 +478,7 @@ async def create_request_record(
         request_id=request_id,
         payload=payload,
         status=status,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         expires_at=payload.response_deadline,
         matches=matches,
     )

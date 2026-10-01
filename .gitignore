@@ -12,3 +12,7 @@ node_modules/
 .expo/
 .kotlin/
 .DS_Store
+
+# Prebuilt APK artifacts (build in CI, do not commit)
+artifacts/*.apk
+*.apk

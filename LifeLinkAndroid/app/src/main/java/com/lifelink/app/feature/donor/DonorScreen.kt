@@ -32,9 +32,12 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,12 +65,12 @@ import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
 import com.lifelink.app.domain.BloodType
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: () -> Unit) {
     var profileExpanded by rememberSaveable { mutableStateOf(false) }
+    var fullScreenProfile by rememberSaveable { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(DonorTab.HOME) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -107,11 +110,35 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
             onFailure = { locationMessage = "Device location is unavailable. Use the map or manual coordinates instead." }
         )
     }
+    // Explicitly typed as () -> Unit: the branches below return Int (the post-increment)
+    // and Unit (the launcher call), so an inferred type would be () -> Any and would not
+    // satisfy the () -> Unit parameter of ProfileCard.
+    val captureLocation: () -> Unit = {
+        val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (hasPermission) locationCaptureRequest++
+        else locationLauncher.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
+    }
+    val selectLocation: (Double, Double) -> Unit = { latitude, longitude -> onAction(DonorAction.SetLocation(latitude, longitude, 500)) }
+    // Unsaved editor input lives here, not inside ProfileCard, so switching between the
+    // tabbed editor and the full-screen editor does not reset what the donor typed.
+    var serviceRadius by remember(state.profile.donorId) { mutableStateOf(state.profile.serviceRadiusKm.toString()) }
+    var manualLatitude by remember(state.profile.donorId) { mutableStateOf(state.profile.latitude?.toString().orEmpty()) }
+    var manualLongitude by remember(state.profile.donorId) { mutableStateOf(state.profile.longitude?.toString().orEmpty()) }
     Scaffold(topBar = {
         TopAppBar(
             title = { Text("Donor workspace") },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
             actions = {
+                IconButton(
+                    onClick = { fullScreenProfile = !fullScreenProfile },
+                    enabled = profileExpanded || fullScreenProfile
+                ) {
+                    Icon(
+                        if (fullScreenProfile) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                        if (fullScreenProfile) "Exit full screen profile" else "Open profile in full screen"
+                    )
+                }
                 IconButton(
                     onClick = { onAction(DonorAction.RefreshRequests) },
                     enabled = !state.requestsRefreshing && state.profile.isSetupComplete
@@ -119,6 +146,46 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
             }
         )
     }) { padding ->
+        if (fullScreenProfile) {
+            // Full-screen profile editor: the whole surface is the form, so a long
+            // donor profile is not cramped inside the tabbed workspace.
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Column(Modifier.fillMaxSize().padding(padding)) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Text("Donor profile", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        TextButton(onClick = { fullScreenProfile = false }) { Text("Exit full screen") }
+                    }
+                    LazyColumn(
+                        Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)
+                    ) {
+                        item {
+                            ProfileCard(
+                                profile = state.profile,
+                                saving = state.saving,
+                                onAction = onAction,
+                                onCaptureLocation = captureLocation,
+                                onLocationSelected = selectLocation,
+                                serviceRadius = serviceRadius,
+                                onServiceRadiusChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value },
+                                manualLatitude = manualLatitude,
+                                onManualLatitudeChange = { manualLatitude = it },
+                                manualLongitude = manualLongitude,
+                                onManualLongitudeChange = { manualLongitude = it }
+                            )
+                        }
+                        // Keep the same status feedback the tabbed editor shows, so a
+                        // failed save or a denied location permission is still visible
+                        // while the donor is in full-screen mode.
+                        (locationMessage ?: state.message)?.let { message -> item { StatusMessage(message) } }
+                    }
+                }
+            }
+            return@Scaffold
+        }
         Column(Modifier.fillMaxSize().padding(padding)) {
             TabRow(selectedTabIndex = selectedTab.ordinal) {
                 DonorTab.values().forEach { tab ->
@@ -132,13 +199,14 @@ fun DonorScreen(state: DonorUiState, onAction: (DonorAction) -> Unit, onBack: ()
                     profileExpanded = profileExpanded,
                     onToggleProfile = { profileExpanded = !profileExpanded },
                     onAction = onAction,
-                    onCaptureLocation = {
-                        val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-                            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                        if (hasPermission) locationCaptureRequest++
-                        else locationLauncher.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
-                    },
-                    onLocationSelected = { latitude, longitude -> onAction(DonorAction.SetLocation(latitude, longitude, 500)) }
+                    onCaptureLocation = captureLocation,
+                    onLocationSelected = selectLocation,
+                    serviceRadius = serviceRadius,
+                    onServiceRadiusChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value },
+                    manualLatitude = manualLatitude,
+                    onManualLatitudeChange = { manualLatitude = it },
+                    manualLongitude = manualLongitude,
+                    onManualLongitudeChange = { manualLongitude = it }
                 )
                 DonorTab.REQUESTS -> DonorRequestsContent(state, onAction)
             }
@@ -156,7 +224,13 @@ private fun DonorHomeContent(
     onToggleProfile: () -> Unit,
     onAction: (DonorAction) -> Unit,
     onCaptureLocation: () -> Unit,
-    onLocationSelected: (Double, Double) -> Unit
+    onLocationSelected: (Double, Double) -> Unit,
+    serviceRadius: String,
+    onServiceRadiusChange: (String) -> Unit,
+    manualLatitude: String,
+    onManualLatitudeChange: (String) -> Unit,
+    manualLongitude: String,
+    onManualLongitudeChange: (String) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
@@ -181,7 +255,13 @@ private fun DonorHomeContent(
                 saving = state.saving,
                 onAction = onAction,
                 onCaptureLocation = onCaptureLocation,
-                onLocationSelected = onLocationSelected
+                onLocationSelected = onLocationSelected,
+                serviceRadius = serviceRadius,
+                onServiceRadiusChange = onServiceRadiusChange,
+                manualLatitude = manualLatitude,
+                onManualLatitudeChange = onManualLatitudeChange,
+                manualLongitude = manualLongitude,
+                onManualLongitudeChange = onManualLongitudeChange
             )
         }
     }
@@ -274,13 +354,18 @@ private fun ProfileCard(
     saving: Boolean,
     onAction: (DonorAction) -> Unit,
     onCaptureLocation: () -> Unit,
-    onLocationSelected: (Double, Double) -> Unit
+    onLocationSelected: (Double, Double) -> Unit,
+    serviceRadius: String,
+    onServiceRadiusChange: (String) -> Unit,
+    manualLatitude: String,
+    onManualLatitudeChange: (String) -> Unit,
+    manualLongitude: String,
+    onManualLongitudeChange: (String) -> Unit
 ) {
-    // Keep the editable profile in the ViewModel, like the emergency-request draft.
-    // GPS can therefore update only coordinates without recreating this form.
-    var serviceRadius by remember(profile.donorId) { mutableStateOf(profile.serviceRadiusKm.toString()) }
-    var manualLatitude by remember(profile.donorId) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
-    var manualLongitude by remember(profile.donorId) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
+    // The editable profile lives in the ViewModel, like the emergency-request draft.
+    // GPS can therefore update only coordinates without recreating this form. The
+    // unsaved service radius and manual coordinates are owned by DonorScreen so they
+    // survive switching between the tabbed and full-screen editors.
     var showMoreSettings by rememberSaveable(profile.donorId) { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -347,7 +432,7 @@ private fun ProfileCard(
             }
             OutlinedTextField(
                 value = serviceRadius,
-                onValueChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value },
+                onValueChange = onServiceRadiusChange,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Service radius (km)") },
                 singleLine = true
@@ -361,8 +446,8 @@ private fun ProfileCard(
             DonorLocationMap(profile.latitude, profile.longitude, onLocationSelected)
             Text("Only you can see this pin. Requesters receive distance and travel estimates, not your coordinates.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(manualLatitude, { manualLatitude = it }, Modifier.weight(1f), label = { Text("Latitude") }, singleLine = true)
-                OutlinedTextField(manualLongitude, { manualLongitude = it }, Modifier.weight(1f), label = { Text("Longitude") }, singleLine = true)
+                OutlinedTextField(manualLatitude, onManualLatitudeChange, Modifier.weight(1f), label = { Text("Latitude") }, singleLine = true)
+                OutlinedTextField(manualLongitude, onManualLongitudeChange, Modifier.weight(1f), label = { Text("Longitude") }, singleLine = true)
             }
             OutlinedButton(
                 onClick = {
@@ -392,44 +477,17 @@ private fun ProfileCard(
 private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSelected: (Double, Double) -> Unit) {
     val selectedLatitude = latitude ?: 14.5995
     val selectedLongitude = longitude ?: 120.9842
-    var mapLoading by remember { mutableStateOf(true) }
-    var mapError by remember { mutableStateOf<String?>(null) }
     var retryRequest by remember { mutableStateOf(0) }
-    LaunchedEffect(retryRequest, mapLoading) {
-        if (mapLoading) {
-            delay(30_000)
-            if (mapLoading) {
-                mapLoading = false
-                mapError = "Map preview is unavailable right now. Your location is still saved; retry the preview or use the fields below."
-            }
-        }
-    }
+    // MapLibreLocationPicker renders its own loading and error UI, so this screen
+    // must not add a second spinner on top of it.
     Box(Modifier.fillMaxWidth()) {
         MapLibreLocationPicker(
             selectedLatitude,
             selectedLongitude,
             onLocationSelected,
             retryRequest,
-            onLoadingChanged = { mapLoading = it; if (it) mapError = null },
-            onMapError = { mapLoading = false; mapError = it },
             modifier = Modifier.fillMaxWidth().height(260.dp)
         )
-        if (mapLoading) {
-            Surface(Modifier.align(androidx.compose.ui.Alignment.TopCenter).padding(12.dp)) {
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CircularProgressIndicator(Modifier.height(18.dp), strokeWidth = 2.dp)
-                    Text("Loading map…", style = MaterialTheme.typography.labelLarge)
-                }
-            }
-        }
-        mapError?.let { error ->
-            Card(Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = { mapError = null; mapLoading = true; retryRequest++ }) { Text("Retry map") }
-                }
-            }
-        }
         OutlinedButton(onClick = { retryRequest++ }, modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(12.dp)) { Text("Recenter") }
     }
     Text("Tap or long-press to move the approximate donor location.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

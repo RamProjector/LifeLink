@@ -6,20 +6,21 @@ from enum import Enum
 from typing import Any
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
-    Enum as SqlEnum,
     ForeignKey,
     Index,
     Integer,
-    JSON,
     Numeric,
     String,
     Text,
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import (
+    Enum as SqlEnum,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import UserDefinedType
 
@@ -128,6 +129,7 @@ class Donor(Base):
     availability_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     service_radius_km: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False, default=15)
+    last_location_precision_meters: Mapped[int] = mapped_column(Integer, nullable=False, default=500)
     estimated_response_probability: Mapped[Decimal] = mapped_column(
         Numeric(4, 3), nullable=False, default=Decimal("0.50")
     )
@@ -135,6 +137,13 @@ class Donor(Base):
     preferred_contact_method: Mapped[str] = mapped_column(String(32), nullable=False, default="in_app")
     pause_reason: Mapped[str | None] = mapped_column(String(240), nullable=True)
     profile_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Donor map visibility is opt-in and defaults to hidden. The map only ever
+    # exposes an approximate area plus a freshness timestamp, never exact pins.
+    map_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    map_visibility_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When enabled, a matched requester may see this donor's exact location while
+    # an active, unexpired donor_location_shares row exists for their request.
+    exact_location_sharing_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -270,6 +279,121 @@ class AuditEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class DonorLocationShare(Base):
+    """Matched-requester-only exact location disclosure for one (request, donor).
+
+    A row is only created after the requester's active request has matched the
+    donor. It expires with the request and can be revoked by the donor at any
+    time. The API never returns exact coordinates without an active row.
+    """
+
+    __tablename__ = "donor_location_shares"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    request_id: Mapped[str] = mapped_column(ForeignKey("emergency_requests.id", ondelete="CASCADE"), nullable=False)
+    donor_id: Mapped[str] = mapped_column(ForeignKey("donors.id", ondelete="CASCADE"), nullable=False)
+    requester_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    shared_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("request_id", "donor_id", name="uq_donor_location_shares_request_donor"),
+        Index("ix_donor_location_shares_request_donor", "request_id", "donor_id", "status"),
+        Index("ix_donor_location_shares_requester", "requester_id", "status"),
+    )
+
+
+class Conversation(Base):
+    """In-app conversation between the requester and donor of one request."""
+
+    __tablename__ = "conversations"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    request_id: Mapped[str] = mapped_column(ForeignKey("emergency_requests.id", ondelete="CASCADE"), nullable=False)
+    donor_id: Mapped[str] = mapped_column(ForeignKey("donors.id", ondelete="CASCADE"), nullable=False)
+    requester_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("request_id", "donor_id", name="uq_conversations_request_donor"),
+        Index("ix_conversations_requester", "requester_id"),
+        Index("ix_conversations_donor", "donor_id"),
+    )
+
+
+class Message(Base):
+    """Server-side message. Readable only by the two conversation participants."""
+
+    __tablename__ = "messages"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    sender_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_messages_conversation_created", "conversation_id", "created_at"),
+    )
+
+
+class ContactShare(Base):
+    """Explicit, audited phone/email disclosure inside a conversation."""
+
+    __tablename__ = "contact_shares"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    donor_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    requester_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    shared_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    field: Mapped[str] = mapped_column(String(16), nullable=False)
+    value: Mapped[str] = mapped_column(String(320), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_contact_shares_conversation", "conversation_id", "created_at"),
+    )
+
+
+class ConversationBlock(Base):
+    """Enforceable block between the two participants of one conversation.
+
+    A block is persisted state, not just an audit event: while a row exists the
+    blocked participant cannot send messages or share contact details, and no
+    push is delivered to the blocker. Either participant may block the other.
+    """
+
+    __tablename__ = "conversation_blocks"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    request_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    blocker_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    blocked_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "blocker_id", "blocked_id", name="uq_conversation_blocks_pair"),
+        Index("ix_conversation_blocks_conversation", "conversation_id"),
+        Index("ix_conversation_blocks_blocked", "blocked_id"),
+    )
+
+
 class PendingSubmission(Base):
     __tablename__ = "pending_submissions"
 
@@ -280,3 +404,17 @@ class PendingSubmission(Base):
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RateLimitCounter(Base):
+    """Shared fixed-window rate-limit counter (see app/rate_limit.py).
+
+    Kept in the database so limits hold across every worker and survive a
+    restart, unlike the in-process fallback.
+    """
+
+    __tablename__ = "rate_limit_counters"
+
+    bucket_key: Mapped[str] = mapped_column(String(256), primary_key=True)
+    window_start: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

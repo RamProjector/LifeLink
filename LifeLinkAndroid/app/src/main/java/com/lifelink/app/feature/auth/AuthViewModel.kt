@@ -47,7 +47,7 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
     fun signIn(email: String, password: String) = authenticate { repository.signIn(email, password) }
     fun signUp(email: String, password: String) = authenticate { repository.signUp(email, password) }
     fun signOut() = repository.signOut()
-    fun requestPasswordReset(email: String) = runRecovery(email) { repository.requestPasswordReset(email) }
+    fun requestPasswordReset(email: String) = runNeutralRecovery { repository.requestPasswordReset(email) }
     fun resendConfirmation(email: String) = runRecovery(email) { repository.resendConfirmation(email) }
     fun handleAuthCallback(uri: Uri?) {
         if (uri == null) return
@@ -80,6 +80,22 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
             _state.value = AuthState.Loading
             action().onSuccess { _state.value = AuthState.Message("Check your inbox for the next step.") }
                 .onFailure { _state.value = AuthState.Message(it.message ?: "Authentication email could not be sent.", true) }
+        }
+    }
+
+    /**
+     * Password recovery must not reveal whether an email is registered. The same
+     * neutral confirmation is shown whether or not the address exists, so the
+     * flow cannot be used to enumerate accounts. A genuine failure still surfaces
+     * a generic retry message that says nothing about the account.
+     */
+    private fun runNeutralRecovery(action: suspend () -> Result<Unit>) {
+        viewModelScope.launch {
+            _state.value = AuthState.Loading
+            action()
+            _state.value = AuthState.Message(
+                "If that email has a LifeLink account, check your inbox for a reset link. If none arrives, try again later."
+            )
         }
     }
 

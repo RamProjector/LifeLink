@@ -1,7 +1,7 @@
 # LifeLink Project Review — In Layman’s Terms
 
 **Repository:** `RamProjector/LifeLink`  
-**Review date:** October 1, 2026  
+**Review date:** September 30, 2026  
 **Review scope:** Android application, FastAPI backend, PostgreSQL/PostGIS database, donor matching, location sharing, contact lifecycle, chat direction, testing, and production readiness.
 
 ## 1. What LifeLink Is

@@ -44,7 +44,7 @@ cd LifeLinkAndroid
 ./gradlew assembleDebug -PlifelinkApiBaseUrl=https://YOUR-RENDER-SERVICE.onrender.com/
 ```
 
-The cloud-configured development APK is in `artifacts/app-debug-cloud-configured.apk`. The unsigned release build is provided for release configuration inspection and must be signed with a real production keystore before distribution.
+The cloud-configured debug APK is produced by the **Build Android APKs** workflow and attached to the run as the `lifelink-android-apks-<sha>` artifact. Prebuilt APKs are no longer committed to the repository. A release build must be signed with a real production keystore before distribution.
 
 ## Package structure
 
@@ -52,9 +52,8 @@ The cloud-configured development APK is in `artifacts/app-debug-cloud-configured
 |---|---|
 | `LifeLinkAndroid/` | Native Kotlin/Compose Android application |
 | `lifelink_fastapi/` | PostgreSQL-backed FastAPI service, schema, and tests |
-| `lifelink-mobile/` | Expo/React Native mobile source |
 | `docs/` | Cloud startup, Render guide, changelog, history, and quality audit |
-| `artifacts/` | APKs and app icon |
+| `artifacts/` | App icon (APKs are built in CI, not committed) |
 
 ## Documentation
 
@@ -63,6 +62,24 @@ Start with [`docs/START_CLOUD.md`](docs/START_CLOUD.md). For the confirmed live 
 The complete academic-style system integration report is [`docs/LifeLink_System_Functional_Integration_Documentation.pdf`](docs/LifeLink_System_Functional_Integration_Documentation.pdf), with editable Markdown source in [`docs/LifeLink_System_Functional_Integration_Documentation.md`](docs/LifeLink_System_Functional_Integration_Documentation.md).
 
 The plain-language project assessment is [`docs/LifeLink_Project_Review_Laymans_Terms.pdf`](docs/LifeLink_Project_Review_Laymans_Terms.pdf), with editable Markdown source in [`docs/LifeLink_Project_Review_Laymans_Terms.md`](docs/LifeLink_Project_Review_Laymans_Terms.md).
+
+## Status / known limitations
+
+LifeLink Cloud is a working development package, not yet a public production
+service. The authoritative, up-to-date state (live migration version, deployed
+services, and open work) is tracked in
+[`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md). Known
+limitations before public production use:
+
+- **Android toolchain is on AGP 9.4.1 / Gradle 9.6.0 / `compileSdk` 37**
+  (Kotlin 2.2.10 built into AGP, KSP 2.3.12). The earlier AGP 8.7.3 / Gradle
+  8.10.2 / `compileSdk` 35 pin has been migrated.
+- **A signed release keystore is still required before distribution**; the
+  release build is unsigned and unminified.
+- **Rate limiting is in-process** (per-worker, reset on restart) and must move
+  to a shared store before public launch.
+- **Medical screening is out of scope** — profile completion enables operational
+  matching only.
 
 ## Security
 

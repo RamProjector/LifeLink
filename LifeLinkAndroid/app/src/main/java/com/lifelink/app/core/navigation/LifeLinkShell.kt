@@ -91,6 +91,9 @@ import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestScreen
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
+import com.lifelink.app.feature.privacy.DonorMapScreen
+import com.lifelink.app.feature.privacy.PrivacyAction
+import com.lifelink.app.feature.privacy.PrivacyUiState
 import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.domain.UpdateItem
 import com.lifelink.app.feature.updates.UpdatesScreen
@@ -105,7 +108,10 @@ fun LifeLinkShell(
     onAction: (EmergencyRequestAction) -> Unit,
     donorState: DonorUiState,
     onDonorAction: (DonorAction) -> Unit,
+    privacyState: PrivacyUiState,
+    onPrivacyAction: (PrivacyAction) -> Unit,
     role: UserRole,
+    onSwitchRole: () -> Unit,
     accountEmail: String,
     accountUserId: String,
     accountDisplayName: String,
@@ -127,6 +133,7 @@ fun LifeLinkShell(
     var showRequest by rememberSaveable { mutableStateOf(false) }
     var showActive by rememberSaveable { mutableStateOf(false) }
     var showDonor by rememberSaveable { mutableStateOf(false) }
+    var showDonorMap by rememberSaveable { mutableStateOf(false) }
     var showStart by rememberSaveable(accountUserId) { mutableStateOf(accountUserId.isNotBlank() && !welcomePrefs.getBoolean("seen_$accountUserId", false)) }
     var tab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
     val markWelcomeSeen = {
@@ -186,6 +193,11 @@ fun LifeLinkShell(
         DonorScreen(state = donorState, onAction = onDonorAction, onBack = { showDonor = false })
         return
     }
+    if (showDonorMap) {
+        BackHandler { showDonorMap = false }
+        DonorMapScreen(state = privacyState, onAction = onPrivacyAction, onBack = { showDonorMap = false })
+        return
+    }
     BackHandler(enabled = tab != ShellTab.HOME) { tab = ShellTab.HOME }
     val unreadUpdates = updates.count { !it.isRead }
 
@@ -226,7 +238,7 @@ fun LifeLinkShell(
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
                     Surface(Modifier.widthIn(max = 840.dp).fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                         when (tab) {
-                            ShellTab.HOME -> HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true }, updates = updates, onRequests = { tab = ShellTab.REQUESTS }, onUpdates = { tab = ShellTab.UPDATES })
+                            ShellTab.HOME -> HomeContent(state, donorState, role, onSwitchRole, onCreate = { showRequest = true }, onActive = { showActive = true }, onDonor = { showDonor = true }, onDonorMap = { showDonorMap = true }, updates = updates, onRequests = { tab = ShellTab.REQUESTS }, onUpdates = { tab = ShellTab.UPDATES })
                             ShellTab.REQUESTS -> RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = { showRequest = true }, onActive = { showActive = true })
                             ShellTab.UPDATES -> UpdatesScreen(
                                 updates = updates,
@@ -334,9 +346,11 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     state: EmergencyRequestUiState,
     donorState: DonorUiState,
     role: UserRole,
+    onSwitchRole: () -> Unit,
     onCreate: () -> Unit,
     onActive: () -> Unit,
     onDonor: () -> Unit,
+    onDonorMap: () -> Unit,
     updates: List<UpdateItem>,
     onRequests: () -> Unit,
     onUpdates: () -> Unit
@@ -347,6 +361,10 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             LifeLinkPageHeader("LifeLink")
+            Spacer(Modifier.weight(1f))
+            OutlinedButton(onClick = onSwitchRole, modifier = Modifier.testTag("role-switcher")) {
+                Text(if (role == UserRole.DONOR) "Switch to requester" else "Switch to donor")
+            }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Column(
@@ -355,6 +373,19 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
         ) {
             if (role == UserRole.DONOR) {
                 DonorDashboardSummary(donorState.profile, donorState.requests.size, onDonor)
+            }
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Donor map", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "See where donors are available as approximate areas with a freshness timestamp. Exact locations are never shown here.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(onClick = onDonorMap, modifier = Modifier.fillMaxWidth()) { Text("Open donor map") }
+                }
             }
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -413,7 +444,7 @@ private fun ActiveRequestSummary(state: EmergencyRequestUiState, onOpen: () -> U
 @Preview(name = "Home · dark", widthDp = 360, heightDp = 820, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun HomePreview() {
-    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, emptyList(), {}, {}) }
+    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, {}, {}, emptyList(), {}, {}) }
 }
 
 @Composable
@@ -528,15 +559,6 @@ private fun StartContent(
             if (body != null) {
                 IconButton(onClick = onHelp) { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "More about $title") }
             }
-        }
-    }
-}
-
-@Composable private fun LearnCard(title: String, body: String) {
-    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, fontWeight = FontWeight.SemiBold)
-            Text(body, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

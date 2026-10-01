@@ -49,7 +49,7 @@ jobs:
         working-directory: LifeLinkAndroid
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -59,9 +59,9 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          packages: 'platform-tools platforms;android-37.2 build-tools;37.0.0'
 
       - name: Make Gradle executable
         run: chmod +x ./gradlew
@@ -79,7 +79,7 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk ../android-artifacts/lifelink-debug.apk
 
       - name: Upload APK artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lifelink-android-apks-${{ github.sha }}
           path: android-artifacts/*.apk
@@ -88,7 +88,7 @@ jobs:
 
       - name: Upload validation reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lifelink-android-validation-${{ github.sha }}
           path: |

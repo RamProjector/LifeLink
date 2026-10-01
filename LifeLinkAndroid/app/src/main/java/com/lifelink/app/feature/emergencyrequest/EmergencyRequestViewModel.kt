@@ -3,14 +3,14 @@ package com.lifelink.app.feature.emergencyrequest
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.lifelink.app.domain.EmergencyRequestDraft
-import com.lifelink.app.domain.EmergencyRequestRepository
-import com.lifelink.app.domain.RequestStep
-import com.lifelink.app.domain.SubmitResult
 import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.DiscoveredDonor
-import com.lifelink.app.domain.RequesterContact
+import com.lifelink.app.domain.EmergencyRequestDraft
+import com.lifelink.app.domain.EmergencyRequestRepository
 import com.lifelink.app.domain.RequestHistoryItem
+import com.lifelink.app.domain.RequestStep
+import com.lifelink.app.domain.RequesterContact
+import com.lifelink.app.domain.SubmitResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -22,11 +22,17 @@ import kotlinx.coroutines.launch
 
 sealed interface SubmissionState {
     data object Idle : SubmissionState
+
     data object Saving : SubmissionState
+
     data object Submitting : SubmissionState
+
     data class Matching(val requestId: String) : SubmissionState
+
     data class ManualFallback(val requestId: String, val reason: String) : SubmissionState
+
     data class QueuedOffline(val draftId: String) : SubmissionState
+
     data class Error(val message: String) : SubmissionState
 }
 
@@ -51,44 +57,69 @@ data class EmergencyRequestUiState(
     val contactActionInFlightDonorId: String? = null,
     val requestHistory: List<RequestHistoryItem> = emptyList(),
     val historyRefreshing: Boolean = false,
-    val historyError: String? = null
+    val historyError: String? = null,
+    val cancelCompleted: Boolean = false,
 )
 
 sealed interface EmergencyRequestAction {
     data class UpdateDraft(val update: (EmergencyRequestDraft) -> EmergencyRequestDraft) : EmergencyRequestAction
+
     data object Continue : EmergencyRequestAction
+
     data object Back : EmergencyRequestAction
+
     data class EditStep(val step: RequestStep) : EmergencyRequestAction
+
     data object SaveDraft : EmergencyRequestAction
+
     data object DraftSaveHandled : EmergencyRequestAction
+
     data object Submit : EmergencyRequestAction
+
     data object ConfirmCriticalSubmit : EmergencyRequestAction
+
     data object DismissCriticalSubmit : EmergencyRequestAction
+
     data object SendManualBroadcast : EmergencyRequestAction
+
     data object RefreshStatus : EmergencyRequestAction
+
     data class OpenRequest(val requestId: String) : EmergencyRequestAction
+
     data class ShowContactResults(val requestId: String) : EmergencyRequestAction
+
     data class RefreshContacts(val requestId: String) : EmergencyRequestAction
+
     data object RefreshHistory : EmergencyRequestAction
+
     data object CancelRequest : EmergencyRequestAction
+
+    data object CancelHandled : EmergencyRequestAction
+
     data object FulfillRequest : EmergencyRequestAction
+
     data object Retry : EmergencyRequestAction
+
     data class ToggleDonorSelection(val donorId: String) : EmergencyRequestAction
+
     data object ContactSelectedDonors : EmergencyRequestAction
+
     data class UpdateContactStatus(val donorId: String, val status: String) : EmergencyRequestAction
+
     data class ReportContact(val donorId: String, val reason: String = "") : EmergencyRequestAction
+
     data class BlockContact(val donorId: String) : EmergencyRequestAction
+
     data class SetGpsLocation(val latitude: Double, val longitude: Double, val precisionMeters: Int) : EmergencyRequestAction
 }
 
-class EmergencyRequestViewModel(
-    private val repository: EmergencyRequestRepository,
-    private val enablePolling: Boolean = true
-) : ViewModel() {
+class EmergencyRequestViewModel(private val repository: EmergencyRequestRepository, private val enablePolling: Boolean = true) :
+    ViewModel() {
     private val _uiState = MutableStateFlow(EmergencyRequestUiState())
     val uiState: StateFlow<EmergencyRequestUiState> = _uiState.asStateFlow()
     private var draftSaveJob: Job? = null
     private var historyRefreshJob: Job? = null
+    private var pollJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -99,29 +130,37 @@ class EmergencyRequestViewModel(
         viewModelScope.launch {
             repository.observeRequestHistory().collect { history ->
                 _uiState.update { state ->
-                    if (state.requestHistory.isNotEmpty()) state else state.copy(requestHistory = history.map { snapshot ->
-                        RequestHistoryItem(
-                            requestId = snapshot.requestId,
-                            status = snapshot.status,
-                            notificationsCreated = snapshot.notificationsCreated,
-                            matchesResponded = snapshot.matchesResponded
+                    if (state.requestHistory.isNotEmpty()) {
+                        state
+                    } else {
+                        state.copy(
+                            requestHistory =
+                            history.map { snapshot ->
+                                RequestHistoryItem(
+                                    requestId = snapshot.requestId,
+                                    status = snapshot.status,
+                                    notificationsCreated = snapshot.notificationsCreated,
+                                    matchesResponded = snapshot.matchesResponded,
+                                )
+                            },
                         )
-                    })
+                    }
                 }
             }
         }
         refreshHistory()
         if (enablePolling) {
-            viewModelScope.launch {
-                while (true) {
-                    delay(30_000)
-                    val current = _uiState.value.activeRequest
-                    if (current != null && !current.isTerminal) {
-                        runCatching { repository.refreshActiveRequest(current.requestId) }
-                        refreshContacts(current.requestId, adopt = false)
+            pollJob =
+                viewModelScope.launch {
+                    while (true) {
+                        delay(30_000)
+                        val current = _uiState.value.activeRequest
+                        if (current != null && !current.isTerminal) {
+                            runCatching { repository.refreshActiveRequest(current.requestId) }
+                            refreshContacts(current.requestId, adopt = false)
+                        }
                     }
                 }
-            }
         }
     }
 
@@ -146,31 +185,47 @@ class EmergencyRequestViewModel(
             is EmergencyRequestAction.RefreshContacts -> refreshContacts(action.requestId, adopt = true)
             EmergencyRequestAction.RefreshHistory -> refreshHistory()
             EmergencyRequestAction.CancelRequest -> cancelRequest()
+            EmergencyRequestAction.CancelHandled -> _uiState.update { it.copy(cancelCompleted = false) }
             EmergencyRequestAction.FulfillRequest -> fulfillRequest()
             EmergencyRequestAction.Retry -> submit()
             is EmergencyRequestAction.ToggleDonorSelection -> toggleDonor(action.donorId)
             EmergencyRequestAction.ContactSelectedDonors -> contactSelectedDonors()
             is EmergencyRequestAction.UpdateContactStatus -> updateContactStatus(action.donorId, action.status)
-            is EmergencyRequestAction.ReportContact -> moderateContact(action.donorId) { requestId, donorId -> repository.reportContact(requestId, donorId, action.reason) }
-            is EmergencyRequestAction.BlockContact -> moderateContact(action.donorId) { requestId, donorId -> repository.blockContact(requestId, donorId) }
-            is EmergencyRequestAction.SetGpsLocation -> updateDraft {
-                it.copy(
-                    requesterLatitude = action.latitude,
-                    requesterLongitude = action.longitude,
-                    locationPrecisionMeters = action.precisionMeters,
-                    facility = null
-                )
-            }
+            is EmergencyRequestAction.ReportContact ->
+                moderateContact(
+                    action.donorId,
+                ) { requestId, donorId -> repository.reportContact(requestId, donorId, action.reason) }
+            is EmergencyRequestAction.BlockContact ->
+                moderateContact(
+                    action.donorId,
+                ) { requestId, donorId -> repository.blockContact(requestId, donorId) }
+            is EmergencyRequestAction.SetGpsLocation ->
+                updateDraft {
+                    it.copy(
+                        requesterLatitude = action.latitude,
+                        requesterLongitude = action.longitude,
+                        locationPrecisionMeters = action.precisionMeters,
+                        facility = null,
+                    )
+                }
         }
     }
 
     private fun updateDraft(update: (EmergencyRequestDraft) -> EmergencyRequestDraft) {
-        _uiState.update { it.copy(draft = update(it.draft), draftSaved = false, draftSavedManually = false, submission = SubmissionState.Idle) }
-        draftSaveJob?.cancel()
-        draftSaveJob = viewModelScope.launch {
-            delay(500)
-            saveDraft()
+        _uiState.update {
+            it.copy(
+                draft = update(it.draft),
+                draftSaved = false,
+                draftSavedManually = false,
+                submission = SubmissionState.Idle,
+            )
         }
+        draftSaveJob?.cancel()
+        draftSaveJob =
+            viewModelScope.launch {
+                delay(500)
+                saveDraft()
+            }
     }
 
     private fun continueStep() {
@@ -195,7 +250,9 @@ class EmergencyRequestViewModel(
             _uiState.update { it.copy(submission = SubmissionState.Error(error)) }
         } else if (state.draft.urgency == com.lifelink.app.domain.Urgency.CRITICAL) {
             _uiState.update { it.copy(criticalConfirmationVisible = true) }
-        } else submit()
+        } else {
+            submit()
+        }
     }
 
     private fun saveDraft(manual: Boolean = false) {
@@ -203,8 +260,21 @@ class EmergencyRequestViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(submission = SubmissionState.Saving) }
             runCatching { repository.saveDraft(draft) }
-                .onSuccess { _uiState.update { it.copy(draftSaved = true, draftSavedManually = manual, submission = SubmissionState.Idle) } }
-                .onFailure { _uiState.update { it.copy(submission = SubmissionState.Error("Draft is kept on this device; sync will retry.")) } }
+                .onSuccess {
+                    _uiState.update {
+                        it.copy(
+                            draftSaved = true,
+                            draftSavedManually = manual,
+                            submission = SubmissionState.Idle,
+                        )
+                    }
+                }.onFailure {
+                    _uiState.update {
+                        it.copy(
+                            submission = SubmissionState.Error("Draft is kept on this device; sync will retry."),
+                        )
+                    }
+                }
         }
     }
 
@@ -228,16 +298,22 @@ class EmergencyRequestViewModel(
                             contactRequestSent = false,
                             contacts = emptyList(),
                             contactsRefreshing = false,
-                            contactsError = null
+                            contactsError = null,
                         )
                     }
                     refreshContacts(result.requestId)
                 }
                 is SubmitResult.ContactRequested -> _uiState.update { it.copy(contactRequestSent = true) }
-                is SubmitResult.ContactRequestUncertain -> _uiState.update {
-                    it.copy(contactsError = "The server response was empty; contact status could not be confirmed yet.")
-                }
-                is SubmitResult.ManualFallback -> _uiState.update { it.copy(submission = SubmissionState.ManualFallback(result.requestId, result.reason)) }
+                is SubmitResult.ContactRequestUncertain ->
+                    _uiState.update {
+                        it.copy(contactsError = "The server response was empty; contact status could not be confirmed yet.")
+                    }
+                is SubmitResult.ManualFallback ->
+                    _uiState.update {
+                        it.copy(
+                            submission = SubmissionState.ManualFallback(result.requestId, result.reason),
+                        )
+                    }
                 is SubmitResult.Cancelled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
                 is SubmitResult.Fulfilled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
                 is SubmitResult.OfflineQueued -> _uiState.update { it.copy(submission = SubmissionState.QueuedOffline(result.draftId)) }
@@ -253,14 +329,25 @@ class EmergencyRequestViewModel(
             when (val result = repository.sendManualBroadcast(fallback.requestId)) {
                 is SubmitResult.MatchingStarted -> _uiState.update { it.copy(submission = SubmissionState.Matching(result.requestId)) }
                 is SubmitResult.ContactRequested -> _uiState.update { it.copy(contactRequestSent = true) }
-                is SubmitResult.ContactRequestUncertain -> _uiState.update {
-                    it.copy(contactsError = "The server response was empty; contact status could not be confirmed yet.")
-                }
+                is SubmitResult.ContactRequestUncertain ->
+                    _uiState.update {
+                        it.copy(contactsError = "The server response was empty; contact status could not be confirmed yet.")
+                    }
                 is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
-                is SubmitResult.ManualFallback -> _uiState.update { it.copy(submission = SubmissionState.ManualFallback(result.requestId, result.reason)) }
+                is SubmitResult.ManualFallback ->
+                    _uiState.update {
+                        it.copy(
+                            submission = SubmissionState.ManualFallback(result.requestId, result.reason),
+                        )
+                    }
                 is SubmitResult.Cancelled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
                 is SubmitResult.Fulfilled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
-                is SubmitResult.OfflineQueued -> _uiState.update { it.copy(submission = SubmissionState.Error("You’re offline. No broadcast was sent.")) }
+                is SubmitResult.OfflineQueued ->
+                    _uiState.update {
+                        it.copy(
+                            submission = SubmissionState.Error("You’re offline. No broadcast was sent."),
+                        )
+                    }
             }
         }
     }
@@ -281,12 +368,20 @@ class EmergencyRequestViewModel(
         if (donorIds.isEmpty()) return
         viewModelScope.launch {
             when (val result = repository.contactSelectedDonors(requestId, donorIds)) {
-                is SubmitResult.ContactRequested -> refreshAfterContactRequest(
-                    requestId, donorIds, result.donorIds, uncertain = false
-                )
-                is SubmitResult.ContactRequestUncertain -> refreshAfterContactRequest(
-                    requestId, donorIds, result.donorIds, uncertain = true
-                )
+                is SubmitResult.ContactRequested ->
+                    refreshAfterContactRequest(
+                        requestId,
+                        donorIds,
+                        result.donorIds,
+                        uncertain = false,
+                    )
+                is SubmitResult.ContactRequestUncertain ->
+                    refreshAfterContactRequest(
+                        requestId,
+                        donorIds,
+                        result.donorIds,
+                        uncertain = true,
+                    )
                 is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
                 else -> Unit
             }
@@ -297,45 +392,58 @@ class EmergencyRequestViewModel(
         requestId: String,
         requestedDonorIds: List<String>,
         responseDonorIds: List<String>,
-        uncertain: Boolean
+        uncertain: Boolean,
     ) {
         val current = _uiState.value
         if (current.resultsRequestId != requestId) return
 
         val donorIds = (responseDonorIds.ifEmpty { requestedDonorIds }).distinct()
-        val optimisticContacts = if (uncertain) emptyList() else donorIds.map { id ->
-            current.contacts.firstOrNull { it.donorId == id } ?: RequesterContact(
-                donorId = id,
-                displayName = current.discoveredDonors.firstOrNull { it.donorId == id }?.displayName ?: "Selected donor",
-                status = "pending"
-            )
-        }
+        val optimisticContacts =
+            if (uncertain) {
+                emptyList()
+            } else {
+                donorIds.map { id ->
+                    current.contacts.firstOrNull { it.donorId == id } ?: RequesterContact(
+                        donorId = id,
+                        displayName = current.discoveredDonors.firstOrNull { it.donorId == id }?.displayName ?: "Selected donor",
+                        status = "pending",
+                    )
+                }
+            }
         _uiState.update { state ->
-            if (state.resultsRequestId != requestId) state else state.copy(
-                contactRequestSent = state.contactRequestSent || (!uncertain && donorIds.isNotEmpty()),
-                contacts = mergeContacts(state.contacts, optimisticContacts),
-                contactsRefreshing = true,
-                contactsError = if (uncertain) "The server response was empty; checking contact status before you retry." else null
-            )
+            if (state.resultsRequestId != requestId) {
+                state
+            } else {
+                state.copy(
+                    contactRequestSent = state.contactRequestSent || (!uncertain && donorIds.isNotEmpty()),
+                    contacts = mergeContacts(state.contacts, optimisticContacts),
+                    contactsRefreshing = true,
+                    contactsError = if (uncertain) "The server response was empty; checking contact status before you retry." else null,
+                )
+            }
         }
 
-        val refreshed = try {
-            repository.refreshContacts(requestId)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
-            null
-        }
+        val refreshed =
+            try {
+                repository.refreshContacts(requestId)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
         _uiState.update { state ->
-            if (state.resultsRequestId != requestId) state else if (refreshed == null) {
+            if (state.resultsRequestId != requestId) {
+                state
+            } else if (refreshed == null) {
                 state.copy(
                     contacts = mergeContacts(state.contacts, optimisticContacts),
                     contactsRefreshing = false,
-                    contactsError = if (uncertain) {
+                    contactsError =
+                    if (uncertain) {
                         "The server response was empty, so we could not confirm whether contact was sent. Check contact activity before retrying."
                     } else {
                         "The contact request was sent, but its latest status could not be loaded. Check again shortly."
-                    }
+                    },
                 )
             } else {
                 val contacts = mergeContacts(state.contacts, refreshed)
@@ -346,16 +454,20 @@ class EmergencyRequestViewModel(
                     contacts = contacts,
                     selectedDonorIds = state.selectedDonorIds - confirmedIds,
                     contactsRefreshing = false,
-                    contactsError = if (uncertain && confirmedIds.isEmpty()) {
+                    contactsError =
+                    if (uncertain && confirmedIds.isEmpty()) {
                         "The server response was empty and no new contact is visible yet. Check contact activity before retrying."
-                    } else null
+                    } else {
+                        null
+                    },
                 )
             }
         }
     }
 
     private fun updateContactStatus(donorId: String, status: String) {
-        val requestId = (_uiState.value.submission as? SubmissionState.Matching)?.requestId ?: _uiState.value.activeRequest?.requestId ?: return
+        val requestId =
+            (_uiState.value.submission as? SubmissionState.Matching)?.requestId ?: _uiState.value.activeRequest?.requestId ?: return
         viewModelScope.launch {
             _uiState.update { it.copy(contactActionInFlightDonorId = donorId) }
             runCatching { repository.updateContactStatus(requestId, donorId, status) }
@@ -363,15 +475,14 @@ class EmergencyRequestViewModel(
                     _uiState.update { state ->
                         state.copy(
                             contacts = state.contacts.map { if (it.donorId == donorId) updated else it },
-                            contactActionInFlightDonorId = null
+                            contactActionInFlightDonorId = null,
                         )
                     }
-                }
-                .onFailure { error ->
+                }.onFailure { error ->
                     _uiState.update {
                         it.copy(
                             contactActionInFlightDonorId = null,
-                            submission = SubmissionState.Error(error.message ?: "Contact status could not be updated.")
+                            submission = SubmissionState.Error(error.message ?: "Contact status could not be updated."),
                         )
                     }
                 }
@@ -397,7 +508,14 @@ class EmergencyRequestViewModel(
             _uiState.update {
                 it.copy(
                     statusRefreshing = false,
-                    submission = if (loaded == null) SubmissionState.Error("This request could not be loaded. Try refreshing.") else SubmissionState.Matching(requestId)
+                    submission =
+                    if (loaded ==
+                        null
+                    ) {
+                        SubmissionState.Error("This request could not be loaded. Try refreshing.")
+                    } else {
+                        SubmissionState.Matching(requestId)
+                    },
                 )
             }
         }
@@ -417,7 +535,7 @@ class EmergencyRequestViewModel(
                 selectedDonorIds = emptySet(),
                 contactRequestSent = sameRequest && it.contactRequestSent,
                 contacts = if (sameRequest) it.contacts else emptyList(),
-                contactsError = if (sameRequest) it.contactsError else null
+                contactsError = if (sameRequest) it.contactsError else null,
             )
         }
         viewModelScope.launch {
@@ -430,7 +548,13 @@ class EmergencyRequestViewModel(
                 throw cancelled
             } catch (_: Exception) {
                 _uiState.update { state ->
-                    if (state.resultsRequestId == requestId) state.copy(matchesError = "Saved donor matches could not be loaded. Check your connection and retry.") else state
+                    if (state.resultsRequestId ==
+                        requestId
+                    ) {
+                        state.copy(matchesError = "Saved donor matches could not be loaded. Check your connection and retry.")
+                    } else {
+                        state
+                    }
                 }
             } finally {
                 _uiState.update { state ->
@@ -454,20 +578,22 @@ class EmergencyRequestViewModel(
                 contacts = if (switchingRequest) emptyList() else state.contacts,
                 matchesError = if (switchingRequest) null else state.matchesError,
                 contactsRefreshing = true,
-                contactsError = null
+                contactsError = null,
             )
         }
         viewModelScope.launch {
             try {
                 val refreshed = repository.refreshContacts(requestId)
                 _uiState.update { state ->
-                    if (state.resultsRequestId != requestId) state else {
+                    if (state.resultsRequestId != requestId) {
+                        state
+                    } else {
                         val contacts = mergeContacts(state.contacts, refreshed)
                         state.copy(
                             contacts = contacts,
                             selectedDonorIds = state.selectedDonorIds - contacts.map { it.donorId }.toSet(),
                             contactsRefreshing = false,
-                            contactsError = null
+                            contactsError = null,
                         )
                     }
                 }
@@ -475,10 +601,14 @@ class EmergencyRequestViewModel(
                 throw cancelled
             } catch (_: Exception) {
                 _uiState.update { state ->
-                    if (state.resultsRequestId == requestId) state.copy(
-                        contactsRefreshing = false,
-                        contactsError = "Contact activity could not be loaded. Check your connection and retry."
-                    ) else state
+                    if (state.resultsRequestId == requestId) {
+                        state.copy(
+                            contactsRefreshing = false,
+                            contactsError = "Contact activity could not be loaded. Check your connection and retry.",
+                        )
+                    } else {
+                        state
+                    }
                 }
             }
         }
@@ -491,29 +621,45 @@ class EmergencyRequestViewModel(
     }
 
     private fun moderateContact(donorId: String, action: suspend (String, String) -> String) {
-        val requestId = (_uiState.value.submission as? SubmissionState.Matching)?.requestId ?: _uiState.value.activeRequest?.requestId ?: return
+        val requestId =
+            (_uiState.value.submission as? SubmissionState.Matching)?.requestId ?: _uiState.value.activeRequest?.requestId ?: return
         viewModelScope.launch {
             runCatching { action(requestId, donorId) }
-                .onSuccess { result -> _uiState.update { it.copy(submission = SubmissionState.Error("Contact $result. Further contact is disabled until reviewed.")) } }
-                .onFailure { error -> _uiState.update { it.copy(submission = SubmissionState.Error(error.message ?: "Contact safety action could not be completed.")) } }
+                .onSuccess { result ->
+                    _uiState.update {
+                        it.copy(
+                            submission = SubmissionState.Error("Contact $result. Further contact is disabled until reviewed."),
+                        )
+                    }
+                }.onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            submission =
+                            SubmissionState.Error(
+                                error.message ?: "Contact safety action could not be completed.",
+                            ),
+                        )
+                    }
+                }
         }
     }
 
     private fun refreshHistory() {
         if (historyRefreshJob?.isActive == true) return
-        historyRefreshJob = viewModelScope.launch {
-            _uiState.update { it.copy(historyRefreshing = true, historyError = null) }
-            try {
-                val history = repository.refreshRequestHistory()
-                _uiState.update { it.copy(requestHistory = history) }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                _uiState.update { it.copy(historyError = "Couldn’t load your requests. Check your connection and try again.") }
-            } finally {
-                _uiState.update { it.copy(historyRefreshing = false) }
+        historyRefreshJob =
+            viewModelScope.launch {
+                _uiState.update { it.copy(historyRefreshing = true, historyError = null) }
+                try {
+                    val history = repository.refreshRequestHistory()
+                    _uiState.update { it.copy(requestHistory = history) }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    _uiState.update { it.copy(historyError = "Couldn’t load your requests. Check your connection and try again.") }
+                } finally {
+                    _uiState.update { it.copy(historyRefreshing = false) }
+                }
             }
-        }
     }
 
     private fun cancelRequest() {
@@ -521,9 +667,50 @@ class EmergencyRequestViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(statusRefreshing = true) }
             when (val result = repository.cancelRequest(requestId)) {
-                is SubmitResult.Cancelled -> _uiState.update { it.copy(statusRefreshing = false) }
-                is SubmitResult.Error -> _uiState.update { it.copy(statusRefreshing = false, submission = SubmissionState.Error(result.message)) }
-                else -> _uiState.update { it.copy(statusRefreshing = false, submission = SubmissionState.Error("Unexpected cancellation response.")) }
+                is SubmitResult.Cancelled -> {
+                    // Stop the background donor search: cancel the status/contact poll
+                    // so the client no longer keeps looking for donors for a request
+                    // that has been cancelled.
+                    pollJob?.cancel()
+                    // Reset the request flow to idle: drop the cancelled request's
+                    // results/contacts and start a fresh draft so a new request can
+                    // be created immediately. Without this the wizard kept the old
+                    // draft (and its idempotency key), so a new submit returned the
+                    // already-cancelled request.
+                    _uiState.update {
+                        it.copy(
+                            statusRefreshing = false,
+                            cancelCompleted = true,
+                            submission = SubmissionState.Idle,
+                            step = RequestStep.BLOOD_NEED,
+                            draft = EmergencyRequestDraft(),
+                            resultsRequestId = null,
+                            discoveredDonors = emptyList(),
+                            matchesRefreshing = false,
+                            matchesError = null,
+                            selectedDonorIds = emptySet(),
+                            contactRequestSent = false,
+                            contacts = emptyList(),
+                            contactsRefreshing = false,
+                            contactsError = null,
+                        )
+                    }
+                    refreshHistory()
+                }
+                is SubmitResult.Error ->
+                    _uiState.update {
+                        it.copy(
+                            statusRefreshing = false,
+                            submission = SubmissionState.Error(result.message),
+                        )
+                    }
+                else ->
+                    _uiState.update {
+                        it.copy(
+                            statusRefreshing = false,
+                            submission = SubmissionState.Error("Unexpected cancellation response."),
+                        )
+                    }
             }
         }
     }
@@ -534,40 +721,65 @@ class EmergencyRequestViewModel(
             _uiState.update { it.copy(statusRefreshing = true) }
             when (val result = repository.fulfillRequest(requestId)) {
                 is SubmitResult.Fulfilled -> _uiState.update { it.copy(statusRefreshing = false) }
-                is SubmitResult.Error -> _uiState.update { it.copy(statusRefreshing = false, submission = SubmissionState.Error(result.message)) }
-                else -> _uiState.update { it.copy(statusRefreshing = false, submission = SubmissionState.Error("Unexpected fulfillment response.")) }
+                is SubmitResult.Error ->
+                    _uiState.update {
+                        it.copy(
+                            statusRefreshing = false,
+                            submission = SubmissionState.Error(result.message),
+                        )
+                    }
+                else ->
+                    _uiState.update {
+                        it.copy(
+                            statusRefreshing = false,
+                            submission = SubmissionState.Error("Unexpected fulfillment response."),
+                        )
+                    }
             }
         }
     }
 
     private fun validateStep(step: RequestStep, draft: EmergencyRequestDraft): String? = when (step) {
-        RequestStep.BLOOD_NEED -> when {
-            draft.bloodType == null -> "Select a blood type before continuing."
-            draft.units !in 1..20 -> "Units must be between 1 and 20."
-            else -> null
-        }
+        RequestStep.BLOOD_NEED ->
+            when {
+                draft.bloodType == null -> "Select a blood type before continuing."
+                draft.units !in 1..20 -> "Units must be between 1 and 20."
+                else -> null
+            }
         RequestStep.URGENCY -> if (draft.responseDeadline.isBlank()) "Choose a response deadline." else null
-        RequestStep.LOCATION -> if (draft.requesterLatitude == null || draft.requesterLongitude == null) "Capture your approximate location or choose a manual location." else null
-        RequestStep.CONTACT -> when {
-            !draft.genuineRequestConfirmed -> "Confirm this is a genuine request for a verified facility."
-            !draft.sharingConsentConfirmed -> "Confirm that request details may be shared with eligible donors."
-            else -> null
-        }
+        RequestStep.LOCATION ->
+            if (draft.requesterLatitude == null ||
+                draft.requesterLongitude == null
+            ) {
+                "Capture your approximate location or choose a manual location."
+            } else {
+                null
+            }
+        RequestStep.CONTACT ->
+            when {
+                !draft.genuineRequestConfirmed -> "Confirm this is a genuine request for a verified facility."
+                !draft.sharingConsentConfirmed -> "Confirm that request details may be shared with eligible donors."
+                else -> null
+            }
         RequestStep.REVIEW -> null
         RequestStep.RESULTS -> null
     }
 
-    private fun validateFullDraft(draft: EmergencyRequestDraft): String? = RequestStep.entries.firstNotNullOfOrNull { validateStep(it, draft) }
+    private fun validateFullDraft(draft: EmergencyRequestDraft): String? = RequestStep.entries.firstNotNullOfOrNull {
+        validateStep(
+            it,
+            draft,
+        )
+    }
 
     override fun onCleared() {
         draftSaveJob?.cancel()
+        pollJob?.cancel()
         super.onCleared()
     }
 }
 
-class EmergencyRequestViewModelFactory(
-    private val repository: EmergencyRequestRepository
-) : ViewModelProvider.Factory {
+class EmergencyRequestViewModelFactory(private val repository: EmergencyRequestRepository) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         require(modelClass.isAssignableFrom(EmergencyRequestViewModel::class.java))
