@@ -231,9 +231,7 @@ class SupabaseAuthRepository(
 }
 
 sealed interface AuthResult {
-    data class SignedIn(
-        val session: AuthSession,
-    ) : AuthResult
+    data class SignedIn(val session: AuthSession) : AuthResult
 
     data object EmailConfirmationRequired : AuthResult
 }
@@ -293,37 +291,19 @@ private interface SupabaseAuthApi {
 // phone" even though the form sent a valid address. The explicit names make the
 // wire contract independent of the obfuscated property names (and the
 // proguard-rules.pro keep rule for this package is the second line of defence).
-data class AuthRequest(
-    @SerializedName("email") val email: String,
-    @SerializedName("password") val password: String,
-)
+data class AuthRequest(@SerializedName("email") val email: String, @SerializedName("password") val password: String)
 
-data class RefreshRequest(
-    @SerializedName("refresh_token") val refreshToken: String,
-)
+data class RefreshRequest(@SerializedName("refresh_token") val refreshToken: String)
 
-data class PasswordRecoveryRequest(
-    @SerializedName("email") val email: String,
-    @SerializedName("redirect_to") val redirectTo: String,
-)
+data class PasswordRecoveryRequest(@SerializedName("email") val email: String, @SerializedName("redirect_to") val redirectTo: String)
 
-data class ResendRequest(
-    @SerializedName("type") val type: String,
-    @SerializedName("email") val email: String,
-)
+data class ResendRequest(@SerializedName("type") val type: String, @SerializedName("email") val email: String)
 
 enum class AuthCallbackKind { RECOVERY, CONFIRMATION }
 
-data class AuthCallback(
-    val kind: AuthCallbackKind,
-    val email: String?,
-    val accessToken: String,
-    val refreshToken: String?,
-)
+data class AuthCallback(val kind: AuthCallbackKind, val email: String?, val accessToken: String, val refreshToken: String?)
 
-data class PasswordUpdateRequest(
-    @SerializedName("password") val password: String,
-)
+data class PasswordUpdateRequest(@SerializedName("password") val password: String)
 
 data class SupabaseAuthResponse(
     @SerializedName("access_token") val accessToken: String?,
@@ -331,7 +311,4 @@ data class SupabaseAuthResponse(
     @SerializedName("user") val user: SupabaseUser?,
 )
 
-data class SupabaseUser(
-    @SerializedName("id") val id: String,
-    @SerializedName("email") val email: String?,
-)
+data class SupabaseUser(@SerializedName("id") val id: String, @SerializedName("email") val email: String?)
