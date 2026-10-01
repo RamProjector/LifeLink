@@ -11,6 +11,11 @@ name: Android Debug + Release Build
 # See docs/ANDROID_RELEASE_SIGNING.md for the one-time keystore setup.
 
 on:
+  push:
+    branches: [main, fix/build-actions]
+    paths:
+      - 'LifeLinkAndroid/**'
+      - '.github/workflows/android-release.yml'
   workflow_dispatch:
     inputs:
       build_type:
