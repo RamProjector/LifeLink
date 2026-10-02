@@ -47,6 +47,7 @@ private const val MAP_LOAD_TIMEOUT_MS = 30_000L
  * supplies the documented Liberty vector-tile style; exact coordinates remain
  * private and only the selected approximate point is sent to LifeLink.
  */
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun MapLibreLocationPicker(
     latitude: Double?,
@@ -55,7 +56,7 @@ fun MapLibreLocationPicker(
     recenterRequest: Int = 0,
     onLoadingChanged: (Boolean) -> Unit = {},
     onMapError: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val latestLatitude by rememberUpdatedState(latitude)
@@ -100,55 +101,65 @@ fun MapLibreLocationPicker(
             modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp),
             factory = {
                 mapView.apply {
-                addOnDidFailLoadingMapListener {
-                    mapLoading = false
-                    mapError = "Map preview unavailable. You can enter coordinates manually or retry the map."
-                    onLoadingChanged(false)
-                    onMapError("Map tiles could not be loaded. You can enter coordinates manually or retry the map.")
-                }
-                setOnTouchListener { view, event ->
-                    when (event.actionMasked) {
-                        MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> view.parent?.requestDisallowInterceptTouchEvent(true)
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> view.parent?.requestDisallowInterceptTouchEvent(false)
-                    }
-                    false
-                }
-                getMapAsync { map ->
-                    mapLoading = true
-                    mapError = null
-                    onLoadingChanged(true)
-                    map.setStyle(OPEN_FREE_MAP_STYLE) {
+                    addOnDidFailLoadingMapListener {
                         mapLoading = false
-                        mapError = null
+                        mapError = "Map preview unavailable. You can enter coordinates manually or retry the map."
                         onLoadingChanged(false)
-                        val currentPosition = latestLatitude?.let { lat -> latestLongitude?.let { lon -> LatLng(lat, lon) } }
-                        map.cameraPosition = CameraPosition.Builder()
-                            .target(currentPosition ?: LatLng(0.0, 0.0))
-                            .zoom(if (currentPosition == null) 2.0 else 15.0)
-                            .build()
-                        appliedLatitude = latestLatitude
-                        appliedLongitude = latestLongitude
-                        appliedRecenterRequest = recenterRequest
-                        marker = currentPosition?.let {
-                            map.addMarker(MarkerOptions().position(it).title("Selected approximate location"))
+                        onMapError("Map tiles could not be loaded. You can enter coordinates manually or retry the map.")
+                    }
+                    setOnTouchListener { view, event ->
+                        when (event.actionMasked) {
+                            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> view.parent?.requestDisallowInterceptTouchEvent(true)
+                            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> view.parent?.requestDisallowInterceptTouchEvent(false)
                         }
-                        fun select(position: LatLng) {
-                            appliedLatitude = position.latitude
-                            appliedLongitude = position.longitude
-                            marker?.let { it.position = position; map.updateMarker(it) }
-                                ?: run { marker = map.addMarker(MarkerOptions().position(position).title("Selected approximate location")) }
-                            onLocationSelected(position.latitude, position.longitude)
-                        }
-                        map.addOnMapClickListener { position ->
-                            select(position)
-                            true
-                        }
-                        map.addOnMapLongClickListener { position ->
-                            select(position)
-                            true
+                        false
+                    }
+                    getMapAsync { map ->
+                        mapLoading = true
+                        mapError = null
+                        onLoadingChanged(true)
+                        map.setStyle(OPEN_FREE_MAP_STYLE) {
+                            mapLoading = false
+                            mapError = null
+                            onLoadingChanged(false)
+                            val currentPosition = latestLatitude?.let { lat -> latestLongitude?.let { lon -> LatLng(lat, lon) } }
+                            currentPosition?.let { position ->
+                                map.cameraPosition = CameraPosition.Builder()
+                                    .target(position)
+                                    .zoom(15.0)
+                                    .build()
+                            }
+                            appliedLatitude = latestLatitude
+                            appliedLongitude = latestLongitude
+                            appliedRecenterRequest = recenterRequest
+                            marker = currentPosition?.let {
+                                map.addMarker(MarkerOptions().position(it).title("Selected approximate location"))
+                            }
+                            fun select(position: LatLng) {
+                                appliedLatitude = position.latitude
+                                appliedLongitude = position.longitude
+                                marker?.let {
+                                    it.position = position
+                                    map.updateMarker(it)
+                                }
+                                    ?: run {
+                                        marker =
+                                            map.addMarker(
+                                                MarkerOptions().position(position).title("Selected approximate location"),
+                                            )
+                                    }
+                                onLocationSelected(position.latitude, position.longitude)
+                            }
+                            map.addOnMapClickListener { position ->
+                                select(position)
+                                true
+                            }
+                            map.addOnMapLongClickListener { position ->
+                                select(position)
+                                true
+                            }
                         }
                     }
-                }
                 }
             },
             update = { view ->
@@ -160,29 +171,34 @@ fun MapLibreLocationPicker(
                         map.setStyle(OPEN_FREE_MAP_STYLE) { mapLoading = false }
                         retryRequest = 0
                     }
-                    if (target != null && (appliedLatitude != latitude || appliedLongitude != longitude || appliedRecenterRequest != recenterRequest)) {
+                    if (target != null &&
+                        (appliedLatitude != latitude || appliedLongitude != longitude || appliedRecenterRequest != recenterRequest)
+                    ) {
                         appliedLatitude = latitude
                         appliedLongitude = longitude
                         appliedRecenterRequest = recenterRequest
-                        marker?.let { it.position = target; map.updateMarker(it) }
+                        marker?.let {
+                            it.position = target
+                            map.updateMarker(it)
+                        }
                         map.cameraPosition = CameraPosition.Builder()
                             .target(target)
                             .zoom(map.cameraPosition.zoom.coerceAtLeast(12.0))
                             .build()
                     }
                 }
-            }
+            },
         )
         when {
             mapLoading -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             ) {
                 RowLoading()
             }
             mapError != null -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(mapError.orEmpty(), color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
@@ -198,18 +214,19 @@ private fun RowLoading() {
     androidx.compose.foundation.layout.Row(
         Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
         CircularProgressIndicator(Modifier.height(20.dp), strokeWidth = 2.dp)
         Text("Loading map preview…", style = MaterialTheme.typography.bodySmall)
     }
 }
 
+@Suppress("LongMethod")
 @Composable
 fun MapLibrePrivacySafeDonorMap(
     latitude: Double,
     longitude: Double,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
@@ -237,15 +254,15 @@ fun MapLibrePrivacySafeDonorMap(
                         mapLoading = false
                         mapError = true
                     }
-                getMapAsync { map ->
-                    mapLoading = true
-                    map.setStyle(OPEN_FREE_MAP_STYLE) {
-                        mapLoading = false
-                        mapError = false
-                        map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
-                        map.addMarker(MarkerOptions().position(center).title("Your request location"))
+                    getMapAsync { map ->
+                        mapLoading = true
+                        map.setStyle(OPEN_FREE_MAP_STYLE) {
+                            mapLoading = false
+                            mapError = false
+                            map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
+                            map.addMarker(MarkerOptions().position(center).title("Your request location"))
+                        }
                     }
-                }
                 }
             },
             update = { view ->
@@ -255,18 +272,23 @@ fun MapLibrePrivacySafeDonorMap(
                         .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
                         .build()
                 }
-            }
+            },
         )
         when {
             mapLoading -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             ) { RowLoading() }
             mapError -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
             ) {
-                Text("Map preview unavailable. Donor results remain available in the list.", Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "Map preview unavailable. Donor results remain available in the list.",
+                    Modifier.padding(14.dp),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }

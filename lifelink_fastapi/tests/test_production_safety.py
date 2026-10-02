@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, datetime
 
+import pytest
 from fastapi import HTTPException
 from sqlalchemy.dialects import postgresql
 
@@ -9,6 +10,7 @@ from app.donor_repositories import SqlAlchemyDonorStore, apply_donor_response_to
 from app.main_postgres import RequesterContactOut, enum_value
 from app.rate_limit import enforce_rate_limit
 from app.repositories import CONTACT_EMAIL_VISIBLE_STATUSES
+from app.security import Principal, _get_principal, require_owner, require_verified_email
 
 
 def test_rate_limit_rejects_after_threshold():
@@ -101,3 +103,42 @@ def test_postgres_enum_value_handles_plain_and_enum_values():
         value = "O+"
 
     assert enum_value(BloodTypeLike()) == "O+"
+
+
+def test_auth_required_rejects_missing_bearer_token():
+    with pytest.raises(HTTPException) as error:
+        _get_principal(None, required=True)
+    assert error.value.status_code == 401
+    assert error.value.headers["WWW-Authenticate"] == "Bearer"
+
+
+def test_malformed_authorization_header_is_rejected():
+    with pytest.raises(HTTPException) as error:
+        _get_principal("Basic credentials", required=False)
+    assert error.value.status_code == 401
+
+
+def test_owner_and_verified_email_guards_reject_invalid_principals(monkeypatch):
+    monkeypatch.setenv("LIFELINK_AUTH_REQUIRED", "true")
+    with pytest.raises(HTTPException) as owner_error:
+        require_owner(Principal(subject="user-a"), "user-b")
+    assert owner_error.value.status_code == 403
+
+    with pytest.raises(HTTPException) as email_error:
+        require_verified_email(Principal(subject="user-a", email_verified=False))
+    assert email_error.value.status_code == 403
+
+
+def test_rate_limit_shared_store_failure_falls_back_to_local(monkeypatch):
+    from app import rate_limit
+
+    async def fail_shared(*_args, **_kwargs):
+        raise OSError("database unavailable")
+
+    monkeypatch.setenv("LIFELINK_DATABASE_URL", "postgresql://example")
+    monkeypatch.setattr(rate_limit, "_enforce_shared", fail_shared)
+    key = "shared-fallback-test"
+    asyncio.run(rate_limit.enforce_rate_limit(key, 1, 300))
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(rate_limit.enforce_rate_limit(key, 1, 300))
+    assert error.value.status_code == 429

@@ -673,18 +673,16 @@ private fun ProfileCard(
     }
 }
 
-/** Lets the donor select an approximate location, defaulting to Manila when coordinates are absent. */
+/** Lets the donor select an approximate location without inventing a default city. */
 @Composable
 private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSelected: (Double, Double) -> Unit) {
-    val selectedLatitude = latitude ?: 14.5995
-    val selectedLongitude = longitude ?: 120.9842
     var retryRequest by remember { mutableStateOf(0) }
     // MapLibreLocationPicker renders its own loading and error UI, so this screen
     // must not add a second spinner on top of it.
     Box(Modifier.fillMaxWidth()) {
         MapLibreLocationPicker(
-            selectedLatitude,
-            selectedLongitude,
+            latitude,
+            longitude,
             onLocationSelected,
             retryRequest,
             modifier = Modifier.fillMaxWidth().height(260.dp),
@@ -694,7 +692,11 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
         }, modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(12.dp)) { Text("Recenter") }
     }
     Text(
-        "Tap or long-press to move the approximate donor location.",
+        if (latitude != null && longitude != null) {
+            "Tap or long-press to move the approximate donor location."
+        } else {
+            "No location selected yet. Tap or long-press the map to choose an approximate donor area."
+        },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
