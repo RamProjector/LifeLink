@@ -55,7 +55,7 @@ fun MapLibreLocationPicker(
     recenterRequest: Int = 0,
     onLoadingChanged: (Boolean) -> Unit = {},
     onMapError: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val latestLatitude by rememberUpdatedState(latitude)
@@ -100,62 +100,62 @@ fun MapLibreLocationPicker(
             modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp),
             factory = {
                 mapView.apply {
-                addOnDidFailLoadingMapListener {
-                    mapLoading = false
-                    mapError = "Map preview unavailable. You can enter coordinates manually or retry the map."
-                    onLoadingChanged(false)
-                    onMapError("Map tiles could not be loaded. You can enter coordinates manually or retry the map.")
-                }
-                setOnTouchListener { view, event ->
-                    when (event.actionMasked) {
-                        MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> view.parent?.requestDisallowInterceptTouchEvent(true)
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> view.parent?.requestDisallowInterceptTouchEvent(false)
-                    }
-                    false
-                }
-                getMapAsync { map ->
-                    mapLoading = true
-                    mapError = null
-                    onLoadingChanged(true)
-                    map.setStyle(OPEN_FREE_MAP_STYLE) {
+                    addOnDidFailLoadingMapListener {
                         mapLoading = false
-                        mapError = null
+                        mapError = "Map preview unavailable. You can enter coordinates manually or retry the map."
                         onLoadingChanged(false)
-                        val currentPosition = latestLatitude?.let { lat -> latestLongitude?.let { lon -> LatLng(lat, lon) } }
-                        currentPosition?.let { position ->
-                            map.cameraPosition = CameraPosition.Builder()
-                                .target(position)
-                                .zoom(15.0)
-                                .build()
+                        onMapError("Map tiles could not be loaded. You can enter coordinates manually or retry the map.")
+                    }
+                    setOnTouchListener { view, event ->
+                        when (event.actionMasked) {
+                            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> view.parent?.requestDisallowInterceptTouchEvent(true)
+                            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> view.parent?.requestDisallowInterceptTouchEvent(false)
                         }
-                        appliedLatitude = latestLatitude
-                        appliedLongitude = latestLongitude
-                        appliedRecenterRequest = recenterRequest
-                        marker = currentPosition?.let {
-                            map.addMarker(MarkerOptions().position(it).title("Selected approximate location"))
-                        }
-                        fun select(position: LatLng) {
-                            appliedLatitude = position.latitude
-                            appliedLongitude = position.longitude
-                            marker?.let { it.position = position; map.updateMarker(it) }
-                                ?: run {
-                                    marker =
-                                        map.addMarker(
-                                            MarkerOptions().position(position).title("Selected approximate location"),
-                                        )
-                                }
-                            onLocationSelected(position.latitude, position.longitude)
-                        }
-                        map.addOnMapClickListener { position ->
-                            select(position)
-                            true
-                        }
-                        map.addOnMapLongClickListener { position ->
-                            select(position)
-                            true
+                        false
+                    }
+                    getMapAsync { map ->
+                        mapLoading = true
+                        mapError = null
+                        onLoadingChanged(true)
+                        map.setStyle(OPEN_FREE_MAP_STYLE) {
+                            mapLoading = false
+                            mapError = null
+                            onLoadingChanged(false)
+                            val currentPosition = latestLatitude?.let { lat -> latestLongitude?.let { lon -> LatLng(lat, lon) } }
+                            currentPosition?.let { position ->
+                                map.cameraPosition = CameraPosition.Builder()
+                                    .target(position)
+                                    .zoom(15.0)
+                                    .build()
+                            }
+                            appliedLatitude = latestLatitude
+                            appliedLongitude = latestLongitude
+                            appliedRecenterRequest = recenterRequest
+                            marker = currentPosition?.let {
+                                map.addMarker(MarkerOptions().position(it).title("Selected approximate location"))
+                            }
+                            fun select(position: LatLng) {
+                                appliedLatitude = position.latitude
+                                appliedLongitude = position.longitude
+                                marker?.let { it.position = position; map.updateMarker(it) }
+                                    ?: run {
+                                        marker =
+                                            map.addMarker(
+                                                MarkerOptions().position(position).title("Selected approximate location"),
+                                            )
+                                    }
+                                onLocationSelected(position.latitude, position.longitude)
+                            }
+                            map.addOnMapClickListener { position ->
+                                select(position)
+                                true
+                            }
+                            map.addOnMapLongClickListener { position ->
+                                select(position)
+                                true
+                            }
                         }
                     }
-                }
                 }
             },
             update = { view ->
