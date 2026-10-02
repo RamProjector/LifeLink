@@ -187,18 +187,18 @@ fun MapLibreLocationPicker(
                             .build()
                     }
                 }
-            }
+            },
         )
         when {
             mapLoading -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             ) {
                 RowLoading()
             }
             mapError != null -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(mapError.orEmpty(), color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
@@ -214,7 +214,7 @@ private fun RowLoading() {
     androidx.compose.foundation.layout.Row(
         Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
         CircularProgressIndicator(Modifier.height(20.dp), strokeWidth = 2.dp)
         Text("Loading map preview…", style = MaterialTheme.typography.bodySmall)
@@ -225,7 +225,7 @@ private fun RowLoading() {
 fun MapLibrePrivacySafeDonorMap(
     latitude: Double,
     longitude: Double,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
@@ -253,15 +253,15 @@ fun MapLibrePrivacySafeDonorMap(
                         mapLoading = false
                         mapError = true
                     }
-                getMapAsync { map ->
-                    mapLoading = true
-                    map.setStyle(OPEN_FREE_MAP_STYLE) {
-                        mapLoading = false
-                        mapError = false
-                        map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
-                        map.addMarker(MarkerOptions().position(center).title("Your request location"))
+                    getMapAsync { map ->
+                        mapLoading = true
+                        map.setStyle(OPEN_FREE_MAP_STYLE) {
+                            mapLoading = false
+                            mapError = false
+                            map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
+                            map.addMarker(MarkerOptions().position(center).title("Your request location"))
+                        }
                     }
-                }
                 }
             },
             update = { view ->
@@ -271,18 +271,23 @@ fun MapLibrePrivacySafeDonorMap(
                         .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
                         .build()
                 }
-            }
+            },
         )
         when {
             mapLoading -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             ) { RowLoading() }
             mapError -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
             ) {
-                Text("Map preview unavailable. Donor results remain available in the list.", Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "Map preview unavailable. Donor results remain available in the list.",
+                    Modifier.padding(14.dp),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }
