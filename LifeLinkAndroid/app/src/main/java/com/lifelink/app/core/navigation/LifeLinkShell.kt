@@ -32,7 +32,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
@@ -41,6 +43,7 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -94,6 +97,7 @@ import com.lifelink.app.feature.emergencyrequest.EmergencyRequestScreen
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
 import com.lifelink.app.feature.privacy.ConversationScreen
 import com.lifelink.app.feature.privacy.DonorMapScreen
+import com.lifelink.app.feature.privacy.MessagingScreen
 import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
 import com.lifelink.app.feature.updates.UpdatesScreen
@@ -101,7 +105,7 @@ import com.lifelink.app.feature.updates.UpdatesScreen
 private enum class ShellTab(val label: String) {
     HOME("Home"),
     REQUESTS("Requests"),
-    UPDATES("Updates"),
+    MESSAGING("Messaging"),
     PROFILE("Profile"),
 }
 
@@ -147,6 +151,7 @@ fun LifeLinkShell(
     var showActive by rememberSaveable { mutableStateOf(false) }
     var showDonor by rememberSaveable { mutableStateOf(false) }
     var showDonorMap by rememberSaveable { mutableStateOf(false) }
+    var showNotifications by rememberSaveable { mutableStateOf(false) }
     // The in-app conversation was previously unreachable: ConversationScreen and
     // PrivacyViewModel.openConversation existed, but nothing navigated to them.
     // This flag is the single entry point for both the requester (from a contact
@@ -185,7 +190,7 @@ fun LifeLinkShell(
     LaunchedEffect(notificationOpenUpdates) {
         if (notificationOpenUpdates) {
             showStart = false
-            tab = ShellTab.UPDATES
+            showNotifications = true
         }
     }
 
@@ -213,6 +218,22 @@ fun LifeLinkShell(
             currentUserId = accountUserId,
             onAction = onPrivacyAction,
             onBack = { showConversation = false },
+        )
+        return
+    }
+    if (showNotifications) {
+        BackHandler { showNotifications = false }
+        UpdatesScreen(
+            updates = updates,
+            onOpen = { update ->
+                onUpdateRead(update.id)
+                showNotifications = false
+                update.requestId?.let {
+                    onAction(EmergencyRequestAction.OpenRequest(it))
+                    showActive = true
+                }
+            },
+            onMarkAllRead = onMarkAllUpdatesRead,
         )
         return
     }
@@ -266,17 +287,51 @@ fun LifeLinkShell(
         val useRail = windowSize.widthSizeClass != WindowWidthSizeClass.Compact
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                Row(
+                    Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    IconButton(
+                        onClick = { showNotifications = true },
+                        modifier = Modifier.testTag("open-notifications"),
+                    ) {
+                        BadgedBox(badge = {
+                            if (unreadUpdates >
+                                0
+                            ) {
+                                Badge { Text(if (unreadUpdates > 99) "99+" else unreadUpdates.toString()) }
+                            }
+                        }) {
+                            Icon(
+                                Icons.Default.NotificationsNone,
+                                contentDescription = if (unreadUpdates > 0) "$unreadUpdates unread notifications" else "Notifications",
+                            )
+                        }
+                    }
+                }
+            },
             bottomBar = {
                 if (!useRail) {
-                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
-                        ShellTab.entries.forEach { destination ->
-                            NavigationBarItem(
-                                selected = tab == destination,
-                                onClick = { tab = destination },
-                                icon = { ShellNavigationIcon(destination, unreadUpdates) },
-                                label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                modifier = Modifier.testTag("nav-${destination.name}"),
-                            )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        FilledTonalButton(
+                            onClick = { showDonorMap = true },
+                            modifier = Modifier.padding(bottom = 4.dp).testTag("open-fullscreen-donor-map"),
+                        ) {
+                            Icon(Icons.Default.Map, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Find donors on full-screen map")
+                        }
+                        NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+                            ShellTab.entries.forEach { destination ->
+                                NavigationBarItem(
+                                    selected = tab == destination,
+                                    onClick = { tab = destination },
+                                    icon = { ShellNavigationIcon(destination) },
+                                    label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    modifier = Modifier.testTag("nav-${destination.name}"),
+                                )
+                            }
                         }
                     }
                 }
@@ -292,7 +347,7 @@ fun LifeLinkShell(
                             NavigationRailItem(
                                 selected = tab == destination,
                                 onClick = { tab = destination },
-                                icon = { ShellNavigationIcon(destination, unreadUpdates) },
+                                icon = { ShellNavigationIcon(destination) },
                                 label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 modifier = Modifier.testTag("nav-${destination.name}"),
                             )
@@ -311,23 +366,17 @@ fun LifeLinkShell(
                                 }, onDonorMap = { showDonorMap = true }, updates = updates, onRequests = {
                                     tab =
                                         ShellTab.REQUESTS
-                                }, onUpdates = { tab = ShellTab.UPDATES })
+                                }, onUpdates = { showNotifications = true })
                             ShellTab.REQUESTS ->
                                 RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = {
                                     showRequest =
                                         true
                                 }, onActive = { showActive = true })
-                            ShellTab.UPDATES ->
-                                UpdatesScreen(
-                                    updates = updates,
-                                    onOpen = { update ->
-                                        onUpdateRead(update.id)
-                                        update.requestId?.let {
-                                            onAction(EmergencyRequestAction.OpenRequest(it))
-                                            showActive = true
-                                        }
-                                    },
-                                    onMarkAllRead = onMarkAllUpdatesRead,
+                            ShellTab.MESSAGING ->
+                                MessagingScreen(
+                                    state = privacyState,
+                                    onAction = onPrivacyAction,
+                                    onOpenConversation = openConversation,
                                 )
                             ShellTab.PROFILE ->
                                 SettingsContent(
@@ -358,17 +407,15 @@ fun LifeLinkShell(
 
 /** Renders the tab icon and caps the visible unread-update badge at 99+. */
 @Composable
-private fun ShellNavigationIcon(tab: ShellTab, unread: Int) {
+private fun ShellNavigationIcon(tab: ShellTab) {
     val icon =
         when (tab) {
             ShellTab.HOME -> Icons.Default.Home
             ShellTab.REQUESTS -> Icons.AutoMirrored.Filled.Assignment
-            ShellTab.UPDATES -> Icons.Default.NotificationsNone
+            ShellTab.MESSAGING -> Icons.Default.ChatBubbleOutline
             ShellTab.PROFILE -> Icons.Default.Person
         }
-    BadgedBox(badge = { if (tab == ShellTab.UPDATES && unread > 0) Badge { Text(if (unread > 99) "99+" else unread.toString()) } }) {
-        Icon(icon, contentDescription = if (tab == ShellTab.UPDATES && unread > 0) "$unread unread updates" else null)
-    }
+    Icon(icon, contentDescription = null)
 }
 
 /** Shows request history with actions to create, resume, or view the current request. */

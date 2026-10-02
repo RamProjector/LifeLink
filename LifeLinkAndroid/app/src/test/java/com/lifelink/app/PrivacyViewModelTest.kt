@@ -190,6 +190,8 @@ private class ConversationRepositoryFake : PrivacyRepository {
         return open(requestId, donorId)
     }
 
+    override suspend fun conversations(): Result<List<Conversation>> = Result.success(emptyList())
+
     /** Records the history lookup and returns seeded messages or the configured failure. */
     override suspend fun messages(conversationId: String): Result<List<ChatMessage>> {
         messageReads += conversationId

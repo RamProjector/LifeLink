@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.lifelink.app.domain.ChatMessage
 import com.lifelink.app.domain.ContactShare
+import com.lifelink.app.domain.Conversation
 import com.lifelink.app.domain.DonorMap
 import com.lifelink.app.domain.DonorMapVisibility
 import com.lifelink.app.domain.MatchedDonorLocation
@@ -23,6 +24,9 @@ data class PrivacyUiState(
     val matchedLocation: MatchedDonorLocation? = null,
     val locationLoading: Boolean = false,
     val conversationId: String? = null,
+    val conversations: List<Conversation> = emptyList(),
+    val conversationsLoading: Boolean = false,
+    val conversationsError: String? = null,
     val messages: List<ChatMessage> = emptyList(),
     val contactShares: List<ContactShare> = emptyList(),
     val chatLoading: Boolean = false,
@@ -42,6 +46,8 @@ sealed interface PrivacyAction {
     data class RevokeLocationShare(val requestId: String, val donorId: String) : PrivacyAction
 
     data class OpenConversation(val requestId: String, val donorId: String) : PrivacyAction
+
+    data object LoadConversations : PrivacyAction
 
     data class SendMessage(val body: String) : PrivacyAction
 
@@ -79,6 +85,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
             is PrivacyAction.ActivateLocationShare -> activateShare(action.requestId, action.donorId)
             is PrivacyAction.RevokeLocationShare -> revokeShare(action.requestId, action.donorId)
             is PrivacyAction.OpenConversation -> openConversation(action.requestId, action.donorId)
+            PrivacyAction.LoadConversations -> loadConversations()
             is PrivacyAction.SendMessage -> sendMessage(action.body)
             is PrivacyAction.ShareContact -> shareContact(action.field, action.value)
             is PrivacyAction.ReportParticipant -> reportParticipant(action.conversationId, action.reason)
@@ -98,6 +105,22 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                         _state.value.copy(
                             mapLoading = false,
                             mapError = error.message ?: "The donor map could not be loaded.",
+                        )
+                }
+        }
+    }
+
+    private fun loadConversations() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(conversationsLoading = true, conversationsError = null)
+            repository
+                .conversations()
+                .onSuccess { _state.value = _state.value.copy(conversations = it, conversationsLoading = false) }
+                .onFailure { error ->
+                    _state.value =
+                        _state.value.copy(
+                            conversationsLoading = false,
+                            conversationsError = error.message ?: "Messages could not be loaded.",
                         )
                 }
         }
