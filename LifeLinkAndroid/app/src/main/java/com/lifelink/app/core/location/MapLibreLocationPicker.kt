@@ -47,6 +47,7 @@ private const val MAP_LOAD_TIMEOUT_MS = 30_000L
  * supplies the documented Liberty vector-tile style; exact coordinates remain
  * private and only the selected approximate point is sent to LifeLink.
  */
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun MapLibreLocationPicker(
     latitude: Double?,
@@ -137,7 +138,10 @@ fun MapLibreLocationPicker(
                             fun select(position: LatLng) {
                                 appliedLatitude = position.latitude
                                 appliedLongitude = position.longitude
-                                marker?.let { it.position = position; map.updateMarker(it) }
+                                marker?.let {
+                                    it.position = position
+                                    map.updateMarker(it)
+                                }
                                     ?: run {
                                         marker =
                                             map.addMarker(
@@ -167,11 +171,16 @@ fun MapLibreLocationPicker(
                         map.setStyle(OPEN_FREE_MAP_STYLE) { mapLoading = false }
                         retryRequest = 0
                     }
-                    if (target != null && (appliedLatitude != latitude || appliedLongitude != longitude || appliedRecenterRequest != recenterRequest)) {
+                    if (target != null &&
+                        (appliedLatitude != latitude || appliedLongitude != longitude || appliedRecenterRequest != recenterRequest)
+                    ) {
                         appliedLatitude = latitude
                         appliedLongitude = longitude
                         appliedRecenterRequest = recenterRequest
-                        marker?.let { it.position = target; map.updateMarker(it) }
+                        marker?.let {
+                            it.position = target
+                            map.updateMarker(it)
+                        }
                         map.cameraPosition = CameraPosition.Builder()
                             .target(target)
                             .zoom(map.cameraPosition.zoom.coerceAtLeast(12.0))
