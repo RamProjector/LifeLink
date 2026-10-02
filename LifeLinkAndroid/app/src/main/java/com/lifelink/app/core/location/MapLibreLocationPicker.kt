@@ -221,6 +221,7 @@ private fun RowLoading() {
     }
 }
 
+@Suppress("LongMethod")
 @Composable
 fun MapLibrePrivacySafeDonorMap(
     latitude: Double,
