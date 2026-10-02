@@ -45,6 +45,12 @@ from .donor_api import (
     profile_to_out,
 )
 from .donor_repositories import SqlAlchemyDonorStore
+from .donor_profile_api import (
+    DonorAvailabilityToggleIn,
+    DonorProfileMeOut,
+    DonorProfileUpsertIn,
+)
+from .donor_profile_repositories import SqlAlchemyDonorProfileStore
 from .main import Donor
 from .privacy_api import (
     ContactShareIn,
@@ -727,6 +733,87 @@ async def fulfill_emergency_request(
     await SqlAlchemyPrivacyStore(session).expire_shares_for_request(request_id)
     await store.record_audit_async(principal.subject, "request_fulfilled", request_id)
     return RequestActionOut(request_id=record.request_id, status=record.status, reason="Marked fulfilled by requester")
+
+
+# ---------------------------------------------------------------------------
+# Separate donor-profile flow: opt in to donating after account creation.
+#
+# The account identity always comes from the authenticated principal, so a
+# caller can only ever read or write their own donor profile. Matching is
+# delegated to the existing engine; a profile is only matchable when it is
+# verified AND available (see donor_profile_repositories.effective_available).
+# ---------------------------------------------------------------------------
+
+
+@app.put("/v1/donor-profile", response_model=DonorProfileMeOut)
+async def upsert_donor_profile(
+    payload: DonorProfileUpsertIn,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    if principal.subject == "development-user":
+        raise HTTPException(status_code=401, detail="An authenticated user is required")
+    require_verified_email(principal)
+    if payload.blood_type.value == "UNKNOWN":
+        raise HTTPException(status_code=400, detail="Select a confirmed blood type before becoming a donor")
+    await enforce_rate_limit(f"donor-profile-upsert:{principal.subject}", 20, 300)
+    try:
+        profile = await session.get(LifeLinkProfile, principal.subject)
+        if profile is not None:
+            profile.can_donate = True
+        out = await SqlAlchemyDonorProfileStore(session).upsert(principal.subject, payload)
+        return out
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        logger.exception("Donor profile save database failure for operation donor_profile_upsert")
+        raise HTTPException(status_code=503, detail="donor_profile_save_database_failure") from exc
+
+
+@app.get("/v1/donor-profile", response_model=DonorProfileMeOut)
+async def get_donor_profile(
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    if principal.subject == "development-user":
+        raise HTTPException(status_code=401, detail="An authenticated user is required")
+    require_verified_email(principal)
+    row = await SqlAlchemyDonorProfileStore(session).get(principal.subject)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Donor profile not found")
+    donor_row = await SqlAlchemyDonorStore(session).get_by_identity(principal.subject)
+    display_name = donor_row.display_name if donor_row is not None else "LifeLink donor"
+    return SqlAlchemyDonorProfileStore(session).to_out(row, display_name, None)
+
+
+@app.patch("/v1/donor-profile/availability", response_model=DonorProfileMeOut)
+async def toggle_donor_profile_availability(
+    payload: DonorAvailabilityToggleIn,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    if principal.subject == "development-user":
+        raise HTTPException(status_code=401, detail="An authenticated user is required")
+    require_verified_email(principal)
+    await enforce_rate_limit(f"donor-profile-availability:{principal.subject}", 30, 300)
+    try:
+        return await SqlAlchemyDonorProfileStore(session).set_availability(principal.subject, payload.availability_status)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Donor profile not found") from None
+
+
+@app.delete("/v1/donor-profile", status_code=204)
+async def delete_donor_profile(
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    if principal.subject == "development-user":
+        raise HTTPException(status_code=401, detail="An authenticated user is required")
+    require_verified_email(principal)
+    await SqlAlchemyDonorProfileStore(session).delete(principal.subject)
+    profile = await session.get(LifeLinkProfile, principal.subject)
+    if profile is not None:
+        profile.can_donate = False
+        await session.commit()
 
 
 @app.get("/v1/donors/{donor_id}", response_model=DonorProfileOut)

@@ -6,10 +6,8 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
-import kotlinx.coroutines.CancellationException
 import com.google.gson.Gson
 import com.lifelink.app.data.local.ActiveRequestDao
-import com.lifelink.app.data.local.ActiveRequestEntity
 import com.lifelink.app.data.local.EmergencyRequestDraftDao
 import com.lifelink.app.data.local.EmergencyRequestDraftEntity
 import com.lifelink.app.data.local.PendingSubmissionDao
@@ -17,29 +15,31 @@ import com.lifelink.app.data.local.PendingSubmissionEntity
 import com.lifelink.app.data.local.PendingSubmissionWorker
 import com.lifelink.app.data.local.toDomain
 import com.lifelink.app.data.local.toEntity
+import com.lifelink.app.data.remote.ContactModerationRequest
+import com.lifelink.app.data.remote.ContactSelectedDonorsRequest
+import com.lifelink.app.data.remote.ContactSelectedDonorsResponse
+import com.lifelink.app.data.remote.ContactStatusUpdateRequest
+import com.lifelink.app.data.remote.DonorMatchResponse
 import com.lifelink.app.data.remote.EmergencyRequestRequest
 import com.lifelink.app.data.remote.LifeLinkApi
 import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.ActiveRequestStatus
 import com.lifelink.app.domain.ContactMethod
-import com.lifelink.app.domain.DonorRepository
 import com.lifelink.app.domain.DiscoveredDonor
-import com.lifelink.app.data.remote.ContactSelectedDonorsRequest
-import com.lifelink.app.data.remote.ContactSelectedDonorsResponse
-import com.lifelink.app.data.remote.ContactStatusUpdateRequest
-import com.lifelink.app.data.remote.ContactModerationRequest
-import com.lifelink.app.data.remote.DonorMatchResponse
+import com.lifelink.app.domain.DonorProfileRepository
+import com.lifelink.app.domain.DonorRepository
 import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.EmergencyRequestRepository
 import com.lifelink.app.domain.Facility
 import com.lifelink.app.domain.PrivacyRepository
+import com.lifelink.app.domain.RequestHistoryItem
+import com.lifelink.app.domain.RequesterContact
 import com.lifelink.app.domain.SubmitResult
 import com.lifelink.app.domain.Urgency
-import com.lifelink.app.domain.RequesterContact
-import com.lifelink.app.domain.RequestHistoryItem
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -51,7 +51,7 @@ class EmergencyRequestRepositoryImpl(
     private val api: LifeLinkApi,
     private val workManager: WorkManager,
     private val requesterIdProvider: () -> String? = { null },
-    private val networkAvailable: () -> Boolean = { true }
+    private val networkAvailable: () -> Boolean = { true },
 ) : EmergencyRequestRepository {
     override suspend fun saveDraft(draft: EmergencyRequestDraft) = draftDao.upsert(draft.toEntity(requireRequesterId()))
 
@@ -81,7 +81,7 @@ class EmergencyRequestRepositoryImpl(
                 area = item.area,
                 notificationsCreated = item.notificationsCreated,
                 matchesResponded = item.matchesResponded,
-                contactStatuses = item.contactStatuses
+                contactStatuses = item.contactStatuses,
             )
         }
         // Logout clears local account data. Restore a submitted request from this
@@ -91,14 +91,16 @@ class EmergencyRequestRepositoryImpl(
                 it.status !in setOf(ActiveRequestStatus.FULFILLED, ActiveRequestStatus.EXPIRED, ActiveRequestStatus.CANCELLED)
             } ?: history.firstOrNull()
             request?.let {
-                activeRequestDao.upsert(ActiveRequestSnapshot(
-                    requestId = it.requestId,
-                    status = it.status,
-                    notificationsCreated = it.notificationsCreated,
-                    matchesResponded = it.matchesResponded,
-                    // A request submitted during this fetch remains the latest.
-                    lastUpdatedEpochMillis = refreshStarted
-                ).toEntity(ownerId))
+                activeRequestDao.upsert(
+                    ActiveRequestSnapshot(
+                        requestId = it.requestId,
+                        status = it.status,
+                        notificationsCreated = it.notificationsCreated,
+                        matchesResponded = it.matchesResponded,
+                        // A request submitted during this fetch remains the latest.
+                        lastUpdatedEpochMillis = refreshStarted,
+                    ).toEntity(ownerId),
+                )
             }
         }
         history
@@ -123,28 +125,50 @@ class EmergencyRequestRepositoryImpl(
         try {
             val response = api.submitEmergencyRequest(draft.id, EmergencyRequestRequest.from(draft, requesterIdProvider()))
             if (!response.isSuccessful) {
-                SubmitResult.Error(serverError(response.code(), response.errorBody()?.string()), retryable = response.code() == 408 || response.code() == 429 || response.code() >= 500)
+                SubmitResult.Error(
+                    serverError(response.code(), response.errorBody()?.string()),
+                    retryable =
+                    response.code() == 408 || response.code() == 429 || response.code() >= 500,
+                )
             } else {
                 val body = response.body()
                 if (body == null) {
                     SubmitResult.Error("The server returned an empty response. Your draft is still saved.")
                 } else if (body.status.equals("manual_broadcast", ignoreCase = true)) {
-                    val fallback = SubmitResult.ManualFallback(body.requestId, body.reason ?: "Automatic matching is unavailable for this request.")
-                    activeRequestDao.upsert(ActiveRequestSnapshot(body.requestId, ActiveRequestStatus.MANUAL_BROADCAST, reason = body.reason).toEntity(requireRequesterId()))
+                    val fallback = SubmitResult.ManualFallback(
+                        body.requestId,
+                        body.reason ?: "Automatic matching is unavailable for this request.",
+                    )
+                    activeRequestDao.upsert(
+                        ActiveRequestSnapshot(
+                            body.requestId,
+                            ActiveRequestStatus.MANUAL_BROADCAST,
+                            reason = body.reason,
+                        ).toEntity(requireRequesterId()),
+                    )
                     pendingSubmissionDao.delete(requireRequesterId(), draft.id)
                     fallback
                 } else {
-                    activeRequestDao.upsert(ActiveRequestSnapshot(body.requestId, ActiveRequestStatus.AWAITING_RESPONSES, body.notificationsCreated).toEntity(requireRequesterId()))
+                    activeRequestDao.upsert(
+                        ActiveRequestSnapshot(
+                            body.requestId,
+                            ActiveRequestStatus.AWAITING_RESPONSES,
+                            body.notificationsCreated,
+                        ).toEntity(requireRequesterId()),
+                    )
                     pendingSubmissionDao.delete(requireRequesterId(), draft.id)
                     SubmitResult.MatchingStarted(
                         body.requestId,
-                        body.matches.map { it.toDiscoveredDonor() }
+                        body.matches.map { it.toDiscoveredDonor() },
                     )
                 }
             }
         } catch (_: IOException) {
             if (networkAvailable()) {
-                SubmitResult.Error("LifeLink is taking longer than expected to respond. Your draft is saved; please retry in a moment.", retryable = true)
+                SubmitResult.Error(
+                    "LifeLink is taking longer than expected to respond. Your draft is saved; please retry in a moment.",
+                    retryable = true,
+                )
             } else {
                 queueForRetry(draft)
                 SubmitResult.OfflineQueued(draft.id)
@@ -160,9 +184,13 @@ class EmergencyRequestRepositoryImpl(
         try {
             val response = api.sendManualBroadcast(requestId)
             if (response.isSuccessful) {
-                activeRequestDao.upsert(ActiveRequestSnapshot(requestId, ActiveRequestStatus.AWAITING_RESPONSES).toEntity(requireRequesterId()))
+                activeRequestDao.upsert(
+                    ActiveRequestSnapshot(requestId, ActiveRequestStatus.AWAITING_RESPONSES).toEntity(requireRequesterId()),
+                )
                 SubmitResult.MatchingStarted(response.body()?.requestId ?: requestId)
-            } else SubmitResult.Error("Manual broadcast could not be sent (${response.code()}).")
+            } else {
+                SubmitResult.Error("Manual broadcast could not be sent (${response.code()}).")
+            }
         } catch (_: IOException) {
             SubmitResult.Error("You’re offline. No manual broadcast was sent.")
         } catch (cancelled: CancellationException) {
@@ -185,8 +213,9 @@ class EmergencyRequestRepositoryImpl(
                 } else {
                     SubmitResult.ContactRequested(body.requestId, body.donorIds)
                 }
+            } else {
+                SubmitResult.Error("Selected donors could not be contacted (${response.code()}).")
             }
-            else SubmitResult.Error("Selected donors could not be contacted (${response.code()}).")
         } catch (_: IOException) {
             SubmitResult.Error("You’re offline. No donor contact request was sent.")
         } catch (cancelled: CancellationException) {
@@ -212,10 +241,18 @@ class EmergencyRequestRepositoryImpl(
         }
     }
 
-    override suspend fun updateContactStatus(requestId: String, donorId: String, status: String): RequesterContact = withContext(Dispatchers.IO) {
+    override suspend fun updateContactStatus(requestId: String, donorId: String, status: String): RequesterContact = withContext(
+        Dispatchers.IO,
+    ) {
         val response = api.updateContactStatus(requestId, donorId, ContactStatusUpdateRequest(status))
-        if (!response.isSuccessful || response.body() == null) throw IOException("Contact status could not be updated (${response.code()}).")
-        response.body()!!.let { RequesterContact(it.donorId, it.displayName, it.status, it.acceptedAt, it.contactSharedAt, it.updatedAt, it.contactEmail) }
+        if (!response.isSuccessful ||
+            response.body() == null
+        ) {
+            throw IOException("Contact status could not be updated (${response.code()}).")
+        }
+        response.body()!!.let {
+            RequesterContact(it.donorId, it.displayName, it.status, it.acceptedAt, it.contactSharedAt, it.updatedAt, it.contactEmail)
+        }
     }
 
     override suspend fun reportContact(requestId: String, donorId: String, reason: String): String = withContext(Dispatchers.IO) {
@@ -238,11 +275,13 @@ class EmergencyRequestRepositoryImpl(
                     ActiveRequestSnapshot(
                         requestId = requestId,
                         status = ActiveRequestStatus.CANCELLED,
-                        reason = response.body()?.reason ?: "Cancelled by coordinator"
-                    ).toEntity(requireRequesterId())
+                        reason = response.body()?.reason ?: "Cancelled by coordinator",
+                    ).toEntity(requireRequesterId()),
                 )
                 SubmitResult.Cancelled(requestId)
-            } else SubmitResult.Error("The request could not be cancelled (${response.code()}).")
+            } else {
+                SubmitResult.Error("The request could not be cancelled (${response.code()}).")
+            }
         } catch (_: IOException) {
             SubmitResult.Error("You’re offline. The request is still active.")
         } catch (cancelled: CancellationException) {
@@ -256,9 +295,17 @@ class EmergencyRequestRepositoryImpl(
         try {
             val response = api.fulfillEmergencyRequest(requestId)
             if (response.isSuccessful) {
-                activeRequestDao.upsert(ActiveRequestSnapshot(requestId, ActiveRequestStatus.FULFILLED, reason = response.body()?.reason).toEntity(requireRequesterId()))
+                activeRequestDao.upsert(
+                    ActiveRequestSnapshot(
+                        requestId,
+                        ActiveRequestStatus.FULFILLED,
+                        reason = response.body()?.reason,
+                    ).toEntity(requireRequesterId()),
+                )
                 SubmitResult.Fulfilled(requestId)
-            } else SubmitResult.Error("The request could not be marked fulfilled (${response.code()}).")
+            } else {
+                SubmitResult.Error("The request could not be marked fulfilled (${response.code()}).")
+            }
         } catch (_: IOException) {
             SubmitResult.Error("You’re offline. The request is still active.")
         } catch (cancelled: CancellationException) {
@@ -269,17 +316,22 @@ class EmergencyRequestRepositoryImpl(
     }
 
     private suspend fun queueForRetry(draft: EmergencyRequestDraft) {
-        pendingSubmissionDao.upsert(PendingSubmissionEntity(ownerId = requireRequesterId(), id = draft.id, payloadJson = Gson().toJson(draft)))
+        pendingSubmissionDao.upsert(
+            PendingSubmissionEntity(ownerId = requireRequesterId(), id = draft.id, payloadJson = Gson().toJson(draft)),
+        )
         val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
         val work = OneTimeWorkRequestBuilder<PendingSubmissionWorker>()
             .setConstraints(constraints)
-            .setInputData(workDataOf(PendingSubmissionWorker.OWNER_ID to requireRequesterId(), PendingSubmissionWorker.DRAFT_ID to draft.id))
+            .setInputData(
+                workDataOf(PendingSubmissionWorker.OWNER_ID to requireRequesterId(), PendingSubmissionWorker.DRAFT_ID to draft.id),
+            )
             .addTag("lifelink-account-${requireRequesterId()}")
             .build()
         workManager.enqueueUniqueWork("lifelink-submit-${requireRequesterId()}-${draft.id}", ExistingWorkPolicy.KEEP, work)
     }
 
-    private fun requireRequesterId(): String = requesterIdProvider()?.takeIf { it.isNotBlank() } ?: error("Sign in before using emergency requests.")
+    private fun requireRequesterId(): String =
+        requesterIdProvider()?.takeIf { it.isNotBlank() } ?: error("Sign in before using emergency requests.")
 
     private fun serverError(code: Int, body: String?): String {
         val detail = body?.let {
@@ -299,8 +351,9 @@ class LifeLinkAccountContainer(
     val api: LifeLinkApi,
     val emergencyRequestRepository: EmergencyRequestRepository,
     val donorRepository: DonorRepository,
+    val donorProfileRepository: DonorProfileRepository,
     val updatesRepository: UpdatesRepository,
-    val privacyRepository: PrivacyRepository
+    val privacyRepository: PrivacyRepository,
 )
 
 private fun EmergencyRequestDraft.toEntity(ownerId: String) = EmergencyRequestDraftEntity(
@@ -312,17 +365,21 @@ private fun EmergencyRequestDraft.toEntity(ownerId: String) = EmergencyRequestDr
     locationPrecisionMeters = locationPrecisionMeters,
     genuineRequestConfirmed = genuineRequestConfirmed, sharingConsentConfirmed = sharingConsentConfirmed,
     aiMatchingEnabled = aiMatchingEnabled,
-    updatedAtEpochMillis = System.currentTimeMillis()
+    updatedAtEpochMillis = System.currentTimeMillis(),
 )
 
 private fun EmergencyRequestDraftEntity.toDomain() = EmergencyRequestDraft(
-    id = id, bloodType = bloodType?.let { runCatching { com.lifelink.app.domain.BloodType.valueOf(it) }.getOrNull() }, units = units, typeUnknown = typeUnknown,
+    id = id,
+    bloodType = bloodType?.let {
+        runCatching { com.lifelink.app.domain.BloodType.valueOf(it) }.getOrNull()
+    },
+    units = units, typeUnknown = typeUnknown,
     urgency = enumValueOf<Urgency>(urgency), responseDeadline = responseDeadline, note = note,
     facility = facilityId?.let { Facility(it, facilityName.orEmpty(), facilityArea.orEmpty(), facilityVerified) },
     requesterLatitude = requesterLatitude, requesterLongitude = requesterLongitude,
     locationPrecisionMeters = locationPrecisionMeters,
     contactMethod = enumValueOf<ContactMethod>(contactMethod), genuineRequestConfirmed = genuineRequestConfirmed,
-    sharingConsentConfirmed = sharingConsentConfirmed, aiMatchingEnabled = aiMatchingEnabled
+    sharingConsentConfirmed = sharingConsentConfirmed, aiMatchingEnabled = aiMatchingEnabled,
 )
 
 private fun com.lifelink.app.data.remote.EmergencyRequestStatusResponse.toSnapshot() = ActiveRequestSnapshot(
@@ -330,7 +387,7 @@ private fun com.lifelink.app.data.remote.EmergencyRequestStatusResponse.toSnapsh
     status = runCatching { ActiveRequestStatus.valueOf(status.uppercase()) }.getOrDefault(ActiveRequestStatus.MATCHING),
     notificationsCreated = notificationsCreated,
     matchesResponded = matchesResponded,
-    reason = reason
+    reason = reason,
 )
 
 private fun DonorMatchResponse.toDiscoveredDonor() = DiscoveredDonor(
@@ -340,5 +397,5 @@ private fun DonorMatchResponse.toDiscoveredDonor() = DiscoveredDonor(
     distanceKm = distanceKm,
     travelMinutes = travelMinutes,
     score = score,
-    explanation = explanation?.factors.orEmpty()
+    explanation = explanation?.factors.orEmpty(),
 )

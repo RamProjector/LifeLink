@@ -37,6 +37,7 @@ SQL_DIR = REPO_ROOT / "lifelink_fastapi" / "sql"
 BACKEND_ONLY_TABLES: dict[str, str] = {
     "facilities": "Reference data; read-only through the API, never queried by a client role.",
     "donors": "Donor rows are matched and filtered server-side; a client role must never read them directly.",
+    "donor_profiles": "Opt-in donor profiles; the API resolves them from the verified JWT subject and never exposes them to a client role.",
     "emergency_requests": "Requester-owned; the API scopes every read/write by authenticated subject.",
     "request_matches": "Derived matching state; only the API's matching engine writes it.",
     "pending_submissions": "Transient draft state owned by the API.",
