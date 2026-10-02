@@ -138,7 +138,12 @@ fun MapLibreLocationPicker(
                             appliedLatitude = position.latitude
                             appliedLongitude = position.longitude
                             marker?.let { it.position = position; map.updateMarker(it) }
-                                ?: run { marker = map.addMarker(MarkerOptions().position(position).title("Selected approximate location")) }
+                                ?: run {
+                                    marker =
+                                        map.addMarker(
+                                            MarkerOptions().position(position).title("Selected approximate location"),
+                                        )
+                                }
                             onLocationSelected(position.latitude, position.longitude)
                         }
                         map.addOnMapClickListener { position ->
