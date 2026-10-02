@@ -66,6 +66,18 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      - name: Validate LifeLink build configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_supabase_url="https://nphbhlxnujmylhubzmne.supabase.co"
+          expected_api_url="https://lifelink-api-uzje.onrender.com/"
+          [[ -n "$SUPABASE_URL_VALUE" ]] || { echo "::error::Missing SUPABASE_URL repository secret."; exit 1; }
+          [[ -n "$SUPABASE_KEY_VALUE" ]] || { echo "::error::Missing SUPABASE_PUBLISHABLE_KEY repository secret."; exit 1; }
+          [[ "$SUPABASE_URL_VALUE" == "$expected_supabase_url" ]] || { echo "::error::SUPABASE_URL must be $expected_supabase_url."; exit 1; }
+          [[ "$API_BASE_URL" == "$expected_api_url" ]] || { echo "::error::API_BASE_URL must be $expected_api_url."; exit 1; }
+          echo "Validated LifeLink API and Supabase build configuration."
+
       - name: Restore stable debug signing key
         if: ${{ env.LIFELINK_DEBUG_KEYSTORE_BASE64 != '' }}
         run: echo "$LIFELINK_DEBUG_KEYSTORE_BASE64" | base64 --decode > app/stable-debug.keystore
