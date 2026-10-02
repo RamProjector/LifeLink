@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
+import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.domain.DonorMapArea
 
 /**
@@ -73,11 +74,7 @@ fun DonorMapScreen(
             }
         }
         if (state.mapLoading) {
-            item {
-                Row(Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.Center) {
-                    CircularProgressIndicator()
-                }
-            }
+            item { LifeLinkLoadingIndicator(label = "Loading donor areas…") }
         }
         val areas = state.map?.areas.orEmpty()
         if (!state.mapLoading && state.mapError == null && areas.isEmpty()) {
