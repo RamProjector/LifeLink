@@ -42,7 +42,7 @@ from .main import (
 logger = logging.getLogger("lifelink.repositories")
 
 
-def _enum_value(value):
+def _enum_value(value: object) -> object:
     """Enum column values are members when loaded but plain strings on rows changed in-session."""
     return getattr(value, "value", value)
 
