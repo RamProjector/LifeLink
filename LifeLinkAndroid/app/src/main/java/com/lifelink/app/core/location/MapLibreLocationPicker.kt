@@ -122,10 +122,12 @@ fun MapLibreLocationPicker(
                         mapError = null
                         onLoadingChanged(false)
                         val currentPosition = latestLatitude?.let { lat -> latestLongitude?.let { lon -> LatLng(lat, lon) } }
-                        map.cameraPosition = CameraPosition.Builder()
-                            .target(currentPosition ?: LatLng(0.0, 0.0))
-                            .zoom(if (currentPosition == null) 2.0 else 15.0)
-                            .build()
+                        currentPosition?.let { position ->
+                            map.cameraPosition = CameraPosition.Builder()
+                                .target(position)
+                                .zoom(15.0)
+                                .build()
+                        }
                         appliedLatitude = latestLatitude
                         appliedLongitude = latestLongitude
                         appliedRecenterRequest = recenterRequest
