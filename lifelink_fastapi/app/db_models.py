@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any
@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -154,6 +155,43 @@ class Donor(Base):
     __table_args__ = (
         Index("ix_donors_active_blood_type", "available", "verified", "blood_type"),
         Index("ix_donors_availability_updated_at", "availability_updated_at"),
+    )
+
+
+class DonorProfile(Base):
+    """Opt-in donor profile, decoupled from account creation.
+
+    A user creates a normal account first and then opts in to donating. This
+    row is the canonical opt-in record keyed by the account (``user_id``); the
+    operational ``donors`` row the matching engine reads is kept in sync by the
+    donor-profile store so matching logic is not duplicated.
+
+    ``verified`` is server-controlled: a client can never mark itself verified,
+    and matching only ever considers verified + available profiles.
+    """
+
+    __tablename__ = "donor_profiles"
+
+    user_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    donor_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    blood_type: Mapped[BloodTypeEnum] = mapped_column(
+        SqlEnum(BloodTypeEnum, name="blood_type_enum", native_enum=True, values_callable=enum_values), nullable=False
+    )
+    latitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
+    longitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
+    area: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    availability_status: Mapped[str] = mapped_column(String(16), nullable=False, default="offline")
+    last_donation_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    notifications_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    service_radius_km: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False, default=15)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_donor_profiles_availability", "availability_status", "verified"),
     )
 
 

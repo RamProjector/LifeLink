@@ -42,6 +42,8 @@ import com.lifelink.app.feature.auth.AuthScreen
 import com.lifelink.app.feature.auth.AuthState
 import com.lifelink.app.feature.auth.AuthViewModel
 import com.lifelink.app.feature.auth.AuthViewModelFactory
+import com.lifelink.app.feature.donor.BecomeDonorViewModel
+import com.lifelink.app.feature.donor.BecomeDonorViewModelFactory
 import com.lifelink.app.feature.donor.DonorViewModel
 import com.lifelink.app.feature.donor.DonorViewModelFactory
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestViewModel
@@ -202,6 +204,13 @@ class MainActivity : ComponentActivity() {
                         ),
                     )
                 val donorState by donorViewModel.state.collectAsStateWithLifecycle()
+                val becomeDonorViewModel: BecomeDonorViewModel =
+                    viewModel(
+                        viewModelStoreOwner = accountModels,
+                        key = "become-donor-$accountUserId",
+                        factory = BecomeDonorViewModelFactory(account.donorProfileRepository),
+                    )
+                val becomeDonorState by becomeDonorViewModel.state.collectAsStateWithLifecycle()
                 val privacyViewModel: PrivacyViewModel =
                     viewModel(
                         viewModelStoreOwner = accountModels,
@@ -261,6 +270,8 @@ class MainActivity : ComponentActivity() {
                     onAction = viewModel::onAction,
                     donorState = donorState,
                     onDonorAction = donorViewModel::onAction,
+                    becomeDonorState = becomeDonorState,
+                    onBecomeDonorAction = becomeDonorViewModel::onAction,
                     privacyState = privacyState,
                     onPrivacyAction = privacyViewModel::onAction,
                     role = role ?: UserRole.REQUESTER,
