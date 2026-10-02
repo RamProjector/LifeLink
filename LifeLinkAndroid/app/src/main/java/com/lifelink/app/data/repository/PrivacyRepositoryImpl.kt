@@ -126,6 +126,24 @@ class PrivacyRepositoryImpl(private val api: LifeLinkApi, private val donorIdPro
             }
         }
 
+    override suspend fun conversations(): Result<List<Conversation>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response = api.listConversations()
+                check(response.isSuccessful) { "Conversations could not be loaded (${response.code()})." }
+                checkNotNull(response.body()).map {
+                    Conversation(
+                        conversationId = it.conversationId,
+                        requestId = it.requestId,
+                        donorId = it.donorId,
+                        requesterId = it.requesterId,
+                        lastMessageAt = it.lastMessageAt,
+                        createdAt = it.createdAt,
+                    )
+                }
+            }
+        }
+
     override suspend fun messages(conversationId: String): Result<List<ChatMessage>> =
         withContext(Dispatchers.IO) {
             runCatching {

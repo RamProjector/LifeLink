@@ -32,7 +32,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
@@ -41,6 +43,7 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -86,6 +89,9 @@ import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.domain.UpdateItem
 import com.lifelink.app.feature.activeRequest.ActiveRequestScreen
+import com.lifelink.app.feature.donor.BecomeDonorAction
+import com.lifelink.app.feature.donor.BecomeDonorScreen
+import com.lifelink.app.feature.donor.BecomeDonorUiState
 import com.lifelink.app.feature.donor.DonorAction
 import com.lifelink.app.feature.donor.DonorScreen
 import com.lifelink.app.feature.donor.DonorUiState
@@ -94,6 +100,7 @@ import com.lifelink.app.feature.emergencyrequest.EmergencyRequestScreen
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
 import com.lifelink.app.feature.privacy.ConversationScreen
 import com.lifelink.app.feature.privacy.DonorMapScreen
+import com.lifelink.app.feature.privacy.MessagingScreen
 import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
 import com.lifelink.app.feature.updates.UpdatesScreen
@@ -101,7 +108,7 @@ import com.lifelink.app.feature.updates.UpdatesScreen
 private enum class ShellTab(val label: String) {
     HOME("Home"),
     REQUESTS("Requests"),
-    UPDATES("Updates"),
+    MESSAGING("Messaging"),
     PROFILE("Profile"),
 }
 
@@ -121,6 +128,8 @@ fun LifeLinkShell(
     onAction: (EmergencyRequestAction) -> Unit,
     donorState: DonorUiState,
     onDonorAction: (DonorAction) -> Unit,
+    becomeDonorState: BecomeDonorUiState,
+    onBecomeDonorAction: (BecomeDonorAction) -> Unit,
     privacyState: PrivacyUiState,
     onPrivacyAction: (PrivacyAction) -> Unit,
     role: UserRole,
@@ -146,7 +155,10 @@ fun LifeLinkShell(
     var showRequest by rememberSaveable { mutableStateOf(false) }
     var showActive by rememberSaveable { mutableStateOf(false) }
     var showDonor by rememberSaveable { mutableStateOf(false) }
+    // Separate donor-profile flow: opt in to donating after account creation.
+    var showBecomeDonor by rememberSaveable { mutableStateOf(false) }
     var showDonorMap by rememberSaveable { mutableStateOf(false) }
+    var showNotifications by rememberSaveable { mutableStateOf(false) }
     // The in-app conversation was previously unreachable: ConversationScreen and
     // PrivacyViewModel.openConversation existed, but nothing navigated to them.
     // This flag is the single entry point for both the requester (from a contact
@@ -185,7 +197,7 @@ fun LifeLinkShell(
     LaunchedEffect(notificationOpenUpdates) {
         if (notificationOpenUpdates) {
             showStart = false
-            tab = ShellTab.UPDATES
+            showNotifications = true
         }
     }
 
@@ -216,6 +228,22 @@ fun LifeLinkShell(
         )
         return
     }
+    if (showNotifications) {
+        BackHandler { showNotifications = false }
+        UpdatesScreen(
+            updates = updates,
+            onOpen = { update ->
+                onUpdateRead(update.id)
+                showNotifications = false
+                update.requestId?.let {
+                    onAction(EmergencyRequestAction.OpenRequest(it))
+                    showActive = true
+                }
+            },
+            onMarkAllRead = onMarkAllUpdatesRead,
+        )
+        return
+    }
     if (showRequest) {
         EmergencyRequestScreen(
             state = state,
@@ -243,6 +271,15 @@ fun LifeLinkShell(
         )
         return
     }
+    if (showBecomeDonor) {
+        BackHandler { showBecomeDonor = false }
+        BecomeDonorScreen(
+            state = becomeDonorState,
+            onAction = onBecomeDonorAction,
+            onBack = { showBecomeDonor = false },
+        )
+        return
+    }
     if (showDonor) {
         BackHandler { showDonor = false }
         DonorScreen(
@@ -266,17 +303,51 @@ fun LifeLinkShell(
         val useRail = windowSize.widthSizeClass != WindowWidthSizeClass.Compact
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                Row(
+                    Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    IconButton(
+                        onClick = { showNotifications = true },
+                        modifier = Modifier.testTag("open-notifications"),
+                    ) {
+                        BadgedBox(badge = {
+                            if (unreadUpdates >
+                                0
+                            ) {
+                                Badge { Text(if (unreadUpdates > 99) "99+" else unreadUpdates.toString()) }
+                            }
+                        }) {
+                            Icon(
+                                Icons.Default.NotificationsNone,
+                                contentDescription = if (unreadUpdates > 0) "$unreadUpdates unread notifications" else "Notifications",
+                            )
+                        }
+                    }
+                }
+            },
             bottomBar = {
                 if (!useRail) {
-                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
-                        ShellTab.entries.forEach { destination ->
-                            NavigationBarItem(
-                                selected = tab == destination,
-                                onClick = { tab = destination },
-                                icon = { ShellNavigationIcon(destination, unreadUpdates) },
-                                label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                modifier = Modifier.testTag("nav-${destination.name}"),
-                            )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        FilledTonalButton(
+                            onClick = { showDonorMap = true },
+                            modifier = Modifier.padding(bottom = 4.dp).testTag("open-fullscreen-donor-map"),
+                        ) {
+                            Icon(Icons.Default.Map, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Find donors on full-screen map")
+                        }
+                        NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+                            ShellTab.entries.forEach { destination ->
+                                NavigationBarItem(
+                                    selected = tab == destination,
+                                    onClick = { tab = destination },
+                                    icon = { ShellNavigationIcon(destination) },
+                                    label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    modifier = Modifier.testTag("nav-${destination.name}"),
+                                )
+                            }
                         }
                     }
                 }
@@ -292,7 +363,7 @@ fun LifeLinkShell(
                             NavigationRailItem(
                                 selected = tab == destination,
                                 onClick = { tab = destination },
-                                icon = { ShellNavigationIcon(destination, unreadUpdates) },
+                                icon = { ShellNavigationIcon(destination) },
                                 label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 modifier = Modifier.testTag("nav-${destination.name}"),
                             )
@@ -311,23 +382,17 @@ fun LifeLinkShell(
                                 }, onDonorMap = { showDonorMap = true }, updates = updates, onRequests = {
                                     tab =
                                         ShellTab.REQUESTS
-                                }, onUpdates = { tab = ShellTab.UPDATES })
+                                }, onUpdates = { showNotifications = true })
                             ShellTab.REQUESTS ->
                                 RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = {
                                     showRequest =
                                         true
                                 }, onActive = { showActive = true })
-                            ShellTab.UPDATES ->
-                                UpdatesScreen(
-                                    updates = updates,
-                                    onOpen = { update ->
-                                        onUpdateRead(update.id)
-                                        update.requestId?.let {
-                                            onAction(EmergencyRequestAction.OpenRequest(it))
-                                            showActive = true
-                                        }
-                                    },
-                                    onMarkAllRead = onMarkAllUpdatesRead,
+                            ShellTab.MESSAGING ->
+                                MessagingScreen(
+                                    state = privacyState,
+                                    onAction = onPrivacyAction,
+                                    onOpenConversation = openConversation,
                                 )
                             ShellTab.PROFILE ->
                                 SettingsContent(
@@ -346,6 +411,11 @@ fun LifeLinkShell(
                                             false
                                         ; showDonor = true
                                     },
+                                    {
+                                        showStart =
+                                            false
+                                        ; showBecomeDonor = true
+                                    },
                                     onSignOut,
                                 )
                         }
@@ -358,17 +428,15 @@ fun LifeLinkShell(
 
 /** Renders the tab icon and caps the visible unread-update badge at 99+. */
 @Composable
-private fun ShellNavigationIcon(tab: ShellTab, unread: Int) {
+private fun ShellNavigationIcon(tab: ShellTab) {
     val icon =
         when (tab) {
             ShellTab.HOME -> Icons.Default.Home
             ShellTab.REQUESTS -> Icons.AutoMirrored.Filled.Assignment
-            ShellTab.UPDATES -> Icons.Default.NotificationsNone
+            ShellTab.MESSAGING -> Icons.Default.ChatBubbleOutline
             ShellTab.PROFILE -> Icons.Default.Person
         }
-    BadgedBox(badge = { if (tab == ShellTab.UPDATES && unread > 0) Badge { Text(if (unread > 99) "99+" else unread.toString()) } }) {
-        Icon(icon, contentDescription = if (tab == ShellTab.UPDATES && unread > 0) "$unread unread updates" else null)
-    }
+    Icon(icon, contentDescription = null)
 }
 
 /** Shows request history with actions to create, resume, or view the current request. */
@@ -838,6 +906,7 @@ private fun StartContent(
     onThemeModeChange: (ThemeMode) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
     onOpenDonor: () -> Unit,
+    onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     var section by rememberSaveable { mutableStateOf(SettingsSection.PROFILE) }
@@ -879,6 +948,7 @@ private fun StartContent(
                     profileMessage,
                     onSaveProfile,
                     onOpenDonor,
+                    onBecomeDonor,
                     onSignOut,
                 )
             SettingsSection.LEGAL -> LegalContent()
@@ -1097,6 +1167,7 @@ private fun StartContent(
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
     onOpenDonor: () -> Unit,
+    onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     var displayName by rememberSaveable(accountDisplayName) { mutableStateOf(accountDisplayName) }
@@ -1191,6 +1262,12 @@ private fun StartContent(
                 OutlinedButton(onClick = onOpenDonor, modifier = Modifier.fillMaxWidth()) {
                     Text(if (role == UserRole.DONOR) "Open donor workspace" else "Become a donor")
                 }
+                // Separate donor-profile flow: opt in to donating after account
+                // creation, without touching the signup form.
+                Button(
+                    onClick = onBecomeDonor,
+                    modifier = Modifier.fillMaxWidth().testTag("open-become-donor"),
+                ) { Text("Set up donor profile") }
             }
         }
         Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {

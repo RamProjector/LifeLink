@@ -123,6 +123,24 @@ interface LifeLinkApi {
         @Body response: DonorResponseRequest,
     ): Response<DonorResponseResponse>
 
+    // --- Separate donor-profile flow: opt in to donating after account creation ---
+
+    @PUT("v1/donor-profile")
+    suspend fun upsertDonorProfile(
+        @Body profile: DonorProfileMeRequest,
+    ): Response<DonorProfileMeResponse>
+
+    @GET("v1/donor-profile")
+    suspend fun getDonorProfileMe(): Response<DonorProfileMeResponse>
+
+    @PATCH("v1/donor-profile/availability")
+    suspend fun toggleDonorProfileAvailability(
+        @Body request: DonorAvailabilityToggleRequest,
+    ): Response<DonorProfileMeResponse>
+
+    @DELETE("v1/donor-profile")
+    suspend fun deleteDonorProfile(): Response<Unit>
+
     @GET("v1/donor-map")
     suspend fun donorMap(): Response<DonorMapResponse>
 
@@ -401,6 +419,43 @@ data class DonorResponseResponse(
     @SerializedName("request_id") val requestId: String,
     @SerializedName("donor_id") val donorId: String,
     val response: String,
+)
+
+// --- Separate donor-profile flow: opt in to donating after account creation ---
+
+data class DonorProfileMeRequest(
+    @SerializedName("blood_type") val bloodType: String,
+    val latitude: Double,
+    val longitude: Double,
+    val area: String = "",
+    @SerializedName("service_radius_km") val serviceRadiusKm: Double = 15.0,
+    @SerializedName("availability_status") val availabilityStatus: String = "offline",
+    @SerializedName("last_donation_date") val lastDonationDate: String? = null,
+    @SerializedName("notifications_enabled") val notificationsEnabled: Boolean = true,
+    @SerializedName("display_name") val displayName: String? = null,
+    @SerializedName("donor_note") val donorNote: String = "",
+    @SerializedName("preferred_contact_method") val preferredContactMethod: String = "in_app",
+    @SerializedName("profile_visible") val profileVisible: Boolean = true,
+)
+
+data class DonorAvailabilityToggleRequest(@SerializedName("availability_status") val availabilityStatus: String)
+
+data class DonorProfileMeResponse(
+    @SerializedName("user_id") val userId: String,
+    @SerializedName("donor_id") val donorId: String,
+    @SerializedName("blood_type") val bloodType: String,
+    val latitude: Double,
+    val longitude: Double,
+    val area: String = "",
+    @SerializedName("service_radius_km") val serviceRadiusKm: Double = 15.0,
+    @SerializedName("availability_status") val availabilityStatus: String = "offline",
+    @SerializedName("last_donation_date") val lastDonationDate: String? = null,
+    val verified: Boolean = false,
+    @SerializedName("notifications_enabled") val notificationsEnabled: Boolean = true,
+    @SerializedName("display_name") val displayName: String = "",
+    @SerializedName("donor_note") val donorNote: String = "",
+    @SerializedName("preferred_contact_method") val preferredContactMethod: String = "in_app",
+    @SerializedName("profile_visible") val profileVisible: Boolean = true,
 )
 
 // --- Donor map, matched-requester exact location, chat, and contact sharing ---

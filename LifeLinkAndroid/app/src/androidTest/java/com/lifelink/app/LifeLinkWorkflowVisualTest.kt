@@ -3,23 +3,23 @@ package com.lifelink.app
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
-import androidx.compose.ui.test.hasText
-import com.lifelink.app.core.ui.theme.ThemeMode
-import com.lifelink.app.domain.RequestHistoryItem
-import com.lifelink.app.domain.ActiveRequestStatus
-import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
-import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
+import com.lifelink.app.core.ui.theme.ThemeMode
+import com.lifelink.app.domain.ActiveRequestStatus
+import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.feature.donor.DonorUiState
+import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,7 +33,7 @@ class LifeLinkWorkflowVisualTest {
         state: EmergencyRequestUiState = EmergencyRequestUiState(),
         updates: List<com.lifelink.app.domain.UpdateItem> = emptyList(),
         role: UserRole = UserRole.REQUESTER,
-        onAction: (com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction) -> Unit = {}
+        onAction: (com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction) -> Unit = {},
     ) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.getSharedPreferences("lifelink_welcome", 0)
@@ -49,6 +49,8 @@ class LifeLinkWorkflowVisualTest {
                         onAction = onAction,
                         donorState = DonorUiState(),
                         onDonorAction = {},
+                        becomeDonorState = com.lifelink.app.feature.donor.BecomeDonorUiState(loading = false),
+                        onBecomeDonorAction = {},
                         privacyState = com.lifelink.app.feature.privacy.PrivacyUiState(),
                         onPrivacyAction = {},
                         role = role,
@@ -65,7 +67,7 @@ class LifeLinkWorkflowVisualTest {
                         onSignOut = {},
                         updates = updates,
                         onUpdateRead = {},
-                        onMarkAllUpdatesRead = {}
+                        onMarkAllUpdatesRead = {},
                     )
                 }
             }
@@ -87,9 +89,15 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("No active request")
         capture("workflow-requests")
 
-        tapTab("Updates")
+        composeRule.onNodeWithTag("open-notifications").performClick()
+        composeRule.waitForIdle()
         assertVisible("Nothing needs your attention")
         capture("workflow-updates")
+
+        // The notifications overlay replaces the shell (and its bottom navigation),
+        // so dismiss it before navigating to another tab.
+        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitForIdle()
 
         tapTab("Profile")
         assertVisible("Requester profile")
@@ -118,8 +126,11 @@ class LifeLinkWorkflowVisualTest {
     fun homeAdaptsToWindowSize() {
         render()
         val widthDp = composeRule.activity.resources.configuration.screenWidthDp
-        if (widthDp >= 600) composeRule.onNodeWithTag("navigation-rail").assertIsDisplayed()
-        else composeRule.onNodeWithTag("navigation-rail").assertDoesNotExist()
+        if (widthDp >= 600) {
+            composeRule.onNodeWithTag("navigation-rail").assertIsDisplayed()
+        } else {
+            composeRule.onNodeWithTag("navigation-rail").assertDoesNotExist()
+        }
         assertVisible("Your requests")
         capture("home-adaptive")
         composeRule.onNodeWithText("Create emergency request").performScrollTo().assertIsDisplayed()
@@ -142,11 +153,17 @@ class LifeLinkWorkflowVisualTest {
 
     @Test
     fun homeLinksOpenRequestsAndActivity() {
-        render(updates = listOf(com.lifelink.app.domain.UpdateItem(
-            id = "visual-update", type = com.lifelink.app.domain.UpdateType.DONOR_RESPONSE,
-            title = "A donor responded", body = "Open your request to see the response.",
-            createdAtEpochMillis = System.currentTimeMillis()
-        )))
+        render(
+            updates = listOf(
+                com.lifelink.app.domain.UpdateItem(
+                    id = "visual-update",
+                    type = com.lifelink.app.domain.UpdateType.DONOR_RESPONSE,
+                    title = "A donor responded",
+                    body = "Open your request to see the response.",
+                    createdAtEpochMillis = System.currentTimeMillis(),
+                ),
+            ),
+        )
         composeRule.onNodeWithText("View all").performScrollTo().performClick()
         assertVisible("No active request")
         tapTab("Home")
@@ -168,9 +185,13 @@ class LifeLinkWorkflowVisualTest {
 
     @Test
     fun historyCanReachLastRequest() {
-        render(EmergencyRequestUiState(requestHistory = List(30) { index ->
-            RequestHistoryItem("history-$index", ActiveRequestStatus.FULFILLED, bloodType = "O+", units = 2)
-        }))
+        render(
+            EmergencyRequestUiState(
+                requestHistory = List(30) { index ->
+                    RequestHistoryItem("history-$index", ActiveRequestStatus.FULFILLED, bloodType = "O+", units = 2)
+                },
+            ),
+        )
         tapTab("Requests")
         composeRule.onNodeWithTag("request-history").performScrollToNode(hasText("Request history-29"))
         assertVisible("Request history-29")

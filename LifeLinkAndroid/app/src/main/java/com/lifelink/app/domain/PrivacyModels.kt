@@ -74,6 +74,8 @@ interface PrivacyRepository {
 
     suspend fun openConversation(requestId: String, donorId: String): Result<Conversation>
 
+    suspend fun conversations(): Result<List<Conversation>>
+
     suspend fun messages(conversationId: String): Result<List<ChatMessage>>
 
     suspend fun sendMessage(conversationId: String, body: String): Result<ChatMessage>
