@@ -31,7 +31,7 @@ from .donor_repositories import SqlAlchemyDonorStore
 logger = logging.getLogger("lifelink.donor_profile_repositories")
 
 
-def _enum_value(value):
+def _enum_value(value: object) -> object:
     return getattr(value, "value", value)
 
 
