@@ -30,12 +30,16 @@ from .main import Donor, EmergencyRequestIn, score_donor
 logger = logging.getLogger("lifelink.donor_repositories")
 
 
-def _enum_value(value):
+def _enum_value(value: object) -> object:
     """Enum columns are members when loaded but plain strings on rows changed in-session."""
     return getattr(value, "value", value)
 
 
-def apply_donor_response_to_contact(contact, response: DonorResponseIn, now: datetime):
+def apply_donor_response_to_contact(
+    contact: DonorContactRequest,
+    response: DonorResponseIn,
+    now: datetime,
+) -> DonorContactRequest:
     """Persist donor consent without treating acceptance as contact disclosure."""
     contact.status = response.response
     contact.updated_at = now
