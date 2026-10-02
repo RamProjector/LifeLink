@@ -8,7 +8,6 @@ The bot listens for completed runs of the following workflows:
 
 - `Validate cloud package`
 - `Build Android APKs`
-- `Build Android Debug APK`
 - `Android visual review`
 
 The APK packaging workflows do not use an emulator. The bot invokes the separate Android visual-review workflow on main-branch app changes; that workflow intentionally uses an emulator to navigate the deterministic app walkthrough, capture screenshots, and collect connected-test logs. The bot creates an issue when one of these workflows fails on the repository’s default branch. Pull-request failures and manually triggered database diagnostics are intentionally excluded so routine development failures do not flood the issue tracker.
