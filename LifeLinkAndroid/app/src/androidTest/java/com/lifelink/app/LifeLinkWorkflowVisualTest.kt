@@ -92,6 +92,11 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Nothing needs your attention")
         capture("workflow-updates")
 
+        // The notifications overlay replaces the shell (and its bottom navigation),
+        // so dismiss it before navigating to another tab.
+        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitForIdle()
+
         tapTab("Profile")
         assertVisible("Requester profile")
         capture("workflow-settings-profile")
