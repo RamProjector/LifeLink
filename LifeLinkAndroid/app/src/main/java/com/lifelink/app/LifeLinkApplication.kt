@@ -10,24 +10,25 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.await
 import androidx.work.workDataOf
-import com.lifelink.app.data.local.LifeLinkDatabase
-import com.lifelink.app.data.repository.EmergencyRequestRepositoryImpl
-import com.lifelink.app.data.repository.LifeLinkAccountContainer
-import com.lifelink.app.data.repository.DonorRepositoryImpl
-import com.lifelink.app.data.repository.PrivacyRepositoryImpl
-import com.lifelink.app.data.repository.UpdatesRepository
-import com.lifelink.app.data.remote.RetrofitProvider
 import com.lifelink.app.core.auth.AccountDataCoordinator
 import com.lifelink.app.core.auth.AuthSessionStore
 import com.lifelink.app.core.auth.SupabaseAuthRepository
 import com.lifelink.app.core.notifications.LifeLinkNotifications
 import com.lifelink.app.core.notifications.PushTokenRegistrationWorker
-import java.io.IOException
-import java.util.concurrent.TimeUnit
+import com.lifelink.app.data.local.LifeLinkDatabase
+import com.lifelink.app.data.remote.RetrofitProvider
+import com.lifelink.app.data.repository.DonorProfileRepositoryImpl
+import com.lifelink.app.data.repository.DonorRepositoryImpl
+import com.lifelink.app.data.repository.EmergencyRequestRepositoryImpl
+import com.lifelink.app.data.repository.LifeLinkAccountContainer
+import com.lifelink.app.data.repository.PrivacyRepositoryImpl
+import com.lifelink.app.data.repository.UpdatesRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 class LifeLinkApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -45,13 +46,13 @@ class LifeLinkApplication : Application() {
             .setInputData(
                 workDataOf(
                     PushTokenRegistrationWorker.OWNER_ID to ownerId,
-                    PushTokenRegistrationWorker.TOKEN to token
-                )
+                    PushTokenRegistrationWorker.TOKEN to token,
+                ),
             )
             .setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build()
+                    .build(),
             )
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .addTag("lifelink-account-$ownerId")
@@ -61,7 +62,7 @@ class LifeLinkApplication : Application() {
             WorkManager.getInstance(this@LifeLinkApplication).enqueueUniqueWork(
                 "lifelink-push-token-$ownerId",
                 ExistingWorkPolicy.REPLACE,
-                work
+                work,
             ).await()
         }
     }
@@ -74,10 +75,12 @@ class LifeLinkApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         LifeLinkNotifications.createChannels(this)
-        authRepository = SupabaseAuthRepository(AuthSessionStore(this) { ownerId ->
-            // Session removal triggers cleanup even when no Activity is composed.
-            applicationScope.launch { clearLocalAccountData(ownerId) }
-        })
+        authRepository = SupabaseAuthRepository(
+            AuthSessionStore(this) { ownerId ->
+                // Session removal triggers cleanup even when no Activity is composed.
+                applicationScope.launch { clearLocalAccountData(ownerId) }
+            },
+        )
         applicationScope.launch {
             // Warm the public health endpoint without binding startup work to an account.
             runCatching { RetrofitProvider.create(tokenProvider = { null }).health() }
@@ -97,8 +100,10 @@ class LifeLinkApplication : Application() {
                 if (authRepository.session.value?.userId == ownerId) {
                     authRepository.refreshAccessToken()
                         ?.takeIf { authRepository.session.value?.userId == ownerId }
-                } else null
-            }
+                } else {
+                    null
+                }
+            },
         )
         return LifeLinkAccountContainer(
             api = api,
@@ -113,11 +118,12 @@ class LifeLinkApplication : Application() {
                     val connectivity = getSystemService(ConnectivityManager::class.java)
                     connectivity.activeNetwork?.let(connectivity::getNetworkCapabilities)
                         ?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
-                }
+                },
             ),
             donorRepository = DonorRepositoryImpl(database.donorDao(), api, { ownerId }),
+            donorProfileRepository = DonorProfileRepositoryImpl(api),
             updatesRepository = UpdatesRepository(database.updateDao(), ownerId),
-            privacyRepository = PrivacyRepositoryImpl(api, { ownerId })
+            privacyRepository = PrivacyRepositoryImpl(api, { ownerId }),
         )
     }
 }

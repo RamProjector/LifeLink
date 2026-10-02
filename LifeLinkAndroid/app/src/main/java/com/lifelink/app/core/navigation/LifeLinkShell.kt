@@ -89,6 +89,9 @@ import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.domain.UpdateItem
 import com.lifelink.app.feature.activeRequest.ActiveRequestScreen
+import com.lifelink.app.feature.donor.BecomeDonorAction
+import com.lifelink.app.feature.donor.BecomeDonorScreen
+import com.lifelink.app.feature.donor.BecomeDonorUiState
 import com.lifelink.app.feature.donor.DonorAction
 import com.lifelink.app.feature.donor.DonorScreen
 import com.lifelink.app.feature.donor.DonorUiState
@@ -125,6 +128,8 @@ fun LifeLinkShell(
     onAction: (EmergencyRequestAction) -> Unit,
     donorState: DonorUiState,
     onDonorAction: (DonorAction) -> Unit,
+    becomeDonorState: BecomeDonorUiState,
+    onBecomeDonorAction: (BecomeDonorAction) -> Unit,
     privacyState: PrivacyUiState,
     onPrivacyAction: (PrivacyAction) -> Unit,
     role: UserRole,
@@ -150,6 +155,8 @@ fun LifeLinkShell(
     var showRequest by rememberSaveable { mutableStateOf(false) }
     var showActive by rememberSaveable { mutableStateOf(false) }
     var showDonor by rememberSaveable { mutableStateOf(false) }
+    // Separate donor-profile flow: opt in to donating after account creation.
+    var showBecomeDonor by rememberSaveable { mutableStateOf(false) }
     var showDonorMap by rememberSaveable { mutableStateOf(false) }
     var showNotifications by rememberSaveable { mutableStateOf(false) }
     // The in-app conversation was previously unreachable: ConversationScreen and
@@ -261,6 +268,15 @@ fun LifeLinkShell(
                 showActive = false
                 showRequest = true
             },
+        )
+        return
+    }
+    if (showBecomeDonor) {
+        BackHandler { showBecomeDonor = false }
+        BecomeDonorScreen(
+            state = becomeDonorState,
+            onAction = onBecomeDonorAction,
+            onBack = { showBecomeDonor = false },
         )
         return
     }
@@ -394,6 +410,11 @@ fun LifeLinkShell(
                                         showStart =
                                             false
                                         ; showDonor = true
+                                    },
+                                    {
+                                        showStart =
+                                            false
+                                        ; showBecomeDonor = true
                                     },
                                     onSignOut,
                                 )
@@ -885,6 +906,7 @@ private fun StartContent(
     onThemeModeChange: (ThemeMode) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
     onOpenDonor: () -> Unit,
+    onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     var section by rememberSaveable { mutableStateOf(SettingsSection.PROFILE) }
@@ -926,6 +948,7 @@ private fun StartContent(
                     profileMessage,
                     onSaveProfile,
                     onOpenDonor,
+                    onBecomeDonor,
                     onSignOut,
                 )
             SettingsSection.LEGAL -> LegalContent()
@@ -1144,6 +1167,7 @@ private fun StartContent(
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
     onOpenDonor: () -> Unit,
+    onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     var displayName by rememberSaveable(accountDisplayName) { mutableStateOf(accountDisplayName) }
@@ -1238,6 +1262,12 @@ private fun StartContent(
                 OutlinedButton(onClick = onOpenDonor, modifier = Modifier.fillMaxWidth()) {
                     Text(if (role == UserRole.DONOR) "Open donor workspace" else "Become a donor")
                 }
+                // Separate donor-profile flow: opt in to donating after account
+                // creation, without touching the signup form.
+                Button(
+                    onClick = onBecomeDonor,
+                    modifier = Modifier.fillMaxWidth().testTag("open-become-donor"),
+                ) { Text("Set up donor profile") }
             }
         }
         Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {

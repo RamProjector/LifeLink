@@ -49,6 +49,8 @@ class LifeLinkWorkflowVisualTest {
                         onAction = onAction,
                         donorState = DonorUiState(),
                         onDonorAction = {},
+                        becomeDonorState = com.lifelink.app.feature.donor.BecomeDonorUiState(loading = false),
+                        onBecomeDonorAction = {},
                         privacyState = com.lifelink.app.feature.privacy.PrivacyUiState(),
                         onPrivacyAction = {},
                         role = role,

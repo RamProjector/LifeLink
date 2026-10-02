@@ -231,6 +231,8 @@ class ConversationNavigationTest {
                     onAction = {},
                     donorState = DonorUiState(profile = profile, requests = listOf(request.copy(response = DonorResponse.ACCEPTED))),
                     onDonorAction = {},
+                    becomeDonorState = com.lifelink.app.feature.donor.BecomeDonorUiState(loading = false),
+                    onBecomeDonorAction = {},
                     privacyState = PrivacyUiState(),
                     onPrivacyAction = { actions += it },
                     role = role,
