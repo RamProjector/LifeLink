@@ -64,7 +64,7 @@ jobs:
           # Spotless ratchets against origin/main; a shallow checkout has no such
           # ref, so fetch enough history for the ratchet to resolve.
           fetch-depth: 0
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
