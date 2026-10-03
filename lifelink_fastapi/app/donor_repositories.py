@@ -1,3 +1,5 @@
+"""SQLAlchemy persistence for donor profiles, availability, and responses."""
+
 from __future__ import annotations
 
 import logging
@@ -30,12 +32,16 @@ from .main import Donor, EmergencyRequestIn, score_donor
 logger = logging.getLogger("lifelink.donor_repositories")
 
 
-def _enum_value(value):
+def _enum_value(value: object) -> object:
     """Enum columns are members when loaded but plain strings on rows changed in-session."""
     return getattr(value, "value", value)
 
 
-def apply_donor_response_to_contact(contact, response: DonorResponseIn, now: datetime):
+def apply_donor_response_to_contact(
+    contact: DonorContactRequest,
+    response: DonorResponseIn,
+    now: datetime,
+) -> DonorContactRequest:
     """Persist donor consent without treating acceptance as contact disclosure."""
     contact.status = response.response
     contact.updated_at = now
@@ -45,7 +51,10 @@ def apply_donor_response_to_contact(contact, response: DonorResponseIn, now: dat
 
 
 class SqlAlchemyDonorStore:
+    """Persistence for donor profiles, availability, inbox, and responses."""
+
     def __init__(self, session: AsyncSession) -> None:
+        """Store the async session used for all reads and writes."""
         self.session = session
 
     async def get_by_identity(self, donor_id: str) -> DonorRow | None:
@@ -58,6 +67,7 @@ class SqlAlchemyDonorStore:
         )
 
     async def upsert_profile(self, donor_id: str, payload: DonorProfileIn) -> DonorRow:
+        """Create or update a donor's operational row, never trusting client verification."""
         row = await self.get_by_identity(donor_id)
         now = datetime.now(UTC)
         if row is None:
@@ -212,6 +222,7 @@ class SqlAlchemyDonorStore:
         await self.session.commit()
 
     async def set_availability(self, donor_id: str, availability: DonorAvailability) -> DonorRow:
+        """Persist availability and, when going available, re-evaluate open requests."""
         row = await self.get_by_identity(donor_id)
         if row is None:
             raise KeyError(donor_id)
@@ -233,6 +244,7 @@ class SqlAlchemyDonorStore:
         return row
 
     async def inbox(self, donor_id: str) -> list[tuple[RequestRow, MatchRow, DonorContactRequest | None]]:
+        """Return a donor's live matches with their optional contact request, newest first."""
         result = await self.session.execute(
             select(RequestRow, MatchRow, DonorContactRequest)
             .join(MatchRow, MatchRow.request_id == RequestRow.id)
@@ -252,6 +264,7 @@ class SqlAlchemyDonorStore:
         return list(result.unique().all())
 
     async def respond(self, donor_id: str, request_id: str, response: DonorResponseIn) -> MatchRow:
+        """Record a donor's accept/decline/arrive response, rejecting stale requests."""
         result = await self.session.execute(
             select(MatchRow).where(MatchRow.donor_id == donor_id, MatchRow.request_id == request_id)
         )
