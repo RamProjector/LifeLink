@@ -29,13 +29,15 @@ import com.lifelink.app.domain.UpdateItem
 fun UpdatesScreen(
     updates: List<UpdateItem>,
     onOpen: (UpdateItem) -> Unit,
-    onMarkAllRead: () -> Unit
+    onMarkAllRead: () -> Unit,
 ) {
     val unread = updates.count { !it.isRead }
     LazyColumn(
         modifier = Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 24.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        contentPadding =
+            androidx.compose.foundation.layout
+                .PaddingValues(top = 24.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -43,7 +45,7 @@ fun UpdatesScreen(
                     LifeLinkPageHeader("Activity")
                     Text(
                         if (unread == 0) "You’re up to date." else "$unread item${if (unread == 1) "" else "s"} need your attention.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 if (unread > 0) TextButton(onClick = onMarkAllRead) { Text("Mark all read") }
@@ -54,7 +56,10 @@ fun UpdatesScreen(
                 Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Nothing needs your attention", fontWeight = FontWeight.SemiBold)
-                        Text("Request changes, donor responses, and account notices will appear here when something changes.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "Request changes, donor responses, and account notices will appear here when something changes.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
@@ -67,30 +72,39 @@ fun UpdatesScreen(
 @Composable
 private fun UpdateRow(update: UpdateItem, onOpen: (UpdateItem) -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onOpen(update) }.semantics {
-            contentDescription =
-                if (update.requestId != null) {
-                    "${update.title}. Open activity for request"
-                } else {
-                    "${update.title}. Open activity"
-                }
-        },
-        colors = CardDefaults.cardColors(
-            containerColor = if (update.isRead) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primaryContainer
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (update.isRead) 1.dp else 2.dp)
+        modifier =
+            Modifier.fillMaxWidth().clickable { onOpen(update) }.semantics {
+                contentDescription =
+                    if (update.requestId != null) {
+                        "${update.title}. Open activity for request"
+                    } else {
+                        "${update.title}. Open activity"
+                    }
+            },
+        colors =
+            CardDefaults.cardColors(
+                containerColor = if (update.isRead) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primaryContainer,
+            ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (update.isRead) 1.dp else 2.dp),
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(update.title, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                 Text(
-                    DateUtils.getRelativeTimeSpanString(update.createdAtEpochMillis, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString(),
+                    DateUtils
+                        .getRelativeTimeSpanString(
+                            update.createdAtEpochMillis,
+                            System.currentTimeMillis(),
+                            DateUtils.MINUTE_IN_MILLIS,
+                        ).toString(),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Text(update.body, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-            update.requestId?.let { Text("Tap to open request", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }
+            update.requestId?.let {
+                Text("Tap to open request", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            }
         }
     }
 }
