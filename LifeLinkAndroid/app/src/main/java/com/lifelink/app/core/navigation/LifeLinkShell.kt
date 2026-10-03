@@ -596,7 +596,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
         ) {
             LifeLinkPageHeader("LifeLink")
             Spacer(Modifier.weight(1f))
-            OutlinedButton(onClick = onSwitchRole, modifier = Modifier.testTag("role-switcher")) {
+            TextButton(onClick = onSwitchRole, modifier = Modifier.testTag("role-switcher")) {
                 Text(if (role == UserRole.DONOR) "Switch to requester" else "Switch to donor")
             }
         }
@@ -616,32 +616,35 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
                 if (state.activeRequest != null) {
                     ActiveRequestSummary(state, onActive)
                 } else {
-                    Column(Modifier.padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            if (state.historyRefreshing) {
-                                "Loading your requests…"
-                            } else if (state.historyError !=
-                                null
-                            ) {
-                                "Requests unavailable"
-                            } else {
-                                "No active request"
-                            },
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                        Text(
-                            state.historyError
-                                ?: if (state.historyRefreshing) {
-                                    "Checking your account for saved requests."
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    ) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                if (state.historyRefreshing) {
+                                    "Loading your requests…"
+                                } else if (state.historyError != null) {
+                                    "Requests unavailable"
                                 } else {
-                                    "Create a request to find nearby blood donors."
+                                    "No active request"
                                 },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Text(
+                                state.historyError
+                                    ?: if (state.historyRefreshing) {
+                                        "Checking your account for saved requests."
+                                    } else {
+                                        "Create a request to find nearby blood donors."
+                                    },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
-                Button(onClick = onCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = MaterialTheme.shapes.small) {
+                Button(onClick = onCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = MaterialTheme.shapes.medium) {
                     Icon(Icons.Default.Add, null, Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Create emergency request")
@@ -1141,14 +1144,17 @@ private fun StartContent(
                     },
                     color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                // Single donor entry point: a requester opts in with "Become a donor",
-                // an existing donor opens the workspace. The previous duplicate
-                // "Set up donor profile" button was removed because both actions
-                // opened the same donor flow and made the choice ambiguous.
-                Button(
-                    onClick = onOpenDonor,
-                    modifier = Modifier.fillMaxWidth().testTag("open-become-donor"),
-                ) { Text(if (role == UserRole.DONOR) "Open donor workspace" else "Become a donor") }
+                if (role == UserRole.DONOR) {
+                    OutlinedButton(onClick = onOpenDonor, modifier = Modifier.fillMaxWidth()) {
+                        Text("Open donor workspace")
+                    }
+                } else {
+                    // Separate donor-profile flow: opt in to donating after account creation.
+                    Button(
+                        onClick = onBecomeDonor,
+                        modifier = Modifier.fillMaxWidth().testTag("open-become-donor"),
+                     ) { Text("Become a donor") }
+                 }
             }
         }
         androidx.compose.material3.OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
