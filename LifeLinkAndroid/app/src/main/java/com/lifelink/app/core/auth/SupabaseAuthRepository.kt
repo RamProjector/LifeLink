@@ -3,6 +3,8 @@ package com.lifelink.app.core.auth
 import android.net.Uri
 import com.google.gson.annotations.SerializedName
 import com.lifelink.app.BuildConfig
+import com.lifelink.app.core.legal.LIFELINK_PRIVACY_VERSION
+import com.lifelink.app.core.legal.LIFELINK_TERMS_VERSION
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,7 +46,20 @@ class SupabaseAuthRepository(
 
     suspend fun signUp(email: String, password: String): Result<AuthResult> =
         authenticate {
-            api?.signUp(publishableKey, AuthRequest(email, password), SIGNUP_REDIRECT_URI)
+            api?.signUp(
+                publishableKey,
+                AuthRequest(
+                    email = email,
+                    password = password,
+                    data =
+                    mapOf(
+                        "privacy_policy_version" to LIFELINK_PRIVACY_VERSION,
+                        "terms_version" to LIFELINK_TERMS_VERSION,
+                        "accepted_at_epoch_ms" to System.currentTimeMillis().toString(),
+                    ),
+                ),
+                SIGNUP_REDIRECT_URI,
+            )
                 ?: error("Supabase URL is not configured")
         }
 
@@ -291,7 +306,11 @@ private interface SupabaseAuthApi {
 // phone" even though the form sent a valid address. The explicit names make the
 // wire contract independent of the obfuscated property names (and the
 // proguard-rules.pro keep rule for this package is the second line of defence).
-data class AuthRequest(@SerializedName("email") val email: String, @SerializedName("password") val password: String)
+data class AuthRequest(
+    @SerializedName("email") val email: String,
+    @SerializedName("password") val password: String,
+    @SerializedName("data") val data: Map<String, String>? = null,
+)
 
 data class RefreshRequest(@SerializedName("refresh_token") val refreshToken: String)
 
