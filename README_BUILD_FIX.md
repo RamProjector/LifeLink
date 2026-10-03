@@ -60,7 +60,7 @@ exist.
 
 Only the raw Gradle tasks (`assembleDebug` / `assembleRelease`) existed, and
 there was **no workflow that builds a release APK** — the existing workflows
-(`android-build.yml`, `android-debug.yml`) only produce debug APKs.
+(`android-build.yml`) only produce debug APKs.
 
 ### Note on the toolchain
 
