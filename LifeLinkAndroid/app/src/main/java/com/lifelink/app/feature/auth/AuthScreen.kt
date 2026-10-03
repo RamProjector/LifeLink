@@ -47,6 +47,11 @@ import java.util.regex.Pattern
 
 private val emailPattern = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$")
 
+/**
+ * Renders sign-in, account creation, and password recovery forms for [state].
+ * Validates form input before invoking the supplied callbacks and requires agreement to the privacy
+ * policy and terms before signup, with dialogs for reading both documents.
+ */
 @Composable
 fun AuthScreen(
     state: AuthState,
@@ -296,6 +301,7 @@ fun AuthScreen(
     legalDocument?.let { document -> LegalDocumentDialog(document = document, onDismiss = { legalDocument = null }) }
 }
 
+/** Displays a password field with caller-controlled visibility, validation feedback, and a visibility toggle. */
 @Composable
 private fun PasswordField(
     value: String,
@@ -327,6 +333,7 @@ private fun PasswordField(
     )
 }
 
+/** Shows an authentication message using error or informational colors according to [isError]. */
 @Composable
 private fun MessageCard(message: String, isError: Boolean) {
     Card(

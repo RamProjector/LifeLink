@@ -125,6 +125,10 @@ class ThemeStore(context: Context) {
     }
 }
 
+/**
+ * Applies the selected color mode, LifeLink typography and shapes, and matching system bar styles.
+ * Dynamic colors use the system palette on Android 12 or later and fall back to LifeLink colors otherwise.
+ */
 @Composable
 fun LifeLinkTheme(themeMode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Unit) {
     val darkTheme = when (themeMode) {

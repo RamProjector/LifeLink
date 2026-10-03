@@ -57,6 +57,10 @@ internal val TermsAndConditionsPhilippines = LegalDocument(
     ),
 )
 
+/**
+ * Displays [document]'s effective date and sections in a scrollable dialog.
+ * Invokes [onDismiss] when the dialog is dismissed or its Close button is pressed.
+ */
 @Composable
 internal fun LegalDocumentDialog(document: LegalDocument, onDismiss: () -> Unit) {
     AlertDialog(

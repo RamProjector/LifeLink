@@ -20,6 +20,7 @@ class AuthScreenVisualTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
+    /** Captures the sign-in screen and verifies navigation through signup, legal dialogs, and password recovery. */
     @Test
     fun authScreenRendersAndCapturesVisualEvidence() {
         composeRule.activity.runOnUiThread {

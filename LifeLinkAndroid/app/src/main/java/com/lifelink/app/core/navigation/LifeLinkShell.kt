@@ -697,6 +697,7 @@ private fun ActiveRequestSummary(state: EmergencyRequestUiState, onOpen: () -> U
     }
 }
 
+/** Previews the requester dashboard with empty request and donor state in light and dark themes. */
 @Preview(name = "Home · light", widthDp = 360, heightDp = 820, showBackground = true)
 @Preview(name = "Home · dark", widthDp = 360, heightDp = 820, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable

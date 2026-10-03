@@ -44,6 +44,12 @@ class SupabaseAuthRepository(
 
     val session = sessionStore.session
 
+    /**
+     * Registers an account with the current privacy and terms versions and a client acceptance timestamp.
+     *
+     * The caller must obtain agreement before invoking this method. Returns the authentication result,
+     * which may require email confirmation, and persists a session when Supabase supplies one.
+     */
     suspend fun signUp(email: String, password: String): Result<AuthResult> =
         authenticate {
             api?.signUp(
