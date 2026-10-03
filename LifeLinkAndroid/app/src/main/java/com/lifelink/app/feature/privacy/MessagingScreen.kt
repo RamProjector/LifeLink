@@ -25,6 +25,10 @@ import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.core.ui.LifeLinkPageHeader
 import com.lifelink.app.domain.Conversation
 
+/**
+ * Loads conversations on entry and displays loading, retry, empty, or conversation states.
+ * Selecting a conversation calls [onOpenConversation] with its request and donor IDs.
+ */
 @Composable
 fun MessagingScreen(
     state: PrivacyUiState,
@@ -77,6 +81,7 @@ fun MessagingScreen(
     }
 }
 
+/** Displays conversation and request identifiers plus message recency, invoking [onOpen] when tapped. */
 @Composable
 private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
     Card(

@@ -32,6 +32,7 @@ logger = logging.getLogger("lifelink.donor_profile_repositories")
 
 
 def _enum_value(value: object) -> object:
+    """Return an enum's underlying value, leaving plain values unchanged."""
     return getattr(value, "value", value)
 
 

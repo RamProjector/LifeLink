@@ -15,6 +15,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
+/** Displays [title] as an accessibility heading with an optional [subtitle] beneath it. */
 @Composable
 fun LifeLinkPageHeader(title: String, modifier: Modifier = Modifier, subtitle: String? = null) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {

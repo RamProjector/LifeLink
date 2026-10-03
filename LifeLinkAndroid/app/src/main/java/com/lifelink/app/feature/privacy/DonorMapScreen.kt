@@ -97,6 +97,10 @@ fun DonorMapScreen(
     }
 }
 
+/**
+ * Displays map visibility and exact-location sharing toggles from [state].
+ * Sends changes through [onAction] and disables the toggles while a save is pending.
+ */
 @Composable
 private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAction) -> Unit) {
     val visibility = state.visibility
@@ -149,6 +153,7 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
     }
 }
 
+/** Summarizes [area] with its blood type, approximate radius, and location freshness. */
 @Composable
 private fun DonorAreaCard(area: DonorMapArea) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {

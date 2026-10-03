@@ -25,6 +25,10 @@ import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.ui.LifeLinkPageHeader
 import com.lifelink.app.domain.UpdateItem
 
+/**
+ * Displays activity and its unread count, or an empty state when [updates] is empty.
+ * Delegates opening an item to [onOpen] and marking all items read to [onMarkAllRead].
+ */
 @Composable
 fun UpdatesScreen(
     updates: List<UpdateItem>,
@@ -69,6 +73,7 @@ fun UpdatesScreen(
     }
 }
 
+/** Displays [update] with unread emphasis and a relative timestamp, passing it to [onOpen] when tapped. */
 @Composable
 private fun UpdateRow(update: UpdateItem, onOpen: (UpdateItem) -> Unit) {
     Card(
