@@ -35,8 +35,8 @@ fun UpdatesScreen(
     LazyColumn(
         modifier = Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp),
         contentPadding =
-        androidx.compose.foundation.layout
-            .PaddingValues(top = 24.dp, bottom = 24.dp),
+            androidx.compose.foundation.layout
+                .PaddingValues(top = 24.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
@@ -73,18 +73,18 @@ fun UpdatesScreen(
 private fun UpdateRow(update: UpdateItem, onOpen: (UpdateItem) -> Unit) {
     Card(
         modifier =
-        Modifier.fillMaxWidth().clickable { onOpen(update) }.semantics {
-            contentDescription =
-                if (update.requestId != null) {
-                    "${update.title}. Open activity for request"
-                } else {
-                    "${update.title}. Open activity"
-                }
-        },
+            Modifier.fillMaxWidth().clickable { onOpen(update) }.semantics {
+                contentDescription =
+                    if (update.requestId != null) {
+                        "${update.title}. Open activity for request"
+                    } else {
+                        "${update.title}. Open activity"
+                    }
+            },
         colors =
-        CardDefaults.cardColors(
-            containerColor = if (update.isRead) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primaryContainer,
-        ),
+            CardDefaults.cardColors(
+                containerColor = if (update.isRead) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primaryContainer,
+            ),
         elevation = CardDefaults.cardElevation(defaultElevation = if (update.isRead) 1.dp else 2.dp),
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {

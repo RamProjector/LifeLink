@@ -80,10 +80,11 @@ fun MessagingScreen(
 @Composable
 private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onOpen)
-            .semantics { contentDescription = "Conversation ${conversation.conversationId.take(8)}, open chat" },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpen)
+                .semantics { contentDescription = "Conversation ${conversation.conversationId.take(8)}, open chat" },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
