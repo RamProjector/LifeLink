@@ -414,11 +414,6 @@ fun LifeLinkShell(
                                             false
                                         ; showDonor = true
                                     },
-                                    {
-                                        showStart =
-                                            false
-                                        ; showBecomeDonor = true
-                                    },
                                     onSignOut,
                                 )
                         }
@@ -826,7 +821,6 @@ private fun StartContent(
     onThemeModeChange: (ThemeMode) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
     onOpenDonor: () -> Unit,
-    onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     var section by rememberSaveable { mutableStateOf(SettingsSection.PROFILE) }
@@ -866,7 +860,6 @@ private fun StartContent(
                     profileMessage,
                     onSaveProfile,
                     onOpenDonor,
-                    onBecomeDonor,
                     onSignOut,
                 )
             SettingsSection.LEGAL -> LegalContent()
@@ -1057,7 +1050,6 @@ private fun StartContent(
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
     onOpenDonor: () -> Unit,
-    onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     var displayName by rememberSaveable(accountDisplayName) { mutableStateOf(accountDisplayName) }
@@ -1148,15 +1140,14 @@ private fun StartContent(
                     },
                     color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                OutlinedButton(onClick = onOpenDonor, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (role == UserRole.DONOR) "Open donor workspace" else "Become a donor")
-                }
-                // Separate donor-profile flow: opt in to donating after account
-                // creation, without touching the signup form.
+                // Single donor entry point: a requester opts in with "Become a donor",
+                // an existing donor opens the workspace. The previous duplicate
+                // "Set up donor profile" button was removed because both actions
+                // opened the same donor flow and made the choice ambiguous.
                 Button(
-                    onClick = onBecomeDonor,
+                    onClick = onOpenDonor,
                     modifier = Modifier.fillMaxWidth().testTag("open-become-donor"),
-                ) { Text("Set up donor profile") }
+                ) { Text(if (role == UserRole.DONOR) "Open donor workspace" else "Become a donor") }
             }
         }
         androidx.compose.material3.OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
