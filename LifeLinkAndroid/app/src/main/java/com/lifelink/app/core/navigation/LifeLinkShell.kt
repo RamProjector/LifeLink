@@ -30,7 +30,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Assignment
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Home
@@ -112,7 +111,7 @@ private enum class ShellTab(val label: String) {
     PROFILE("Profile"),
 }
 
-private enum class SettingsSection { PROFILE, LEGAL, SAFETY, ABOUT, THEME, SECURITY }
+private enum class SettingsSection { PROFILE, LEGAL, THEME, SECURITY }
 
 /**
  * Renders account navigation and routes requester and donor actions to their screens.
@@ -359,6 +358,10 @@ fun LifeLinkShell(
                         modifier = Modifier.fillMaxHeight().testTag("navigation-rail"),
                         containerColor = MaterialTheme.colorScheme.surface,
                     ) {
+                        IconButton(onClick = { showDonorMap = true }, modifier = Modifier.testTag("open-fullscreen-donor-map-rail")) {
+                            Icon(Icons.Default.Map, contentDescription = "Find donors on map")
+                        }
+                        HorizontalDivider()
                         ShellTab.entries.forEach { destination ->
                             NavigationRailItem(
                                 selected = tab == destination,
@@ -379,7 +382,7 @@ fun LifeLinkShell(
                                         true
                                 }, onDonor = {
                                     showDonor = true
-                                }, onDonorMap = { showDonorMap = true }, updates = updates, onRequests = {
+                                }, updates = updates, onRequests = {
                                     tab =
                                         ShellTab.REQUESTS
                                 }, onUpdates = { showNotifications = true })
@@ -410,11 +413,6 @@ fun LifeLinkShell(
                                         showStart =
                                             false
                                         ; showDonor = true
-                                    },
-                                    {
-                                        showStart =
-                                            false
-                                        ; showBecomeDonor = true
                                     },
                                     onSignOut,
                                 )
@@ -587,7 +585,6 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     onCreate: () -> Unit,
     onActive: () -> Unit,
     onDonor: () -> Unit,
-    onDonorMap: () -> Unit,
     updates: List<UpdateItem>,
     onRequests: () -> Unit,
     onUpdates: () -> Unit,
@@ -610,19 +607,6 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
         ) {
             if (role == UserRole.DONOR) {
                 DonorDashboardSummary(donorState.profile, donorState.requests.size, onDonor)
-            }
-            Card(
-                Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            ) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Donor map", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "See where donors are available as approximate areas with a freshness timestamp. Exact locations are never shown here.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    OutlinedButton(onClick = onDonorMap, modifier = Modifier.fillMaxWidth()) { Text("Open donor map") }
-                }
             }
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -681,7 +665,6 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
                             modifier = Modifier.fillMaxWidth().clickable(onClick = onUpdates),
                         )
                     }
-                    TextButton(onClick = onUpdates) { Text("View all updates") }
                 }
             }
         }
@@ -714,11 +697,12 @@ private fun ActiveRequestSummary(state: EmergencyRequestUiState, onOpen: () -> U
     }
 }
 
+/** Previews the requester dashboard with empty request and donor state in light and dark themes. */
 @Preview(name = "Home · light", widthDp = 360, heightDp = 820, showBackground = true)
 @Preview(name = "Home · dark", widthDp = 360, heightDp = 820, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun HomePreview() {
-    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, {}, {}, emptyList(), {}, {}) }
+    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, {}, emptyList(), {}, {}) }
 }
 
 /** Summarizes donor availability and request count with an action to open donor mode. */
@@ -825,74 +809,6 @@ private fun StartContent(
     }
 }
 
-/** Lists product guidance topics and opens the selected topic in a dialog. */
-@Composable private fun LearnContent() {
-    var selectedTopic by rememberSaveable { mutableStateOf<String?>(null) }
-    val topics =
-        listOf(
-            "How LifeLink works" to null,
-            "How matching works" to
-                "Matching considers blood-type compatibility, donor availability, service radius, approximate distance, travel estimate, and urgency. A match is not medical approval; confirm compatibility with a blood-bank professional.",
-            "Location privacy" to
-                "Current or manually selected location is used for matching. Exact requester and donor coordinates are not shown to the other person. LifeLink does not track anyone in the background, and requester maps never show individual donor pins.",
-            "Contact and consent" to
-                "Contact requests remain pending until a donor responds. Contact details are disclosed only after donor acceptance and server authorization.",
-            "Respond safely" to
-                "Use a verified blood bank or hospital for screening and collection. Do not share patient names, diagnoses, medical records, passwords, or payment information in LifeLink notes or messages.",
-            "What LifeLink is not" to
-                "LifeLink is not a hospital, blood bank, emergency dispatcher, medical screening service, or guarantee that a donor can provide blood. For immediate danger, contact local emergency services.",
-        )
-    Column(
-        Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text("LifeLink info", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(
-            "A direct requester-to-donor discovery and contact aid for urgent blood needs.",
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        topics.forEach { (title, body) -> LearnRow(title, body) { selectedTopic = title } }
-        Text(
-            "LifeLink Cloud · MVP",
-            style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-    val selectedBody = topics.firstOrNull { it.first == selectedTopic }?.second
-    if (selectedTopic != null && selectedBody != null) {
-        AlertDialog(
-            onDismissRequest = { selectedTopic = null },
-            title = { Text(selectedTopic!!) },
-            text = { Text(selectedBody) },
-            confirmButton = { TextButton(onClick = { selectedTopic = null }) { Text("Done") } },
-        )
-    }
-}
-
-@Composable private fun LearnRow(title: String, body: String?, onHelp: () -> Unit) {
-    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-        Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-            if (body != null) {
-                IconButton(onClick = onHelp) { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "More about $title") }
-            }
-        }
-    }
-}
-
-@Composable private fun DetailRow(title: String, helpDescription: String, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-        Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-            IconButton(onClick = onClick) { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = helpDescription) }
-        }
-    }
-}
-
 /** Routes the selected settings section to profile, appearance, security, or guidance content. */
 @Composable private fun SettingsContent(
     role: UserRole,
@@ -906,7 +822,6 @@ private fun StartContent(
     onThemeModeChange: (ThemeMode) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
     onOpenDonor: () -> Unit,
-    onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     var section by rememberSaveable { mutableStateOf(SettingsSection.PROFILE) }
@@ -914,8 +829,6 @@ private fun StartContent(
         listOf(
             SettingsSection.PROFILE,
             SettingsSection.LEGAL,
-            SettingsSection.SAFETY,
-            SettingsSection.ABOUT,
             SettingsSection.THEME,
             SettingsSection.SECURITY,
         )
@@ -948,12 +861,9 @@ private fun StartContent(
                     profileMessage,
                     onSaveProfile,
                     onOpenDonor,
-                    onBecomeDonor,
                     onSignOut,
                 )
             SettingsSection.LEGAL -> LegalContent()
-            SettingsSection.SAFETY -> SafetyContent()
-            SettingsSection.ABOUT -> LearnContent()
             SettingsSection.THEME -> ThemeContent(themeMode, onThemeModeChange)
             SettingsSection.SECURITY -> SecurityContent(onRequestPasswordReset)
         }
@@ -1048,6 +958,10 @@ private fun StartContent(
         )
         EmergencyHelpCard()
         LegalSection(
+            "How matching works",
+            "Matching considers blood-type compatibility, donor availability, service radius, approximate distance, travel estimate, and urgency. A match is not medical approval; confirm compatibility with a blood-bank professional.",
+        )
+        LegalSection(
             "LifeLink’s role",
             "LifeLink is a coordination and contact service. It helps describe a need, discover potential voluntary donors, and manage consented contact. It does not confirm that a request is genuine, urgent, fulfilled, safe, or medically appropriate.",
         )
@@ -1127,36 +1041,6 @@ private fun StartContent(
     }
 }
 
-/** Lists privacy and safety topics and displays details for the selected topic. */
-@Composable private fun SafetyContent() {
-    var selectedTopic by rememberSaveable { mutableStateOf<String?>(null) }
-    val details =
-        mapOf(
-            "Location privacy" to
-                "Your exact coordinates are never shown to the other person. Matching uses an approximate area, distance, and travel estimate instead of a public map of donor locations.",
-            "Consent before contact" to
-                "A donor must accept before contact can proceed. LifeLink asks for confirmation before opening your email app and recording contact sharing.",
-            "Meet safely" to
-                "Use a verified hospital or blood bank, tell someone you trust where you are going, and avoid exchanging money or sensitive medical information through LifeLink.",
-            "If something feels unsafe" to
-                "Stop the interaction, use Report or Block in the request flow, and contact local emergency services or a qualified medical facility when immediate danger is involved.",
-        )
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Safety and privacy", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        details.keys.forEach { title -> DetailRow(title, "About $title") { selectedTopic = title } }
-    }
-    selectedTopic?.let { topic ->
-        AlertDialog(onDismissRequest = {
-            selectedTopic = null
-        }, title = { Text(topic) }, text = { Text(details.getValue(topic)) }, confirmButton = {
-            TextButton(onClick = {
-                selectedTopic =
-                    null
-            }) { Text("Done") }
-        })
-    }
-}
-
 /** Edits the account display name and exposes donor setup and sign-out actions. */
 @Composable private fun ProfileContent(
     role: UserRole,
@@ -1167,11 +1051,9 @@ private fun StartContent(
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
     onOpenDonor: () -> Unit,
-    onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     var displayName by rememberSaveable(accountDisplayName) { mutableStateOf(accountDisplayName) }
-    var selectedHelp by rememberSaveable { mutableStateOf<String?>(null) }
     Column(
         Modifier
             .fillMaxSize()
@@ -1259,53 +1141,16 @@ private fun StartContent(
                     },
                     color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                OutlinedButton(onClick = onOpenDonor, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (role == UserRole.DONOR) "Open donor workspace" else "Become a donor")
-                }
-                // Separate donor-profile flow: opt in to donating after account
-                // creation, without touching the signup form.
+                // Single donor entry point: a requester opts in with "Become a donor",
+                // an existing donor opens the workspace. The previous duplicate
+                // "Set up donor profile" button was removed because both actions
+                // opened the same donor flow and made the choice ambiguous.
                 Button(
-                    onClick = onBecomeDonor,
+                    onClick = onOpenDonor,
                     modifier = Modifier.fillMaxWidth().testTag("open-become-donor"),
-                ) { Text("Set up donor profile") }
-            }
-        }
-        Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-            Row(Modifier.padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Location privacy", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-                IconButton(onClick = {
-                    selectedHelp = "location"
-                }) { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "About location privacy") }
-            }
-        }
-        Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-            Row(Modifier.padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Safety and consent", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-                IconButton(onClick = {
-                    selectedHelp = "safety"
-                }) { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "About safety and consent") }
+                ) { Text(if (role == UserRole.DONOR) "Open donor workspace" else "Become a donor") }
             }
         }
         androidx.compose.material3.OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
-    }
-    selectedHelp?.let { topic ->
-        val body =
-            if (topic == "location") {
-                if (role ==
-                    UserRole.DONOR
-                ) {
-                    "Your approximate donor location is used for distance matching. Requesters see distance and travel estimates, not your coordinates."
-                } else {
-                    "Your request location is used for matching. Donors do not see your exact coordinates."
-                }
-            } else {
-                "Contact details are disclosed only after a donor accepts. LifeLink is a discovery and contact aid, not a replacement for blood-bank screening or medical care."
-            }
-        AlertDialog(
-            onDismissRequest = { selectedHelp = null },
-            title = { Text(if (topic == "location") "Location privacy" else "Safety and consent") },
-            text = { Text(body) },
-            confirmButton = { TextButton(onClick = { selectedHelp = null }) { Text("Done") } },
-        )
     }
 }
