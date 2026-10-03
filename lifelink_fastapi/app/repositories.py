@@ -1,3 +1,10 @@
+"""SQLAlchemy persistence adapters for requests, matches, and donor contacts.
+
+These adapters implement the store interfaces defined in ``app.main`` on top of
+an async SQLAlchemy session. They are intentionally explicit about their I/O
+rather than hiding it behind synchronous wrappers.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -57,10 +64,14 @@ MAX_SWEEP_LIMIT = 5000
 
 
 class SqlAlchemyDonorRepository(DonorRepository):
+    """Read-only donor queries backed by SQLAlchemy."""
+
     def __init__(self, session: AsyncSession) -> None:
+        """Store the async session used for all queries."""
         self.session = session
 
     async def list_active_donors(self, excluded_user_id: str | None = None) -> list[Donor]:
+        """Return donors that are available and visible, optionally excluding one user."""
         conditions = [
             DonorRow.available.is_(True),
             DonorRow.profile_visible.is_(True),
@@ -99,6 +110,7 @@ class SqlAlchemyRequestStore(RequestStore):
     """
 
     def __init__(self, session: AsyncSession) -> None:
+        """Store the async session used for all reads and writes."""
         self.session = session
 
     async def record_audit_async(
@@ -109,6 +121,7 @@ class SqlAlchemyRequestStore(RequestStore):
         donor_id: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
+        """Append an audit event and commit it."""
         self.session.add(AuditEvent(
             id=f"audit_{uuid4().hex}",
             actor_id=actor_id,
@@ -120,6 +133,7 @@ class SqlAlchemyRequestStore(RequestStore):
         await self.session.commit()
 
     async def get_by_idempotency_key_async(self, key: str) -> RequestRecord | None:
+        """Return the request stored under ``key``, or ``None`` when absent."""
         result = await self.session.execute(
             select(EmergencyRequestRow)
             .options(joinedload(EmergencyRequestRow.facility))
@@ -130,6 +144,7 @@ class SqlAlchemyRequestStore(RequestStore):
         return self._to_record(row) if row else None
 
     async def get_by_id_async(self, request_id: str) -> RequestRecord | None:
+        """Return a request by id, expiring it first when its deadline has passed."""
         result = await self.session.execute(
             select(EmergencyRequestRow)
             .options(joinedload(EmergencyRequestRow.facility))
@@ -142,6 +157,7 @@ class SqlAlchemyRequestStore(RequestStore):
         return self._to_record(row) if row else None
 
     async def _expire_if_needed(self, row: EmergencyRequestRow) -> bool:
+        """Mark ``row`` expired and commit when its deadline has passed."""
         if is_request_expired(_enum_value(row.status), row.response_deadline):
             row.status = RequestStatusEnum.EXPIRED
             await self.session.commit()
@@ -184,6 +200,7 @@ class SqlAlchemyRequestStore(RequestStore):
         return count
 
     async def list_by_requester_async(self, requester_id: str, limit: int = 50) -> list[RequestRecord]:
+        """Return a requester's requests, newest first, reporting overdue ones as expired."""
         result = await self.session.scalars(
             select(EmergencyRequestRow)
             .options(joinedload(EmergencyRequestRow.facility))
@@ -211,6 +228,7 @@ class SqlAlchemyRequestStore(RequestStore):
         return records
 
     async def save_async(self, record: RequestRecord) -> None:
+        """Insert or update a request and persist any matches not already stored."""
         existing = await self.session.get(EmergencyRequestRow, record.request_id)
         if existing is None:
             existing = EmergencyRequestRow(
@@ -265,6 +283,7 @@ class SqlAlchemyRequestStore(RequestStore):
         await self.session.commit()
 
     async def set_manual_broadcast_async(self, request_id: str) -> RequestRecord:
+        """Move a live request into manual-broadcast mode and return it refreshed."""
         row = await self.session.get(EmergencyRequestRow, request_id)
         if row is None:
             raise KeyError(request_id)
@@ -324,6 +343,7 @@ class SqlAlchemyRequestStore(RequestStore):
         return refreshed
 
     async def set_fulfilled_async(self, request_id: str) -> RequestRecord:
+        """Mark a live request fulfilled, rejecting cancelled or expired ones."""
         row = await self.session.get(EmergencyRequestRow, request_id)
         if row is None:
             raise KeyError(request_id)
@@ -341,6 +361,11 @@ class SqlAlchemyRequestStore(RequestStore):
     async def contact_selected_donors_async(
         self, request_id: str, donor_ids: list[str]
     ) -> tuple[RequestRecord, list[str], list[str]]:
+        """Create contact requests for the selected donors and return the refreshed request.
+
+        Returns the updated request together with the donors newly contacted and
+        the donors that must be notified.
+        """
         row_result = await self.session.execute(
             select(EmergencyRequestRow)
             .options(selectinload(EmergencyRequestRow.matches))
@@ -401,6 +426,7 @@ class SqlAlchemyRequestStore(RequestStore):
         return refreshed, newly_contacted, donors_to_notify
 
     async def requester_contacts_async(self, request_id: str, requester_id: str) -> list[dict[str, Any]]:
+        """Return the requester's contact list for a request, oldest first."""
         result = await self.session.execute(
             select(DonorContactRequest, DonorRow, LifeLinkProfile)
             .join(DonorRow, DonorRow.id == DonorContactRequest.donor_id)
@@ -425,6 +451,7 @@ class SqlAlchemyRequestStore(RequestStore):
         return items
 
     async def update_contact_status_async(self, request_id: str, donor_id: str, requester_id: str, status: str) -> dict[str, Any]:
+        """Advance a contact through its lifecycle, rejecting illegal transitions."""
         allowed = {"contact_shared", "meeting_arranged", "fulfilled", "cancelled"}
         if status not in allowed:
             raise ValueError("Unsupported contact lifecycle status")
