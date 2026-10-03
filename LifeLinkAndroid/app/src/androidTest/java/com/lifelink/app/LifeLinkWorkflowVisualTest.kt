@@ -100,7 +100,7 @@ class LifeLinkWorkflowVisualTest {
         composeRule.waitForIdle()
 
         tapTab("Profile")
-        assertVisible("Requester profile")
+        assertVisible("Account, privacy, and LifeLink information.")
         capture("workflow-settings-profile")
 
         tap("Legal")

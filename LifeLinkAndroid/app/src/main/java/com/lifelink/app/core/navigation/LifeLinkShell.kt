@@ -358,9 +358,13 @@ fun LifeLinkShell(
                         modifier = Modifier.fillMaxHeight().testTag("navigation-rail"),
                         containerColor = MaterialTheme.colorScheme.surface,
                     ) {
-                        IconButton(onClick = { showDonorMap = true }, modifier = Modifier.testTag("open-fullscreen-donor-map-rail")) {
-                            Icon(Icons.Default.Map, contentDescription = "Find donors on map")
-                        }
+                        NavigationRailItem(
+                            selected = false,
+                            onClick = { showDonorMap = true },
+                            icon = { Icon(Icons.Default.Map, contentDescription = null) },
+                            label = { Text("Map") },
+                            modifier = Modifier.testTag("open-fullscreen-donor-map-rail"),
+                        )
                         HorizontalDivider()
                         ShellTab.entries.forEach { destination ->
                             NavigationRailItem(
@@ -576,7 +580,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
     }
 }
 
-/** Displays the account dashboard with request, donor, map, and update navigation actions. */
+/** Displays the account dashboard with request, donor, and activity navigation actions. */
 @Composable private fun HomeContent(
     state: EmergencyRequestUiState,
     donorState: DonorUiState,
@@ -1060,16 +1064,10 @@ private fun StartContent(
     Column(
         Modifier
             .fillMaxSize()
-            .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(
-            if (role == UserRole.REQUESTER) "Requester profile" else "Profile",
-            style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-        )
         Card(
             Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer),
@@ -1153,8 +1151,8 @@ private fun StartContent(
                     Button(
                         onClick = onBecomeDonor,
                         modifier = Modifier.fillMaxWidth().testTag("open-become-donor"),
-                     ) { Text("Become a donor") }
-                 }
+                    ) { Text("Become a donor") }
+                }
             }
         }
         androidx.compose.material3.OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
