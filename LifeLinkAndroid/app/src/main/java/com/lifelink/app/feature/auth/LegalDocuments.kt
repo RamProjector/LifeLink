@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 internal data class LegalDocument(val title: String, val effectiveDate: String, val sections: List<Pair<String, String>>)
 
 internal val PrivacyPolicyPhilippines = LegalDocument(
