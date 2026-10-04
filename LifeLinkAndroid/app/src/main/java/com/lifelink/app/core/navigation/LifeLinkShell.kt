@@ -1148,6 +1148,7 @@ private fun AcceptedDonorContactsScreen(
 }
 
 /** Shows one accepted donor's timestamps, status, and Fulfilled / Cancelled actions. */
+@Suppress("LongMethod")
 @Composable
 private fun AcceptedDonorContactCard(contact: RequesterContact, onAction: (EmergencyRequestAction) -> Unit) {
     val status = contact.status.lowercase()
