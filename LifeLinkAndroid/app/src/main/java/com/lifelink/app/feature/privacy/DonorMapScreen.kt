@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
+import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.domain.DonorMapArea
 
 /**
@@ -36,12 +37,12 @@ import com.lifelink.app.domain.DonorMapArea
 fun DonorMapScreen(
     state: PrivacyUiState,
     onAction: (PrivacyAction) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
     LazyColumn(
         Modifier.fillMaxSize().padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -56,7 +57,7 @@ fun DonorMapScreen(
                     Text(
                         "The map shows where donors are available as approximate areas with a freshness timestamp. Exact donor locations are never shown here — they are shared only with a matched requester, and only while the donor allows it.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -73,18 +74,14 @@ fun DonorMapScreen(
             }
         }
         if (state.mapLoading) {
-            item {
-                Row(Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.Center) {
-                    CircularProgressIndicator()
-                }
-            }
+            item { LifeLinkLoadingIndicator(label = "Loading donor areas…") }
         }
         val areas = state.map?.areas.orEmpty()
         if (!state.mapLoading && state.mapError == null && areas.isEmpty()) {
             item {
                 Text(
                     "No donors are currently visible on the map. Donors appear here only after they opt in.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -92,7 +89,7 @@ fun DonorMapScreen(
             item {
                 MapLibrePrivacySafeDonorMap(
                     latitude = areas.first().latitude,
-                    longitude = areas.first().longitude
+                    longitude = areas.first().longitude,
                 )
             }
         }
@@ -100,6 +97,10 @@ fun DonorMapScreen(
     }
 }
 
+/**
+ * Displays map visibility and exact-location sharing toggles from [state].
+ * Sends changes through [onAction] and disables the toggles while a save is pending.
+ */
 @Composable
 private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAction) -> Unit) {
     val visibility = state.visibility
@@ -112,7 +113,7 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
                     Text(
                         "Your approximate area and a freshness timestamp are shown. You can hide at any time.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Switch(
@@ -120,7 +121,7 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
                     enabled = !state.visibilitySaving,
                     onCheckedChange = { checked ->
                         onAction(PrivacyAction.SetMapVisibility(checked, visibility?.exactLocationSharingEnabled == true))
-                    }
+                    },
                 )
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -129,7 +130,7 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
                     Text(
                         "Only a requester whose active request has matched you can see your exact location, and it expires when the request ends.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Switch(
@@ -137,17 +138,22 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
                     enabled = !state.visibilitySaving,
                     onCheckedChange = { checked ->
                         onAction(PrivacyAction.SetMapVisibility(visibility?.mapVisible == true, checked))
-                    }
+                    },
                 )
             }
             visibility?.freshnessAt?.let {
-                Text("Location last updated: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Location last updated: $it",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         }
     }
 }
 
+/** Summarizes [area] with its blood type, approximate radius, and location freshness. */
 @Composable
 private fun DonorAreaCard(area: DonorMapArea) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
@@ -157,11 +163,15 @@ private fun DonorAreaCard(area: DonorMapArea) {
                 Text(
                     if (area.isStale) "Location may be outdated" else "Updated ${area.freshnessAgeMinutes} min ago",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (area.isStale) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (area.isStale) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Text(area.areaLabel, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Approx. radius ${area.radiusMeters} m", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "Approx. radius ${area.radiusMeters} m",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -175,7 +185,7 @@ fun MatchedDonorLocationCard(
     state: PrivacyUiState,
     requestId: String,
     donorId: String,
-    onAction: (PrivacyAction) -> Unit
+    onAction: (PrivacyAction) -> Unit,
 ) {
     LaunchedEffect(requestId, donorId) { onAction(PrivacyAction.LoadMatchedLocation(requestId, donorId)) }
     val location = state.matchedLocation
@@ -183,20 +193,27 @@ fun MatchedDonorLocationCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Donor location", fontWeight = FontWeight.Bold)
             when {
-                state.locationLoading -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.heightIn(max = 20.dp), strokeWidth = 2.dp)
-                    Text("Checking location sharing…", style = MaterialTheme.typography.bodySmall)
-                }
+                state.locationLoading ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.heightIn(max = 20.dp), strokeWidth = 2.dp)
+                        Text("Checking location sharing…", style = MaterialTheme.typography.bodySmall)
+                    }
                 location?.shared == true -> {
-                    Text("Exact location shared for this request", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Exact location shared for this request",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                     Text("Latitude ${location.latitude}, longitude ${location.longitude}")
                     location.precisionMeters?.let { Text("Precision ±$it m", style = MaterialTheme.typography.bodySmall) }
-                    location.expiresAt?.let { Text("Expires: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    location.expiresAt?.let {
+                        Text("Expires: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
                 else -> {
                     Text(
                         location?.reason ?: "Exact location is not available for this donor.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     OutlinedButton(onClick = { onAction(PrivacyAction.ActivateLocationShare(requestId, donorId)) }) {
                         Text("Request exact location")

@@ -31,7 +31,8 @@ from .donor_repositories import SqlAlchemyDonorStore
 logger = logging.getLogger("lifelink.donor_profile_repositories")
 
 
-def _enum_value(value):
+def _enum_value(value: object) -> object:
+    """Return an enum's underlying value, leaving plain values unchanged."""
     return getattr(value, "value", value)
 
 
@@ -47,13 +48,18 @@ def effective_available(availability_status: str, verified: bool) -> bool:
 
 
 class SqlAlchemyDonorProfileStore:
+    """Persistence for the donor-profile flow and its operational donor row."""
+
     def __init__(self, session: AsyncSession) -> None:
+        """Store the async session used for all reads and writes."""
         self.session = session
 
     async def get(self, user_id: str) -> DonorProfileRow | None:
+        """Return the donor profile for ``user_id``, or ``None`` when absent."""
         return await self.session.get(DonorProfileRow, user_id)
 
     async def _resolve_display_name(self, user_id: str, requested: str | None) -> str:
+        """Pick a display name from the request, the account profile, or a fallback."""
         if requested and requested.strip():
             return requested.strip()
         profile = await self.session.get(LifeLinkProfile, user_id)
@@ -155,6 +161,7 @@ class SqlAlchemyDonorProfileStore:
         return self.to_out(row, display_name, payload)
 
     async def set_availability(self, user_id: str, availability: DonorAvailability) -> DonorProfileMeOut:
+        """Persist availability, mirror it onto the operational row, and re-match."""
         row = await self.session.get(DonorProfileRow, user_id)
         if row is None:
             raise KeyError(user_id)
@@ -194,6 +201,7 @@ class SqlAlchemyDonorProfileStore:
     def to_out(
         self, row: DonorProfileRow, display_name: str, payload: DonorProfileUpsertIn | None
     ) -> DonorProfileMeOut:
+        """Map a stored profile row to the API response model."""
         return DonorProfileMeOut(
             user_id=row.user_id,
             donor_id=row.donor_id,
@@ -216,8 +224,10 @@ class SqlAlchemyDonorProfileStore:
 
 
 def new_donor_id() -> str:
+    """Return a fresh, unique donor identifier."""
     return f"donor_{uuid4().hex}"
 
 
 async def donor_profile_exists(session: AsyncSession, user_id: str) -> bool:
+    """Return whether ``user_id`` already has a donor profile."""
     return (await session.scalar(select(DonorProfileRow.user_id).where(DonorProfileRow.user_id == user_id))) is not None
