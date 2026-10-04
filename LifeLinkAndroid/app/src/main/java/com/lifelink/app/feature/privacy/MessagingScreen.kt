@@ -17,10 +17,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.R
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.core.ui.LifeLinkPageHeader
 import com.lifelink.app.domain.Conversation
@@ -51,7 +51,7 @@ fun MessagingScreen(
             }
         }
         if (state.conversationsLoading) {
-            item { LifeLinkLoadingIndicator(label = "Loading conversations…") }
+            item { LifeLinkLoadingIndicator(label = "Loading conversations\u2026") }
         } else if (state.conversationsError != null) {
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
@@ -88,8 +88,10 @@ private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
         modifier =
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen)
-            .semantics { contentDescription = "Conversation ${conversation.conversationId.take(8)}, open chat" },
+            .clickable(
+                onClickLabel = stringResource(R.string.messaging_open_conversation, conversation.conversationId.take(8)),
+                onClick = onOpen,
+            ),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {

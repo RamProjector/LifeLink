@@ -18,10 +18,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.R
 import com.lifelink.app.core.ui.LifeLinkPageHeader
 import com.lifelink.app.domain.UpdateItem
 
@@ -48,7 +48,7 @@ fun UpdatesScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     LifeLinkPageHeader("Activity")
                     Text(
-                        if (unread == 0) "You’re up to date." else "$unread item${if (unread == 1) "" else "s"} need your attention.",
+                        if (unread == 0) "You\u2019re up to date." else "$unread item${if (unread == 1) "" else "s"} need your attention.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -78,14 +78,14 @@ fun UpdatesScreen(
 private fun UpdateRow(update: UpdateItem, onOpen: (UpdateItem) -> Unit) {
     Card(
         modifier =
-        Modifier.fillMaxWidth().clickable { onOpen(update) }.semantics {
-            contentDescription =
-                if (update.requestId != null) {
-                    "${update.title}. Open activity for request"
-                } else {
-                    "${update.title}. Open activity"
-                }
-        },
+        Modifier
+            .fillMaxWidth()
+            .clickable(
+                onClickLabel =
+                stringResource(
+                    if (update.requestId != null) R.string.updates_open_activity_for_request else R.string.updates_open_activity,
+                ),
+            ) { onOpen(update) },
         colors =
         CardDefaults.cardColors(
             containerColor = if (update.isRead) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primaryContainer,
