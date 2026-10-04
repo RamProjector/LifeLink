@@ -1064,7 +1064,10 @@ private fun StartContent(
     }
 }
 
-/** Edits the account display name and exposes donor setup and sign-out actions. */
+/**
+ * Edits the account display name and exposes donor navigation and sign-out actions.
+ * Donors invoke [onOpenDonor] to open their workspace; other roles invoke [onBecomeDonor] to start setup.
+ */
 @Composable private fun ProfileContent(
     role: UserRole,
     accountEmail: String,
