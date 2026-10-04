@@ -67,7 +67,7 @@ from .privacy_api import (
     MessageOut,
 )
 from .privacy_repositories import SqlAlchemyPrivacyStore
-from .expiry import ACTIVE_REQUEST_STATUSES
+from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
 from .security import Principal, get_postgres_principal, require_verified_email
 from .rate_limit import enforce_rate_limit
 
@@ -150,7 +150,7 @@ async def _expire_timed_out_requests_forever() -> None:
         await asyncio.sleep(interval)
 
 
-app = FastAPI(title="LifeLink Matching Service — PostgreSQL", lifespan=lifespan)
+app = FastAPI(title="LifeLink Matching Service \u2014 PostgreSQL", lifespan=lifespan)
 logger = logging.getLogger("lifelink.api")
 
 
@@ -1254,6 +1254,18 @@ async def send_conversation_message(
         raise HTTPException(status_code=404, detail="Conversation not found") from None
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
+    # A conversation is scoped to one request. Sending must respect the same
+    # request lifecycle guard as activate_location_share: once the request is no
+    # longer active (fulfilled, cancelled, expired) or its response deadline has
+    # passed, the conversation is read-only. Without this check a stale client
+    # could keep messaging after the request ended.
+    request = await session.get(EmergencyRequestRow, conversation.request_id)
+    if request is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if enum_value(request.status) not in ACTIVE_REQUEST_STATUSES:
+        raise HTTPException(status_code=409, detail="This request is no longer active")
+    if is_request_expired(enum_value(request.status), request.response_deadline):
+        raise HTTPException(status_code=409, detail="This request has expired")
     await enforce_rate_limit(f"message:{principal.subject}", 60, 300)
     # A block is enforceable state: a blocked participant cannot send messages,
     # and no push is delivered to the person who blocked them.

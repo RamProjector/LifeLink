@@ -367,10 +367,23 @@ class SqlAlchemyPrivacyStore:
         return conversation
 
     async def list_conversations_for_user(self, user_id: str) -> list[Conversation]:
-        """List a user's conversations, newest activity first."""
+        """List a user's conversations, newest activity first.
+
+        ``conversation.donor_id`` is the donor *row* id, which may differ from the
+        donor's owning user id. The donor is therefore resolved through
+        ``_donor_row`` and matched under either identity, so this list stays
+        consistent with the sibling participant checks
+        (``conversation_for_participant``, ``other_participant_user_id``,
+        ``is_blocked``) instead of only matching the raw donor row id.
+        """
+        donor = await self._donor_row(user_id)
+        donor_row_id = donor.id if donor is not None else user_id
         rows = await self.session.scalars(
             select(Conversation)
-            .where((Conversation.requester_id == user_id) | (Conversation.donor_id == user_id))
+            .where(
+                (Conversation.requester_id == user_id)
+                | (Conversation.donor_id.in_({user_id, donor_row_id}))
+            )
             .order_by(Conversation.updated_at.desc())
         )
         return list(rows.all())
