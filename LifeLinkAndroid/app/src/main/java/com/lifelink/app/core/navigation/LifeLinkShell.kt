@@ -413,12 +413,16 @@ fun LifeLinkShell(
                                     themeMode,
                                     onThemeModeChange,
                                     onRequestPasswordReset,
-                                    {
+                                    onOpenDonor = {
                                         showStart =
                                             false
                                         ; showDonor = true
                                     },
-                                    onSignOut,
+                                    onBecomeDonor = {
+                                        showStart = false
+                                        showBecomeDonor = true
+                                    },
+                                    onSignOut = onSignOut,
                                 )
                         }
                     }
@@ -829,6 +833,7 @@ private fun StartContent(
     onThemeModeChange: (ThemeMode) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
     onOpenDonor: () -> Unit,
+    onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     var section by rememberSaveable { mutableStateOf(SettingsSection.PROFILE) }
@@ -868,6 +873,7 @@ private fun StartContent(
                     profileMessage,
                     onSaveProfile,
                     onOpenDonor,
+                    onBecomeDonor,
                     onSignOut,
                 )
             SettingsSection.LEGAL -> LegalContent()
@@ -1058,6 +1064,7 @@ private fun StartContent(
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
     onOpenDonor: () -> Unit,
+    onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     var displayName by rememberSaveable(accountDisplayName) { mutableStateOf(accountDisplayName) }
