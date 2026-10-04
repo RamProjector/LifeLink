@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -21,6 +22,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,6 +53,9 @@ import com.lifelink.app.domain.DonorMapArea
 private const val DEFAULT_MAP_LATITUDE = 14.5995
 private const val DEFAULT_MAP_LONGITUDE = 120.9842
 
+// The eight standard blood types, offered as map filters alongside "any type".
+private val BLOOD_TYPES = listOf("A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-")
+
 /**
  * Donor map. The map is the primary, full-screen surface and is already loaded
  * when the screen opens \u2014 there is no intermediate placeholder and no separate
@@ -66,19 +71,25 @@ fun DonorMapScreen(
     state: PrivacyUiState,
     onAction: (PrivacyAction) -> Unit,
     onBack: () -> Unit,
+    initialLatitude: Double = DEFAULT_MAP_LATITUDE,
+    initialLongitude: Double = DEFAULT_MAP_LONGITUDE,
 ) {
-    LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
+    // The map is already loaded when the screen opens, so no load action is
+    // dispatched here. Donor areas come from the same location-sharing donors
+    // feature that powers the rest of the app, not a parallel source.
     val areas = state.map?.areas.orEmpty()
     val center = areas.firstOrNull()
     var optionsOpen by remember { mutableStateOf(false) }
     var showVisibility by remember { mutableStateOf(false) }
     var showAreas by remember { mutableStateOf(false) }
+    var selectedBloodType by remember { mutableStateOf<String?>(null) }
+    val filteredAreas = areas.filter { selectedBloodType == null || it.bloodType == selectedBloodType }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Box(Modifier.fillMaxSize()) {
         MapLibreLocationPicker(
-            latitude = center?.latitude ?: DEFAULT_MAP_LATITUDE,
-            longitude = center?.longitude ?: DEFAULT_MAP_LONGITUDE,
+            latitude = center?.latitude ?: initialLatitude,
+            longitude = center?.longitude ?: initialLongitude,
             onLocationSelected = { _, _ -> },
             initialSource = MapLocationSource.MANUAL,
             // The donor map owns its own single overflow control, so the picker's
@@ -96,26 +107,65 @@ fun DonorMapScreen(
             }
             DropdownMenu(expanded = optionsOpen, onDismissRequest = { optionsOpen = false }) {
                 DropdownMenuItem(
-                    text = { Text("Refresh donor areas") },
+                    text = { Text(stringResource(R.string.donor_map_refresh)) },
                     onClick = {
                         optionsOpen = false
                         onAction(PrivacyAction.LoadMap)
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Your visibility") },
+                    text = { Text(stringResource(R.string.donor_map_visibility)) },
                     onClick = {
                         optionsOpen = false
                         showVisibility = true
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Donor areas (${areas.size})") },
+                    text = { Text(stringResource(R.string.donor_map_available_donors, filteredAreas.size)) },
                     onClick = {
                         optionsOpen = false
                         showAreas = true
                     },
                 )
+            }
+        }
+
+        // Available donors who are sharing their location, narrowed by requested
+        // blood type: a specific type (e.g. A-) or "any type". The feed itself is
+        // the existing location-sharing donors data.
+        Surface(
+            modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 3.dp,
+        ) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    stringResource(R.string.donor_map_available_donors, filteredAreas.size),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    stringResource(R.string.donor_map_filter_label),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item {
+                        FilterChip(
+                            selected = selectedBloodType == null,
+                            onClick = { selectedBloodType = null },
+                            label = { Text(stringResource(R.string.donor_map_filter_any)) },
+                        )
+                    }
+                    items(BLOOD_TYPES) { type ->
+                        FilterChip(
+                            selected = selectedBloodType == type,
+                            onClick = { selectedBloodType = type },
+                            label = { Text(type) },
+                        )
+                    }
+                }
             }
         }
 
@@ -152,7 +202,7 @@ fun DonorMapScreen(
                 item {
                     Text("Donor areas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 }
-                if (areas.isEmpty()) {
+                if (filteredAreas.isEmpty()) {
                     item {
                         Text(
                             "No donors are currently visible on the map. Donors appear here only after they opt in.",
@@ -160,7 +210,7 @@ fun DonorMapScreen(
                         )
                     }
                 } else {
-                    items(areas) { area -> DonorAreaCard(area) }
+                    items(filteredAreas) { area -> DonorAreaCard(area) }
                 }
             }
         }

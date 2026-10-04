@@ -24,4 +24,12 @@
     <string name="donor_map_source_manual">Pin selected manually</string>
     <string name="donor_map_accuracy">Accuracy \u00b1%1$d m</string>
     <string name="donor_map_move_confirmed">Pin moved to the selected point</string>
+
+    <!-- Map action + donor filter. -->
+    <string name="lifelink_map_action">Open the donor map</string>
+    <string name="donor_map_refresh">Refresh donor areas</string>
+    <string name="donor_map_available_donors">Available donors (%1$d)</string>
+    <string name="donor_map_visibility">Your visibility</string>
+    <string name="donor_map_filter_label">Filter by blood type</string>
+    <string name="donor_map_filter_any">Any type</string>
 </resources>

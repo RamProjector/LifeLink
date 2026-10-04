@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -24,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -45,7 +47,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -77,13 +78,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.R
 import com.lifelink.app.core.auth.UserRole
+import com.lifelink.app.core.ui.LifeLinkBrand
 import com.lifelink.app.core.ui.LifeLinkPageHeader
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
@@ -115,7 +119,7 @@ private enum class ShellTab(val label: String) {
     PROFILE("Profile"),
 }
 
-private enum class SettingsSection { PROFILE, THEME, SECURITY }
+private enum class SettingsSection { PROFILE, APPEARANCE, ACCESSIBILITY, SECURITY }
 
 /**
  * Renders account navigation and routes requester and donor actions to their screens.
@@ -347,25 +351,21 @@ fun LifeLinkShell(
             },
             bottomBar = {
                 if (!useRail) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        FilledTonalButton(
-                            onClick = { showDonorMap = true },
-                            modifier = Modifier.padding(bottom = 4.dp).testTag("open-fullscreen-donor-map"),
-                        ) {
-                            Icon(Icons.Default.Map, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Find donors on full-screen map")
-                        }
-                        NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
-                            ShellTab.entries.forEach { destination ->
-                                NavigationBarItem(
-                                    selected = tab == destination,
-                                    onClick = { tab = destination },
-                                    icon = { ShellNavigationIcon(destination) },
-                                    label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                    modifier = Modifier.testTag("nav-${destination.name}"),
-                                )
+                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+                        val tabs = ShellTab.entries
+                        tabs.forEachIndexed { index, destination ->
+                            // A single centered map control splits the tab row: the first
+                            // half of the tabs on the left, the second half on the right.
+                            if (index == tabs.size / 2) {
+                                ShellMapAction(onClick = { showDonorMap = true })
                             }
+                            NavigationBarItem(
+                                selected = tab == destination,
+                                onClick = { tab = destination },
+                                icon = { ShellNavigationIcon(destination) },
+                                label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                modifier = Modifier.testTag("nav-${destination.name}"),
+                            )
                         }
                     }
                 }
@@ -400,7 +400,7 @@ fun LifeLinkShell(
                     Surface(Modifier.widthIn(max = 840.dp).fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                         when (tab) {
                             ShellTab.HOME ->
-                                HomeContent(state, donorState, role, onSwitchRole, onCreate = { showRequest = true }, onActive = {
+                                HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = {
                                     showActive =
                                         true
                                 }, onDonor = {
@@ -441,6 +441,7 @@ fun LifeLinkShell(
                                         showStart = false
                                         showBecomeDonor = true
                                     },
+                                    onSwitchRole = onSwitchRole,
                                     onSignOut = onSignOut,
                                 )
                         }
@@ -618,7 +619,6 @@ private fun HomeContent(
     state: EmergencyRequestUiState,
     donorState: DonorUiState,
     role: UserRole,
-    onSwitchRole: () -> Unit,
     onCreate: () -> Unit,
     onActive: () -> Unit,
     onDonor: () -> Unit,
@@ -631,11 +631,8 @@ private fun HomeContent(
             Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            LifeLinkPageHeader("LifeLink")
+            LifeLinkBrand()
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = onSwitchRole, modifier = Modifier.testTag("role-switcher")) {
-                Text(if (role == UserRole.DONOR) "Switch to requester" else "Switch to donor")
-            }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Column(
@@ -791,6 +788,94 @@ private fun DonorDashboardSummary(
     }
 }
 
+/** Raised, centered map action that splits the bottom tab row, matching the reference. */
+@Composable
+private fun ShellMapAction(onClick: () -> Unit) {
+    Box(Modifier.width(76.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
+        Surface(
+            onClick = onClick,
+            modifier = Modifier.size(52.dp).offset(y = (-6).dp).testTag("open-fullscreen-donor-map"),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shadowElevation = 6.dp,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Map, contentDescription = stringResource(R.string.lifelink_map_action))
+            }
+        }
+    }
+}
+
+/**
+ * Accessibility and role settings. The requester/donor switch used to sit in the
+ * home header; it lives here now so the switch is grouped with the other
+ * account-level accessibility controls instead of competing with the home title.
+ */
+@Composable
+private fun AccessibilityContent(
+    role: UserRole,
+    accountUserId: String,
+    onSwitchRole: () -> Unit,
+) {
+    val context = LocalContext.current
+    val prefs = context.getSharedPreferences("lifelink_accessibility", 0)
+    var reduceMotion by rememberSaveable(accountUserId) {
+        mutableStateOf(prefs.getBoolean("reduce_motion_$accountUserId", false))
+    }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text("Accessibility", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Mode", fontWeight = FontWeight.Bold)
+                Text(
+                    if (role == UserRole.DONOR) {
+                        "You are using the donor workspace. Switch to request blood or track your requests."
+                    } else {
+                        "You are using the requester workspace. Switch to manage your donor availability."
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                androidx.compose.material3.OutlinedButton(
+                    onClick = onSwitchRole,
+                    modifier = Modifier.fillMaxWidth().testTag("role-switcher"),
+                ) {
+                    Text(if (role == UserRole.DONOR) "Switch to requester" else "Switch to donor")
+                }
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Reduce motion", fontWeight = FontWeight.Bold)
+                        Text(
+                            "Play the loading animation as a static LifeLink icon instead of a pulsing one.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = reduceMotion,
+                        onCheckedChange = { checked ->
+                            reduceMotion = checked
+                            if (accountUserId.isNotBlank()) {
+                                prefs.edit().putBoolean("reduce_motion_$accountUserId", checked).apply()
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
 /** Shows introductory guidance and delegates request creation or donor navigation to the caller. */
 @Composable
 private fun StartContent(
@@ -809,7 +894,7 @@ private fun StartContent(
             verticalArrangement = Arrangement.spacedBy(32.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                Text("LifeLink", style = MaterialTheme.typography.titleLarge)
+                LifeLinkBrand()
                 Text(
                     if (role == UserRole.DONOR) {
                         "Set up your donor profile"
@@ -863,13 +948,15 @@ private fun StartContent(
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
     onOpenDonor: () -> Unit,
     onBecomeDonor: () -> Unit,
+    onSwitchRole: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     var section by rememberSaveable { mutableStateOf(SettingsSection.PROFILE) }
     val sections =
         listOf(
             SettingsSection.PROFILE,
-            SettingsSection.THEME,
+            SettingsSection.APPEARANCE,
+            SettingsSection.ACCESSIBILITY,
             SettingsSection.SECURITY,
         )
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -904,14 +991,15 @@ private fun StartContent(
                     onBecomeDonor,
                     onSignOut,
                 )
-            SettingsSection.THEME -> ThemeContent(themeMode, onThemeModeChange)
+            SettingsSection.APPEARANCE -> AppearanceContent(themeMode, onThemeModeChange)
+            SettingsSection.ACCESSIBILITY -> AccessibilityContent(role, accountUserId, onSwitchRole)
             SettingsSection.SECURITY -> SecurityContent(onRequestPasswordReset)
         }
     }
 }
 
 /** Displays accessible theme choices and reports the selected mode through [onThemeModeChange]. */
-@Composable private fun ThemeContent(themeMode: ThemeMode, onThemeModeChange: (ThemeMode) -> Unit) {
+@Composable private fun AppearanceContent(themeMode: ThemeMode, onThemeModeChange: (ThemeMode) -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
