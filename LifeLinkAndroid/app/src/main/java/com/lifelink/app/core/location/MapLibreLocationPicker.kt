@@ -270,10 +270,10 @@ fun MapLibreLocationPicker(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp).size(56.dp),
                 shape = CircleShape,
                 colors =
-                    IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
+                IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
             ) {
                 Icon(Icons.Default.MyLocation, contentDescription = stringResource(R.string.donor_map_recenter))
             }

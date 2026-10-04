@@ -337,16 +337,16 @@ private fun DonorPicker(
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) },
                     colors =
-                        CardDefaults.cardColors(
-                            containerColor =
-                                if (donor.donorId in
-                                    state.selectedDonorIds
-                                ) {
-                                    MaterialTheme.colorScheme.primaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surface
-                                },
-                        ),
+                    CardDefaults.cardColors(
+                        containerColor =
+                        if (donor.donorId in
+                            state.selectedDonorIds
+                        ) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surface
+                        },
+                    ),
                 ) {
                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = donor.donorId in state.selectedDonorIds, onCheckedChange = {
@@ -442,9 +442,9 @@ private fun AcceptedContactCard(
     Card(
         Modifier.fillMaxWidth(),
         colors =
-            CardDefaults.cardColors(
-                containerColor = if (accepted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-            ),
+        CardDefaults.cardColors(
+            containerColor = if (accepted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+        ),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -690,13 +690,13 @@ private fun formatContactTimestamp(value: String): String =
                 Surface(
                     Modifier.weight(1f).height(5.dp),
                     color =
-                        if (index <=
-                            step
-                        ) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline
-                        },
+                    if (index <=
+                        step
+                    ) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.outline
+                    },
                     shape = MaterialTheme.shapes.small,
                 ) {}
             }
@@ -730,28 +730,28 @@ private fun BloodNeedStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequ
         Urgency.entries.forEach { urgency ->
             Card(
                 modifier =
-                    Modifier.fillMaxWidth().clickable(role = Role.RadioButton) {
-                        onAction(EmergencyRequestAction.UpdateDraft { it.copy(urgency = urgency) })
-                    },
+                Modifier.fillMaxWidth().clickable(role = Role.RadioButton) {
+                    onAction(EmergencyRequestAction.UpdateDraft { it.copy(urgency = urgency) })
+                },
                 colors =
-                    CardDefaults.cardColors(
-                        containerColor =
-                            if (draft.urgency ==
-                                urgency
-                            ) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surface
-                            },
-                    ),
-                border =
+                CardDefaults.cardColors(
+                    containerColor =
                     if (draft.urgency ==
                         urgency
                     ) {
-                        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                        MaterialTheme.colorScheme.primaryContainer
                     } else {
-                        BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                        MaterialTheme.colorScheme.surface
                     },
+                ),
+                border =
+                if (draft.urgency ==
+                    urgency
+                ) {
+                    BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                } else {
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                },
             ) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(draft.urgency == urgency, { onAction(EmergencyRequestAction.UpdateDraft { it.copy(urgency = urgency) }) })
@@ -977,8 +977,8 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                 LocationMapPicker(
                     draft = draft,
                     onLocationSelected = {
-                        latitude,
-                        longitude,
+                            latitude,
+                            longitude,
                         ->
                         onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
                     },
@@ -1032,13 +1032,13 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
         Surface(
             Modifier.fillMaxWidth(),
             color =
-                if (draft.urgency ==
-                    Urgency.CRITICAL
-                ) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surface
-                },
+            if (draft.urgency ==
+                Urgency.CRITICAL
+            ) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
             shape = MaterialTheme.shapes.large,
         ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1084,13 +1084,13 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             }
             ; Button(
                 onClick =
-                    if (state.step ==
-                        RequestStep.REVIEW
-                    ) {
-                        onSubmit
-                    } else {
-                        onContinue
-                    },
+                if (state.step ==
+                    RequestStep.REVIEW
+                ) {
+                    onSubmit
+                } else {
+                    onContinue
+                },
                 modifier = Modifier.fillMaxWidth().height(54.dp),
                 enabled = !submitting,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
@@ -1159,9 +1159,9 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             },
             enabled = quantity > 1,
             modifier =
-                Modifier.size(
-                    52.dp,
-                ),
+            Modifier.size(
+                52.dp,
+            ),
             contentPadding = PaddingValues(0.dp),
         ) { Text("\u2212", fontSize = 24.sp) }
         ; Text("$quantity unit${if (quantity == 1) "" else "s"}", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold)
@@ -1175,9 +1175,9 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             },
             enabled = quantity < 20,
             modifier =
-                Modifier.size(
-                    52.dp,
-                ),
+            Modifier.size(
+                52.dp,
+            ),
             contentPadding = PaddingValues(0.dp),
         ) { Text("+", fontSize = 24.sp) }
     }
@@ -1205,13 +1205,13 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     Surface(
         Modifier.fillMaxWidth(),
         color =
-            if (accent ==
-                MaterialTheme.colorScheme.secondary
-            ) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                MaterialTheme.colorScheme.primaryContainer
-            },
+        if (accent ==
+            MaterialTheme.colorScheme.secondary
+        ) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.primaryContainer
+        },
         shape = MaterialTheme.shapes.medium,
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1332,23 +1332,23 @@ private fun TextField(
         placeholder = { Text(placeholder) },
         minLines = minLines,
         singleLine =
-            minLines == 1,
+        minLines == 1,
         supportingText =
-            supporting?.let {
-                {
-                    Text(it)
-                }
-            },
+        supporting?.let {
+            {
+                Text(it)
+            }
+        },
         trailingIcon =
-            if (label.contains("deadline")) {
-                (
-                    {
-                        Icon(Icons.Default.KeyboardArrowDown, null)
-                    }
+        if (label.contains("deadline")) {
+            (
+                {
+                    Icon(Icons.Default.KeyboardArrowDown, null)
+                }
                 )
-            } else {
-                null
-            },
+        } else {
+            null
+        },
         shape = MaterialTheme.shapes.medium,
     )
 }

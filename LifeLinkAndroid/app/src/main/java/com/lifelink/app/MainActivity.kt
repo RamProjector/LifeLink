@@ -211,10 +211,10 @@ class MainActivity : ComponentActivity() {
                         viewModelStoreOwner = accountModels,
                         key = "donor-$accountUserId",
                         factory =
-                            DonorViewModelFactory(
-                                account.donorRepository,
-                                launchDurableWrite = { block -> app.launchAccountWrite(accountUserId, block) },
-                            ),
+                        DonorViewModelFactory(
+                            account.donorRepository,
+                            launchDurableWrite = { block -> app.launchAccountWrite(accountUserId, block) },
+                        ),
                     )
                 val donorState by donorViewModel.state.collectAsStateWithLifecycle()
                 val becomeDonorViewModel: BecomeDonorViewModel =
@@ -433,10 +433,10 @@ private fun AnimatedLifeLinkIcon() {
         painter = painterResource(R.drawable.lifelink_icon),
         contentDescription = "LifeLink",
         modifier =
-            Modifier
-                .size((88 * pulse).dp)
-                .rotate(if (inspection) 0f else spin)
-                .clip(CircleShape),
+        Modifier
+            .size((88 * pulse).dp)
+            .rotate(if (inspection) 0f else spin)
+            .clip(CircleShape),
     )
 }
 

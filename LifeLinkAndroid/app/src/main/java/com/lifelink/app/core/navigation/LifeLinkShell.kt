@@ -112,9 +112,7 @@ import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
 import com.lifelink.app.feature.updates.UpdatesScreen
 
-private enum class ShellTab(
-    val label: String,
-) {
+private enum class ShellTab(val label: String) {
     HOME("Home"),
     REQUESTS("Requests"),
     MESSAGING("Messaging"),
@@ -1031,16 +1029,16 @@ private fun SettingsContent(
                     onThemeModeChange(mode)
                 }),
                 colors =
-                    CardDefaults.cardColors(
-                        containerColor =
-                            if (themeMode ==
-                                mode
-                            ) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surface
-                            },
-                    ),
+                CardDefaults.cardColors(
+                    containerColor =
+                    if (themeMode ==
+                        mode
+                    ) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+                ),
             ) {
                 Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = themeMode == mode, onClick = null)
@@ -1161,9 +1159,9 @@ private fun AcceptedDonorContactCard(contact: RequesterContact, onAction: (Emerg
     Card(
         Modifier.fillMaxWidth(),
         colors =
-            CardDefaults.cardColors(
-                containerColor = if (accepted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-            ),
+        CardDefaults.cardColors(
+            containerColor = if (accepted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+        ),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
