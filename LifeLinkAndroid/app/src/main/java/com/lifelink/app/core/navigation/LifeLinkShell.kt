@@ -476,7 +476,8 @@ private fun ShellNavigationIcon(tab: ShellTab) {
 
 /** Shows request history with actions to create, resume, or view the current request. */
 @Suppress("LongMethod")
-@Composable private fun RequestsContent(
+@Composable
+private fun RequestsContent(
     state: EmergencyRequestUiState,
     onAction: (EmergencyRequestAction) -> Unit,
     onCreate: () -> Unit,
@@ -947,7 +948,8 @@ private fun StartContent(
 
 /** Routes the selected settings section to profile, appearance, security, or guidance content. */
 @Suppress("LongParameterList")
-@Composable private fun SettingsContent(
+@Composable
+private fun SettingsContent(
     role: UserRole,
     accountEmail: String,
     accountUserId: String,
