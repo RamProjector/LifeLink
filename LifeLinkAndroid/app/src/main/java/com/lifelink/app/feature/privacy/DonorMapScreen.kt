@@ -65,12 +65,12 @@ private val BLOOD_TYPES = listOf("A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-
  * freshness timestamp are shown only \u2014 never individual donor pins or exact
  * coordinates.
  */
+@Suppress("LongMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DonorMapScreen(
     state: PrivacyUiState,
     onAction: (PrivacyAction) -> Unit,
-    onBack: () -> Unit,
     initialLatitude: Double = DEFAULT_MAP_LATITUDE,
     initialLongitude: Double = DEFAULT_MAP_LONGITUDE,
 ) {
@@ -97,94 +97,26 @@ fun DonorMapScreen(
             showControls = false,
             modifier = Modifier.fillMaxSize(),
         )
-
-        // Single option control: a three-dot overflow icon in the top-right.
-        Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp)) {
-            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surface, shadowElevation = 3.dp) {
-                IconButton(onClick = { optionsOpen = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.donor_map_overflow))
-                }
-            }
-            DropdownMenu(expanded = optionsOpen, onDismissRequest = { optionsOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.donor_map_refresh)) },
-                    onClick = {
-                        optionsOpen = false
-                        onAction(PrivacyAction.LoadMap)
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.donor_map_visibility)) },
-                    onClick = {
-                        optionsOpen = false
-                        showVisibility = true
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.donor_map_available_donors, filteredAreas.size)) },
-                    onClick = {
-                        optionsOpen = false
-                        showAreas = true
-                    },
-                )
-            }
-        }
-
-        // Available donors who are sharing their location, narrowed by requested
-        // blood type: a specific type (e.g. A-) or "any type". The feed itself is
-        // the existing location-sharing donors data.
-        Surface(
+        DonorMapOverflowMenu(
+            expanded = optionsOpen,
+            onExpandedChange = { optionsOpen = it },
+            availableCount = filteredAreas.size,
+            onRefresh = { onAction(PrivacyAction.LoadMap) },
+            onShowVisibility = { showVisibility = true },
+            onShowAreas = { showAreas = true },
+            modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp),
+        )
+        DonorMapFilterPanel(
+            availableCount = filteredAreas.size,
+            selectedBloodType = selectedBloodType,
+            onSelectBloodType = { selectedBloodType = it },
             modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 3.dp,
-        ) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    stringResource(R.string.donor_map_available_donors, filteredAreas.size),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    stringResource(R.string.donor_map_filter_label),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item {
-                        FilterChip(
-                            selected = selectedBloodType == null,
-                            onClick = { selectedBloodType = null },
-                            label = { Text(stringResource(R.string.donor_map_filter_any)) },
-                        )
-                    }
-                    items(BLOOD_TYPES) { type ->
-                        FilterChip(
-                            selected = selectedBloodType == type,
-                            onClick = { selectedBloodType = type },
-                            label = { Text(type) },
-                        )
-                    }
-                }
-            }
-        }
-
-        // Compact, icon-only retry shown only when the donor-map request fails.
+        )
         if (state.mapError != null) {
-            Surface(
+            DonorMapRetry(
+                onRetry = { onAction(PrivacyAction.LoadMap) },
                 modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(12.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.errorContainer,
-                shadowElevation = 3.dp,
-            ) {
-                IconButton(onClick = { onAction(PrivacyAction.LoadMap) }) {
-                    Icon(
-                        Icons.Default.Refresh,
-                        contentDescription = stringResource(R.string.donor_map_retry),
-                        tint = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                }
-            }
+            )
         }
     }
 
@@ -195,24 +127,141 @@ fun DonorMapScreen(
     }
     if (showAreas) {
         ModalBottomSheet(onDismissRequest = { showAreas = false }, sheetState = sheetState) {
-            LazyColumn(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+            DonorAreasSheet(filteredAreas)
+        }
+    }
+}
+
+/** Single three-dot overflow control in the top-right corner of the map. */
+@Composable
+private fun DonorMapOverflowMenu(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    availableCount: Int,
+    onRefresh: () -> Unit,
+    onShowVisibility: () -> Unit,
+    onShowAreas: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier) {
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surface, shadowElevation = 3.dp) {
+            IconButton(onClick = { onExpandedChange(true) }) {
+                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.donor_map_overflow))
+            }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { onExpandedChange(false) }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.donor_map_refresh)) },
+                onClick = {
+                    onExpandedChange(false)
+                    onRefresh()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.donor_map_visibility)) },
+                onClick = {
+                    onExpandedChange(false)
+                    onShowVisibility()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.donor_map_available_donors, availableCount)) },
+                onClick = {
+                    onExpandedChange(false)
+                    onShowAreas()
+                },
+            )
+        }
+    }
+}
+
+/**
+ * Bottom panel listing available donors who are sharing their location, narrowed
+ * by requested blood type: a specific type (e.g. A-) or "any type". The feed is
+ * the existing location-sharing donors data, not a parallel source.
+ */
+@Composable
+private fun DonorMapFilterPanel(
+    availableCount: Int,
+    selectedBloodType: String?,
+    onSelectBloodType: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 3.dp,
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                stringResource(R.string.donor_map_available_donors, availableCount),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                stringResource(R.string.donor_map_filter_label),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
-                    Text("Donor areas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    FilterChip(
+                        selected = selectedBloodType == null,
+                        onClick = { onSelectBloodType(null) },
+                        label = { Text(stringResource(R.string.donor_map_filter_any)) },
+                    )
                 }
-                if (filteredAreas.isEmpty()) {
-                    item {
-                        Text(
-                            "No donors are currently visible on the map. Donors appear here only after they opt in.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                } else {
-                    items(filteredAreas) { area -> DonorAreaCard(area) }
+                items(BLOOD_TYPES) { type ->
+                    FilterChip(
+                        selected = selectedBloodType == type,
+                        onClick = { onSelectBloodType(type) },
+                        label = { Text(type) },
+                    )
                 }
             }
+        }
+    }
+}
+
+/** Compact, icon-only retry shown only when the donor-map request fails. */
+@Composable
+private fun DonorMapRetry(onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.errorContainer,
+        shadowElevation = 3.dp,
+    ) {
+        IconButton(onClick = onRetry) {
+            Icon(
+                Icons.Default.Refresh,
+                contentDescription = stringResource(R.string.donor_map_retry),
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+            )
+        }
+    }
+}
+
+/** Bottom sheet listing the available donors currently sharing their location. */
+@Composable
+private fun DonorAreasSheet(areas: List<DonorMapArea>) {
+    LazyColumn(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Text("Donor areas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        }
+        if (areas.isEmpty()) {
+            item {
+                Text(
+                    "No donors are currently visible on the map. Donors appear here only after they opt in.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            items(areas) { area -> DonorAreaCard(area) }
         }
     }
 }

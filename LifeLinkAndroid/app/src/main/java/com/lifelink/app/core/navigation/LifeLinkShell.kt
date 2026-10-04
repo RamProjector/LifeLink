@@ -304,7 +304,7 @@ fun LifeLinkShell(
     }
     if (showDonorMap) {
         BackHandler { showDonorMap = false }
-        DonorMapScreen(state = privacyState, onAction = onPrivacyAction, onBack = { showDonorMap = false })
+        DonorMapScreen(state = privacyState, onAction = onPrivacyAction)
         return
     }
     if (showAcceptedContacts) {
@@ -400,20 +400,29 @@ fun LifeLinkShell(
                     Surface(Modifier.widthIn(max = 840.dp).fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                         when (tab) {
                             ShellTab.HOME ->
-                                HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = {
-                                    showActive =
-                                        true
-                                }, onDonor = {
-                                    showDonor = true
-                                }, updates = updates, onRequests = {
-                                    tab =
-                                        ShellTab.REQUESTS
-                                }, onUpdates = { showNotifications = true })
+                                HomeContent(
+                                    state = state,
+                                    donorState = donorState,
+                                    role = role,
+                                    onCreate = { showRequest = true },
+                                    onActive = { showActive = true },
+                                    onDonor = { showDonor = true },
+                                    updates = updates,
+                                    onRequests = { tab = ShellTab.REQUESTS },
+                                    onUpdates = { showNotifications = true },
+                                )
                             ShellTab.REQUESTS ->
-                                RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = {
-                                    showRequest =
-                                        true
-                                }, onActive = { showActive = true })
+                                RequestsContent(
+                                    state = state,
+                                    onAction = onAction,
+                                    onCreate = { showRequest = true },
+                                    onOpen = { showRequest = true },
+                                    onActive = { showActive = true },
+                                    onOpenContacts = { requestId ->
+                                        acceptedContactsRequestId = requestId
+                                        showAcceptedContacts = true
+                                    },
+                                )
                             ShellTab.MESSAGING ->
                                 MessagingScreen(
                                     state = privacyState,
@@ -466,12 +475,14 @@ private fun ShellNavigationIcon(tab: ShellTab) {
 }
 
 /** Shows request history with actions to create, resume, or view the current request. */
+@Suppress("LongMethod")
 @Composable private fun RequestsContent(
     state: EmergencyRequestUiState,
     onAction: (EmergencyRequestAction) -> Unit,
     onCreate: () -> Unit,
     onOpen: () -> Unit,
     onActive: () -> Unit,
+    onOpenContacts: (String) -> Unit,
 ) {
     LazyColumn(
         Modifier.fillMaxSize().testTag("request-history"),
@@ -548,10 +559,7 @@ private fun ShellNavigationIcon(tab: ShellTab) {
             item { Text(error, color = MaterialTheme.colorScheme.error) }
         }
         items(state.requestHistory, key = { it.requestId }) { request ->
-            RequestHistoryCard(request) {
-                acceptedContactsRequestId = request.requestId
-                showAcceptedContacts = true
-            }
+            RequestHistoryCard(request) { onOpenContacts(request.requestId) }
         }
     }
 }
@@ -588,8 +596,9 @@ private fun RequestHistoryCard(request: RequestHistoryItem, onOpenContacts: () -
                 } ?: "Details unavailable"}",
                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
             )
+            val responseWord = if (request.matchesResponded == 1) "" else "s"
             Text(
-                "${request.matchesResponded} donor response${if (request.matchesResponded == 1) "" else "s"} \u00b7 ${request.notificationsCreated} notified",
+                "${request.matchesResponded} donor response$responseWord \u00b7 ${request.notificationsCreated} notified",
                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                 color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -739,7 +748,9 @@ private fun ActiveRequestSummary(state: EmergencyRequestUiState, onOpen: () -> U
 @Preview(name = "Home \u00b7 dark", widthDp = 360, heightDp = 820, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun HomePreview() {
-    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, {}, emptyList(), {}, {}) }
+    LifeLinkTheme {
+        HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, emptyList(), {}, {})
+    }
 }
 
 /** Summarizes donor availability and request count with an action to open donor mode. */
@@ -935,6 +946,7 @@ private fun StartContent(
 }
 
 /** Routes the selected settings section to profile, appearance, security, or guidance content. */
+@Suppress("LongParameterList")
 @Composable private fun SettingsContent(
     role: UserRole,
     accountEmail: String,
@@ -1153,10 +1165,20 @@ private fun AcceptedDonorContactCard(contact: RequesterContact, onAction: (Emerg
                 Text(statusLabel, color = if (accepted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
             contact.acceptedAt?.let {
-                Text("Accepted ${formatShellTimestamp(it)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Accepted ${formatShellTimestamp(it)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
+            val contactSharedLabel =
+                if (contact.contactSharedAt != null) {
+                    "Contact shared ${formatShellTimestamp(contact.contactSharedAt)}"
+                } else {
+                    "Contact not shared yet"
+                }
             Text(
-                if (contact.contactSharedAt != null) "Contact shared ${formatShellTimestamp(contact.contactSharedAt)}" else "Contact not shared yet",
+                contactSharedLabel,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1191,8 +1213,11 @@ private fun AcceptedDonorContactCard(contact: RequesterContact, onAction: (Emerg
     }
 }
 
+/** Number of leading characters kept when rendering an ISO-8601 timestamp as text. */
+private const val SHELL_TIMESTAMP_LENGTH = 16
+
 /** Displays up to the first 16 characters with 'T' replaced by a space, without parsing or converting time zones. */
-private fun formatShellTimestamp(value: String): String = value.take(16).replace('T', ' ')
+private fun formatShellTimestamp(value: String): String = value.take(SHELL_TIMESTAMP_LENGTH).replace('T', ' ')
 
 /**
  * Edits the account display name and exposes donor navigation and sign-out actions.

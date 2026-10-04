@@ -78,7 +78,7 @@ enum class MapLocationSource { CURRENT, MANUAL }
  * bottom. All text-based options live inside the overflow menu. A style or tile
  * load failure surfaces a compact retry control instead of a blocking overlay.
  */
-@Suppress("LongMethod", "CyclomaticComplexMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod", "LongParameterList")
 @Composable
 fun MapLibreLocationPicker(
     latitude: Double?,

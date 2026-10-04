@@ -405,7 +405,10 @@ private fun PrivacySafeDonorMap(
     beyondTenKm: Int,
 ) {
     MapLibrePrivacySafeDonorMap(latitude, longitude)
-    Text("Within 5 km: $withinFiveKm \u00b7 5\u201310 km: $withinTenKm \u00b7 Beyond 10 km: $beyondTenKm", style = MaterialTheme.typography.bodySmall)
+    Text(
+        "Within 5 km: $withinFiveKm \u00b7 5\u201310 km: $withinTenKm \u00b7 Beyond 10 km: $beyondTenKm",
+        style = MaterialTheme.typography.bodySmall,
+    )
     Text(
         "Map summary only: circles show distance bands and donor counts. No donor names or exact donor locations are shown.",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
