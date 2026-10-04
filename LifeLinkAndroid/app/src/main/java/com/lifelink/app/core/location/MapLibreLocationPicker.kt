@@ -281,10 +281,14 @@ fun MapLibreLocationPicker(
             shadowElevation = 2.dp,
         ) {
             Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                val sourceLabel =
+                    if (source == MapLocationSource.CURRENT) {
+                        R.string.donor_map_source_current
+                    } else {
+                        R.string.donor_map_source_manual
+                    }
                 Text(
-                    stringResource(
-                        if (source == MapLocationSource.CURRENT) R.string.donor_map_source_current else R.string.donor_map_source_manual,
-                    ),
+                    stringResource(sourceLabel),
                     style = MaterialTheme.typography.labelMedium,
                 )
                 accuracyMeters?.let {

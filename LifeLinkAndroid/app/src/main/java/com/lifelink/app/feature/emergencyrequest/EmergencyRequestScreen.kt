@@ -1370,11 +1370,12 @@ private fun CriticalSheet(
                 "Eligible nearby donors will be notified. You can stop alerts from the live request screen.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            val summary =
+                "${draft.bloodType?.label ?: "Unknown type"} \u00b7 ${draft.units} unit" +
+                    "${if (draft.units == 1) "" else "s"}\n${locationSummary(draft)}"
             InfoCard(
                 "Request summary",
-                "${draft.bloodType?.label ?: "Unknown type"} \u00b7 ${draft.units} unit${if (draft.units == 1) "" else "s"}\n${locationSummary(
-                    draft,
-                )}",
+                summary,
             )
             Button(
                 onClick = { onAction(EmergencyRequestAction.ConfirmCriticalSubmit) },
