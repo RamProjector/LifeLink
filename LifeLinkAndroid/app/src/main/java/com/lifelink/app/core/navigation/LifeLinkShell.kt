@@ -947,7 +947,15 @@ private fun StartContent(
                 resetMessage?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.primary) }
             }
         }
-        DetailRow("Session safety", "About session safety") { showSessionHelp = true }
+        Card(
+            Modifier.fillMaxWidth().clickable { showSessionHelp = true },
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Session safety", style = MaterialTheme.typography.titleMedium)
+                Text("About session safety", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
     if (showSessionHelp) {
         AlertDialog(
