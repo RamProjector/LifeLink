@@ -6,12 +6,19 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -22,6 +29,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore
@@ -29,6 +40,7 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.messaging.FirebaseMessaging
+import com.lifelink.app.R
 import com.lifelink.app.core.auth.RoleSwitcher
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.auth.UserRoleStore
@@ -170,7 +182,7 @@ class MainActivity : ComponentActivity() {
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         if (roleLoadError == null) {
-                            CircularProgressIndicator()
+                            AnimatedLifeLinkIcon()
                             Text("Loading your profile\u2026")
                         } else {
                             Text(roleLoadError.orEmpty())
@@ -394,6 +406,38 @@ class MainActivity : ComponentActivity() {
 
 @Suppress("DEPRECATION")
 private suspend fun fetchFirebaseToken(): String = FirebaseMessaging.getInstance().getToken().await()
+
+/**
+ * Animated LifeLink icon shown while the app loads. It pulses and slowly rotates;
+ * in Inspect Mode (previews) it renders a static frame so the animation never
+ * blocks rendering.
+ */
+@Composable
+private fun AnimatedLifeLinkIcon() {
+    val inspection = LocalInspectionMode.current
+    val transition = rememberInfiniteTransition(label = "lifelink_load")
+    val pulse by transition.animateFloat(
+        initialValue = 0.9f,
+        targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 700), RepeatMode.Reverse),
+        label = "lifelink_pulse",
+    )
+    val spin by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 2400)),
+        label = "lifelink_spin",
+    )
+    Image(
+        painter = painterResource(R.drawable.lifelink_icon),
+        contentDescription = "LifeLink",
+        modifier =
+        Modifier
+            .size((88 * pulse).dp)
+            .rotate(if (inspection) 0f else spin)
+            .clip(CircleShape),
+    )
+}
 
 /** Keeps account work across rotation and cancels it when the account leaves the UI. */
 class AccountViewModelStore :

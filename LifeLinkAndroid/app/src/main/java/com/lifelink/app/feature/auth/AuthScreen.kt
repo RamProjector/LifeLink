@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.core.ui.LifeLinkBrand
 import java.util.regex.Pattern
 
 private val emailPattern = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$")
@@ -97,7 +98,7 @@ fun AuthScreen(
                     .padding(horizontal = 24.dp, vertical = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text("LifeLink", style = MaterialTheme.typography.titleLarge)
+                LifeLinkBrand()
                 Spacer(Modifier.height(12.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(
