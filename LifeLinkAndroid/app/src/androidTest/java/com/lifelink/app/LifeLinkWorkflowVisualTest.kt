@@ -79,6 +79,7 @@ class LifeLinkWorkflowVisualTest {
     private val testTheme: ThemeMode
         get() = if (InstrumentationRegistry.getArguments().getString("theme") == "dark") ThemeMode.DARK else ThemeMode.LIGHT
 
+    /** Verifies navigation through requests, notifications, settings, and donor setup, capturing each screen. */
     @Test
     fun navigatesCoreWorkflowsAndCapturesEvidence() {
         render()
