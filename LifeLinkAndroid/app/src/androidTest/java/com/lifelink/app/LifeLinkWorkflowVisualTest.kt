@@ -104,10 +104,6 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Account, privacy, and LifeLink information.")
         capture("workflow-settings-profile")
 
-        tap("Legal")
-        assertVisible("Legal & Safety Center")
-        capture("workflow-settings-legal")
-
         tap("Theme")
         assertVisible("Appearance")
         capture("workflow-settings-theme")
@@ -173,7 +169,7 @@ class LifeLinkWorkflowVisualTest {
     @Test
     fun failedHistoryLoadShowsRetryEvenWhenThereAreNoCachedRequests() {
         val actions = mutableListOf<com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction>()
-        render(state = EmergencyRequestUiState(historyError = "Couldn’t load your requests."), onAction = { actions += it })
+        render(state = EmergencyRequestUiState(historyError = "Couldn\u2019t load your requests."), onAction = { actions += it })
         tapTab("Requests")
         assertVisible("Requests unavailable")
         composeRule.onNodeWithText("No active request").assertDoesNotExist()

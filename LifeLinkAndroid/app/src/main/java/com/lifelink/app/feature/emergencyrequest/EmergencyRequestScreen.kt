@@ -127,7 +127,7 @@ fun EmergencyRequestScreen(
         val feedback =
             when (val submission = state.submission) {
                 is SubmissionState.Error -> submission.message to "Retry"
-                is SubmissionState.Matching -> "Request submitted. Matching donors nearby…" to null
+                is SubmissionState.Matching -> "Request submitted. Matching donors nearby\u2026" to null
                 is SubmissionState.ManualFallback -> "No automatic matches yet. You can broadcast to more potential donors." to "Broadcast"
                 is SubmissionState.QueuedOffline -> "Saved offline. It will sync when connection returns." to null
                 else -> null
@@ -148,7 +148,7 @@ fun EmergencyRequestScreen(
     }
     LaunchedEffect(state.draftSavedManually) {
         if (state.draftSavedManually) {
-            snackbarHostState.showSnackbar("Draft saved. Returning to Home…")
+            snackbarHostState.showSnackbar("Draft saved. Returning to Home\u2026")
             onAction(EmergencyRequestAction.DraftSaveHandled)
             onExit()
         }
@@ -250,7 +250,7 @@ private fun DonorPicker(
         if (state.matchesRefreshing) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                Text("Loading saved matches…", Modifier.padding(start = 10.dp))
+                Text("Loading saved matches\u2026", Modifier.padding(start = 10.dp))
             }
         }
         if (state.matchesError != null && requestId != null) {
@@ -356,7 +356,7 @@ private fun DonorPicker(
                         Column(Modifier.padding(start = 8.dp)) {
                             Text(donor.displayName, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "${donor.bloodType} · ${"%.1f".format(donor.distanceKm)} km · about ${donor.travelMinutes} min",
+                                "${donor.bloodType} \u00b7 ${"%.1f".format(donor.distanceKm)} km \u00b7 about ${donor.travelMinutes} min",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             donor.explanation.firstOrNull()?.let {
@@ -405,7 +405,7 @@ private fun PrivacySafeDonorMap(
     beyondTenKm: Int,
 ) {
     MapLibrePrivacySafeDonorMap(latitude, longitude)
-    Text("Within 5 km: $withinFiveKm · 5–10 km: $withinTenKm · Beyond 10 km: $beyondTenKm", style = MaterialTheme.typography.bodySmall)
+    Text("Within 5 km: $withinFiveKm \u00b7 5\u201310 km: $withinTenKm \u00b7 Beyond 10 km: $beyondTenKm", style = MaterialTheme.typography.bodySmall)
     Text(
         "Map summary only: circles show distance bands and donor counts. No donor names or exact donor locations are shown.",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -494,7 +494,7 @@ private fun AcceptedContactCard(
                             if (actionInFlight) {
                                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                             } else {
-                                Text("Contact donor · $email")
+                                Text("Contact donor \u00b7 $email")
                             }
                         }
                     }
@@ -679,7 +679,7 @@ private fun formatContactTimestamp(value: String): String =
     val labels = listOf("Blood need", "Timing", "Location", "Contact", "Review", "Results")
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Text(
-            "Step ${step + 1} of $total · ${labels.getOrElse(step) { "Request" }}",
+            "Step ${step + 1} of $total \u00b7 ${labels.getOrElse(step) { "Request" }}",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelLarge,
         )
@@ -794,20 +794,16 @@ private fun LocationMapPicker(
     recenterRequest: Int = 0,
     modifier: Modifier = Modifier,
 ) {
-    var retryRequest by remember { mutableStateOf(0) }
-    // MapLibreLocationPicker renders its own loading and error UI, so this screen
-    // must not add a second spinner on top of it.
+    // MapLibreLocationPicker renders its own loading, error, and retry UI, so this
+    // screen must not add a second spinner or a duplicate text button on top of it.
     Box(modifier.fillMaxWidth()) {
-        key(retryRequest) {
-            MapLibreLocationPicker(
-                draft.requesterLatitude,
-                draft.requesterLongitude,
-                onLocationSelected,
-                recenterRequest + retryRequest,
-                modifier = modifier,
-            )
-        }
-        OutlinedButton(onClick = { retryRequest++ }, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)) { Text("Reload map") }
+        MapLibreLocationPicker(
+            draft.requesterLatitude,
+            draft.requesterLongitude,
+            onLocationSelected,
+            recenterRequest,
+            modifier = modifier,
+        )
     }
     Text(
         if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
@@ -866,14 +862,14 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     LaunchedEffect(locationCaptureRequest) {
         if (locationCaptureRequest == 0) return@LaunchedEffect
         val provider = LocationProvider(context)
-        locationMessage = "Checking device location settings…"
+        locationMessage = "Checking device location settings\u2026"
         provider.checkLocationSettings(
             onReady = {
                 scope.launch {
-                    locationMessage = "Finding your current location…"
+                    locationMessage = "Finding your current location\u2026"
                     provider.currentLocation()?.let { location ->
                         onAction(EmergencyRequestAction.SetGpsLocation(location.latitude, location.longitude, location.precisionMeters))
-                        locationMessage = "Map centered on your current location (accuracy ±${location.precisionMeters} m)."
+                        locationMessage = "Map centered on your current location (accuracy \u00b1${location.precisionMeters} m)."
                     } ?: run { locationMessage = "Could not get a current fix. Try again or choose a location manually." }
                 }
             },
@@ -957,7 +953,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                     null
                 ) {
                     Text(
-                        "Using a selected pin · accuracy about ${draft.locationPrecisionMeters} m",
+                        "Using a selected pin \u00b7 accuracy about ${draft.locationPrecisionMeters} m",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1045,12 +1041,12 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
         ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    "${draft.bloodType?.label ?: "Unknown type"} · ${draft.units} unit${if (draft.units == 1) "" else "s"}",
+                    "${draft.bloodType?.label ?: "Unknown type"} \u00b7 ${draft.units} unit${if (draft.units == 1) "" else "s"}",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "${draft.urgency.label.uppercase()} · ${displayDeadline(draft)}",
+                    "${draft.urgency.label.uppercase()} \u00b7 ${displayDeadline(draft)}",
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                 )
@@ -1059,11 +1055,11 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
         }
         Summary(
             "Blood need",
-            "${draft.bloodType?.label ?: "Unknown type"} · ${draft.units} unit${if (draft.units == 1) "" else "s"}",
+            "${draft.bloodType?.label ?: "Unknown type"} \u00b7 ${draft.units} unit${if (draft.units == 1) "" else "s"}",
             0,
             onAction,
         )
-        Summary("Urgency", "${draft.urgency.label} · ${draft.urgency.description}", 1, onAction)
+        Summary("Urgency", "${draft.urgency.label} \u00b7 ${draft.urgency.description}", 1, onAction)
         Summary("Request location", locationSummary(draft), 2, onAction)
         Summary("Contact", draft.contactMethod.label, 3, onAction)
         CheckRow(
@@ -1101,7 +1097,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                 if (submitting) {
                     CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                     Spacer(Modifier.width(10.dp))
-                    Text("Submitting…")
+                    Text("Submitting\u2026")
                 } else {
                     Text(
                         if (state.step ==
@@ -1109,7 +1105,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                         ) {
                             "Submit emergency request"
                         } else {
-                            "Continue →"
+                            "Continue \u2192"
                         },
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -1165,7 +1161,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                 52.dp,
             ),
             contentPadding = PaddingValues(0.dp),
-        ) { Text("−", fontSize = 24.sp) }
+        ) { Text("\u2212", fontSize = 24.sp) }
         ; Text("$quantity unit${if (quantity == 1) "" else "s"}", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold)
         OutlinedButton(
             {
@@ -1373,7 +1369,7 @@ private fun CriticalSheet(
             )
             InfoCard(
                 "Request summary",
-                "${draft.bloodType?.label ?: "Unknown type"} · ${draft.units} unit${if (draft.units == 1) "" else "s"}\n${locationSummary(
+                "${draft.bloodType?.label ?: "Unknown type"} \u00b7 ${draft.units} unit${if (draft.units == 1) "" else "s"}\n${locationSummary(
                     draft,
                 )}",
             )

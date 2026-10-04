@@ -1,7 +1,5 @@
 package com.lifelink.app.core.navigation
 
-import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,20 +26,25 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -86,6 +89,7 @@ import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.RequestHistoryItem
+import com.lifelink.app.domain.RequesterContact
 import com.lifelink.app.domain.UpdateItem
 import com.lifelink.app.feature.activeRequest.ActiveRequestScreen
 import com.lifelink.app.feature.donor.BecomeDonorAction
@@ -111,7 +115,7 @@ private enum class ShellTab(val label: String) {
     PROFILE("Profile"),
 }
 
-private enum class SettingsSection { PROFILE, LEGAL, THEME, SECURITY }
+private enum class SettingsSection { PROFILE, THEME, SECURITY }
 
 /**
  * Renders account navigation and routes requester and donor actions to their screens.
@@ -158,6 +162,11 @@ fun LifeLinkShell(
     var showBecomeDonor by rememberSaveable { mutableStateOf(false) }
     var showDonorMap by rememberSaveable { mutableStateOf(false) }
     var showNotifications by rememberSaveable { mutableStateOf(false) }
+    // Accepted-donor contact screen: opened from a request-history card so the
+    // requester can see accepted timestamps, contact-shared and meeting-arranged
+    // status, and the Fulfilled / Cancelled lifecycle actions in one place.
+    var showAcceptedContacts by rememberSaveable { mutableStateOf(false) }
+    var acceptedContactsRequestId by rememberSaveable { mutableStateOf("") }
     // The in-app conversation was previously unreachable: ConversationScreen and
     // PrivacyViewModel.openConversation existed, but nothing navigated to them.
     // This flag is the single entry point for both the requester (from a contact
@@ -292,6 +301,16 @@ fun LifeLinkShell(
     if (showDonorMap) {
         BackHandler { showDonorMap = false }
         DonorMapScreen(state = privacyState, onAction = onPrivacyAction, onBack = { showDonorMap = false })
+        return
+    }
+    if (showAcceptedContacts) {
+        BackHandler { showAcceptedContacts = false }
+        AcceptedDonorContactsScreen(
+            state = state,
+            requestId = acceptedContactsRequestId,
+            onAction = onAction,
+            onBack = { showAcceptedContacts = false },
+        )
         return
     }
     BackHandler(enabled = tab != ShellTab.HOME) { tab = ShellTab.HOME }
@@ -477,7 +496,7 @@ private fun ShellNavigationIcon(tab: ShellTab) {
                     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             if (state.historyRefreshing) {
-                                "Loading your requests…"
+                                "Loading your requests\u2026"
                             } else if (state.historyError !=
                                 null
                             ) {
@@ -514,7 +533,7 @@ private fun ShellNavigationIcon(tab: ShellTab) {
                 TextButton(onClick = { onAction(EmergencyRequestAction.RefreshHistory) }, enabled = !state.historyRefreshing) {
                     Text(
                         if (state.historyRefreshing) {
-                            "Refreshing…"
+                            "Refreshing\u2026"
                         } else if (state.historyError != null) {
                             "Retry"
                         } else {
@@ -527,14 +546,22 @@ private fun ShellNavigationIcon(tab: ShellTab) {
         state.historyError?.let { error ->
             item { Text(error, color = MaterialTheme.colorScheme.error) }
         }
-        items(state.requestHistory, key = { it.requestId }) { RequestHistoryCard(it) }
+        items(state.requestHistory, key = { it.requestId }) { request ->
+            RequestHistoryCard(request) {
+                acceptedContactsRequestId = request.requestId
+                showAcceptedContacts = true
+            }
+        }
     }
 }
 
 /** Summarizes a saved request and labels terminal requests as past requests. */
 @Composable
-private fun RequestHistoryCard(request: RequestHistoryItem) {
-    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+private fun RequestHistoryCard(request: RequestHistoryItem, onOpenContacts: () -> Unit) {
+    Card(
+        Modifier.fillMaxWidth().clickable(onClick = onOpenContacts),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(request.status.label, modifier = Modifier.weight(1f).padding(end = 12.dp), fontWeight = FontWeight.SemiBold)
@@ -555,20 +582,20 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
             }
             Text("Request ${request.requestId.take(12)}", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-                "${request.bloodType ?: "Request"} · ${request.units?.let {
+                "${request.bloodType ?: "Request"} \u00b7 ${request.units?.let {
                     "$it unit${if (it == 1) "" else "s"}"
                 } ?: "Details unavailable"}",
                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
             )
             Text(
-                "${request.matchesResponded} donor response${if (request.matchesResponded == 1) "" else "s"} · ${request.notificationsCreated} notified",
+                "${request.matchesResponded} donor response${if (request.matchesResponded == 1) "" else "s"} \u00b7 ${request.notificationsCreated} notified",
                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                 color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             )
             request.facilityName?.let {
                 Text(
                     "$it${request.area?.let { area ->
-                        " · $area"
+                        " \u00b7 $area"
                     } ?: ""}",
                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                 )
@@ -633,7 +660,7 @@ private fun HomeContent(
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
                                 if (state.historyRefreshing) {
-                                    "Loading your requests…"
+                                    "Loading your requests\u2026"
                                 } else if (state.historyError != null) {
                                     "Requests unavailable"
                                 } else {
@@ -711,8 +738,8 @@ private fun ActiveRequestSummary(state: EmergencyRequestUiState, onOpen: () -> U
 }
 
 /** Previews the requester dashboard with empty request and donor state in light and dark themes. */
-@Preview(name = "Home · light", widthDp = 360, heightDp = 820, showBackground = true)
-@Preview(name = "Home · dark", widthDp = 360, heightDp = 820, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Home \u00b7 light", widthDp = 360, heightDp = 820, showBackground = true)
+@Preview(name = "Home \u00b7 dark", widthDp = 360, heightDp = 820, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun HomePreview() {
     LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, {}, emptyList(), {}, {}) }
@@ -842,7 +869,6 @@ private fun StartContent(
     val sections =
         listOf(
             SettingsSection.PROFILE,
-            SettingsSection.LEGAL,
             SettingsSection.THEME,
             SettingsSection.SECURITY,
         )
@@ -878,7 +904,6 @@ private fun StartContent(
                     onBecomeDonor,
                     onSignOut,
                 )
-            SettingsSection.LEGAL -> LegalContent()
             SettingsSection.THEME -> ThemeContent(themeMode, onThemeModeChange)
             SettingsSection.SECURITY -> SecurityContent(onRequestPasswordReset)
         }
@@ -971,98 +996,115 @@ private fun StartContent(
     }
 }
 
-/** Displays product limitations, emergency guidance, and legal and safety information. */
-@Composable private fun LegalContent() {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Legal & Safety Center", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text(
-            "Product guidance for a Philippines-oriented service. This is not legal or medical advice; counsel, clinicians, and licensed blood-service partners must review the final release.",
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        EmergencyHelpCard()
-        LegalSection(
-            "How matching works",
-            "Matching considers blood-type compatibility, donor availability, service radius, approximate distance, travel estimate, and urgency. A match is not medical approval; confirm compatibility with a blood-bank professional.",
-        )
-        LegalSection(
-            "LifeLink’s role",
-            "LifeLink is a coordination and contact service. It helps describe a need, discover potential voluntary donors, and manage consented contact. It does not confirm that a request is genuine, urgent, fulfilled, safe, or medically appropriate.",
-        )
-        LegalSection(
-            "Clinical and blood-service boundary",
-            "LifeLink is not a hospital, blood bank, collection unit, laboratory, ambulance, emergency dispatcher, or medical advice service. It does not screen or approve donors, collect or test blood, determine compatibility, store or transport blood, or guarantee supply. Licensed facilities and qualified clinicians make those decisions.",
-        )
-        LegalSection(
-            "Voluntary donation",
-            "Donation must be voluntary and free from pressure. Do not sell blood, request deposits or replacement fees, offer honoraria, demand money, or condition contact on gifts, sex, services, employment, or medical treatment.",
-        )
-        LegalSection(
-            "Consent and conduct",
-            "A match is an invitation to communicate, not consent to donate. Do not impersonate anyone, create fake emergencies, harass, threaten, stalk, doxx, share non-consensual sexual material, provide medical misinformation, forge records, or claim that a donor is tested, safe, or compatible. Use Report and Block when available.",
-        )
-        LegalSection(
-            "Privacy and health information",
-            "Blood type, emergency details, health-related messages, location, and contact details are personal information. Share only what is necessary. Do not post diagnoses, test results, patient names, IDs, passwords, one-time codes, financial credentials, exact addresses, or live location. Privacy requests and consent changes should use the support channel configured for this deployment.",
-        )
-        LegalSection(
-            "User responsibilities",
-            "Provide truthful information, post only requests you are authorized to make, respect consent, follow hospital or blood-service instructions, and verify real-world arrangements independently. LifeLink does not control off-platform transport, payment, donation, transfusion, or clinical decisions, subject to rights and responsibilities that cannot lawfully be excluded.",
-        )
-        Text("Official guidance", style = androidx.compose.material3.MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        SourceLink("WHO · Blood safety and availability", "https://www.who.int/news-room/fact-sheets/detail/blood-safety-and-availability")
-        SourceLink("Philippines · National Blood Services Act (RA 7719)", "https://lawphil.net/statutes/repacts/ra1994/ra_7719_1994.html")
-        SourceLink("Philippines · Data Privacy Act (RA 10173)", "https://privacy.gov.ph/data-privacy-act/")
-        SourceLink(
-            "Philippines · Unified emergency hotline information",
-            "https://dilg.gov.ph/news/One-Number-for-All-Emergencies-Unified-911-to-Launch-Nationwide/NC-2025-1177",
-        )
-        Text(
-            "Product guidance v1.0 · Review before production launch.",
-            style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+/**
+ * Accepted-donor contact screen. Shows the accepted timestamp, contact-shared
+ * and meeting-arranged status, and the Fulfilled / Cancelled lifecycle actions
+ * for every contact on a request. The legal-consent flow from PR #80 lives in
+ * the auth screen and is unaffected by this screen.
+ */
+@Composable
+private fun AcceptedDonorContactsScreen(
+    state: EmergencyRequestUiState,
+    requestId: String,
+    onAction: (EmergencyRequestAction) -> Unit,
+    onBack: () -> Unit,
+) {
+    LaunchedEffect(requestId) { onAction(EmergencyRequestAction.RefreshContacts(requestId)) }
+    val contacts = state.contacts
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+            Text("Accepted donors", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            if (state.contactsRefreshing) {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            } else {
+                IconButton(onClick = { onAction(EmergencyRequestAction.RefreshContacts(requestId)) }) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh contacts")
+                }
+            }
+        }
+        state.contactsError?.let { error ->
+            Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 20.dp))
+        }
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (contacts.isEmpty() && !state.contactsRefreshing) {
+                item {
+                    Text(
+                        "No donor has accepted this request yet. Accepted donors appear here with their contact and meeting status.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            items(contacts, key = { it.donorId }) { contact -> AcceptedDonorContactCard(contact, onAction) }
+        }
     }
 }
 
-/** Displays urgent-care guidance and opens the system dialer with 911 when requested. */
-@Composable private fun EmergencyHelpCard() {
-    val context = LocalContext.current
+/** Shows one accepted donor's timestamps, status, and Fulfilled / Cancelled actions. */
+@Composable
+private fun AcceptedDonorContactCard(contact: RequesterContact, onAction: (EmergencyRequestAction) -> Unit) {
+    val status = contact.status.lowercase()
+    val accepted = status in setOf("accepted", "arrived", "contact_shared", "meeting_arranged", "fulfilled")
+    val statusLabel = status.replace('_', ' ').replaceFirstChar { it.uppercase() }
     Card(
         Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.errorContainer),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (accepted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+        ),
     ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(contact.displayName, fontWeight = FontWeight.Bold)
+                Text(statusLabel, color = if (accepted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            contact.acceptedAt?.let {
+                Text("Accepted ${formatShellTimestamp(it)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Text(
-                "Emergency help",
-                style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = androidx.compose.material3.MaterialTheme.colorScheme.onErrorContainer,
+                if (contact.contactSharedAt != null) "Contact shared ${formatShellTimestamp(contact.contactSharedAt)}" else "Contact not shared yet",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "If someone is unconscious, severely bleeding, having trouble breathing, showing signs of shock, or getting worse, call 911 or go to the nearest emergency department now. Do not wait for a LifeLink match.",
-                color = androidx.compose.material3.MaterialTheme.colorScheme.onErrorContainer,
+                if (status == "meeting_arranged" || status == "fulfilled") "Meeting arranged" else "Meeting not arranged yet",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Button(onClick = { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:911"))) }) { Text("Call 911") }
+            if (accepted) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "fulfilled")) },
+                        enabled = status != "fulfilled",
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Fulfilled")
+                    }
+                    OutlinedButton(
+                        onClick = { onAction(EmergencyRequestAction.UpdateContactStatus(contact.donorId, "cancelled")) },
+                        enabled = status != "cancelled",
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Default.Error, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Cancelled")
+                    }
+                }
+            }
         }
     }
 }
 
-@Composable private fun LegalSection(title: String, body: String) {
-    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(title, style = androidx.compose.material3.MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(body, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable private fun SourceLink(label: String, url: String) {
-    val context = LocalContext.current
-    TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }) {
-        Text(label, modifier = Modifier.fillMaxWidth())
-    }
-}
+/** Displays up to the first 16 characters with 'T' replaced by a space, without parsing or converting time zones. */
+private fun formatShellTimestamp(value: String): String = value.take(16).replace('T', ' ')
 
 /**
  * Edits the account display name and exposes donor navigation and sign-out actions.
@@ -1125,7 +1167,7 @@ private fun StartContent(
                     )
                     if (accountUserId.isNotBlank()) {
                         Text(
-                            "Account ID · ${accountUserId.take(8)}…",
+                            "Account ID \u00b7 ${accountUserId.take(8)}\u2026",
                             style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -1147,7 +1189,7 @@ private fun StartContent(
                     onClick = { onSaveProfile(displayName) },
                     enabled = !profileSaving && displayName.trim().length >= 2,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text(if (profileSaving) "Saving…" else "Save profile") }
+                ) { Text(if (profileSaving) "Saving\u2026" else "Save profile") }
                 profileMessage?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.primary) }
             }
         }

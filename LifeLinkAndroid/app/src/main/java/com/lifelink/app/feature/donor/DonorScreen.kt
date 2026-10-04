@@ -110,11 +110,11 @@ fun DonorScreen(
     LaunchedEffect(locationCaptureRequest) {
         if (locationCaptureRequest == 0) return@LaunchedEffect
         val provider = LocationProvider(context)
-        locationMessage = "Checking device location settings…"
+        locationMessage = "Checking device location settings\u2026"
         provider.checkLocationSettings(
             onReady = {
                 scope.launch {
-                    locationMessage = "Finding your current location…"
+                    locationMessage = "Finding your current location\u2026"
                     provider.currentLocation()?.let { location ->
                         onAction(DonorAction.SetLocation(location.latitude, location.longitude, location.precisionMeters))
                         locationMessage = "Location captured. Save your profile to update matching."
@@ -363,7 +363,7 @@ private fun DonorRequestsContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (state.requestsRefreshing) item { StatusMessage("Refreshing eligible requests…", compact = true, loading = true) }
+        if (state.requestsRefreshing) item { StatusMessage("Refreshing eligible requests\u2026", compact = true, loading = true) }
         state.message?.let { message -> if (!state.requestsRefreshing) item { StatusMessage(message, compact = true) } }
         if (!state.profile.isSetupComplete) {
             item { SetupRequiredCard(state.profile) }
@@ -591,7 +591,7 @@ private fun ProfileCard(
                     "Location not captured"
                 } else {
                     "Approximate location saved for matching " +
-                        "(±${profile.locationPrecisionMeters} m)"
+                        "(\u00b1${profile.locationPrecisionMeters} m)"
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -661,7 +661,7 @@ private fun ProfileCard(
             ) {
                 Text(
                     if (saving) {
-                        "Saving…"
+                        "Saving\u2026"
                     } else if (profile.isSetupComplete) {
                         "Save changes"
                     } else {
@@ -676,20 +676,15 @@ private fun ProfileCard(
 /** Lets the donor select an approximate location without inventing a default city. */
 @Composable
 private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSelected: (Double, Double) -> Unit) {
-    var retryRequest by remember { mutableStateOf(0) }
-    // MapLibreLocationPicker renders its own loading and error UI, so this screen
-    // must not add a second spinner on top of it.
+    // MapLibreLocationPicker renders its own loading, error, and recenter UI, so
+    // this screen must not add a duplicate text button on top of it.
     Box(Modifier.fillMaxWidth()) {
         MapLibreLocationPicker(
             latitude,
             longitude,
             onLocationSelected,
-            retryRequest,
             modifier = Modifier.fillMaxWidth().height(260.dp),
         )
-        OutlinedButton(onClick = {
-            retryRequest++
-        }, modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(12.dp)) { Text("Recenter") }
     }
     Text(
         if (latitude != null && longitude != null) {
@@ -719,7 +714,7 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    "${request.bloodType} · ${request.units} unit${if (request.units == 1) "" else "s"}",
+                    "${request.bloodType} \u00b7 ${request.units} unit${if (request.units == 1) "" else "s"}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
@@ -739,7 +734,7 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
                 }
             }
             Text(request.facilityName, fontWeight = FontWeight.SemiBold)
-            Text("${request.area} · ${request.distanceKm} km away", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${request.area} \u00b7 ${request.distanceKm} km away", color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (request.response == null) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(enabled = !saving, onClick = {
