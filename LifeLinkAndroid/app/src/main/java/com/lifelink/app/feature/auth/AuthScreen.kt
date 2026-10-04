@@ -2,27 +2,29 @@ package com.lifelink.app.feature.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -40,12 +42,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import java.util.regex.Pattern
 
 private val emailPattern = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$")
 
+/**
+ * Renders sign-in, account creation, and password recovery forms for [state].
+ * Validates form input before invoking the supplied callbacks and requires agreement to the privacy
+ * policy and terms before signup, with dialogs for reading both documents.
+ */
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun AuthScreen(
     state: AuthState,
@@ -53,7 +60,7 @@ fun AuthScreen(
     onSignUp: (String, String) -> Unit,
     onPasswordReset: (String) -> Unit,
     onResendConfirmation: (String) -> Unit,
-    onUpdatePassword: (String, String) -> Unit
+    onUpdatePassword: (String, String) -> Unit,
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -62,12 +69,20 @@ fun AuthScreen(
     var showPassword by remember { mutableStateOf(false) }
     var showConfirmPassword by remember { mutableStateOf(false) }
     var recoveryMode by remember { mutableStateOf(false) }
+    var acceptedLegal by remember { mutableStateOf(false) }
+    var legalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     val busy = state is AuthState.Loading
     val resetReady = state is AuthState.PasswordResetReady
     val emailValid = emailPattern.matcher(email.trim()).matches()
     val passwordValid = password.length >= 6
     val passwordsMatch = !(createAccount || resetReady) || password == confirmPassword
-    val canSubmit = if (resetReady) passwordValid && passwordsMatch && !busy else emailValid && (recoveryMode || (passwordValid && passwordsMatch)) && !busy
+    val canSubmit = if (resetReady) {
+        passwordValid && passwordsMatch && !busy
+    } else {
+        emailValid &&
+            (recoveryMode || (passwordValid && passwordsMatch && (!createAccount || acceptedLegal))) &&
+            !busy
+    }
 
     Surface(color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -80,51 +95,72 @@ fun AuthScreen(
                     .imePadding()
                     .navigationBarsPadding()
                     .padding(horizontal = 24.dp, vertical = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text("LifeLink", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(12.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(
-                        if (resetReady) "Create a new password" else if (recoveryMode) "Reset your password" else if (createAccount) "Create your account" else "Sign in",
+                        if (resetReady) {
+                            "Create a new password"
+                        } else if (recoveryMode) {
+                            "Reset your password"
+                        } else if (createAccount) {
+                            "Create your account"
+                        } else {
+                            "Sign in"
+                        },
                         style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        if (resetReady) "Your recovery link is confirmed. Enter and confirm your new password below."
-                        else if (recoveryMode) "We’ll email a secure password-reset link."
-                        else if (createAccount) "Use an email you can access. Check your inbox for a confirmation link."
-                        else "Use the email and password associated with your LifeLink account.",
+                        if (resetReady) {
+                            "Your recovery link is confirmed. Enter and confirm your new password below."
+                        } else if (recoveryMode) {
+                            "We’ll email a secure password-reset link."
+                        } else if (createAccount) {
+                            "Use an email you can access. Check your inbox for a confirmation link."
+                        } else {
+                            "Use the email and password associated with your LifeLink account."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
-                    if (!resetReady) OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Email address") },
-                        placeholder = { Text("name@gmail.com") },
-                        singleLine = true,
-                        isError = email.isNotEmpty() && !emailValid,
-                        supportingText = if (email.isNotEmpty() && !emailValid) {
-                            { Text("Enter a complete email, such as name@gmail.com") }
-                        } else null,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                        trailingIcon = if (email.isNotEmpty() && !emailValid) {
-                            { androidx.compose.material3.Icon(Icons.Default.Error, contentDescription = "Invalid email address") }
-                        } else null
-                    )
+                    if (!resetReady) {
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Email address") },
+                            placeholder = { Text("name@gmail.com") },
+                            singleLine = true,
+                            isError = email.isNotEmpty() && !emailValid,
+                            supportingText = if (email.isNotEmpty() && !emailValid) {
+                                { Text("Enter a complete email, such as name@gmail.com") }
+                            } else {
+                                null
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            trailingIcon = if (email.isNotEmpty() && !emailValid) {
+                                { androidx.compose.material3.Icon(Icons.Default.Error, contentDescription = "Invalid email address") }
+                            } else {
+                                null
+                            },
+                        )
+                    }
 
-                    if (!recoveryMode || resetReady) PasswordField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = if (resetReady) "New password" else "Password",
-                        visible = showPassword,
-                        onToggleVisibility = { showPassword = !showPassword },
-                        isError = password.isNotEmpty() && !passwordValid,
-                        supportingText = if (password.isNotEmpty() && !passwordValid) "Use at least 6 characters." else null
-                    )
+                    if (!recoveryMode || resetReady) {
+                        PasswordField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = if (resetReady) "New password" else "Password",
+                            visible = showPassword,
+                            onToggleVisibility = { showPassword = !showPassword },
+                            isError = password.isNotEmpty() && !passwordValid,
+                            supportingText = if (password.isNotEmpty() && !passwordValid) "Use at least 6 characters." else null,
+                        )
+                    }
 
                     if ((!recoveryMode && createAccount) || resetReady) {
                         PasswordField(
@@ -134,44 +170,97 @@ fun AuthScreen(
                             visible = showConfirmPassword,
                             onToggleVisibility = { showConfirmPassword = !showConfirmPassword },
                             isError = confirmPassword.isNotEmpty() && !passwordsMatch,
-                            supportingText = if (confirmPassword.isNotEmpty() && !passwordsMatch) "Passwords do not match." else null
+                            supportingText = if (confirmPassword.isNotEmpty() && !passwordsMatch) "Passwords do not match." else null,
                         )
+                    }
+
+                    if (createAccount && !recoveryMode && !resetReady) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = acceptedLegal, onCheckedChange = { acceptedLegal = it })
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    "I agree to the LifeLink Privacy Policy and Terms and Conditions.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    TextButton(onClick = {
+                                        legalDocument = PrivacyPolicyPhilippines
+                                    }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                                        Text("Privacy Policy")
+                                    }
+                                    Text(
+                                        "and",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    TextButton(onClick = {
+                                        legalDocument = TermsAndConditionsPhilippines
+                                    }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                                        Text("Terms")
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     when (state) {
                         is AuthState.Error -> MessageCard(state.message, isError = true)
                         is AuthState.Message -> MessageCard(state.text, isError = state.isError)
-                        AuthState.SessionExpired -> MessageCard("Your session expired. Please sign in again to protect your requests and contact details.", isError = true)
-                        is AuthState.PasswordResetReady -> MessageCard("Email confirmed. Your password-reset link is valid. Set a new password below.", isError = false)
-                        AuthState.PasswordResetComplete -> MessageCard("Password updated successfully. Return to sign in with your new password.", isError = false)
+                        AuthState.SessionExpired -> MessageCard(
+                            "Your session expired. Please sign in again to protect your requests and contact details.",
+                            isError = true,
+                        )
+                        is AuthState.PasswordResetReady -> MessageCard(
+                            "Email confirmed. Your password-reset link is valid. Set a new password below.",
+                            isError = false,
+                        )
+                        AuthState.PasswordResetComplete -> MessageCard(
+                            "Password updated successfully. Return to sign in with your new password.",
+                            isError = false,
+                        )
                         AuthState.EmailConfirmationRequired -> MessageCard(
                             "Account created. Check your inbox and click the confirmation link, then choose Sign in.",
-                            isError = false
+                            isError = false,
                         )
                         else -> Unit
                     }
 
                     Button(
                         onClick = {
-                            if (resetReady) onUpdatePassword((state as AuthState.PasswordResetReady).accessToken, password)
-                            else if (recoveryMode) onPasswordReset(email.trim())
-                            else if (createAccount) onSignUp(email.trim(), password)
-                            else onSignIn(email.trim(), password)
+                            if (resetReady) {
+                                onUpdatePassword((state as AuthState.PasswordResetReady).accessToken, password)
+                            } else if (recoveryMode) {
+                                onPasswordReset(email.trim())
+                            } else if (createAccount) {
+                                onSignUp(email.trim(), password)
+                            } else {
+                                onSignIn(email.trim(), password)
+                            }
                         },
                         enabled = canSubmit,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                        shape = MaterialTheme.shapes.small
+                        shape = MaterialTheme.shapes.small,
                     ) {
                         if (busy) {
                             CircularProgressIndicator(
                                 modifier = Modifier.width(22.dp).height(22.dp),
                                 strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
+                                color = MaterialTheme.colorScheme.onPrimary,
                             )
                             Spacer(Modifier.width(10.dp))
                             Text("Working…")
                         } else {
-                            Text(if (resetReady) "Update password" else if (recoveryMode) "Send reset email" else if (createAccount) "Create account" else "Sign in")
+                            Text(
+                                if (resetReady) {
+                                    "Update password"
+                                } else if (recoveryMode) {
+                                    "Send reset email"
+                                } else if (createAccount) {
+                                    "Create account"
+                                } else {
+                                    "Sign in"
+                                },
+                            )
                         }
                     }
 
@@ -180,13 +269,29 @@ fun AuthScreen(
                             Text("Forgot password?")
                         }
                     }
-                    if (recoveryMode && !resetReady) TextButton(onClick = { recoveryMode = false }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Back to sign in") }
-                    if (state is AuthState.EmailConfirmationRequired) OutlinedButton(onClick = { onResendConfirmation(email.trim()) }, enabled = emailValid && !busy, modifier = Modifier.fillMaxWidth()) { Text("Resend confirmation email") }
+                    if (recoveryMode &&
+                        !resetReady
+                    ) {
+                        TextButton(onClick = {
+                            recoveryMode = false
+                        }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Back to sign in") }
+                    }
+                    if (state is AuthState.EmailConfirmationRequired) {
+                        OutlinedButton(
+                            onClick = { onResendConfirmation(email.trim()) },
+                            enabled =
+                            emailValid && !busy,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("Resend confirmation email") }
+                    }
                 }
                 if (!recoveryMode && !resetReady) {
                     TextButton(
-                        onClick = { createAccount = !createAccount },
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                        onClick = {
+                            createAccount = !createAccount
+                            acceptedLegal = false
+                        },
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
                     ) {
                         Text(if (createAccount) "Already have an account? Sign in" else "Create an account")
                     }
@@ -194,8 +299,10 @@ fun AuthScreen(
             }
         }
     }
+    legalDocument?.let { document -> LegalDocumentDialog(document = document, onDismiss = { legalDocument = null }) }
 }
 
+/** Displays a password field with caller-controlled visibility, validation feedback, and a visibility toggle. */
 @Composable
 private fun PasswordField(
     value: String,
@@ -204,7 +311,7 @@ private fun PasswordField(
     visible: Boolean,
     onToggleVisibility: () -> Unit,
     isError: Boolean,
-    supportingText: String?
+    supportingText: String?,
 ) {
     OutlinedTextField(
         value = value,
@@ -223,23 +330,24 @@ private fun PasswordField(
                 }
                 TextButton(onClick = onToggleVisibility) { Text(if (visible) "Hide" else "Show") }
             }
-        }
+        },
     )
 }
 
+/** Shows an authentication message using error or informational colors according to [isError]. */
 @Composable
 private fun MessageCard(message: String, isError: Boolean) {
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+            containerColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
         ),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
             message,
             modifier = Modifier.padding(14.dp),
             color = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyMedium,
         )
     }
 }

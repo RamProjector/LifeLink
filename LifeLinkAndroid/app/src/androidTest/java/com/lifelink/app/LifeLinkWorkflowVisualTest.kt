@@ -79,6 +79,7 @@ class LifeLinkWorkflowVisualTest {
     private val testTheme: ThemeMode
         get() = if (InstrumentationRegistry.getArguments().getString("theme") == "dark") ThemeMode.DARK else ThemeMode.LIGHT
 
+    /** Verifies navigation through requests, notifications, settings, and donor setup, capturing each screen. */
     @Test
     fun navigatesCoreWorkflowsAndCapturesEvidence() {
         render()
@@ -100,7 +101,7 @@ class LifeLinkWorkflowVisualTest {
         composeRule.waitForIdle()
 
         tapTab("Profile")
-        assertVisible("Requester profile")
+        assertVisible("Account, privacy, and LifeLink information.")
         capture("workflow-settings-profile")
 
         tap("Legal")
@@ -117,8 +118,8 @@ class LifeLinkWorkflowVisualTest {
 
         tap("Profile")
         composeRule.onNodeWithText("Become a donor").performScrollTo().performClick()
-        assertVisible("Donor workspace")
-        assertVisible("Finish donor setup")
+        assertVisible("Offer to donate")
+        assertVisible("Donor details")
         capture("workflow-donor")
     }
 
@@ -164,9 +165,6 @@ class LifeLinkWorkflowVisualTest {
                 ),
             ),
         )
-        composeRule.onNodeWithText("View all").performScrollTo().performClick()
-        assertVisible("No active request")
-        tapTab("Home")
         composeRule.onNodeWithText("A donor responded").performScrollTo().performClick()
         assertVisible("Activity")
         assertVisible("A donor responded")

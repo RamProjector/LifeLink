@@ -4,9 +4,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.feature.auth.AuthScreen
@@ -20,6 +20,7 @@ class AuthScreenVisualTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
+    /** Captures the sign-in screen and verifies navigation through signup, legal dialogs, and password recovery. */
     @Test
     fun authScreenRendersAndCapturesVisualEvidence() {
         composeRule.activity.runOnUiThread {
@@ -31,7 +32,7 @@ class AuthScreenVisualTest {
                         onSignUp = { _, _ -> },
                         onPasswordReset = { },
                         onResendConfirmation = { },
-                        onUpdatePassword = { _, _ -> }
+                        onUpdatePassword = { _, _ -> },
                     )
                 }
             }
@@ -45,6 +46,13 @@ class AuthScreenVisualTest {
 
         composeRule.onNodeWithText("Create an account").performScrollTo().performClick()
         composeRule.onNodeWithText("Confirm password").assertIsDisplayed()
+        composeRule.onNodeWithText("I agree to the LifeLink Privacy Policy and Terms and Conditions.").assertIsDisplayed()
+        composeRule.onNodeWithText("Privacy Policy").performClick()
+        composeRule.onNodeWithText("What this app does").assertIsDisplayed()
+        composeRule.onNodeWithText("Close").performClick()
+        composeRule.onNodeWithText("Terms").performClick()
+        composeRule.onNodeWithText("Emergency and medical limitation").assertIsDisplayed()
+        composeRule.onNodeWithText("Close").performClick()
         composeRule.onNodeWithText("Already have an account? Sign in").performScrollTo().performClick()
         composeRule.onNodeWithText("Confirm password").assertDoesNotExist()
         composeRule.onNodeWithText("Forgot password?").performScrollTo().performClick()
