@@ -13,7 +13,7 @@ name: Android Debug + Release Build
 
 on:
   push:
-    branches: [main, fix/build-actions]
+    branches: [main]
     paths:
       - 'LifeLinkAndroid/**'
       - '.github/workflows/android-release.yml'
