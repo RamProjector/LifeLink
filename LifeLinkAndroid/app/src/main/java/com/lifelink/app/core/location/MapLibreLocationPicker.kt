@@ -6,7 +6,6 @@ import android.view.MotionEvent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -18,8 +17,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
@@ -104,10 +101,11 @@ fun MapLibreLocationPicker(
     var source by remember { mutableStateOf(initialSource) }
     var moveConfirmed by remember { mutableStateOf(false) }
     var optionsOpen by remember { mutableStateOf(false) }
-    val mapView = remember {
-        MapLibre.getInstance(context.applicationContext)
-        MapView(context).also { it.onCreate(null) }
-    }
+    val mapView =
+        remember {
+            MapLibre.getInstance(context.applicationContext)
+            MapView(context).also { it.onCreate(null) }
+        }
 
     DisposableEffect(mapView) {
         mapView.onStart()
@@ -161,16 +159,20 @@ fun MapLibreLocationPicker(
                             onLoadingChanged(false)
                             val currentPosition = latestLatitude?.let { lat -> latestLongitude?.let { lon -> LatLng(lat, lon) } }
                             val target = currentPosition ?: DEFAULT_CENTER
-                            map.cameraPosition = CameraPosition.Builder()
-                                .target(target)
-                                .zoom(if (currentPosition != null) 15.0 else 11.0)
-                                .build()
+                            map.cameraPosition =
+                                CameraPosition
+                                    .Builder()
+                                    .target(target)
+                                    .zoom(if (currentPosition != null) 15.0 else 11.0)
+                                    .build()
                             appliedLatitude = latestLatitude
                             appliedLongitude = latestLongitude
                             appliedRecenterRequest = recenterRequest
-                            marker = currentPosition?.let {
-                                map.addMarker(MarkerOptions().position(it).title("Selected approximate location"))
-                            }
+                            marker =
+                                currentPosition?.let {
+                                    map.addMarker(MarkerOptions().position(it).title("Selected approximate location"))
+                                }
+
                             fun select(position: LatLng) {
                                 appliedLatitude = position.latitude
                                 appliedLongitude = position.longitude
@@ -218,10 +220,12 @@ fun MapLibreLocationPicker(
                             it.position = target
                             map.updateMarker(it)
                         }
-                        map.cameraPosition = CameraPosition.Builder()
-                            .target(target)
-                            .zoom(map.cameraPosition.zoom.coerceAtLeast(12.0))
-                            .build()
+                        map.cameraPosition =
+                            CameraPosition
+                                .Builder()
+                                .target(target)
+                                .zoom(map.cameraPosition.zoom.coerceAtLeast(12.0))
+                                .build()
                     }
                 }
             },
@@ -229,77 +233,78 @@ fun MapLibreLocationPicker(
 
         // Single option control: a three-dot overflow icon in the top-right.
         if (showControls) {
-        Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp)) {
-            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surface, shadowElevation = 3.dp) {
-                IconButton(onClick = { optionsOpen = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.donor_map_overflow))
+            Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp)) {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surface, shadowElevation = 3.dp) {
+                    IconButton(onClick = { optionsOpen = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.donor_map_overflow))
+                    }
+                }
+                DropdownMenu(expanded = optionsOpen, onDismissRequest = { optionsOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.donor_map_recenter)) },
+                        onClick = {
+                            optionsOpen = false
+                            source = MapLocationSource.CURRENT
+                            onLocationSelected(latitude ?: DEFAULT_CENTER.latitude, longitude ?: DEFAULT_CENTER.longitude)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.donor_map_retry)) },
+                        onClick = {
+                            optionsOpen = false
+                            retryRequest++
+                        },
+                    )
                 }
             }
-            DropdownMenu(expanded = optionsOpen, onDismissRequest = { optionsOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.donor_map_recenter)) },
-                    onClick = {
-                        optionsOpen = false
-                        source = MapLocationSource.CURRENT
-                        onLocationSelected(latitude ?: DEFAULT_CENTER.latitude, longitude ?: DEFAULT_CENTER.longitude)
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.donor_map_retry)) },
-                    onClick = {
-                        optionsOpen = false
-                        retryRequest++
-                    },
-                )
-            }
-        }
         }
 
         // Raised, circular recenter button centered at the bottom, matching the
         // reference's prominent centered control.
         if (showControls) {
-        FilledIconButton(
-            onClick = {
-                source = MapLocationSource.CURRENT
-                onLocationSelected(latitude ?: DEFAULT_CENTER.latitude, longitude ?: DEFAULT_CENTER.longitude)
-            },
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp).size(56.dp),
-            shape = CircleShape,
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ),
-        ) {
-            Icon(Icons.Default.MyLocation, contentDescription = stringResource(R.string.donor_map_recenter))
-        }
+            FilledIconButton(
+                onClick = {
+                    source = MapLocationSource.CURRENT
+                    onLocationSelected(latitude ?: DEFAULT_CENTER.latitude, longitude ?: DEFAULT_CENTER.longitude)
+                },
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp).size(56.dp),
+                shape = CircleShape,
+                colors =
+                    IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+            ) {
+                Icon(Icons.Default.MyLocation, contentDescription = stringResource(R.string.donor_map_recenter))
+            }
 
-        // Location-source and accuracy feedback, kept as a compact non-interactive chip.
-        Surface(
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 12.dp, bottom = 20.dp),
-            shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 2.dp,
-        ) {
-            Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                val sourceLabel =
-                    if (source == MapLocationSource.CURRENT) {
-                        R.string.donor_map_source_current
-                    } else {
-                        R.string.donor_map_source_manual
-                    }
-                Text(
-                    stringResource(sourceLabel),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                accuracyMeters?.let {
+            // Location-source and accuracy feedback, kept as a compact non-interactive chip.
+            Surface(
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 12.dp, bottom = 20.dp),
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 2.dp,
+            ) {
+                Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    val sourceLabel =
+                        if (source == MapLocationSource.CURRENT) {
+                            R.string.donor_map_source_current
+                        } else {
+                            R.string.donor_map_source_manual
+                        }
                     Text(
-                        stringResource(R.string.donor_map_accuracy, it),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        stringResource(sourceLabel),
+                        style = MaterialTheme.typography.labelMedium,
                     )
+                    accuracyMeters?.let {
+                        Text(
+                            stringResource(R.string.donor_map_accuracy, it),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
-        }
         }
 
         // Compact, icon-only retry control shown only when the style/tiles fail.
@@ -353,10 +358,11 @@ fun MapLibrePrivacySafeDonorMap(
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
     var mapError by remember { mutableStateOf(false) }
     var retryRequest by remember { mutableStateOf(0) }
-    val mapView = remember {
-        MapLibre.getInstance(context.applicationContext)
-        MapView(context).also { it.onCreate(null) }
-    }
+    val mapView =
+        remember {
+            MapLibre.getInstance(context.applicationContext)
+            MapView(context).also { it.onCreate(null) }
+        }
     DisposableEffect(mapView) {
         mapView.onStart()
         mapView.onResume()
@@ -376,7 +382,12 @@ fun MapLibrePrivacySafeDonorMap(
                         mapError = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
                             mapError = false
-                            map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
+                            map.cameraPosition =
+                                CameraPosition
+                                    .Builder()
+                                    .target(center)
+                                    .zoom(12.0)
+                                    .build()
                             map.addMarker(MarkerOptions().position(center).title("Your request location"))
                         }
                     }
@@ -389,10 +400,12 @@ fun MapLibrePrivacySafeDonorMap(
                         map.setStyle(OPEN_FREE_MAP_STYLE) { mapError = false }
                         retryRequest = 0
                     }
-                    map.cameraPosition = CameraPosition.Builder()
-                        .target(LatLng(latitude, longitude))
-                        .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
-                        .build()
+                    map.cameraPosition =
+                        CameraPosition
+                            .Builder()
+                            .target(LatLng(latitude, longitude))
+                            .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
+                            .build()
                 }
             },
         )
