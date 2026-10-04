@@ -52,6 +52,7 @@ private val emailPattern = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$")
  * Validates form input before invoking the supplied callbacks and requires agreement to the privacy
  * policy and terms before signup, with dialogs for reading both documents.
  */
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun AuthScreen(
     state: AuthState,

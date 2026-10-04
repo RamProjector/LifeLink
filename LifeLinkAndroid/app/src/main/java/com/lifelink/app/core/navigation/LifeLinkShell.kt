@@ -585,7 +585,9 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
 }
 
 /** Displays the account dashboard with request, donor, and activity navigation actions. */
-@Composable private fun HomeContent(
+@Suppress("LongParameterList", "LongMethod")
+@Composable
+private fun HomeContent(
     state: EmergencyRequestUiState,
     donorState: DonorUiState,
     role: UserRole,
