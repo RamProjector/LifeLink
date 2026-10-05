@@ -186,7 +186,7 @@ jobs:
       - name: Cache AVD snapshot and system image
         id: avd-cache
         if: steps.kvm.outputs.available == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.android/avd/*
