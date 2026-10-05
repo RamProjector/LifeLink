@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -803,7 +804,7 @@ private fun DonorDashboardSummary(
 /** Raised, centered map action that splits the bottom tab row, matching the reference. */
 @Composable
 private fun ShellMapAction(onClick: () -> Unit) {
-    Box(Modifier.width(76.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
+    Box(Modifier.width(76.dp).height(80.dp), contentAlignment = Alignment.Center) {
         Surface(
             onClick = onClick,
             modifier = Modifier.size(52.dp).offset(y = (-6).dp).testTag("open-fullscreen-donor-map"),
