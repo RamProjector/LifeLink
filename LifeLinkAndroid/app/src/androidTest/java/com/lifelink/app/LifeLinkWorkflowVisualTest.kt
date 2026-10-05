@@ -104,7 +104,7 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Account, privacy, and LifeLink information.")
         capture("workflow-settings-profile")
 
-        tap("Theme")
+        tap("Appearance")
         assertVisible("Appearance")
         capture("workflow-settings-theme")
 
