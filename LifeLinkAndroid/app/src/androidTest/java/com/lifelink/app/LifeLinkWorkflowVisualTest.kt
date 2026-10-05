@@ -105,7 +105,7 @@ class LifeLinkWorkflowVisualTest {
         capture("workflow-settings-profile")
 
         tap("Appearance")
-        assertVisible("Appearance")
+        assertVisible("Use device setting")
         capture("workflow-settings-theme")
 
         tap("Security")
