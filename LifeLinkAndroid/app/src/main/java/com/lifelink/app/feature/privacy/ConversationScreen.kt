@@ -240,8 +240,8 @@ private fun MessageComposer(draft: String, sending: Boolean, onDraftChange: (Str
             onClick = onSend,
             enabled = canSend,
             contentPadding =
-                androidx.compose.foundation.layout
-                    .PaddingValues(horizontal = 16.dp),
+            androidx.compose.foundation.layout
+                .PaddingValues(horizontal = 16.dp),
         ) {
             if (sending) {
                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -297,14 +297,14 @@ private fun MessageBubble(message: ChatMessage, mine: Boolean) {
         Card(
             modifier = Modifier.widthIn(max = 300.dp),
             colors =
-                CardDefaults.cardColors(
-                    containerColor =
-                        if (mine) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainerLow
-                        },
-                ),
+            CardDefaults.cardColors(
+                containerColor =
+                if (mine) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerLow
+                },
+            ),
         ) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(message.body)

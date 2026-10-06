@@ -52,13 +52,13 @@ fun RoleSelectionScreen(onRoleSelected: (UserRole) -> Unit) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             Column(
                 modifier =
-                    Modifier
-                        .widthIn(max = 560.dp)
-                        .fillMaxSize()
-                        .statusBarsPadding()
-                        .verticalScroll(rememberScrollState())
-                        .navigationBarsPadding()
-                        .padding(horizontal = 24.dp, vertical = 24.dp),
+                Modifier
+                    .widthIn(max = 560.dp)
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 RoleSelectionHeader()
@@ -81,18 +81,18 @@ private fun RoleSelectionHeader() {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(
             modifier =
-                Modifier
-                    .size(32.dp)
-                    .background(
-                        brush =
-                            Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.tertiary,
-                                ),
-                            ),
-                        shape = CircleShape,
+            Modifier
+                .size(32.dp)
+                .background(
+                    brush =
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.tertiary,
+                        ),
                     ),
+                    shape = CircleShape,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

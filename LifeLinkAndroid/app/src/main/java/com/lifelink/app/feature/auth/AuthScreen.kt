@@ -152,31 +152,31 @@ fun AuthScreen(
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             Column(
                 modifier =
-                    Modifier
-                        .widthIn(max = 560.dp)
-                        .fillMaxSize()
-                        .statusBarsPadding()
-                        .verticalScroll(rememberScrollState())
-                        .imePadding()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 24.dp, vertical = 28.dp),
+                Modifier
+                    .widthIn(max = 560.dp)
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .imePadding()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(
                         modifier =
-                            Modifier
-                                .size(48.dp)
-                                .background(
-                                    brush =
-                                        Brush.linearGradient(
-                                            listOf(
-                                                MaterialTheme.colorScheme.primary,
-                                                MaterialTheme.colorScheme.tertiary,
-                                            ),
-                                        ),
-                                    shape = CircleShape,
+                        Modifier
+                            .size(48.dp)
+                            .background(
+                                brush =
+                                Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.tertiary,
+                                    ),
                                 ),
+                                shape = CircleShape,
+                            ),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -236,38 +236,38 @@ fun AuthScreen(
                             onValueChange = { email = it },
                             enabled = !busy,
                             modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .semantics { contentType = ContentType.Username },
+                            Modifier
+                                .fillMaxWidth()
+                                .semantics { contentType = ContentType.Username },
                             label = { Text("Email address") },
                             placeholder = { Text("name@gmail.com") },
                             singleLine = true,
                             isError = email.isNotEmpty() && !emailValid,
                             supportingText =
-                                if (email.isNotEmpty() && !emailValid) {
-                                    { Text("Enter a complete email, such as name@gmail.com") }
-                                } else {
-                                    null
-                                },
+                            if (email.isNotEmpty() && !emailValid) {
+                                { Text("Enter a complete email, such as name@gmail.com") }
+                            } else {
+                                null
+                            },
                             keyboardOptions =
-                                KeyboardOptions(
-                                    keyboardType = KeyboardType.Email,
-                                    imeAction = ImeAction.Next,
-                                ),
+                            KeyboardOptions(
+                                keyboardType = KeyboardType.Email,
+                                imeAction = ImeAction.Next,
+                            ),
                             keyboardActions =
-                                KeyboardActions(
-                                    onNext = { focusManager.moveFocus(FocusDirection.Down) },
-                                ),
+                            KeyboardActions(
+                                onNext = { focusManager.moveFocus(FocusDirection.Down) },
+                            ),
                             trailingIcon =
-                                if (email.isNotEmpty()) {
-                                    {
-                                        IconButton(onClick = { email = "" }) {
-                                            Icon(Icons.Default.Clear, contentDescription = "Clear email address")
-                                        }
+                            if (email.isNotEmpty()) {
+                                {
+                                    IconButton(onClick = { email = "" }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Clear email address")
                                     }
-                                } else {
-                                    null
-                                },
+                                }
+                            } else {
+                                null
+                            },
                         )
                     }
 
@@ -276,24 +276,24 @@ fun AuthScreen(
                             value = password,
                             onValueChange = { password = it },
                             config =
-                                PasswordFieldConfig(
-                                    label = if (resetReady) "New password" else "Password",
-                                    visible = showPassword,
-                                    onToggleVisibility = { showPassword = !showPassword },
-                                    isError = password.isNotEmpty() && !passwordValid,
-                                    supportingText = if (password.isNotEmpty() && !passwordValid) "Use at least 6 characters." else null,
-                                    enabled = !busy,
-                                    contentType = if (createAccount || resetReady) ContentType.NewPassword else ContentType.Password,
-                                    imeAction = if ((!recoveryMode && createAccount) || resetReady) ImeAction.Next else ImeAction.Done,
-                                    onImeAction = {
-                                        if ((!recoveryMode && createAccount) || resetReady) {
-                                            focusManager.moveFocus(FocusDirection.Down)
-                                        } else if (canSubmit) {
-                                            focusManager.clearFocus()
-                                            submit()
-                                        }
-                                    },
-                                ),
+                            PasswordFieldConfig(
+                                label = if (resetReady) "New password" else "Password",
+                                visible = showPassword,
+                                onToggleVisibility = { showPassword = !showPassword },
+                                isError = password.isNotEmpty() && !passwordValid,
+                                supportingText = if (password.isNotEmpty() && !passwordValid) "Use at least 6 characters." else null,
+                                enabled = !busy,
+                                contentType = if (createAccount || resetReady) ContentType.NewPassword else ContentType.Password,
+                                imeAction = if ((!recoveryMode && createAccount) || resetReady) ImeAction.Next else ImeAction.Done,
+                                onImeAction = {
+                                    if ((!recoveryMode && createAccount) || resetReady) {
+                                        focusManager.moveFocus(FocusDirection.Down)
+                                    } else if (canSubmit) {
+                                        focusManager.clearFocus()
+                                        submit()
+                                    }
+                                },
+                            ),
                         )
                     }
 
@@ -303,29 +303,29 @@ fun AuthScreen(
                             value = confirmPassword,
                             onValueChange = { confirmPassword = it },
                             config =
-                                PasswordFieldConfig(
-                                    label = if (resetReady) "Confirm new password" else "Confirm password",
-                                    visible = showConfirmPassword,
-                                    onToggleVisibility = { showConfirmPassword = !showConfirmPassword },
-                                    isError = confirmPassword.isNotEmpty() && !passwordsMatch,
-                                    supportingText =
-                                        if (confirmPassword.isNotEmpty() &&
-                                            !passwordsMatch
-                                        ) {
-                                            "Passwords do not match."
-                                        } else {
-                                            null
-                                        },
-                                    enabled = !busy,
-                                    contentType = ContentType.NewPassword,
-                                    imeAction = ImeAction.Done,
-                                    onImeAction = {
-                                        if (canSubmit) {
-                                            focusManager.clearFocus()
-                                            submit()
-                                        }
-                                    },
-                                ),
+                            PasswordFieldConfig(
+                                label = if (resetReady) "Confirm new password" else "Confirm password",
+                                visible = showConfirmPassword,
+                                onToggleVisibility = { showConfirmPassword = !showConfirmPassword },
+                                isError = confirmPassword.isNotEmpty() && !passwordsMatch,
+                                supportingText =
+                                if (confirmPassword.isNotEmpty() &&
+                                    !passwordsMatch
+                                ) {
+                                    "Passwords do not match."
+                                } else {
+                                    null
+                                },
+                                enabled = !busy,
+                                contentType = ContentType.NewPassword,
+                                imeAction = ImeAction.Done,
+                                onImeAction = {
+                                    if (canSubmit) {
+                                        focusManager.clearFocus()
+                                        submit()
+                                    }
+                                },
+                            ),
                         )
                     }
 
@@ -333,12 +333,12 @@ fun AuthScreen(
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier =
-                                Modifier.toggleable(
-                                    value = acceptedLegal,
-                                    enabled = !busy,
-                                    role = Role.Checkbox,
-                                    onValueChange = { acceptedLegal = it },
-                                ),
+                            Modifier.toggleable(
+                                value = acceptedLegal,
+                                enabled = !busy,
+                                role = Role.Checkbox,
+                                onValueChange = { acceptedLegal = it },
+                            ),
                         ) {
                             Checkbox(checked = acceptedLegal, onCheckedChange = null, enabled = !busy)
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -352,8 +352,8 @@ fun AuthScreen(
                                             legalDocument = PrivacyPolicyPhilippines
                                         },
                                         contentPadding =
-                                            androidx.compose.foundation.layout
-                                                .PaddingValues(0.dp),
+                                        androidx.compose.foundation.layout
+                                            .PaddingValues(0.dp),
                                     ) {
                                         Text("Privacy Policy")
                                     }
@@ -367,8 +367,8 @@ fun AuthScreen(
                                             legalDocument = TermsAndConditionsPhilippines
                                         },
                                         contentPadding =
-                                            androidx.compose.foundation.layout
-                                                .PaddingValues(0.dp),
+                                        androidx.compose.foundation.layout
+                                            .PaddingValues(0.dp),
                                     ) {
                                         Text("Terms")
                                     }
@@ -414,10 +414,10 @@ fun AuthScreen(
                         onClick = submit,
                         enabled = canSubmit,
                         modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 56.dp)
-                                .semantics { if (busy) stateDescription = "Submitting" },
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .semantics { if (busy) stateDescription = "Submitting" },
                         shape = MaterialTheme.shapes.small,
                     ) {
                         if (busy) {
@@ -459,7 +459,7 @@ fun AuthScreen(
                         OutlinedButton(
                             onClick = { onResendConfirmation(email.trim()) },
                             enabled =
-                                emailValid && !busy,
+                            emailValid && !busy,
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text("Resend confirmation email") }
                     }
@@ -508,9 +508,9 @@ private fun PasswordField(value: String, onValueChange: (String) -> Unit, config
         onValueChange = onValueChange,
         enabled = config.enabled,
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .semantics { this.contentType = config.contentType },
+        Modifier
+            .fillMaxWidth()
+            .semantics { this.contentType = config.contentType },
         label = { Text(config.label) },
         singleLine = true,
         isError = config.isError,
@@ -518,10 +518,10 @@ private fun PasswordField(value: String, onValueChange: (String) -> Unit, config
         visualTransformation = if (config.visible) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = config.imeAction),
         keyboardActions =
-            KeyboardActions(
-                onNext = { config.onImeAction() },
-                onDone = { config.onImeAction() },
-            ),
+        KeyboardActions(
+            onNext = { config.onImeAction() },
+            onDone = { config.onImeAction() },
+        ),
         trailingIcon = {
             IconButton(onClick = config.onToggleVisibility) {
                 Icon(
@@ -582,13 +582,13 @@ private fun PasswordStrengthMeter(password: String) {
 private fun MessageCard(message: String, isError: Boolean) {
     Card(
         colors =
-            CardDefaults.cardColors(
-                containerColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
-            ),
+        CardDefaults.cardColors(
+            containerColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
+        ),
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .semantics { liveRegion = if (isError) LiveRegionMode.Assertive else LiveRegionMode.Polite },
+        Modifier
+            .fillMaxWidth()
+            .semantics { liveRegion = if (isError) LiveRegionMode.Assertive else LiveRegionMode.Polite },
     ) {
         Row(
             modifier = Modifier.padding(14.dp),

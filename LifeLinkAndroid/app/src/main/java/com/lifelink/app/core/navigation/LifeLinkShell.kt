@@ -115,9 +115,7 @@ import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
 import com.lifelink.app.feature.updates.UpdatesScreen
 
-private enum class ShellTab(
-    val label: String,
-) {
+private enum class ShellTab(val label: String) {
     HOME("Home"),
     REQUESTS("Requests"),
     MESSAGING("Messaging"),
@@ -868,18 +866,18 @@ private fun StartHeader(role: UserRole) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(
                 modifier =
-                    Modifier
-                        .size(36.dp)
-                        .background(
-                            brush =
-                                Brush.linearGradient(
-                                    listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.tertiary,
-                                    ),
-                                ),
-                            shape = CircleShape,
+                Modifier
+                    .size(36.dp)
+                    .background(
+                        brush =
+                        Brush.linearGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.tertiary,
+                            ),
                         ),
+                        shape = CircleShape,
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -1026,16 +1024,16 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
                     onThemeModeChange(mode)
                 }),
                 colors =
-                    CardDefaults.cardColors(
-                        containerColor =
-                            if (themeMode ==
-                                mode
-                            ) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surface
-                            },
-                    ),
+                CardDefaults.cardColors(
+                    containerColor =
+                    if (themeMode ==
+                        mode
+                    ) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+                ),
             ) {
                 Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = themeMode == mode, onClick = null)

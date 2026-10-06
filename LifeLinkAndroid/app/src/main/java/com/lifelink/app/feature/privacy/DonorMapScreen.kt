@@ -177,8 +177,8 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
             VisibilitySwitchRow(
                 title = "Show my exact location to matched requesters",
                 subtitle =
-                    "Only a requester whose active request has matched you can see your exact location, " +
-                        "and it expires when the request ends.",
+                "Only a requester whose active request has matched you can see your exact location, " +
+                    "and it expires when the request ends.",
                 checked = visibility?.exactLocationSharingEnabled == true,
                 enabled = !state.visibilitySaving,
                 onCheckedChange = { checked ->
