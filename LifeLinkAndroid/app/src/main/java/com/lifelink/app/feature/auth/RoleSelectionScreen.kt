@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -65,12 +66,39 @@ fun RoleSelectionScreen(onRoleSelected: (UserRole) -> Unit) {
                 UserRole.entries.forEach { role ->
                     RoleCard(role = role, onSelect = { onRoleSelected(role) })
                 }
-                Text(
-                    "LifeLink helps people connect; it does not replace medical professionals or blood-bank screening.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                SafetyNote()
             }
+        }
+    }
+}
+
+/**
+ * Safety-critical disclaimer, given its own tonal surface so it reads as guidance rather than
+ * fine print. The icon is decorative; the text carries the meaning.
+ */
+@Composable
+private fun SafetyNote() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Icon(
+                Icons.Default.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                "LifeLink helps people connect; it does not replace medical professionals or blood-bank screening.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
         }
     }
 }
@@ -168,7 +196,12 @@ private fun RoleCard(role: UserRole, onSelect: () -> Unit) {
                     }
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(role.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        role.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.semantics { heading() },
+                    )
                     Text(role.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }

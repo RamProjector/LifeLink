@@ -28,7 +28,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -97,8 +96,7 @@ private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
         modifier =
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen)
-            .semantics { contentDescription = "Conversation ${conversation.conversationId.take(8)}, open chat" },
+            .clickable(onClickLabel = "Open chat", onClick = onOpen),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {

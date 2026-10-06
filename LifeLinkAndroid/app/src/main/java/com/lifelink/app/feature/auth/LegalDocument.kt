@@ -26,6 +26,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -197,10 +198,13 @@ private fun LegalDocumentTitle(document: LegalDocument) {
 /** Selectable, scrollable list of numbered sections with heading semantics. */
 @Composable
 private fun LegalDocumentBody(document: LegalDocument) {
+    // Cap the scrollable body at roughly 60% of the available height so the dialog never
+    // overflows on short screens while still using the space on tall ones.
+    val maxBodyHeight = (LocalConfiguration.current.screenHeightDp * 0.6f).dp
     SelectionContainer {
         Column(
             Modifier
-                .heightIn(max = 420.dp)
+                .heightIn(max = maxBodyHeight)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {

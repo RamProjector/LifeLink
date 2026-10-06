@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
@@ -19,7 +18,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -40,12 +38,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfileMe
@@ -82,13 +82,7 @@ fun BecomeDonorScreen(state: BecomeDonorUiState, onAction: (BecomeDonorAction) -
 @Composable
 private fun LoadingContent(padding: PaddingValues) {
     Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            CircularProgressIndicator(Modifier.size(36.dp), strokeWidth = 3.dp)
-            Text("Loading your donor profile\u2026", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        LifeLinkLoadingIndicator(label = "Loading your donor profile\u2026")
     }
 }
 
@@ -265,6 +259,7 @@ private fun RadiusAndSave(
         modifier = Modifier.fillMaxWidth(),
         label = { Text("Service radius (km)") },
         singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
     )
     NotificationToggle(state.draft.notificationsEnabled) { value ->
         onAction(BecomeDonorAction.UpdateDraft { it.copy(notificationsEnabled = value) })
@@ -344,7 +339,12 @@ private fun LocationFields(
         )
     }
     error?.let {
-        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        Text(
+            it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
     }
     OutlinedButton(onClick = onApply, modifier = Modifier.fillMaxWidth()) {
         Text("Use this approximate location")
@@ -357,7 +357,7 @@ private fun NotificationToggle(enabled: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .toggleable(value = enabled, onValueChange = onChange),
+            .toggleable(value = enabled, role = Role.Switch, onValueChange = onChange),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {

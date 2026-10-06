@@ -221,7 +221,17 @@ private fun ProgressCard(active: ActiveRequestSnapshot) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 LinearProgressIndicator(
                     progress = { responseRatio },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .semantics {
+                            contentDescription =
+                                if (active.notificationsCreated == 0) {
+                                    "No donors notified yet"
+                                } else {
+                                    "${active.matchesResponded} of ${active.notificationsCreated} notified donors responded"
+                                }
+                        },
                 )
                 Text(
                     if (active.notificationsCreated == 0) {
@@ -314,7 +324,7 @@ private fun ContactActivityRow(contact: RequesterContact) {
 @Composable
 private fun ContactActivityError(error: String, onRetry: () -> Unit) {
     Surface(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
         color = MaterialTheme.colorScheme.errorContainer,
         shape = MaterialTheme.shapes.medium,
     ) {

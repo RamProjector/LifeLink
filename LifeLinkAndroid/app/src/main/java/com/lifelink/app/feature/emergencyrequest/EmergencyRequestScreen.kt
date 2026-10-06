@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -345,14 +346,20 @@ private fun DonorPicker(
                 )
             }
             state.discoveredDonors.forEach { donor ->
+                val isSelected = donor.donorId in state.selectedDonorIds
                 Card(
-                    modifier = Modifier.fillMaxWidth().clickable { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) },
+                    modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = isSelected,
+                            role = Role.Checkbox,
+                            onValueChange = { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) },
+                        ),
                     colors =
                     CardDefaults.cardColors(
                         containerColor =
-                        if (donor.donorId in
-                            state.selectedDonorIds
-                        ) {
+                        if (isSelected) {
                             MaterialTheme.colorScheme.primaryContainer
                         } else {
                             MaterialTheme.colorScheme.surface
@@ -363,9 +370,7 @@ private fun DonorPicker(
                         Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Checkbox(checked = donor.donorId in state.selectedDonorIds, onCheckedChange = {
-                            onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId))
-                        })
+                        Checkbox(checked = isSelected, onCheckedChange = null)
                         Column(Modifier.weight(1f).padding(start = 8.dp)) {
                             Text(donor.displayName, fontWeight = FontWeight.SemiBold)
                             Text(
@@ -744,9 +749,11 @@ private fun BloodNeedStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequ
         Urgency.entries.forEach { urgency ->
             Card(
                 modifier =
-                Modifier.fillMaxWidth().clickable(role = Role.RadioButton) {
-                    onAction(EmergencyRequestAction.UpdateDraft { it.copy(urgency = urgency) })
-                },
+                Modifier.fillMaxWidth().selectable(
+                    selected = draft.urgency == urgency,
+                    role = Role.RadioButton,
+                    onClick = { onAction(EmergencyRequestAction.UpdateDraft { it.copy(urgency = urgency) }) },
+                ),
                 colors =
                 CardDefaults.cardColors(
                     containerColor =
@@ -906,7 +913,14 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
         Heading("Approximate location", "Used to find nearby potential donors. Your exact location stays private.")
-        locationMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
+        locationMessage?.let {
+            Text(
+                it,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
             onClick = {
@@ -1192,7 +1206,14 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                 ).semantics { contentDescription = "Decrease units" },
             contentPadding = PaddingValues(0.dp),
         ) { Text("−", fontSize = 24.sp) }
-        Text("$quantity unit${if (quantity == 1) "" else "s"}", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold)
+        Text(
+            "$quantity unit${if (quantity == 1) "" else "s"}",
+            Modifier.padding(horizontal = 24.dp).semantics {
+                contentDescription =
+                    "$quantity unit${if (quantity == 1) "" else "s"} selected"
+            },
+            fontWeight = FontWeight.SemiBold,
+        )
         OutlinedButton(
             {
                 if (quantity <
@@ -1253,10 +1274,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 /** Displays a selectable facility with its area and an indicator for verified facilities. */
 @Composable private fun FacilityRow(facility: Facility, selected: Boolean, onClick: () -> Unit) {
     Surface(
-        Modifier.fillMaxWidth().clickable(role = Role.RadioButton, onClick = onClick).semantics {
-            role =
-                Role.RadioButton
-        },
+        Modifier.fillMaxWidth().selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
         color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.medium,
         border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline),
@@ -1275,10 +1293,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 /** Displays a labeled radio option and delegates selection to [onClick]. */
 @Composable private fun SelectableRow(label: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
-        Modifier.fillMaxWidth().clickable(role = Role.RadioButton, onClick = onClick).semantics {
-            role =
-                Role.RadioButton
-        },
+        Modifier.fillMaxWidth().selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
         color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.medium,
         border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline),

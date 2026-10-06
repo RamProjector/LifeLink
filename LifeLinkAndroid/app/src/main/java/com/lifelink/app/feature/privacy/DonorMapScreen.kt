@@ -5,9 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
@@ -51,7 +51,7 @@ import com.lifelink.app.domain.DonorMapArea
 fun DonorMapScreen(state: PrivacyUiState, onAction: (PrivacyAction) -> Unit, onBack: () -> Unit) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        Modifier.fillMaxSize().statusBarsPadding().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
@@ -282,8 +282,12 @@ fun MatchedDonorLocationCard(state: PrivacyUiState, requestId: String, donorId: 
             Text("Donor location", fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
             when {
                 state.locationLoading ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.heightIn(max = 20.dp), strokeWidth = 2.dp)
+                    Row(
+                        Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                         Text("Checking location sharing\u2026", style = MaterialTheme.typography.bodySmall)
                     }
                 location?.shared == true -> {

@@ -245,6 +245,7 @@ fun MapLibrePrivacySafeDonorMap(
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf(false) }
+    var retryRequest by remember { mutableStateOf(0) }
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
         MapView(context).also { it.onCreate(null) }
@@ -256,6 +257,15 @@ fun MapLibrePrivacySafeDonorMap(
             mapView.onPause()
             mapView.onStop()
             mapView.onDestroy()
+        }
+    }
+    // Mirror the picker's guard: a stalled style load must not spin forever.
+    LaunchedEffect(mapLoading) {
+        if (!mapLoading) return@LaunchedEffect
+        delay(MAP_LOAD_TIMEOUT_MS)
+        if (mapLoading) {
+            mapLoading = false
+            mapError = true
         }
     }
     Box(modifier.fillMaxWidth().height(280.dp)) {
@@ -280,6 +290,12 @@ fun MapLibrePrivacySafeDonorMap(
             },
             update = { view ->
                 view.getMapAsync { map ->
+                    if (retryRequest > 0) {
+                        mapLoading = true
+                        mapError = false
+                        map.setStyle(OPEN_FREE_MAP_STYLE) { mapLoading = false }
+                        retryRequest = 0
+                    }
                     map.cameraPosition = CameraPosition.Builder()
                         .target(LatLng(latitude, longitude))
                         .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
@@ -310,6 +326,7 @@ fun MapLibrePrivacySafeDonorMap(
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         style = MaterialTheme.typography.bodySmall,
                     )
+                    Button(onClick = { retryRequest++ }) { Text("Retry map") }
                 }
             }
         }
