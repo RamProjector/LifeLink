@@ -410,13 +410,7 @@ private fun DonorPicker(
 
 /** Shows distance-band donor counts around the request location without displaying individual donor pins. */
 @Composable
-private fun PrivacySafeDonorMap(
-    latitude: Double,
-    longitude: Double,
-    withinFiveKm: Int,
-    withinTenKm: Int,
-    beyondTenKm: Int,
-) {
+private fun PrivacySafeDonorMap(latitude: Double, longitude: Double, withinFiveKm: Int, withinTenKm: Int, beyondTenKm: Int) {
     MapLibrePrivacySafeDonorMap(latitude, longitude)
     Text("Within 5 km: $withinFiveKm · 5–10 km: $withinTenKm · Beyond 10 km: $beyondTenKm", style = MaterialTheme.typography.bodySmall)
     Text(
@@ -1387,10 +1381,7 @@ private fun TextField(
 /** Shows the critical-request summary and dispatches confirmation or dismissal actions. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CriticalSheet(
-    draft: EmergencyRequestDraft,
-    onAction: (EmergencyRequestAction) -> Unit,
-) {
+private fun CriticalSheet(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     ModalBottomSheet(onDismissRequest = {
         onAction(EmergencyRequestAction.DismissCriticalSubmit)
     }) {

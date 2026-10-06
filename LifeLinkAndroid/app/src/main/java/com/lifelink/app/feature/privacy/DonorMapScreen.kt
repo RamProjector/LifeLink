@@ -48,11 +48,7 @@ import com.lifelink.app.domain.DonorMapArea
  * visibility from the same screen.
  */
 @Composable
-fun DonorMapScreen(
-    state: PrivacyUiState,
-    onAction: (PrivacyAction) -> Unit,
-    onBack: () -> Unit,
-) {
+fun DonorMapScreen(state: PrivacyUiState, onAction: (PrivacyAction) -> Unit, onBack: () -> Unit) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
     LazyColumn(
         Modifier.fillMaxSize().padding(20.dp),
@@ -213,13 +209,7 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
  * via [toggleable]; the inner [Switch] is non-interactive so the two never double-toggle.
  */
 @Composable
-private fun VisibilitySwitchRow(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    enabled: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
+private fun VisibilitySwitchRow(title: String, subtitle: String, checked: Boolean, enabled: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(
         Modifier.fillMaxWidth().toggleable(
             value = checked,
@@ -284,12 +274,7 @@ private fun DonorAreaCard(area: DonorMapArea) {
  * the server confirms a live share; otherwise it explains why it is hidden.
  */
 @Composable
-fun MatchedDonorLocationCard(
-    state: PrivacyUiState,
-    requestId: String,
-    donorId: String,
-    onAction: (PrivacyAction) -> Unit,
-) {
+fun MatchedDonorLocationCard(state: PrivacyUiState, requestId: String, donorId: String, onAction: (PrivacyAction) -> Unit) {
     LaunchedEffect(requestId, donorId) { onAction(PrivacyAction.LoadMatchedLocation(requestId, donorId)) }
     val location = state.matchedLocation
     Card(Modifier.fillMaxWidth()) {

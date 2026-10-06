@@ -60,11 +60,7 @@ import com.lifelink.app.domain.DonorProfileMe
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BecomeDonorScreen(
-    state: BecomeDonorUiState,
-    onAction: (BecomeDonorAction) -> Unit,
-    onBack: () -> Unit,
-) {
+fun BecomeDonorScreen(state: BecomeDonorUiState, onAction: (BecomeDonorAction) -> Unit, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -97,11 +93,7 @@ private fun LoadingContent(padding: PaddingValues) {
 }
 
 @Composable
-private fun BecomeDonorContent(
-    state: BecomeDonorUiState,
-    onAction: (BecomeDonorAction) -> Unit,
-    padding: PaddingValues,
-) {
+private fun BecomeDonorContent(state: BecomeDonorUiState, onAction: (BecomeDonorAction) -> Unit, padding: PaddingValues) {
     Column(
         Modifier
             .fillMaxSize()
@@ -284,12 +276,7 @@ private fun RadiusAndSave(
 
 /** Save / become-a-donor action, applying the typed radius first. */
 @Composable
-private fun SaveButton(
-    state: BecomeDonorUiState,
-    radius: String,
-    onAction: (BecomeDonorAction) -> Unit,
-    onRadiusCommit: (Int) -> Unit,
-) {
+private fun SaveButton(state: BecomeDonorUiState, radius: String, onAction: (BecomeDonorAction) -> Unit, onRadiusCommit: (Int) -> Unit) {
     Button(
         onClick = {
             radius.toIntOrNull()?.let(onRadiusCommit)

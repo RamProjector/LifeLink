@@ -502,11 +502,7 @@ private data class PasswordFieldConfig(
  * The visibility toggle is the single trailing element, matching Material 3 guidance for text fields.
  */
 @Composable
-private fun PasswordField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    config: PasswordFieldConfig,
-) {
+private fun PasswordField(value: String, onValueChange: (String) -> Unit, config: PasswordFieldConfig) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,

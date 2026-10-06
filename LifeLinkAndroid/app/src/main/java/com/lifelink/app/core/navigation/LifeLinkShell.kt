@@ -803,11 +803,7 @@ private fun HomePreview() {
 
 /** Summarizes donor availability and request count with an action to open donor mode. */
 @Composable
-private fun DonorDashboardSummary(
-    profile: com.lifelink.app.domain.DonorProfile,
-    requestCount: Int,
-    onOpen: () -> Unit,
-) {
+private fun DonorDashboardSummary(profile: com.lifelink.app.domain.DonorProfile, requestCount: Int, onOpen: () -> Unit) {
     val statusColor =
         when (profile.availability) {
             DonorAvailability.AVAILABLE -> androidx.compose.material3.MaterialTheme.colorScheme.primary
@@ -849,12 +845,7 @@ private fun DonorDashboardSummary(
 
 /** Shows introductory guidance and delegates request creation or donor navigation to the caller. */
 @Composable
-private fun StartContent(
-    role: UserRole,
-    onGetStarted: () -> Unit,
-    onCreateRequest: () -> Unit,
-    onOpenDonor: () -> Unit,
-) {
+private fun StartContent(role: UserRole, onGetStarted: () -> Unit, onCreateRequest: () -> Unit, onOpenDonor: () -> Unit) {
     Surface(color = androidx.compose.material3.MaterialTheme.colorScheme.background) {
         Column(
             Modifier
@@ -923,12 +914,7 @@ private fun StartHeader(role: UserRole) {
 
 /** Primary/secondary actions and the role-specific reassurance line. */
 @Composable
-private fun StartActions(
-    role: UserRole,
-    onGetStarted: () -> Unit,
-    onCreateRequest: () -> Unit,
-    onOpenDonor: () -> Unit,
-) {
+private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateRequest: () -> Unit, onOpenDonor: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Button(
             onClick = if (role == UserRole.DONOR) onOpenDonor else onCreateRequest,

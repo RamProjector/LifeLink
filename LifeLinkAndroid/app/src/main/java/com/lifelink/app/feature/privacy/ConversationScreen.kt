@@ -224,12 +224,7 @@ private fun SharedContactsCard(shares: List<ContactShare>) {
 
 /** Message input row with an IME send action and a send button that shows progress while sending. */
 @Composable
-private fun MessageComposer(
-    draft: String,
-    sending: Boolean,
-    onDraftChange: (String) -> Unit,
-    onSend: () -> Unit,
-) {
+private fun MessageComposer(draft: String, sending: Boolean, onDraftChange: (String) -> Unit, onSend: () -> Unit) {
     val canSend = draft.isNotBlank() && !sending
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
