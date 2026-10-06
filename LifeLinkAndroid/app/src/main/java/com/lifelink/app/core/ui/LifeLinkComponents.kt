@@ -1,25 +1,26 @@
 package com.lifelink.app.core.ui
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.lifelink.app.R
 
 /** Displays [title] as an accessibility heading with an optional [subtitle] beneath it. */
 @Composable
@@ -45,27 +46,56 @@ fun LifeLinkLoadingIndicator(modifier: Modifier = Modifier, label: String? = nul
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         CircularProgressIndicator(
-            modifier = Modifier.semantics { label?.let { contentDescription = it } },
+            modifier = Modifier.size(36.dp).semantics { label?.let { contentDescription = it } },
+            strokeWidth = 3.dp,
         )
         label?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
 
 /**
- * The LifeLink brand lockup: the app icon placed literally beside the
- * "LifeLink" title. Used wherever the title appears (home header, profile
- * header, welcome copy) so the icon and wordmark travel together.
+ * Reusable empty state: a tonal icon badge, a title, and a supporting line.
+ * Keeps empty states visually consistent across screens.
  */
 @Composable
-fun LifeLinkBrand(modifier: Modifier = Modifier, subtitle: String? = null) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Image(
-            painter = painterResource(R.drawable.lifelink_icon),
-            contentDescription = null,
-            modifier = Modifier.size(34.dp).clip(MaterialTheme.shapes.small),
+fun LifeLinkEmptyState(
+    icon: ImageVector,
+    title: String,
+    body: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Surface(
+            modifier = Modifier.size(52.dp),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.secondaryContainer,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+            }
+        }
+        Text(
+            title,
+            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
         )
-        LifeLinkPageHeader("LifeLink", subtitle = subtitle)
+        Text(
+            body,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+        )
     }
 }

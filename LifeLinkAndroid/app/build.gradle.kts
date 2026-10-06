@@ -246,6 +246,11 @@ spotless {
                 "max_line_length" to "140",
                 // Compose @Composable functions are PascalCase by convention.
                 "ktlint_standard_function-naming" to "disabled",
+                // Keep in sync with LifeLinkAndroid/.editorconfig: do not force function
+                // signatures onto multiple lines. The detekt baseline records these
+                // signatures in single-line form, so forcing multiline here would make
+                // spotlessCheck and detekt demand contradictory layouts for the same code.
+                "ktlint_standard_function-signature" to "disabled",
             ),
         )
     }

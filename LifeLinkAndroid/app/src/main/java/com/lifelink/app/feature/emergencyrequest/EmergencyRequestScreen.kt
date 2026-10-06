@@ -21,17 +21,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -63,6 +65,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -72,9 +75,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -85,6 +94,7 @@ import com.google.android.gms.common.api.ResolvableApiException
 import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.core.location.MapLibreLocationPicker
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
+import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.ContactMethod
 import com.lifelink.app.domain.EmergencyRequestDraft
@@ -126,7 +136,7 @@ fun EmergencyRequestScreen(
         val feedback =
             when (val submission = state.submission) {
                 is SubmissionState.Error -> submission.message to "Retry"
-                is SubmissionState.Matching -> "Request submitted. Matching donors nearby\u2026" to null
+                is SubmissionState.Matching -> "Request submitted. Matching donors nearby…" to null
                 is SubmissionState.ManualFallback -> "No automatic matches yet. You can broadcast to more potential donors." to "Broadcast"
                 is SubmissionState.QueuedOffline -> "Saved offline. It will sync when connection returns." to null
                 else -> null
@@ -147,7 +157,7 @@ fun EmergencyRequestScreen(
     }
     LaunchedEffect(state.draftSavedManually) {
         if (state.draftSavedManually) {
-            snackbarHostState.showSnackbar("Draft saved. Returning to Home\u2026")
+            snackbarHostState.showSnackbar("Draft saved. Returning to Home…")
             onAction(EmergencyRequestAction.DraftSaveHandled)
             onExit()
         }
@@ -249,7 +259,7 @@ private fun DonorPicker(
         if (state.matchesRefreshing) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                Text("Loading saved matches\u2026", Modifier.padding(start = 10.dp))
+                Text("Loading saved matches…", Modifier.padding(start = 10.dp))
             }
         }
         if (state.matchesError != null && requestId != null) {
@@ -289,7 +299,7 @@ private fun DonorPicker(
             }
         }
         if (state.contacts.isNotEmpty()) {
-            Text("Contact activity", fontWeight = FontWeight.SemiBold)
+            Text("Contact activity", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             state.contacts.forEach { contact ->
                 AcceptedContactCard(
                     contact = contact,
@@ -301,7 +311,7 @@ private fun DonorPicker(
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Results", fontWeight = FontWeight.SemiBold)
+            Text("Results", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = !showMap, onClick = { showMap = false }, label = { Text("Donors") })
                 FilterChip(selected = showMap, onClick = { showMap = true }, label = { Text("Map") })
@@ -327,35 +337,44 @@ private fun DonorPicker(
         }
         if (!showMap) {
             if (state.discoveredDonors.isEmpty() && !state.matchesRefreshing && state.matchesError == null) {
-                InfoCard(
-                    "No potential donors yet",
-                    "No donor cards are available for this request right now. Keep the request active and check the request status again later.",
-                    MaterialTheme.colorScheme.secondary,
+                LifeLinkEmptyState(
+                    icon = Icons.Default.LocationOn,
+                    title = "No potential donors yet",
+                    body =
+                    "No donor cards are available for this request right now. " +
+                        "Keep the request active and check the request status again later.",
                 )
             }
             state.discoveredDonors.forEach { donor ->
+                val isSelected = donor.donorId in state.selectedDonorIds
                 Card(
-                    modifier = Modifier.fillMaxWidth().clickable { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) },
+                    modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = isSelected,
+                            role = Role.Checkbox,
+                            onValueChange = { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) },
+                        ),
                     colors =
                     CardDefaults.cardColors(
                         containerColor =
-                        if (donor.donorId in
-                            state.selectedDonorIds
-                        ) {
+                        if (isSelected) {
                             MaterialTheme.colorScheme.primaryContainer
                         } else {
                             MaterialTheme.colorScheme.surface
                         },
                     ),
                 ) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = donor.donorId in state.selectedDonorIds, onCheckedChange = {
-                            onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId))
-                        })
-                        Column(Modifier.padding(start = 8.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = isSelected, onCheckedChange = null)
+                        Column(Modifier.weight(1f).padding(start = 8.dp)) {
                             Text(donor.displayName, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "${donor.bloodType} \u00b7 ${"%.1f".format(donor.distanceKm)} km \u00b7 about ${donor.travelMinutes} min",
+                                "${donor.bloodType} · ${"%.1f".format(donor.distanceKm)} km · about ${donor.travelMinutes} min",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             donor.explanation.firstOrNull()?.let {
@@ -396,18 +415,9 @@ private fun DonorPicker(
 
 /** Shows distance-band donor counts around the request location without displaying individual donor pins. */
 @Composable
-private fun PrivacySafeDonorMap(
-    latitude: Double,
-    longitude: Double,
-    withinFiveKm: Int,
-    withinTenKm: Int,
-    beyondTenKm: Int,
-) {
+private fun PrivacySafeDonorMap(latitude: Double, longitude: Double, withinFiveKm: Int, withinTenKm: Int, beyondTenKm: Int) {
     MapLibrePrivacySafeDonorMap(latitude, longitude)
-    Text(
-        "Within 5 km: $withinFiveKm \u00b7 5\u201310 km: $withinTenKm \u00b7 Beyond 10 km: $beyondTenKm",
-        style = MaterialTheme.typography.bodySmall,
-    )
+    Text("Within 5 km: $withinFiveKm · 5–10 km: $withinTenKm · Beyond 10 km: $beyondTenKm", style = MaterialTheme.typography.bodySmall)
     Text(
         "Map summary only: circles show distance bands and donor counts. No donor names or exact donor locations are shown.",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -449,7 +459,10 @@ private fun AcceptedContactCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(contact.displayName, fontWeight = FontWeight.Bold)
-                Text(statusLabel, color = if (accepted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    statusLabel,
+                    color = if (accepted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             if (accepted) {
                 contact.acceptedAt?.let {
@@ -496,7 +509,7 @@ private fun AcceptedContactCard(
                             if (actionInFlight) {
                                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                             } else {
-                                Text("Contact donor \u00b7 $email")
+                                Text("Contact donor · $email")
                             }
                         }
                     }
@@ -681,21 +694,27 @@ private fun formatContactTimestamp(value: String): String =
     val labels = listOf("Blood need", "Timing", "Location", "Contact", "Review", "Results")
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Text(
-            "Step ${step + 1} of $total \u00b7 ${labels.getOrElse(step) { "Request" }}",
+            "Step ${step + 1} of $total · ${labels.getOrElse(step) { "Request" }}",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.semantics { heading() },
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .semantics { progressBarRangeInfo = ProgressBarRangeInfo((step + 1).toFloat(), 1f..total.toFloat()) },
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
             repeat(total) { index ->
                 Surface(
-                    Modifier.weight(1f).height(5.dp),
+                    Modifier.weight(1f).height(6.dp),
                     color =
                     if (index <=
                         step
                     ) {
                         MaterialTheme.colorScheme.primary
                     } else {
-                        MaterialTheme.colorScheme.outline
+                        MaterialTheme.colorScheme.surfaceContainerHighest
                     },
                     shape = MaterialTheme.shapes.small,
                 ) {}
@@ -730,9 +749,11 @@ private fun BloodNeedStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequ
         Urgency.entries.forEach { urgency ->
             Card(
                 modifier =
-                Modifier.fillMaxWidth().clickable(role = Role.RadioButton) {
-                    onAction(EmergencyRequestAction.UpdateDraft { it.copy(urgency = urgency) })
-                },
+                Modifier.fillMaxWidth().selectable(
+                    selected = draft.urgency == urgency,
+                    role = Role.RadioButton,
+                    onClick = { onAction(EmergencyRequestAction.UpdateDraft { it.copy(urgency = urgency) }) },
+                ),
                 colors =
                 CardDefaults.cardColors(
                     containerColor =
@@ -754,7 +775,7 @@ private fun BloodNeedStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequ
                 },
             ) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(draft.urgency == urgency, { onAction(EmergencyRequestAction.UpdateDraft { it.copy(urgency = urgency) }) })
+                    RadioButton(selected = draft.urgency == urgency, onClick = null)
                     Column(Modifier.padding(start = 7.dp)) {
                         Text(urgency.label, fontWeight = FontWeight.SemiBold)
                         Text(urgency.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -796,16 +817,20 @@ private fun LocationMapPicker(
     recenterRequest: Int = 0,
     modifier: Modifier = Modifier,
 ) {
-    // MapLibreLocationPicker renders its own loading, error, and retry UI, so this
-    // screen must not add a second spinner or a duplicate text button on top of it.
+    var retryRequest by remember { mutableStateOf(0) }
+    // MapLibreLocationPicker renders its own loading and error UI, so this screen
+    // must not add a second spinner on top of it.
     Box(modifier.fillMaxWidth()) {
-        MapLibreLocationPicker(
-            draft.requesterLatitude,
-            draft.requesterLongitude,
-            onLocationSelected,
-            recenterRequest,
-            modifier = modifier,
-        )
+        key(retryRequest) {
+            MapLibreLocationPicker(
+                draft.requesterLatitude,
+                draft.requesterLongitude,
+                onLocationSelected,
+                recenterRequest + retryRequest,
+                modifier = modifier,
+            )
+        }
+        OutlinedButton(onClick = { retryRequest++ }, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)) { Text("Reload map") }
     }
     Text(
         if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
@@ -864,14 +889,14 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     LaunchedEffect(locationCaptureRequest) {
         if (locationCaptureRequest == 0) return@LaunchedEffect
         val provider = LocationProvider(context)
-        locationMessage = "Checking device location settings\u2026"
+        locationMessage = "Checking device location settings…"
         provider.checkLocationSettings(
             onReady = {
                 scope.launch {
-                    locationMessage = "Finding your current location\u2026"
+                    locationMessage = "Finding your current location…"
                     provider.currentLocation()?.let { location ->
                         onAction(EmergencyRequestAction.SetGpsLocation(location.latitude, location.longitude, location.precisionMeters))
-                        locationMessage = "Map centered on your current location (accuracy \u00b1${location.precisionMeters} m)."
+                        locationMessage = "Map centered on your current location (accuracy ±${location.precisionMeters} m)."
                     } ?: run { locationMessage = "Could not get a current fix. Try again or choose a location manually." }
                 }
             },
@@ -888,7 +913,14 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     }
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
         Heading("Approximate location", "Used to find nearby potential donors. Your exact location stays private.")
-        locationMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
+        locationMessage?.let {
+            Text(
+                it,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
             onClick = {
@@ -934,8 +966,17 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             onClick = {
                 val latitude = manualLatitude.toDoubleOrNull()
                 val longitude = manualLongitude.toDoubleOrNull()
-                if (latitude != null && longitude != null && latitude in -90.0..90.0 && longitude in -180.0..180.0) {
-                    onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+                when {
+                    manualLatitude.isBlank() || manualLongitude.isBlank() ->
+                        locationMessage = "Enter both a latitude and a longitude, or choose a point on the map."
+                    latitude == null || longitude == null ->
+                        locationMessage = "Use decimal numbers, for example 14.5995 and 120.9842."
+                    latitude !in -90.0..90.0 || longitude !in -180.0..180.0 ->
+                        locationMessage = "Latitude must be between -90 and 90, and longitude between -180 and 180."
+                    else -> {
+                        onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+                        locationMessage = "Approximate location set from your coordinates."
+                    }
                 }
             },
         ) { Text("Use this approximate location") }
@@ -955,7 +996,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                     null
                 ) {
                     Text(
-                        "Using a selected pin \u00b7 accuracy about ${draft.locationPrecisionMeters} m",
+                        "Using a selected pin · accuracy about ${draft.locationPrecisionMeters} m",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1043,12 +1084,12 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
         ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    "${draft.bloodType?.label ?: "Unknown type"} \u00b7 ${draft.units} unit${if (draft.units == 1) "" else "s"}",
+                    "${draft.bloodType?.label ?: "Unknown type"} · ${draft.units} unit${if (draft.units == 1) "" else "s"}",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "${draft.urgency.label.uppercase()} \u00b7 ${displayDeadline(draft)}",
+                    "${draft.urgency.label.uppercase()} · ${displayDeadline(draft)}",
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                 )
@@ -1057,11 +1098,11 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
         }
         Summary(
             "Blood need",
-            "${draft.bloodType?.label ?: "Unknown type"} \u00b7 ${draft.units} unit${if (draft.units == 1) "" else "s"}",
+            "${draft.bloodType?.label ?: "Unknown type"} · ${draft.units} unit${if (draft.units == 1) "" else "s"}",
             0,
             onAction,
         )
-        Summary("Urgency", "${draft.urgency.label} \u00b7 ${draft.urgency.description}", 1, onAction)
+        Summary("Urgency", "${draft.urgency.label} · ${draft.urgency.description}", 1, onAction)
         Summary("Request location", locationSummary(draft), 2, onAction)
         Summary("Contact", draft.contactMethod.label, 3, onAction)
         CheckRow(
@@ -1082,7 +1123,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             ) {
                 TextButton(onClick = onSave, enabled = !submitting) { Text("Save as draft") }
             }
-            ; Button(
+            Button(
                 onClick =
                 if (state.step ==
                     RequestStep.REVIEW
@@ -1099,7 +1140,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                 if (submitting) {
                     CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                     Spacer(Modifier.width(10.dp))
-                    Text("Submitting\u2026")
+                    Text("Submitting…")
                 } else {
                     Text(
                         if (state.step ==
@@ -1107,7 +1148,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                         ) {
                             "Submit emergency request"
                         } else {
-                            "Continue \u2192"
+                            "Continue →"
                         },
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -1129,8 +1170,8 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 @Composable private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
         Modifier.height(48.dp).clickable(role = Role.RadioButton, onClick = onClick).semantics {
-            role =
-                Role.RadioButton
+            role = Role.RadioButton
+            this.selected = selected
         },
         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.medium,
@@ -1159,12 +1200,20 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             },
             enabled = quantity > 1,
             modifier =
-            Modifier.size(
-                52.dp,
-            ),
+            Modifier
+                .size(
+                    52.dp,
+                ).semantics { contentDescription = "Decrease units" },
             contentPadding = PaddingValues(0.dp),
-        ) { Text("\u2212", fontSize = 24.sp) }
-        ; Text("$quantity unit${if (quantity == 1) "" else "s"}", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold)
+        ) { Text("−", fontSize = 24.sp) }
+        Text(
+            "$quantity unit${if (quantity == 1) "" else "s"}",
+            Modifier.padding(horizontal = 24.dp).semantics {
+                contentDescription =
+                    "$quantity unit${if (quantity == 1) "" else "s"} selected"
+            },
+            fontWeight = FontWeight.SemiBold,
+        )
         OutlinedButton(
             {
                 if (quantity <
@@ -1175,9 +1224,10 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             },
             enabled = quantity < 20,
             modifier =
-            Modifier.size(
-                52.dp,
-            ),
+            Modifier
+                .size(
+                    52.dp,
+                ).semantics { contentDescription = "Increase units" },
             contentPadding = PaddingValues(0.dp),
         ) { Text("+", fontSize = 24.sp) }
     }
@@ -1186,14 +1236,14 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 /** Displays a checkbox, label, and optional supporting text; clicking the row toggles the value. */
 @Composable private fun CheckRow(checked: Boolean, label: String, supporting: String? = null, onChecked: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(role = Role.Checkbox) { onChecked(!checked) }.semantics {
-            role =
-                Role.Checkbox
-        },
-        verticalAlignment = Alignment.Top,
+        Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = onChecked)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Checkbox(checked, onChecked)
-        Column(Modifier.padding(top = 12.dp, start = 8.dp)) {
+        Checkbox(checked, onCheckedChange = null)
+        Column(Modifier.padding(start = 8.dp).weight(1f)) {
             Text(label)
             supporting?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
         }
@@ -1224,10 +1274,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 /** Displays a selectable facility with its area and an indicator for verified facilities. */
 @Composable private fun FacilityRow(facility: Facility, selected: Boolean, onClick: () -> Unit) {
     Surface(
-        Modifier.fillMaxWidth().clickable(role = Role.RadioButton, onClick = onClick).semantics {
-            role =
-                Role.RadioButton
-        },
+        Modifier.fillMaxWidth().selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
         color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.medium,
         border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline),
@@ -1246,16 +1293,13 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 /** Displays a labeled radio option and delegates selection to [onClick]. */
 @Composable private fun SelectableRow(label: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
-        Modifier.fillMaxWidth().clickable(role = Role.RadioButton, onClick = onClick).semantics {
-            role =
-                Role.RadioButton
-        },
+        Modifier.fillMaxWidth().selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
         color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.medium,
         border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline),
     ) {
         Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected, onClick)
+            RadioButton(selected = selected, onClick = null)
             Text(label, fontWeight = FontWeight.Medium)
         }
     }
@@ -1277,7 +1321,10 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 
 /** Displays an error message and delegates retry requests to [onRetry]. */
 @Composable private fun ErrorBanner(message: String, onRetry: () -> Unit) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+    Card(
+        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Something needs attention", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onErrorContainer)
@@ -1290,7 +1337,10 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 
 /** Displays a successful request update in a status card. */
 @Composable private fun SuccessBanner(message: String) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+    Card(
+        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("LifeLink update", fontWeight = FontWeight.SemiBold)
             Text(message, color = MaterialTheme.colorScheme.onSecondaryContainer)
@@ -1339,16 +1389,6 @@ private fun TextField(
                 Text(it)
             }
         },
-        trailingIcon =
-        if (label.contains("deadline")) {
-            (
-                {
-                    Icon(Icons.Default.KeyboardArrowDown, null)
-                }
-                )
-        } else {
-            null
-        },
         shape = MaterialTheme.shapes.medium,
     )
 }
@@ -1356,10 +1396,7 @@ private fun TextField(
 /** Shows the critical-request summary and dispatches confirmation or dismissal actions. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CriticalSheet(
-    draft: EmergencyRequestDraft,
-    onAction: (EmergencyRequestAction) -> Unit,
-) {
+private fun CriticalSheet(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     ModalBottomSheet(onDismissRequest = {
         onAction(EmergencyRequestAction.DismissCriticalSubmit)
     }) {
@@ -1369,12 +1406,11 @@ private fun CriticalSheet(
                 "Eligible nearby donors will be notified. You can stop alerts from the live request screen.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val summary =
-                "${draft.bloodType?.label ?: "Unknown type"} \u00b7 ${draft.units} unit" +
-                    "${if (draft.units == 1) "" else "s"}\n${locationSummary(draft)}"
             InfoCard(
                 "Request summary",
-                summary,
+                "${draft.bloodType?.label ?: "Unknown type"} · ${draft.units} unit${if (draft.units == 1) "" else "s"}\n${locationSummary(
+                    draft,
+                )}",
             )
             Button(
                 onClick = { onAction(EmergencyRequestAction.ConfirmCriticalSubmit) },
