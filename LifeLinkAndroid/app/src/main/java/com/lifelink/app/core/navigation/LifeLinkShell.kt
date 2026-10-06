@@ -115,7 +115,9 @@ import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
 import com.lifelink.app.feature.updates.UpdatesScreen
 
-private enum class ShellTab(val label: String) {
+private enum class ShellTab(
+    val label: String,
+) {
     HOME("Home"),
     REQUESTS("Requests"),
     MESSAGING("Messaging"),
@@ -862,77 +864,94 @@ private fun StartContent(
                 .padding(horizontal = 28.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(32.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(
-                                brush = Brush.linearGradient(
+            StartHeader(role)
+            StartActions(role = role, onGetStarted = onGetStarted, onCreateRequest = onCreateRequest, onOpenDonor = onOpenDonor)
+        }
+    }
+}
+
+/** Brand mark, headline, and supporting copy at the top of the start screen. */
+@Composable
+private fun StartHeader(role: UserRole) {
+    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(
+                modifier =
+                    Modifier
+                        .size(36.dp)
+                        .background(
+                            brush =
+                                Brush.linearGradient(
                                     listOf(
                                         MaterialTheme.colorScheme.primary,
                                         MaterialTheme.colorScheme.tertiary,
                                     ),
                                 ),
-                                shape = CircleShape,
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            Icons.Default.Favorite,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                    Text(
-                        "LifeLink",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-                Text(
-                    if (role == UserRole.DONOR) {
-                        "Set up your donor profile"
-                    } else {
-                        "Find nearby blood donors"
-                    },
-                    style = androidx.compose.material3.MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.semantics { heading() },
-                )
-                Text(
-                    "Use approximate locations, consent-based contact, and clear request status. LifeLink supports coordination; hospitals and blood banks remain responsible for screening and care.",
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+                            shape = CircleShape,
+                        ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.Favorite,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(20.dp),
                 )
             }
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(
-                    onClick = if (role == UserRole.DONOR) onOpenDonor else onCreateRequest,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                    shape = MaterialTheme.shapes.medium,
-                ) {
-                    Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(if (role == UserRole.DONOR) "Open donor workspace" else "Create a request")
-                }
-                androidx.compose.material3.OutlinedButton(onClick = onGetStarted, modifier = Modifier.fillMaxWidth()) {
-                    Text("Go to Home")
-                }
-                Text(
-                    if (role ==
-                        UserRole.DONOR
-                    ) {
-                        "You control your availability and profile visibility."
-                    } else {
-                        "You choose when to contact a donor after they respond."
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                )
-            }
+            Text(
+                "LifeLink",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
+        Text(
+            if (role == UserRole.DONOR) {
+                "Set up your donor profile"
+            } else {
+                "Find nearby blood donors"
+            },
+            style = androidx.compose.material3.MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.semantics { heading() },
+        )
+        Text(
+            "Use approximate locations, consent-based contact, and clear request status. LifeLink supports coordination; hospitals and blood banks remain responsible for screening and care.",
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+            style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+        )
+    }
+}
+
+/** Primary/secondary actions and the role-specific reassurance line. */
+@Composable
+private fun StartActions(
+    role: UserRole,
+    onGetStarted: () -> Unit,
+    onCreateRequest: () -> Unit,
+    onOpenDonor: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Button(
+            onClick = if (role == UserRole.DONOR) onOpenDonor else onCreateRequest,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(if (role == UserRole.DONOR) "Open donor workspace" else "Create a request")
+        }
+        androidx.compose.material3.OutlinedButton(onClick = onGetStarted, modifier = Modifier.fillMaxWidth()) {
+            Text("Go to Home")
+        }
+        Text(
+            if (role == UserRole.DONOR) {
+                "You control your availability and profile visibility."
+            } else {
+                "You choose when to contact a donor after they respond."
+            },
+            modifier = Modifier.fillMaxWidth(),
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
@@ -1021,16 +1040,16 @@ private fun StartContent(
                     onThemeModeChange(mode)
                 }),
                 colors =
-                CardDefaults.cardColors(
-                    containerColor =
-                    if (themeMode ==
-                        mode
-                    ) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surface
-                    },
-                ),
+                    CardDefaults.cardColors(
+                        containerColor =
+                            if (themeMode ==
+                                mode
+                            ) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            },
+                    ),
             ) {
                 Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = themeMode == mode, onClick = null)
@@ -1139,25 +1158,30 @@ private fun StartContent(
             "User responsibilities",
             "Provide truthful information, post only requests you are authorized to make, respect consent, follow hospital or blood-service instructions, and verify real-world arrangements independently. LifeLink does not control off-platform transport, payment, donation, transfusion, or clinical decisions, subject to rights and responsibilities that cannot lawfully be excluded.",
         )
-        Text(
-            "Official guidance",
-            style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.semantics { heading() },
-        )
-        SourceLink("WHO · Blood safety and availability", "https://www.who.int/news-room/fact-sheets/detail/blood-safety-and-availability")
-        SourceLink("Philippines · National Blood Services Act (RA 7719)", "https://lawphil.net/statutes/repacts/ra1994/ra_7719_1994.html")
-        SourceLink("Philippines · Data Privacy Act (RA 10173)", "https://privacy.gov.ph/data-privacy-act/")
-        SourceLink(
-            "Philippines · Unified emergency hotline information",
-            "https://dilg.gov.ph/news/One-Number-for-All-Emergencies-Unified-911-to-Launch-Nationwide/NC-2025-1177",
-        )
+        LegalSourcesSection()
         Text(
             "Product guidance v1.0 · Review before production launch.",
             style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+/** Heading plus the official-guidance source links. */
+@Composable private fun LegalSourcesSection() {
+    Text(
+        "Official guidance",
+        style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.semantics { heading() },
+    )
+    SourceLink("WHO · Blood safety and availability", "https://www.who.int/news-room/fact-sheets/detail/blood-safety-and-availability")
+    SourceLink("Philippines · National Blood Services Act (RA 7719)", "https://lawphil.net/statutes/repacts/ra1994/ra_7719_1994.html")
+    SourceLink("Philippines · Data Privacy Act (RA 10173)", "https://privacy.gov.ph/data-privacy-act/")
+    SourceLink(
+        "Philippines · Unified emergency hotline information",
+        "https://dilg.gov.ph/news/One-Number-for-All-Emergencies-Unified-911-to-Launch-Nationwide/NC-2025-1177",
+    )
 }
 
 /** Displays urgent-care guidance and opens the system dialer with 911 when requested. */

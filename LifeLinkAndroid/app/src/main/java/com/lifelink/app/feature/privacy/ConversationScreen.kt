@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.domain.ChatMessage
+import com.lifelink.app.domain.ContactShare
 
 /**
  * In-app conversation between the requester and donor of one request. Messages
@@ -116,93 +117,29 @@ fun ConversationScreen(
         }
 
         if (state.contactShares.isNotEmpty()) {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-                // Bounded and independently scrollable: an unbounded list of shares
-                // would otherwise push the Safety card below the viewport, where the
-                // message LazyColumn cannot scroll to it.
-                Column(
-                    Modifier.padding(12.dp).heightIn(max = 180.dp).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text("Shared contact details", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
-                    state.contactShares.forEach { share ->
-                        Text(
-                            "${share.field.replaceFirstChar { it.uppercase() }}: ${share.value}",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            }
+            SharedContactsCard(shares = state.contactShares)
         }
 
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = draft,
-                onValueChange = { if (it.length <= 2000) draft = it },
-                modifier = Modifier.weight(1f),
-                label = { Text("Message") },
-                maxLines = 4,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(
-                    onSend = {
-                        if (draft.isNotBlank() && !state.sending) {
-                            onAction(PrivacyAction.SendMessage(draft))
-                            draft = ""
-                        }
-                    },
-                ),
-            )
-            Button(
-                onClick = {
-                    onAction(PrivacyAction.SendMessage(draft))
-                    draft = ""
-                },
-                enabled = draft.isNotBlank() && !state.sending,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
-            ) {
-                if (state.sending) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Send message",
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-        }
+        MessageComposer(
+            draft = draft,
+            sending = state.sending,
+            onDraftChange = { if (it.length <= MAX_MESSAGE_LENGTH) draft = it },
+            onSend = {
+                onAction(PrivacyAction.SendMessage(draft))
+                draft = ""
+            },
+        )
 
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Share contact details", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { contactField = "phone" }, enabled = contactField != "phone") { Text("Phone") }
-                    OutlinedButton(onClick = { contactField = "email" }, enabled = contactField != "email") { Text("Email") }
-                }
-                OutlinedTextField(
-                    value = contactValue,
-                    onValueChange = { if (it.length <= 320) contactValue = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(if (contactField == "phone") "Phone number" else "Email address") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = if (contactField == "phone") KeyboardType.Phone else KeyboardType.Email,
-                    ),
-                )
-                Button(
-                    onClick = {
-                        onAction(PrivacyAction.ShareContact(contactField, contactValue))
-                        contactValue = ""
-                    },
-                    enabled = contactValue.isNotBlank(),
-                ) { Text("Share $contactField") }
-                Text(
-                    "Sharing is recorded in an audit log. You can share each field separately.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        ShareContactCard(
+            contactField = contactField,
+            contactValue = contactValue,
+            onFieldChange = { contactField = it },
+            onValueChange = { if (it.length <= MAX_CONTACT_VALUE_LENGTH) contactValue = it },
+            onShare = {
+                onAction(PrivacyAction.ShareContact(contactField, contactValue))
+                contactValue = ""
+            },
+        )
 
         // Report and Block are surfaced here so a participant can act on an unsafe
         // interaction without leaving the conversation.
@@ -262,20 +199,117 @@ fun ConversationScreen(
     }
 }
 
+// Field length limits for the message composer and the contact-share input.
+private const val MAX_MESSAGE_LENGTH = 2000
+private const val MAX_CONTACT_VALUE_LENGTH = 320
+
+/** Card listing the contact details each participant has chosen to share. Bounded and scrollable. */
+@Composable
+private fun SharedContactsCard(shares: List<ContactShare>) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        Column(
+            Modifier.padding(12.dp).heightIn(max = 180.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text("Shared contact details", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+            shares.forEach { share ->
+                Text(
+                    "${share.field.replaceFirstChar { it.uppercase() }}: ${share.value}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
+}
+
+/** Message input row with an IME send action and a send button that shows progress while sending. */
+@Composable
+private fun MessageComposer(
+    draft: String,
+    sending: Boolean,
+    onDraftChange: (String) -> Unit,
+    onSend: () -> Unit,
+) {
+    val canSend = draft.isNotBlank() && !sending
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = draft,
+            onValueChange = onDraftChange,
+            modifier = Modifier.weight(1f),
+            label = { Text("Message") },
+            maxLines = 4,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(onSend = { if (canSend) onSend() }),
+        )
+        Button(
+            onClick = onSend,
+            enabled = canSend,
+            contentPadding =
+                androidx.compose.foundation.layout
+                    .PaddingValues(horizontal = 16.dp),
+        ) {
+            if (sending) {
+                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(
+                    Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "Send message",
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Card letting a participant share one contact field (phone or email) with the other. */
+@Composable
+private fun ShareContactCard(
+    contactField: String,
+    contactValue: String,
+    onFieldChange: (String) -> Unit,
+    onValueChange: (String) -> Unit,
+    onShare: () -> Unit,
+) {
+    val isPhone = contactField == "phone"
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Share contact details", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onFieldChange("phone") }, enabled = !isPhone) { Text("Phone") }
+                OutlinedButton(onClick = { onFieldChange("email") }, enabled = isPhone) { Text("Email") }
+            }
+            OutlinedTextField(
+                value = contactValue,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(if (isPhone) "Phone number" else "Email address") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = if (isPhone) KeyboardType.Phone else KeyboardType.Email),
+            )
+            Button(onClick = onShare, enabled = contactValue.isNotBlank()) { Text("Share $contactField") }
+            Text(
+                "Sharing is recorded in an audit log. You can share each field separately.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
 @Composable
 private fun MessageBubble(message: ChatMessage, mine: Boolean) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
         Card(
             modifier = Modifier.widthIn(max = 300.dp),
             colors =
-            CardDefaults.cardColors(
-                containerColor =
-                if (mine) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainerLow
-                },
-            ),
+                CardDefaults.cardColors(
+                    containerColor =
+                        if (mine) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerLow
+                        },
+                ),
         ) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(message.body)

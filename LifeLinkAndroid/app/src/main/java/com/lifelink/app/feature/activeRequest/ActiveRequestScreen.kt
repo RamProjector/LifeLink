@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -55,6 +54,7 @@ import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.ActiveRequestStatus
+import com.lifelink.app.domain.RequesterContact
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
 
@@ -276,47 +276,60 @@ private fun ContactActivityCard(
                 else -> {
                     state.contacts.forEachIndexed { index, contact ->
                         if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(contact.displayName, Modifier.weight(1f), fontWeight = FontWeight.Medium)
-                            Text(
-                                contact.status.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                        }
+                        ContactActivityRow(contact)
                     }
                 }
             }
             state.contactsError?.let { error ->
-                Surface(
-                    Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    shape = MaterialTheme.shapes.medium,
-                ) {
-                    Row(
-                        Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            error,
-                            modifier = Modifier.weight(1f),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        TextButton(onClick = { onAction(EmergencyRequestAction.RefreshContacts(active.requestId)) }) {
-                            Text("Retry")
-                        }
-                    }
-                }
+                ContactActivityError(
+                    error = error,
+                    onRetry = { onAction(EmergencyRequestAction.RefreshContacts(active.requestId)) },
+                )
             }
             Button(onClick = onReviewContacts, modifier = Modifier.fillMaxWidth()) {
                 Text("Review matches and contacts")
             }
+        }
+    }
+}
+
+/** One contact-activity row: donor name and a human-readable status label. */
+@Composable
+private fun ContactActivityRow(contact: RequesterContact) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(contact.displayName, Modifier.weight(1f), fontWeight = FontWeight.Medium)
+        Text(
+            contact.status.replace('_', ' ').replaceFirstChar { it.uppercase() },
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelLarge,
+        )
+    }
+}
+
+/** Error surface with a retry action for refreshing contact activity. */
+@Composable
+private fun ContactActivityError(error: String, onRetry: () -> Unit) {
+    Surface(
+        Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.errorContainer,
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Row(
+            Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                error,
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            TextButton(onClick = onRetry) { Text("Retry") }
         }
     }
 }

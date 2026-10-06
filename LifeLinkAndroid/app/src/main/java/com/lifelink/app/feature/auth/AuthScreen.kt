@@ -72,6 +72,11 @@ import java.util.regex.Pattern
 
 private val emailPattern = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$")
 
+// Password-strength scoring thresholds (see passwordStrength).
+private const val MIN_PASSWORD_LENGTH = 6
+private const val STRONG_PASSWORD_LENGTH = 10
+private const val MAX_PASSWORD_SCORE = 4
+
 /**
  * Scores a candidate password from 0 (empty) to 4 (strong) so the UI can give
  * live, non-blocking feedback while the user types a new password.
@@ -79,11 +84,11 @@ private val emailPattern = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$")
 private fun passwordStrength(password: String): Int {
     if (password.isEmpty()) return 0
     var score = 0
-    if (password.length >= 6) score++
-    if (password.length >= 10) score++
+    if (password.length >= MIN_PASSWORD_LENGTH) score++
+    if (password.length >= STRONG_PASSWORD_LENGTH) score++
     if (password.any { it.isDigit() }) score++
     if (password.any { it.isUpperCase() } || password.any { !it.isLetterOrDigit() }) score++
-    return score.coerceIn(0, 4)
+    return score.coerceIn(0, MAX_PASSWORD_SCORE)
 }
 
 /**
@@ -120,13 +125,16 @@ fun AuthScreen(
     val emailValid = emailPattern.matcher(email.trim()).matches()
     val passwordValid = password.length >= 6
     val passwordsMatch = !(createAccount || resetReady) || password == confirmPassword
-    val canSubmit = if (resetReady) {
-        passwordValid && passwordsMatch && !busy
-    } else {
-        emailValid &&
-            (recoveryMode || (passwordValid && passwordsMatch && (!createAccount || acceptedLegal))) &&
-            !busy
-    }
+    // Remind the user to accept the legal documents only once the rest of the form is otherwise valid.
+    val showLegalReminder = createAccount && !acceptedLegal && !busy && emailValid && passwordValid && passwordsMatch
+    val canSubmit =
+        if (resetReady) {
+            passwordValid && passwordsMatch && !busy
+        } else {
+            emailValid &&
+                (recoveryMode || (passwordValid && passwordsMatch && (!createAccount || acceptedLegal))) &&
+                !busy
+        }
 
     val submit = {
         if (resetReady) {
@@ -143,29 +151,32 @@ fun AuthScreen(
     Surface(color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             Column(
-                modifier = Modifier
-                    .widthIn(max = 560.dp)
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .verticalScroll(rememberScrollState())
-                    .imePadding()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                modifier =
+                    Modifier
+                        .widthIn(max = 560.dp)
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .verticalScroll(rememberScrollState())
+                        .imePadding()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 24.dp, vertical = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .background(
-                                brush = Brush.linearGradient(
-                                    listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.tertiary,
-                                    ),
+                        modifier =
+                            Modifier
+                                .size(48.dp)
+                                .background(
+                                    brush =
+                                        Brush.linearGradient(
+                                            listOf(
+                                                MaterialTheme.colorScheme.primary,
+                                                MaterialTheme.colorScheme.tertiary,
+                                            ),
+                                        ),
+                                    shape = CircleShape,
                                 ),
-                                shape = CircleShape,
-                            ),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -224,34 +235,39 @@ fun AuthScreen(
                             value = email,
                             onValueChange = { email = it },
                             enabled = !busy,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .semantics { contentType = ContentType.Username },
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .semantics { contentType = ContentType.Username },
                             label = { Text("Email address") },
                             placeholder = { Text("name@gmail.com") },
                             singleLine = true,
                             isError = email.isNotEmpty() && !emailValid,
-                            supportingText = if (email.isNotEmpty() && !emailValid) {
-                                { Text("Enter a complete email, such as name@gmail.com") }
-                            } else {
-                                null
-                            },
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Email,
-                                imeAction = ImeAction.Next,
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onNext = { focusManager.moveFocus(FocusDirection.Down) },
-                            ),
-                            trailingIcon = if (email.isNotEmpty()) {
-                                {
-                                    IconButton(onClick = { email = "" }) {
-                                        Icon(Icons.Default.Clear, contentDescription = "Clear email address")
+                            supportingText =
+                                if (email.isNotEmpty() && !emailValid) {
+                                    { Text("Enter a complete email, such as name@gmail.com") }
+                                } else {
+                                    null
+                                },
+                            keyboardOptions =
+                                KeyboardOptions(
+                                    keyboardType = KeyboardType.Email,
+                                    imeAction = ImeAction.Next,
+                                ),
+                            keyboardActions =
+                                KeyboardActions(
+                                    onNext = { focusManager.moveFocus(FocusDirection.Down) },
+                                ),
+                            trailingIcon =
+                                if (email.isNotEmpty()) {
+                                    {
+                                        IconButton(onClick = { email = "" }) {
+                                            Icon(Icons.Default.Clear, contentDescription = "Clear email address")
+                                        }
                                     }
-                                }
-                            } else {
-                                null
-                            },
+                                } else {
+                                    null
+                                },
                         )
                     }
 
@@ -259,22 +275,25 @@ fun AuthScreen(
                         PasswordField(
                             value = password,
                             onValueChange = { password = it },
-                            label = if (resetReady) "New password" else "Password",
-                            visible = showPassword,
-                            onToggleVisibility = { showPassword = !showPassword },
-                            isError = password.isNotEmpty() && !passwordValid,
-                            supportingText = if (password.isNotEmpty() && !passwordValid) "Use at least 6 characters." else null,
-                            enabled = !busy,
-                            contentType = if (createAccount || resetReady) ContentType.NewPassword else ContentType.Password,
-                            imeAction = if ((!recoveryMode && createAccount) || resetReady) ImeAction.Next else ImeAction.Done,
-                            onImeAction = {
-                                if ((!recoveryMode && createAccount) || resetReady) {
-                                    focusManager.moveFocus(FocusDirection.Down)
-                                } else if (canSubmit) {
-                                    focusManager.clearFocus()
-                                    submit()
-                                }
-                            },
+                            config =
+                                PasswordFieldConfig(
+                                    label = if (resetReady) "New password" else "Password",
+                                    visible = showPassword,
+                                    onToggleVisibility = { showPassword = !showPassword },
+                                    isError = password.isNotEmpty() && !passwordValid,
+                                    supportingText = if (password.isNotEmpty() && !passwordValid) "Use at least 6 characters." else null,
+                                    enabled = !busy,
+                                    contentType = if (createAccount || resetReady) ContentType.NewPassword else ContentType.Password,
+                                    imeAction = if ((!recoveryMode && createAccount) || resetReady) ImeAction.Next else ImeAction.Done,
+                                    onImeAction = {
+                                        if ((!recoveryMode && createAccount) || resetReady) {
+                                            focusManager.moveFocus(FocusDirection.Down)
+                                        } else if (canSubmit) {
+                                            focusManager.clearFocus()
+                                            submit()
+                                        }
+                                    },
+                                ),
                         )
                     }
 
@@ -283,32 +302,43 @@ fun AuthScreen(
                         PasswordField(
                             value = confirmPassword,
                             onValueChange = { confirmPassword = it },
-                            label = if (resetReady) "Confirm new password" else "Confirm password",
-                            visible = showConfirmPassword,
-                            onToggleVisibility = { showConfirmPassword = !showConfirmPassword },
-                            isError = confirmPassword.isNotEmpty() && !passwordsMatch,
-                            supportingText = if (confirmPassword.isNotEmpty() && !passwordsMatch) "Passwords do not match." else null,
-                            enabled = !busy,
-                            contentType = ContentType.NewPassword,
-                            imeAction = ImeAction.Done,
-                            onImeAction = {
-                                if (canSubmit) {
-                                    focusManager.clearFocus()
-                                    submit()
-                                }
-                            },
+                            config =
+                                PasswordFieldConfig(
+                                    label = if (resetReady) "Confirm new password" else "Confirm password",
+                                    visible = showConfirmPassword,
+                                    onToggleVisibility = { showConfirmPassword = !showConfirmPassword },
+                                    isError = confirmPassword.isNotEmpty() && !passwordsMatch,
+                                    supportingText =
+                                        if (confirmPassword.isNotEmpty() &&
+                                            !passwordsMatch
+                                        ) {
+                                            "Passwords do not match."
+                                        } else {
+                                            null
+                                        },
+                                    enabled = !busy,
+                                    contentType = ContentType.NewPassword,
+                                    imeAction = ImeAction.Done,
+                                    onImeAction = {
+                                        if (canSubmit) {
+                                            focusManager.clearFocus()
+                                            submit()
+                                        }
+                                    },
+                                ),
                         )
                     }
 
                     if (createAccount && !recoveryMode && !resetReady) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.toggleable(
-                                value = acceptedLegal,
-                                enabled = !busy,
-                                role = Role.Checkbox,
-                                onValueChange = { acceptedLegal = it },
-                            ),
+                            modifier =
+                                Modifier.toggleable(
+                                    value = acceptedLegal,
+                                    enabled = !busy,
+                                    role = Role.Checkbox,
+                                    onValueChange = { acceptedLegal = it },
+                                ),
                         ) {
                             Checkbox(checked = acceptedLegal, onCheckedChange = null, enabled = !busy)
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -317,9 +347,14 @@ fun AuthScreen(
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    TextButton(onClick = {
-                                        legalDocument = PrivacyPolicyPhilippines
-                                    }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                                    TextButton(
+                                        onClick = {
+                                            legalDocument = PrivacyPolicyPhilippines
+                                        },
+                                        contentPadding =
+                                            androidx.compose.foundation.layout
+                                                .PaddingValues(0.dp),
+                                    ) {
                                         Text("Privacy Policy")
                                     }
                                     Text(
@@ -327,15 +362,20 @@ fun AuthScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
-                                    TextButton(onClick = {
-                                        legalDocument = TermsAndConditionsPhilippines
-                                    }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                                    TextButton(
+                                        onClick = {
+                                            legalDocument = TermsAndConditionsPhilippines
+                                        },
+                                        contentPadding =
+                                            androidx.compose.foundation.layout
+                                                .PaddingValues(0.dp),
+                                    ) {
                                         Text("Terms")
                                     }
                                 }
                             }
                         }
-                        if (!acceptedLegal && !busy && emailValid && passwordValid && passwordsMatch) {
+                        if (showLegalReminder) {
                             Text(
                                 "Accept the Privacy Policy and Terms to continue.",
                                 style = MaterialTheme.typography.bodySmall,
@@ -347,32 +387,37 @@ fun AuthScreen(
                     when (state) {
                         is AuthState.Error -> MessageCard(state.message, isError = true)
                         is AuthState.Message -> MessageCard(state.text, isError = state.isError)
-                        AuthState.SessionExpired -> MessageCard(
-                            "Your session expired. Please sign in again to protect your requests and contact details.",
-                            isError = true,
-                        )
-                        is AuthState.PasswordResetReady -> MessageCard(
-                            "Email confirmed. Your password-reset link is valid. Set a new password below.",
-                            isError = false,
-                        )
-                        AuthState.PasswordResetComplete -> MessageCard(
-                            "Password updated successfully. Return to sign in with your new password.",
-                            isError = false,
-                        )
-                        AuthState.EmailConfirmationRequired -> MessageCard(
-                            "Account created. Check your inbox and click the confirmation link, then choose Sign in.",
-                            isError = false,
-                        )
+                        AuthState.SessionExpired ->
+                            MessageCard(
+                                "Your session expired. Please sign in again to protect your requests and contact details.",
+                                isError = true,
+                            )
+                        is AuthState.PasswordResetReady ->
+                            MessageCard(
+                                "Email confirmed. Your password-reset link is valid. Set a new password below.",
+                                isError = false,
+                            )
+                        AuthState.PasswordResetComplete ->
+                            MessageCard(
+                                "Password updated successfully. Return to sign in with your new password.",
+                                isError = false,
+                            )
+                        AuthState.EmailConfirmationRequired ->
+                            MessageCard(
+                                "Account created. Check your inbox and click the confirmation link, then choose Sign in.",
+                                isError = false,
+                            )
                         else -> Unit
                     }
 
                     Button(
                         onClick = submit,
                         enabled = canSubmit,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 56.dp)
-                            .semantics { if (busy) stateDescription = "Submitting" },
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 56.dp)
+                                .semantics { if (busy) stateDescription = "Submitting" },
                         shape = MaterialTheme.shapes.small,
                     ) {
                         if (busy) {
@@ -414,7 +459,7 @@ fun AuthScreen(
                         OutlinedButton(
                             onClick = { onResendConfirmation(email.trim()) },
                             enabled =
-                            emailValid && !busy,
+                                emailValid && !busy,
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text("Resend confirmation email") }
                     }
@@ -437,6 +482,22 @@ fun AuthScreen(
 }
 
 /**
+ * Groups the non-value inputs of [PasswordField] so the composable stays within the
+ * detekt parameter-count budget while keeping each call site readable.
+ */
+private data class PasswordFieldConfig(
+    val label: String,
+    val visible: Boolean,
+    val onToggleVisibility: () -> Unit,
+    val isError: Boolean,
+    val supportingText: String?,
+    val contentType: ContentType,
+    val imeAction: ImeAction,
+    val onImeAction: () -> Unit,
+    val enabled: Boolean = true,
+)
+
+/**
  * Displays a password field with caller-controlled visibility, validation feedback, and a visibility toggle.
  * The visibility toggle is the single trailing element, matching Material 3 guidance for text fields.
  */
@@ -444,38 +505,32 @@ fun AuthScreen(
 private fun PasswordField(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String,
-    visible: Boolean,
-    onToggleVisibility: () -> Unit,
-    isError: Boolean,
-    supportingText: String?,
-    contentType: ContentType,
-    imeAction: ImeAction,
-    onImeAction: () -> Unit,
-    enabled: Boolean = true,
+    config: PasswordFieldConfig,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        enabled = enabled,
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { this.contentType = contentType },
-        label = { Text(label) },
+        enabled = config.enabled,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics { this.contentType = config.contentType },
+        label = { Text(config.label) },
         singleLine = true,
-        isError = isError,
-        supportingText = supportingText?.let { { Text(it) } },
-        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = imeAction),
-        keyboardActions = KeyboardActions(
-            onNext = { onImeAction() },
-            onDone = { onImeAction() },
-        ),
+        isError = config.isError,
+        supportingText = config.supportingText?.let { { Text(it) } },
+        visualTransformation = if (config.visible) VisualTransformation.None else PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = config.imeAction),
+        keyboardActions =
+            KeyboardActions(
+                onNext = { config.onImeAction() },
+                onDone = { config.onImeAction() },
+            ),
         trailingIcon = {
-            IconButton(onClick = onToggleVisibility) {
+            IconButton(onClick = config.onToggleVisibility) {
                 Icon(
-                    imageVector = if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                    contentDescription = if (visible) "Hide $label" else "Show $label",
+                    imageVector = if (config.visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    contentDescription = if (config.visible) "Hide ${config.label}" else "Show ${config.label}",
                 )
             }
         },
@@ -490,17 +545,19 @@ private fun PasswordField(
 private fun PasswordStrengthMeter(password: String) {
     if (password.isEmpty()) return
     val score = passwordStrength(password)
-    val label = when (score) {
-        0, 1 -> "Weak password"
-        2 -> "Fair password"
-        3 -> "Good password"
-        else -> "Strong password"
-    }
-    val activeColor = when (score) {
-        0, 1 -> MaterialTheme.colorScheme.error
-        2 -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.secondary
-    }
+    val label =
+        when (score) {
+            0, 1 -> "Weak password"
+            2 -> "Fair password"
+            3 -> "Good password"
+            else -> "Strong password"
+        }
+    val activeColor =
+        when (score) {
+            0, 1 -> MaterialTheme.colorScheme.error
+            2 -> MaterialTheme.colorScheme.tertiary
+            else -> MaterialTheme.colorScheme.secondary
+        }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             repeat(4) { index ->
@@ -528,12 +585,14 @@ private fun PasswordStrengthMeter(password: String) {
 @Composable
 private fun MessageCard(message: String, isError: Boolean) {
     Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { liveRegion = if (isError) LiveRegionMode.Assertive else LiveRegionMode.Polite },
+        colors =
+            CardDefaults.cardColors(
+                containerColor = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
+            ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics { liveRegion = if (isError) LiveRegionMode.Assertive else LiveRegionMode.Polite },
     ) {
         Row(
             modifier = Modifier.padding(14.dp),

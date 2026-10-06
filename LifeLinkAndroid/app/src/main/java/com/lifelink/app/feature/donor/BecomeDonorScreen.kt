@@ -205,6 +205,22 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
     var latitude by rememberSaveable(profile.donorId) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
     var longitude by rememberSaveable(profile.donorId) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
     var coordinateError by rememberSaveable(profile.donorId) { mutableStateOf<String?>(null) }
+    val applyCoordinates: () -> Unit = {
+        val lat = latitude.toDoubleOrNull()
+        val lng = longitude.toDoubleOrNull()
+        when {
+            latitude.isBlank() || longitude.isBlank() ->
+                coordinateError = "Enter both a latitude and a longitude before applying."
+            lat == null || lng == null ->
+                coordinateError = "Use decimal numbers, for example 14.5995 and 120.9842."
+            !isInRange(lat, lng) ->
+                coordinateError = "Latitude must be between -90 and 90, and longitude between -180 and 180."
+            else -> {
+                coordinateError = null
+                onAction(BecomeDonorAction.UpdateDraft { it.copy(latitude = lat, longitude = lng) })
+            }
+        }
+    }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
@@ -236,37 +252,33 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
                 error = coordinateError,
                 onLatitudeChange = { latitude = it },
                 onLongitudeChange = { longitude = it },
-                onApply = {
-                    val lat = latitude.toDoubleOrNull()
-                    val lng = longitude.toDoubleOrNull()
-                    when {
-                        latitude.isBlank() || longitude.isBlank() ->
-                            coordinateError = "Enter both a latitude and a longitude before applying."
-                        lat == null || lng == null ->
-                            coordinateError = "Use decimal numbers, for example 14.5995 and 120.9842."
-                        !isInRange(lat, lng) ->
-                            coordinateError = "Latitude must be between -90 and 90, and longitude between -180 and 180."
-                        else -> {
-                            coordinateError = null
-                            onAction(BecomeDonorAction.UpdateDraft { it.copy(latitude = lat, longitude = lng) })
-                        }
-                    }
-                },
+                onApply = applyCoordinates,
             )
-            OutlinedTextField(
-                value = radius,
-                onValueChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) radius = value },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Service radius (km)") },
-                singleLine = true,
-            )
-            NotificationToggle(profile.notificationsEnabled) { value ->
-                onAction(BecomeDonorAction.UpdateDraft { it.copy(notificationsEnabled = value) })
-            }
-            SaveButton(state, radius, onAction) { value ->
-                onAction(BecomeDonorAction.UpdateDraft { it.copy(serviceRadiusKm = value) })
-            }
+            RadiusAndSave(state, radius, onRadiusChange = { radius = it }, onAction = onAction)
         }
+    }
+}
+
+/** Service-radius field plus the save/become-a-donor action. */
+@Composable
+private fun RadiusAndSave(
+    state: BecomeDonorUiState,
+    radius: String,
+    onRadiusChange: (String) -> Unit,
+    onAction: (BecomeDonorAction) -> Unit,
+) {
+    OutlinedTextField(
+        value = radius,
+        onValueChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) onRadiusChange(value) },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Service radius (km)") },
+        singleLine = true,
+    )
+    NotificationToggle(state.draft.notificationsEnabled) { value ->
+        onAction(BecomeDonorAction.UpdateDraft { it.copy(notificationsEnabled = value) })
+    }
+    SaveButton(state, radius, onAction) { value ->
+        onAction(BecomeDonorAction.UpdateDraft { it.copy(serviceRadiusKm = value) })
     }
 }
 

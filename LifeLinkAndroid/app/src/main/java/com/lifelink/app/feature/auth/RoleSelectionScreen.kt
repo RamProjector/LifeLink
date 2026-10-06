@@ -51,55 +51,17 @@ fun RoleSelectionScreen(onRoleSelected: (UserRole) -> Unit) {
     Surface(color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             Column(
-                modifier = Modifier
-                    .widthIn(max = 560.dp)
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .verticalScroll(rememberScrollState())
-                    .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 24.dp),
+                modifier =
+                    Modifier
+                        .widthIn(max = 560.dp)
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .verticalScroll(rememberScrollState())
+                        .navigationBarsPadding()
+                        .padding(horizontal = 24.dp, vertical = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .background(
-                                brush = Brush.linearGradient(
-                                    listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.tertiary,
-                                    ),
-                                ),
-                                shape = CircleShape,
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            Icons.Default.Favorite,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                    Text(
-                        "LifeLink",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "How will you use LifeLink?",
-                        Modifier.semantics { heading() },
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        "Choose the experience that fits you. You can change this later from your profile.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                RoleSelectionHeader()
                 UserRole.entries.forEach { role ->
                     RoleCard(role = role, onSelect = { onRoleSelected(role) })
                 }
@@ -113,19 +75,69 @@ fun RoleSelectionScreen(onRoleSelected: (UserRole) -> Unit) {
     }
 }
 
-/** Short, scannable benefit lines shown inside each capability card. */
-private fun roleHighlights(role: UserRole): List<String> = when (role) {
-    UserRole.REQUESTER -> listOf(
-        "Post an emergency request in seconds",
-        "See eligible donors near you",
-        "Message responders privately",
-    )
-    UserRole.DONOR -> listOf(
-        "Set your availability and blood type",
-        "Get notified about nearby requests",
-        "Choose when to share your contact",
-    )
+/** Brand mark, headline, and subtitle shown at the top of the role-selection screen. */
+@Composable
+private fun RoleSelectionHeader() {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(
+            modifier =
+                Modifier
+                    .size(32.dp)
+                    .background(
+                        brush =
+                            Brush.linearGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.tertiary,
+                                ),
+                            ),
+                        shape = CircleShape,
+                    ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Default.Favorite,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Text(
+            "LifeLink",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "How will you use LifeLink?",
+            Modifier.semantics { heading() },
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            "Choose the experience that fits you. You can change this later from your profile.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
+
+/** Short, scannable benefit lines shown inside each capability card. */
+private fun roleHighlights(role: UserRole): List<String> =
+    when (role) {
+        UserRole.REQUESTER ->
+            listOf(
+                "Post an emergency request in seconds",
+                "See eligible donors near you",
+                "Message responders privately",
+            )
+        UserRole.DONOR ->
+            listOf(
+                "Set your availability and blood type",
+                "Get notified about nearby requests",
+                "Choose when to share your contact",
+            )
+    }
 
 /** Displays one capability as a card with an icon, title, description, highlights, and a full-width action. */
 @Composable

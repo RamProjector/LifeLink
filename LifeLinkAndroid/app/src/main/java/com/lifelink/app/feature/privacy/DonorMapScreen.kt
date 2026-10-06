@@ -1,7 +1,6 @@
 package com.lifelink.app.feature.privacy
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -73,32 +72,7 @@ fun DonorMapScreen(
         item { PrivacyBanner() }
         item { DonorVisibilityControls(state, onAction) }
         state.mapError?.let { error ->
-            item {
-                Card(
-                    Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                ) {
-                    Row(
-                        Modifier.padding(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            Icons.Default.Error,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Text(
-                            error,
-                            modifier = Modifier.weight(1f),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        Button(onClick = { onAction(PrivacyAction.LoadMap) }) { Text("Retry") }
-                    }
-                }
-            }
+            item { DonorMapErrorCard(error = error, onRetry = { onAction(PrivacyAction.LoadMap) }) }
         }
         if (state.mapLoading) {
             item { LifeLinkLoadingIndicator(label = "Loading donor areas\u2026") }
@@ -125,6 +99,35 @@ fun DonorMapScreen(
     }
 }
 
+/** Error surface with a retry action, announced assertively to screen readers. */
+@Composable
+private fun DonorMapErrorCard(error: String, onRetry: () -> Unit) {
+    Card(
+        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    ) {
+        Row(
+            Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Default.Error,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                error,
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Button(onClick = onRetry) { Text("Retry") }
+        }
+    }
+}
+
 /** Explains the approximate-only privacy guarantee at the top of the map. */
 @Composable
 private fun PrivacyBanner() {
@@ -145,7 +148,9 @@ private fun PrivacyBanner() {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Approximate areas only", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSecondaryContainer)
                 Text(
-                    "The map shows where donors are available as approximate areas with a freshness timestamp. Exact donor locations are never shown here \u2014 they are shared only with a matched requester, and only while the donor allows it.",
+                    "The map shows where donors are available as approximate areas with a freshness timestamp. " +
+                        "Exact donor locations are never shown here \u2014 they are shared only with a matched requester, " +
+                        "and only while the donor allows it.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
@@ -164,56 +169,26 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Your visibility", fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
-            Row(
-                Modifier.fillMaxWidth().toggleable(
-                    value = visibility?.mapVisible == true,
-                    enabled = !state.visibilitySaving,
-                    role = Role.Switch,
-                    onValueChange = { checked ->
-                        onAction(PrivacyAction.SetMapVisibility(checked, visibility?.exactLocationSharingEnabled == true))
-                    },
-                ),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Show me on the donor map")
-                    Text(
-                        "Your approximate area and a freshness timestamp are shown. You can hide at any time.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(
-                    checked = visibility?.mapVisible == true,
-                    enabled = !state.visibilitySaving,
-                    onCheckedChange = null,
-                )
-            }
-            Row(
-                Modifier.fillMaxWidth().toggleable(
-                    value = visibility?.exactLocationSharingEnabled == true,
-                    enabled = !state.visibilitySaving,
-                    role = Role.Switch,
-                    onValueChange = { checked ->
-                        onAction(PrivacyAction.SetMapVisibility(visibility?.mapVisible == true, checked))
-                    },
-                ),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Show my exact location to matched requesters")
-                    Text(
-                        "Only a requester whose active request has matched you can see your exact location, and it expires when the request ends.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(
-                    checked = visibility?.exactLocationSharingEnabled == true,
-                    enabled = !state.visibilitySaving,
-                    onCheckedChange = null,
-                )
-            }
+            VisibilitySwitchRow(
+                title = "Show me on the donor map",
+                subtitle = "Your approximate area and a freshness timestamp are shown. You can hide at any time.",
+                checked = visibility?.mapVisible == true,
+                enabled = !state.visibilitySaving,
+                onCheckedChange = { checked ->
+                    onAction(PrivacyAction.SetMapVisibility(checked, visibility?.exactLocationSharingEnabled == true))
+                },
+            )
+            VisibilitySwitchRow(
+                title = "Show my exact location to matched requesters",
+                subtitle =
+                    "Only a requester whose active request has matched you can see your exact location, " +
+                        "and it expires when the request ends.",
+                checked = visibility?.exactLocationSharingEnabled == true,
+                enabled = !state.visibilitySaving,
+                onCheckedChange = { checked ->
+                    onAction(PrivacyAction.SetMapVisibility(visibility?.mapVisible == true, checked))
+                },
+            )
             visibility?.freshnessAt?.let {
                 Text(
                     "Location last updated: $it",
@@ -230,6 +205,43 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
                 )
             }
         }
+    }
+}
+
+/**
+ * A full-width switch row with a title and explanatory subtitle. The whole row is the hit target
+ * via [toggleable]; the inner [Switch] is non-interactive so the two never double-toggle.
+ */
+@Composable
+private fun VisibilitySwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().toggleable(
+            value = checked,
+            enabled = enabled,
+            role = Role.Switch,
+            onValueChange = onCheckedChange,
+        ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = checked,
+            enabled = enabled,
+            onCheckedChange = null,
+        )
     }
 }
 
