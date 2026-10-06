@@ -56,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -577,6 +578,7 @@ private fun ProfileCard(
                         .fillMaxWidth()
                         .toggleable(
                             value = profile.profileVisible,
+                            role = Role.Switch,
                             onValueChange = { value ->
                                 onAction(DonorAction.UpdateDraft { it.copy(profileVisible = value) })
                             },
@@ -619,6 +621,7 @@ private fun ProfileCard(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Service radius (km)") },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
             Text(
                 text =
@@ -667,7 +670,12 @@ private fun ProfileCard(
                 )
             }
             coordinateError?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
             }
             OutlinedButton(
                 onClick = {

@@ -53,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -118,6 +119,11 @@ fun AuthScreen(
     var showConfirmPassword by rememberSaveable { mutableStateOf(false) }
     var recoveryMode by rememberSaveable { mutableStateOf(false) }
     var acceptedLegal by rememberSaveable { mutableStateOf(false) }
+    // Validation feedback is deferred until a field has been left, so the form does not
+    // flag an error on the very first character the user types (Material text-field guidance).
+    var emailTouched by rememberSaveable { mutableStateOf(false) }
+    var passwordTouched by rememberSaveable { mutableStateOf(false) }
+    var confirmTouched by rememberSaveable { mutableStateOf(false) }
     var legalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     val focusManager = LocalFocusManager.current
     val busy = state is AuthState.Loading
@@ -238,13 +244,14 @@ fun AuthScreen(
                             modifier =
                             Modifier
                                 .fillMaxWidth()
+                                .onFocusChanged { if (!it.isFocused && email.isNotEmpty()) emailTouched = true }
                                 .semantics { contentType = ContentType.Username },
                             label = { Text("Email address") },
                             placeholder = { Text("name@gmail.com") },
                             singleLine = true,
-                            isError = email.isNotEmpty() && !emailValid,
+                            isError = emailTouched && email.isNotEmpty() && !emailValid,
                             supportingText =
-                            if (email.isNotEmpty() && !emailValid) {
+                            if (emailTouched && email.isNotEmpty() && !emailValid) {
                                 { Text("Enter a complete email, such as name@gmail.com") }
                             } else {
                                 null
@@ -280,8 +287,14 @@ fun AuthScreen(
                                 label = if (resetReady) "New password" else "Password",
                                 visible = showPassword,
                                 onToggleVisibility = { showPassword = !showPassword },
-                                isError = password.isNotEmpty() && !passwordValid,
-                                supportingText = if (password.isNotEmpty() && !passwordValid) "Use at least 6 characters." else null,
+                                isError = passwordTouched && password.isNotEmpty() && !passwordValid,
+                                supportingText =
+                                if (passwordTouched && password.isNotEmpty() && !passwordValid) {
+                                    "Use at least 6 characters."
+                                } else {
+                                    null
+                                },
+                                onFocusLost = { if (password.isNotEmpty()) passwordTouched = true },
                                 enabled = !busy,
                                 contentType = if (createAccount || resetReady) ContentType.NewPassword else ContentType.Password,
                                 imeAction = if ((!recoveryMode && createAccount) || resetReady) ImeAction.Next else ImeAction.Done,
@@ -307,15 +320,17 @@ fun AuthScreen(
                                 label = if (resetReady) "Confirm new password" else "Confirm password",
                                 visible = showConfirmPassword,
                                 onToggleVisibility = { showConfirmPassword = !showConfirmPassword },
-                                isError = confirmPassword.isNotEmpty() && !passwordsMatch,
+                                isError = confirmTouched && confirmPassword.isNotEmpty() && !passwordsMatch,
                                 supportingText =
-                                if (confirmPassword.isNotEmpty() &&
+                                if (confirmTouched &&
+                                    confirmPassword.isNotEmpty() &&
                                     !passwordsMatch
                                 ) {
                                     "Passwords do not match."
                                 } else {
                                     null
                                 },
+                                onFocusLost = { if (confirmPassword.isNotEmpty()) confirmTouched = true },
                                 enabled = !busy,
                                 contentType = ContentType.NewPassword,
                                 imeAction = ImeAction.Done,
@@ -380,6 +395,7 @@ fun AuthScreen(
                                 "Accept the Privacy Policy and Terms to continue.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                             )
                         }
                     }
@@ -494,6 +510,7 @@ private data class PasswordFieldConfig(
     val contentType: ContentType,
     val imeAction: ImeAction,
     val onImeAction: () -> Unit,
+    val onFocusLost: () -> Unit = {},
     val enabled: Boolean = true,
 )
 
@@ -510,6 +527,7 @@ private fun PasswordField(value: String, onValueChange: (String) -> Unit, config
         modifier =
         Modifier
             .fillMaxWidth()
+            .onFocusChanged { if (!it.isFocused) config.onFocusLost() }
             .semantics { this.contentType = config.contentType },
         label = { Text(config.label) },
         singleLine = true,
@@ -569,6 +587,7 @@ private fun PasswordStrengthMeter(password: String) {
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
             color = activeColor,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
     }
 }

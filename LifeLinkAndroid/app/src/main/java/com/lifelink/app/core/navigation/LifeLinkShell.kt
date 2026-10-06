@@ -82,8 +82,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -476,7 +478,11 @@ private fun ShellNavigationIcon(tab: ShellTab) {
             ) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Matching results ready", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            "Matching results ready",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.semantics { heading() },
+                        )
                         Text("Review nearby donors and choose who to contact.")
                         Button(onClick = onOpen, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Open matching results") }
                     }
@@ -497,6 +503,7 @@ private fun ShellNavigationIcon(tab: ShellTab) {
                                 "No active request"
                             },
                             style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.semantics { heading() },
                         )
                         Text(
                             if (state.historyRefreshing ||
@@ -752,7 +759,7 @@ private fun HomeContent(
                                     color = if (update.isRead) Color.Transparent else MaterialTheme.colorScheme.primary,
                                 ) {}
                             },
-                            modifier = Modifier.fillMaxWidth().clickable(onClick = onUpdates),
+                            modifier = Modifier.fillMaxWidth().clickable(onClickLabel = "Open updates", onClick = onUpdates),
                         )
                     }
                 }
@@ -1071,7 +1078,13 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
                     onClick = { onRequestPasswordReset { message -> resetMessage = message } },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Send reset link") }
-                resetMessage?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.primary) }
+                resetMessage?.let {
+                    Text(
+                        it,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
             }
         }
         Card(
@@ -1314,7 +1327,13 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
                     enabled = !profileSaving && displayName.trim().length >= 2,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(if (profileSaving) "Saving…" else "Save profile") }
-                profileMessage?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.primary) }
+                profileMessage?.let {
+                    Text(
+                        it,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
             }
         }
         Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
