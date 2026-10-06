@@ -171,53 +171,14 @@ private fun roleHighlights(role: UserRole): List<String> =
 @Composable
 private fun RoleCard(role: UserRole, onSelect: () -> Unit) {
     val isDonor = role == UserRole.DONOR
-    val accent = if (isDonor) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer
-    val onAccent = if (isDonor) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
-    val highlightTint = if (isDonor) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Surface(
-                    modifier = Modifier.size(48.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    color = accent,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = if (isDonor) Icons.Default.VolunteerActivism else Icons.Default.Favorite,
-                            contentDescription = null,
-                            tint = onAccent,
-                            modifier = Modifier.size(26.dp),
-                        )
-                    }
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        role.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.semantics { heading() },
-                    )
-                    Text(role.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                roleHighlights(role).forEach { highlight ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Icon(
-                            Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = highlightTint,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Text(highlight, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-            }
+            RoleCardHeader(role, isDonor)
+            RoleHighlights(role, isDonor)
             Spacer(Modifier.height(2.dp))
             Button(
                 onClick = onSelect,
@@ -225,6 +186,57 @@ private fun RoleCard(role: UserRole, onSelect: () -> Unit) {
                 shape = MaterialTheme.shapes.small,
             ) {
                 Text("Continue as ${if (isDonor) "donor" else "requester"}")
+            }
+        }
+    }
+}
+
+/** Icon, title, and description block at the top of a [RoleCard]. */
+@Composable
+private fun RoleCardHeader(role: UserRole, isDonor: Boolean) {
+    val accent = if (isDonor) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer
+    val onAccent = if (isDonor) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Surface(
+            modifier = Modifier.size(48.dp),
+            shape = MaterialTheme.shapes.medium,
+            color = accent,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = if (isDonor) Icons.Default.VolunteerActivism else Icons.Default.Favorite,
+                    contentDescription = null,
+                    tint = onAccent,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                role.title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.semantics { heading() },
+            )
+            Text(role.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** Check-marked benefit lines shown inside a [RoleCard]. */
+@Composable
+private fun RoleHighlights(role: UserRole, isDonor: Boolean) {
+    val highlightTint = if (isDonor) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        roleHighlights(role).forEach { highlight ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = highlightTint,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(highlight, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
