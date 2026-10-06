@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Fullscreen
@@ -57,6 +59,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.google.android.gms.common.api.ResolvableApiException
@@ -269,7 +272,7 @@ fun DonorScreen(
                     )
                 DonorTab.REQUESTS -> DonorRequestsContent(state, onAction, onOpenConversation)
             }
-        }
+        }.imePadding()
     }
 }
 
@@ -438,7 +441,7 @@ private fun StatusMessage(message: String, compact: Boolean = false, loading: Bo
             )
             Text(profile.availability.label, color = MaterialTheme.colorScheme.onSecondaryContainer)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DonorAvailability.values().forEach { option ->
+                DonorAvailability.entries.forEach { option ->
                     FilterChip(
                         selected = profile.availability == option,
                         enabled = !saving,
@@ -508,6 +511,7 @@ private fun ProfileCard(
     // unsaved service radius and manual coordinates are owned by DonorScreen so they
     // survive switching between the tabbed and full-screen editors.
     var showMoreSettings by rememberSaveable(profile.donorId) { mutableStateOf(false) }
+    var coordinateError by remember { mutableStateOf<String?>(null) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
@@ -567,7 +571,17 @@ private fun ProfileCard(
                         singleLine = true,
                     )
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = profile.profileVisible,
+                            onValueChange = { value ->
+                                onAction(DonorAction.UpdateDraft { it.copy(profileVisible = value) })
+                            },
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Column(Modifier.weight(1f)) {
                         Text("Profile visible to requesters", fontWeight = FontWeight.SemiBold)
                         Text(
@@ -580,14 +594,12 @@ private fun ProfileCard(
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
-                    Switch(checked = profile.profileVisible, onCheckedChange = { value ->
-                        onAction(DonorAction.UpdateDraft { it.copy(profileVisible = value) })
-                    })
+                    Switch(checked = profile.profileVisible, onCheckedChange = null)
                 }
             }
             Text("Blood type", fontWeight = FontWeight.SemiBold)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                BloodType.values().toList().chunked(4).forEach { rowOptions ->
+                BloodType.entries.chunked(4).forEach { rowOptions ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         rowOptions.forEach { option ->
                             FilterChip(
@@ -642,6 +654,7 @@ private fun ProfileCard(
                     Modifier.weight(1f),
                     label = { Text("Latitude") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
                 OutlinedTextField(
                     manualLongitude,
@@ -649,18 +662,27 @@ private fun ProfileCard(
                     Modifier.weight(1f),
                     label = { Text("Longitude") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
+            }
+            coordinateError?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
             OutlinedButton(
                 onClick = {
                     val latitude = manualLatitude.toDoubleOrNull()
                     val longitude = manualLongitude.toDoubleOrNull()
-                    if (latitude != null &&
-                        longitude != null &&
-                        latitude in -90.0..90.0 &&
-                        longitude in -180.0..180.0
-                    ) {
-                        onLocationSelected(latitude, longitude)
+                    when {
+                        manualLatitude.isBlank() || manualLongitude.isBlank() ->
+                            coordinateError = "Enter both a latitude and a longitude before applying."
+                        latitude == null || longitude == null ->
+                            coordinateError = "Use decimal numbers, for example 14.5995 and 120.9842."
+                        latitude !in -90.0..90.0 || longitude !in -180.0..180.0 ->
+                            coordinateError = "Latitude must be between -90 and 90, and longitude between -180 and 180."
+                        else -> {
+                            coordinateError = null
+                            onLocationSelected(latitude, longitude)
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),

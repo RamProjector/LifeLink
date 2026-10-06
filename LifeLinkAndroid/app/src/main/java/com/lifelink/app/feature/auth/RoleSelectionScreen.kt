@@ -1,5 +1,6 @@
 package com.lifelink.app.feature.auth
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,11 +9,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -28,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -52,9 +56,38 @@ fun RoleSelectionScreen(onRoleSelected: (UserRole) -> Unit) {
                     .fillMaxSize()
                     .statusBarsPadding()
                     .verticalScroll(rememberScrollState())
+                    .navigationBarsPadding()
                     .padding(horizontal = 24.dp, vertical = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(
+                                brush = Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.tertiary,
+                                    ),
+                                ),
+                                shape = CircleShape,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Default.Favorite,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    Text(
+                        "LifeLink",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "How will you use LifeLink?",
@@ -67,7 +100,7 @@ fun RoleSelectionScreen(onRoleSelected: (UserRole) -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                UserRole.values().forEach { role ->
+                UserRole.entries.forEach { role ->
                     RoleCard(role = role, onSelect = { onRoleSelected(role) })
                 }
                 Text(
@@ -100,6 +133,7 @@ private fun RoleCard(role: UserRole, onSelect: () -> Unit) {
     val isDonor = role == UserRole.DONOR
     val accent = if (isDonor) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer
     val onAccent = if (isDonor) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
+    val highlightTint = if (isDonor) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -117,6 +151,7 @@ private fun RoleCard(role: UserRole, onSelect: () -> Unit) {
                             imageVector = if (isDonor) Icons.Default.VolunteerActivism else Icons.Default.Favorite,
                             contentDescription = null,
                             tint = onAccent,
+                            modifier = Modifier.size(26.dp),
                         )
                     }
                 }
@@ -131,7 +166,7 @@ private fun RoleCard(role: UserRole, onSelect: () -> Unit) {
                         Icon(
                             Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = onAccent,
+                            tint = highlightTint,
                             modifier = Modifier.size(18.dp),
                         )
                         Text(highlight, style = MaterialTheme.typography.bodyMedium)

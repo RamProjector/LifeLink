@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 /** Displays [title] as an accessibility heading with an optional [subtitle] beneath it. */
@@ -49,7 +50,12 @@ fun LifeLinkLoadingIndicator(modifier: Modifier = Modifier, label: String? = nul
             strokeWidth = 3.dp,
         )
         label?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
@@ -79,11 +85,17 @@ fun LifeLinkEmptyState(
                 Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
             }
         }
-        Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
+        Text(
+            title,
+            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
+        )
         Text(
             body,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
         )
     }
 }

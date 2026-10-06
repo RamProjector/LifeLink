@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -228,7 +229,7 @@ private fun RowLoading() {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
-        CircularProgressIndicator(Modifier.height(20.dp), strokeWidth = 2.dp)
+        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
         Text("Loading map preview…", style = MaterialTheme.typography.bodySmall)
     }
 }
@@ -297,12 +298,19 @@ fun MapLibrePrivacySafeDonorMap(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
-                Text(
-                    "Map preview unavailable. Donor results remain available in the list.",
-                    Modifier.padding(16.dp),
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "Map preview unavailable",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                    Text(
+                        "Donor results remain available in the list, so you can still review and select donors.",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
         }
     }

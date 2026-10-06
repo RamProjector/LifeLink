@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -457,7 +458,7 @@ private fun AcceptedContactCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(contact.displayName, fontWeight = FontWeight.Bold)
-                Text(statusLabel, color = if (accepted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(statusLabel, color = if (accepted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (accepted) {
                 contact.acceptedAt?.let {
@@ -768,7 +769,7 @@ private fun BloodNeedStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequ
                 },
             ) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(draft.urgency == urgency, { onAction(EmergencyRequestAction.UpdateDraft { it.copy(urgency = urgency) }) })
+                    RadioButton(selected = draft.urgency == urgency, onClick = null)
                     Column(Modifier.padding(start = 7.dp)) {
                         Text(urgency.label, fontWeight = FontWeight.SemiBold)
                         Text(urgency.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -952,8 +953,17 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             onClick = {
                 val latitude = manualLatitude.toDoubleOrNull()
                 val longitude = manualLongitude.toDoubleOrNull()
-                if (latitude != null && longitude != null && latitude in -90.0..90.0 && longitude in -180.0..180.0) {
-                    onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+                when {
+                    manualLatitude.isBlank() || manualLongitude.isBlank() ->
+                        locationMessage = "Enter both a latitude and a longitude, or choose a point on the map."
+                    latitude == null || longitude == null ->
+                        locationMessage = "Use decimal numbers, for example 14.5995 and 120.9842."
+                    latitude !in -90.0..90.0 || longitude !in -180.0..180.0 ->
+                        locationMessage = "Latitude must be between -90 and 90, and longitude between -180 and 180."
+                    else -> {
+                        onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+                        locationMessage = "Approximate location set from your coordinates."
+                    }
                 }
             },
         ) { Text("Use this approximate location") }
@@ -1204,14 +1214,14 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 /** Displays a checkbox, label, and optional supporting text; clicking the row toggles the value. */
 @Composable private fun CheckRow(checked: Boolean, label: String, supporting: String? = null, onChecked: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(role = Role.Checkbox) { onChecked(!checked) }.semantics {
-            role =
-                Role.Checkbox
-        },
+        Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = onChecked)
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Checkbox(checked, onChecked)
-        Column(Modifier.padding(start = 8.dp)) {
+        Checkbox(checked, onCheckedChange = null)
+        Column(Modifier.padding(start = 8.dp).weight(1f)) {
             Text(label)
             supporting?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
         }
@@ -1273,7 +1283,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
         border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline),
     ) {
         Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected, onClick)
+            RadioButton(selected = selected, onClick = null)
             Text(label, fontWeight = FontWeight.Medium)
         }
     }

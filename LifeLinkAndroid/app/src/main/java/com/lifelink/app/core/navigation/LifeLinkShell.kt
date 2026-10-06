@@ -3,6 +3,7 @@ package com.lifelink.app.core.navigation
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,16 +27,21 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.NotificationsNone
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -72,6 +78,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -532,7 +540,35 @@ private fun ShellNavigationIcon(tab: ShellTab) {
             }
         }
         state.historyError?.let { error ->
-            item { Text(error, color = MaterialTheme.colorScheme.error) }
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                ) {
+                    Row(
+                        Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Default.Error,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Text(
+                            error,
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        TextButton(
+                            onClick = { onAction(EmergencyRequestAction.RefreshHistory) },
+                            enabled = !state.historyRefreshing,
+                        ) { Text("Retry") }
+                    }
+                }
+            }
         }
         if (state.requestHistory.isEmpty() && !state.historyRefreshing && state.historyError == null) {
             item {
@@ -622,8 +658,12 @@ private fun HomeContent(
         ) {
             LifeLinkPageHeader("LifeLink")
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = onSwitchRole, modifier = Modifier.testTag("role-switcher")) {
-                Text(if (role == UserRole.DONOR) "Switch to requester" else "Switch to donor")
+            TextButton(onClick = onSwitchRole, modifier = Modifier.testTag("role-switcher").widthIn(max = 200.dp)) {
+                Text(
+                    if (role == UserRole.DONOR) "Switch to requester" else "Switch to donor",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -696,8 +736,22 @@ private fun HomeContent(
                 } else {
                     updates.take(3).forEach { update ->
                         ListItem(
-                            headlineContent = { Text(update.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                            headlineContent = {
+                                Text(
+                                    update.title,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontWeight = if (update.isRead) FontWeight.Normal else FontWeight.SemiBold,
+                                )
+                            },
                             supportingContent = { Text(update.body, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                            leadingContent = {
+                                Surface(
+                                    modifier = Modifier.size(8.dp),
+                                    shape = CircleShape,
+                                    color = if (update.isRead) Color.Transparent else MaterialTheme.colorScheme.primary,
+                                ) {}
+                            },
                             modifier = Modifier.fillMaxWidth().clickable(onClick = onUpdates),
                         )
                     }
@@ -809,7 +863,34 @@ private fun StartContent(
             verticalArrangement = Arrangement.spacedBy(32.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                Text("LifeLink", style = MaterialTheme.typography.titleLarge)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(
+                                brush = Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.tertiary,
+                                    ),
+                                ),
+                                shape = CircleShape,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Default.Favorite,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Text(
+                        "LifeLink",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
                 Text(
                     if (role == UserRole.DONOR) {
                         "Set up your donor profile"
@@ -828,8 +909,13 @@ private fun StartContent(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = if (role == UserRole.DONOR) onOpenDonor else onCreateRequest,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(if (role == UserRole.DONOR) "Open donor workspace" else "Create a request") }
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    shape = MaterialTheme.shapes.medium,
+                ) {
+                    Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (role == UserRole.DONOR) "Open donor workspace" else "Create a request")
+                }
                 androidx.compose.material3.OutlinedButton(onClick = onGetStarted, modifier = Modifier.fillMaxWidth()) {
                     Text("Go to Home")
                 }
@@ -986,7 +1072,9 @@ private fun StartContent(
             }
         }
         Card(
-            Modifier.fillMaxWidth().clickable { showSessionHelp = true },
+            Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button) { showSessionHelp = true },
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1092,7 +1180,14 @@ private fun StartContent(
                 "If someone is unconscious, severely bleeding, having trouble breathing, showing signs of shock, or getting worse, call 911 or go to the nearest emergency department now. Do not wait for a LifeLink match.",
                 color = androidx.compose.material3.MaterialTheme.colorScheme.onErrorContainer,
             )
-            Button(onClick = { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:911"))) }) { Text("Call 911") }
+            Button(
+                onClick = { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:911"))) },
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
+                Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Call 911")
+            }
         }
     }
 }
@@ -1113,8 +1208,13 @@ private fun StartContent(
 
 @Composable private fun SourceLink(label: String, url: String) {
     val context = LocalContext.current
-    TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }) {
-        Text(label, modifier = Modifier.fillMaxWidth())
+    TextButton(
+        onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, modifier = Modifier.weight(1f))
     }
 }
 
@@ -1160,7 +1260,7 @@ private fun StartContent(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Default.Person,
-                            contentDescription = "Account avatar",
+                            contentDescription = null,
                             tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary,
                         )
                     }

@@ -1,5 +1,6 @@
 package com.lifelink.app.feature.auth
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,12 +18,16 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -48,12 +53,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -146,21 +154,34 @@ fun AuthScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Surface(
-                        modifier = Modifier.size(48.dp),
-                        shape = androidx.compose.foundation.shape.CircleShape,
-                        color = MaterialTheme.colorScheme.primary,
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(
+                                brush = Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.tertiary,
+                                    ),
+                                ),
+                                shape = CircleShape,
+                            ),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.Favorite,
-                                contentDescription = "LifeLink logo",
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                            )
-                        }
+                        Icon(
+                            Icons.Default.Favorite,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(26.dp),
+                        )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("LifeLink", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            "LifeLink",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.semantics { heading() },
+                        )
                         Text(
                             "Connecting donors and requests, safely.",
                             style = MaterialTheme.typography.bodySmall,
@@ -202,6 +223,7 @@ fun AuthScreen(
                         OutlinedTextField(
                             value = email,
                             onValueChange = { email = it },
+                            enabled = !busy,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .semantics { contentType = ContentType.Username },
@@ -242,6 +264,7 @@ fun AuthScreen(
                             onToggleVisibility = { showPassword = !showPassword },
                             isError = password.isNotEmpty() && !passwordValid,
                             supportingText = if (password.isNotEmpty() && !passwordValid) "Use at least 6 characters." else null,
+                            enabled = !busy,
                             contentType = if (createAccount || resetReady) ContentType.NewPassword else ContentType.Password,
                             imeAction = if ((!recoveryMode && createAccount) || resetReady) ImeAction.Next else ImeAction.Done,
                             onImeAction = {
@@ -265,6 +288,7 @@ fun AuthScreen(
                             onToggleVisibility = { showConfirmPassword = !showConfirmPassword },
                             isError = confirmPassword.isNotEmpty() && !passwordsMatch,
                             supportingText = if (confirmPassword.isNotEmpty() && !passwordsMatch) "Passwords do not match." else null,
+                            enabled = !busy,
                             contentType = ContentType.NewPassword,
                             imeAction = ImeAction.Done,
                             onImeAction = {
@@ -277,8 +301,16 @@ fun AuthScreen(
                     }
 
                     if (createAccount && !recoveryMode && !resetReady) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = acceptedLegal, onCheckedChange = { acceptedLegal = it })
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.toggleable(
+                                value = acceptedLegal,
+                                enabled = !busy,
+                                role = Role.Checkbox,
+                                onValueChange = { acceptedLegal = it },
+                            ),
+                        ) {
+                            Checkbox(checked = acceptedLegal, onCheckedChange = null, enabled = !busy)
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
                                     "I agree to the LifeLink Privacy Policy and Terms and Conditions.",
@@ -302,6 +334,13 @@ fun AuthScreen(
                                     }
                                 }
                             }
+                        }
+                        if (!acceptedLegal && !busy && emailValid && passwordValid && passwordsMatch) {
+                            Text(
+                                "Accept the Privacy Policy and Terms to continue.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
                         }
                     }
 
@@ -330,7 +369,10 @@ fun AuthScreen(
                     Button(
                         onClick = submit,
                         enabled = canSubmit,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .semantics { if (busy) stateDescription = "Submitting" },
                         shape = MaterialTheme.shapes.small,
                     ) {
                         if (busy) {
@@ -410,10 +452,12 @@ private fun PasswordField(
     contentType: ContentType,
     imeAction: ImeAction,
     onImeAction: () -> Unit,
+    enabled: Boolean = true,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
+        enabled = enabled,
         modifier = Modifier
             .fillMaxWidth()
             .semantics { this.contentType = contentType },
@@ -470,14 +514,16 @@ private fun PasswordStrengthMeter(password: String) {
         Text(
             label,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium,
+            color = activeColor,
         )
     }
 }
 
 /**
  * Shows an authentication message using error or informational colors according to [isError].
- * The card is a polite live region so screen readers announce status changes without moving focus.
+ * The card is an assertive live region for errors and a polite one for status messages, so screen
+ * readers announce errors immediately but do not interrupt for informational updates.
  */
 @Composable
 private fun MessageCard(message: String, isError: Boolean) {
@@ -487,13 +533,24 @@ private fun MessageCard(message: String, isError: Boolean) {
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .semantics { liveRegion = LiveRegionMode.Polite },
+            .semantics { liveRegion = if (isError) LiveRegionMode.Assertive else LiveRegionMode.Polite },
     ) {
-        Text(
-            message,
+        Row(
             modifier = Modifier.padding(14.dp),
-            color = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
-            style = MaterialTheme.typography.bodyMedium,
-        )
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Icon(
+                imageVector = if (isError) Icons.Default.Error else Icons.Default.Info,
+                contentDescription = null,
+                tint = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                message,
+                color = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
     }
 }

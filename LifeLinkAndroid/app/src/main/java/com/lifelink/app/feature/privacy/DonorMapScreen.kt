@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Button
@@ -30,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -75,8 +78,23 @@ fun DonorMapScreen(
                     Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(error, color = MaterialTheme.colorScheme.onErrorContainer)
+                    Row(
+                        Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Default.Error,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Text(
+                            error,
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                         Button(onClick = { onAction(PrivacyAction.LoadMap) }) { Text("Retry") }
                     }
                 }
@@ -146,7 +164,17 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Your visibility", fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.fillMaxWidth().toggleable(
+                    value = visibility?.mapVisible == true,
+                    enabled = !state.visibilitySaving,
+                    role = Role.Switch,
+                    onValueChange = { checked ->
+                        onAction(PrivacyAction.SetMapVisibility(checked, visibility?.exactLocationSharingEnabled == true))
+                    },
+                ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Column(Modifier.weight(1f)) {
                     Text("Show me on the donor map")
                     Text(
@@ -158,12 +186,20 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
                 Switch(
                     checked = visibility?.mapVisible == true,
                     enabled = !state.visibilitySaving,
-                    onCheckedChange = { checked ->
-                        onAction(PrivacyAction.SetMapVisibility(checked, visibility?.exactLocationSharingEnabled == true))
-                    },
+                    onCheckedChange = null,
                 )
             }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.fillMaxWidth().toggleable(
+                    value = visibility?.exactLocationSharingEnabled == true,
+                    enabled = !state.visibilitySaving,
+                    role = Role.Switch,
+                    onValueChange = { checked ->
+                        onAction(PrivacyAction.SetMapVisibility(visibility?.mapVisible == true, checked))
+                    },
+                ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Column(Modifier.weight(1f)) {
                     Text("Show my exact location to matched requesters")
                     Text(
@@ -175,9 +211,7 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
                 Switch(
                     checked = visibility?.exactLocationSharingEnabled == true,
                     enabled = !state.visibilitySaving,
-                    onCheckedChange = { checked ->
-                        onAction(PrivacyAction.SetMapVisibility(visibility?.mapVisible == true, checked))
-                    },
+                    onCheckedChange = null,
                 )
             }
             visibility?.freshnessAt?.let {
@@ -187,7 +221,14 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+            state.message?.let {
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
         }
     }
 }
@@ -212,7 +253,11 @@ private fun DonorAreaCard(area: DonorMapArea) {
                     color = if (area.isStale) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Text(area.areaLabel, fontWeight = FontWeight.Medium)
+            Text(
+                area.areaLabel,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.semantics { heading() },
+            )
             Text(
                 "Approx. radius ${area.radiusMeters} m",
                 style = MaterialTheme.typography.bodySmall,

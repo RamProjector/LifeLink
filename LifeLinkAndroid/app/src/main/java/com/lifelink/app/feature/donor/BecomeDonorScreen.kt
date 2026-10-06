@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -105,6 +107,7 @@ private fun BecomeDonorContent(
             .fillMaxSize()
             .padding(padding)
             .verticalScroll(rememberScrollState())
+            .imePadding()
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -175,7 +178,7 @@ private fun AvailabilityCard(profile: DonorProfileMe, saving: Boolean, onAction:
                 modifier = Modifier.semantics { heading() },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DonorAvailability.values().forEach { option ->
+                DonorAvailability.entries.forEach { option ->
                     FilterChip(
                         selected = profile.availability == option,
                         enabled = !saving,
@@ -201,6 +204,7 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
     var radius by rememberSaveable(profile.donorId) { mutableStateOf(profile.serviceRadiusKm.toString()) }
     var latitude by rememberSaveable(profile.donorId) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
     var longitude by rememberSaveable(profile.donorId) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
+    var coordinateError by rememberSaveable(profile.donorId) { mutableStateOf<String?>(null) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
@@ -229,13 +233,23 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
             LocationFields(
                 latitude = latitude,
                 longitude = longitude,
+                error = coordinateError,
                 onLatitudeChange = { latitude = it },
                 onLongitudeChange = { longitude = it },
                 onApply = {
                     val lat = latitude.toDoubleOrNull()
                     val lng = longitude.toDoubleOrNull()
-                    if (isValidCoordinate(lat, lng)) {
-                        onAction(BecomeDonorAction.UpdateDraft { it.copy(latitude = lat, longitude = lng) })
+                    when {
+                        latitude.isBlank() || longitude.isBlank() ->
+                            coordinateError = "Enter both a latitude and a longitude before applying."
+                        lat == null || lng == null ->
+                            coordinateError = "Use decimal numbers, for example 14.5995 and 120.9842."
+                        !isInRange(lat, lng) ->
+                            coordinateError = "Latitude must be between -90 and 90, and longitude between -180 and 180."
+                        else -> {
+                            coordinateError = null
+                            onAction(BecomeDonorAction.UpdateDraft { it.copy(latitude = lat, longitude = lng) })
+                        }
                     }
                 },
             )
@@ -287,7 +301,7 @@ private fun SaveButton(
 private fun BloodTypePicker(selected: BloodType?, onSelect: (BloodType) -> Unit) {
     Text("Blood type", fontWeight = FontWeight.SemiBold)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        BloodType.values().toList().chunked(4).forEach { rowOptions ->
+        BloodType.entries.chunked(4).forEach { rowOptions ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 rowOptions.forEach { option ->
                     FilterChip(
@@ -307,6 +321,7 @@ private fun BloodTypePicker(selected: BloodType?, onSelect: (BloodType) -> Unit)
 private fun LocationFields(
     latitude: String,
     longitude: String,
+    error: String?,
     onLatitudeChange: (String) -> Unit,
     onLongitudeChange: (String) -> Unit,
     onApply: () -> Unit,
@@ -329,6 +344,9 @@ private fun LocationFields(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
     }
+    error?.let {
+        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+    }
     OutlinedButton(onClick = onApply, modifier = Modifier.fillMaxWidth()) {
         Text("Use this approximate location")
     }
@@ -337,7 +355,12 @@ private fun LocationFields(
 /** Notification preference for matching requests. */
 @Composable
 private fun NotificationToggle(enabled: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .toggleable(value = enabled, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Column(Modifier.weight(1f)) {
             Text("Notify me about matching requests", fontWeight = FontWeight.SemiBold)
             Text(
@@ -348,7 +371,7 @@ private fun NotificationToggle(enabled: Boolean, onChange: (Boolean) -> Unit) {
         }
         Switch(
             checked = enabled,
-            onCheckedChange = onChange,
+            onCheckedChange = null,
             modifier = Modifier.testTag("donor-notifications"),
         )
     }
@@ -358,9 +381,6 @@ private const val MIN_LATITUDE = -90.0
 private const val MAX_LATITUDE = 90.0
 private const val MIN_LONGITUDE = -180.0
 private const val MAX_LONGITUDE = 180.0
-
-private fun isValidCoordinate(latitude: Double?, longitude: Double?): Boolean =
-    latitude != null && longitude != null && isInRange(latitude, longitude)
 
 private fun isInRange(latitude: Double, longitude: Double): Boolean =
     latitude in MIN_LATITUDE..MAX_LATITUDE && longitude in MIN_LONGITUDE..MAX_LONGITUDE

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -27,6 +28,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -111,7 +113,7 @@ fun ActiveRequestScreen(
                     onAction(EmergencyRequestAction.SendManualBroadcast)
                 }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Campaign, contentDescription = null, Modifier.size(20.dp))
-                    Spacer(Modifier.size(8.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text("Send manual broadcast")
                 }
             }
@@ -120,7 +122,7 @@ fun ActiveRequestScreen(
                     onAction(EmergencyRequestAction.FulfillRequest)
                 }, enabled = !state.statusRefreshing, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, Modifier.size(20.dp))
-                    Spacer(Modifier.size(8.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text("Mark request fulfilled")
                 }
                 OutlinedButton(onClick = { showCancelConfirmation = true }, modifier = Modifier.fillMaxWidth()) {
@@ -210,6 +212,28 @@ private fun ProgressCard(active: ActiveRequestSnapshot) {
                 MetricTile("Donors notified", active.notificationsCreated.toString(), Modifier.weight(1f))
                 MetricTile("Responses", active.matchesResponded.toString(), Modifier.weight(1f))
             }
+            val responseRatio =
+                if (active.notificationsCreated > 0) {
+                    (active.matchesResponded.toFloat() / active.notificationsCreated.toFloat()).coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                LinearProgressIndicator(
+                    progress = { responseRatio },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    if (active.notificationsCreated == 0) {
+                        "No donors have been notified yet."
+                    } else {
+                        "${active.matchesResponded} of ${active.notificationsCreated} notified donors responded " +
+                            "(${(responseRatio * 100).toInt()}%)."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -268,9 +292,26 @@ private fun ContactActivityCard(
                 }
             }
             state.contactsError?.let { error ->
-                Text(error, color = MaterialTheme.colorScheme.error)
-                TextButton(onClick = { onAction(EmergencyRequestAction.RefreshContacts(active.requestId)) }) {
-                    Text("Retry contact refresh")
+                Surface(
+                    Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = MaterialTheme.shapes.medium,
+                ) {
+                    Row(
+                        Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            error,
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        TextButton(onClick = { onAction(EmergencyRequestAction.RefreshContacts(active.requestId)) }) {
+                            Text("Retry")
+                        }
+                    }
                 }
             }
             Button(onClick = onReviewContacts, modifier = Modifier.fillMaxWidth()) {

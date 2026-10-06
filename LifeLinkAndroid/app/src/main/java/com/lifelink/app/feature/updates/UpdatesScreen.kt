@@ -28,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -85,14 +84,12 @@ fun UpdatesScreen(
 private fun UpdateRow(update: UpdateItem, onOpen: (UpdateItem) -> Unit) {
     Card(
         modifier =
-        Modifier.fillMaxWidth().clickable { onOpen(update) }.semantics {
-            contentDescription =
-                if (update.requestId != null) {
-                    "${update.title}. Open activity for request"
-                } else {
-                    "${update.title}. Open activity"
-                }
-        },
+        Modifier
+            .fillMaxWidth()
+            .clickable(
+                onClickLabel = if (update.requestId != null) "Open request activity" else "Open activity",
+                onClick = { onOpen(update) },
+            ),
         colors =
         CardDefaults.cardColors(
             containerColor = if (update.isRead) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primaryContainer,

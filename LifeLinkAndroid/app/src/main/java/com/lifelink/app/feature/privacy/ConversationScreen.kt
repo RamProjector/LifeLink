@@ -7,17 +7,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -36,6 +42,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.domain.ChatMessage
@@ -61,6 +69,11 @@ fun ConversationScreen(
     var showReport by remember { mutableStateOf(false) }
     var reportReason by remember { mutableStateOf("") }
     var showBlockConfirm by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    // Chat convention: keep the newest message in view as the thread grows.
+    LaunchedEffect(state.messages.size) {
+        if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
+    }
 
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -85,7 +98,11 @@ fun ConversationScreen(
             )
         }
 
-        LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(
+            Modifier.weight(1f).fillMaxWidth(),
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             if (state.messages.isEmpty()) {
                 item {
                     LifeLinkEmptyState(
@@ -125,6 +142,15 @@ fun ConversationScreen(
                 modifier = Modifier.weight(1f),
                 label = { Text("Message") },
                 maxLines = 4,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(
+                    onSend = {
+                        if (draft.isNotBlank() && !state.sending) {
+                            onAction(PrivacyAction.SendMessage(draft))
+                            draft = ""
+                        }
+                    },
+                ),
             )
             Button(
                 onClick = {
@@ -132,7 +158,18 @@ fun ConversationScreen(
                     draft = ""
                 },
                 enabled = draft.isNotBlank() && !state.sending,
-            ) { Text(if (state.sending) "Sending\u2026" else "Send") }
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+            ) {
+                if (state.sending) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Send message",
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
         }
 
         Card(Modifier.fillMaxWidth()) {
@@ -148,6 +185,9 @@ fun ConversationScreen(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(if (contactField == "phone") "Phone number" else "Email address") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = if (contactField == "phone") KeyboardType.Phone else KeyboardType.Email,
+                    ),
                 )
                 Button(
                     onClick = {

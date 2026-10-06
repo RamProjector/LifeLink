@@ -4,12 +4,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Description
@@ -128,7 +131,8 @@ internal val TermsAndConditionsPhilippines = LegalDocument(
  *
  * Sections are numbered and each heading carries heading semantics so screen-reader users can
  * navigate the document by heading. The dialog is width-constrained for comfortable line length
- * on tablets and foldables.
+ * on tablets and foldables, the body is selectable so readers can copy clauses, and vertical
+ * padding keeps the sheet clear of screen edges on small devices.
  */
 @Composable
 internal fun LegalDocumentDialog(document: LegalDocument, onDismiss: () -> Unit) {
@@ -138,7 +142,7 @@ internal fun LegalDocumentDialog(document: LegalDocument, onDismiss: () -> Unit)
         modifier = Modifier
             .fillMaxWidth()
             .widthIn(max = 560.dp)
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = 20.dp, vertical = 24.dp),
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -177,24 +181,32 @@ internal fun LegalDocumentDialog(document: LegalDocument, onDismiss: () -> Unit)
             }
         },
         text = {
-            Column(
-                Modifier
-                    .heightIn(max = 460.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                document.sections.forEachIndexed { index, (heading, body) ->
-                    if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            "${index + 1}. $heading",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.semantics { heading() },
-                        )
-                        Text(body, style = MaterialTheme.typography.bodyMedium)
+            SelectionContainer {
+                Column(
+                    Modifier
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    document.sections.forEachIndexed { index, (heading, body) ->
+                        if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                "${index + 1}. $heading",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.semantics { heading() },
+                            )
+                            Text(body, style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "You can reopen this document at any time before you create your account.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         },
