@@ -1,13 +1,18 @@
 package com.lifelink.app.feature.donor
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -31,11 +36,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
@@ -51,11 +60,7 @@ import com.lifelink.app.domain.DonorProfileMe
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BecomeDonorScreen(
-    state: BecomeDonorUiState,
-    onAction: (BecomeDonorAction) -> Unit,
-    onBack: () -> Unit,
-) {
+fun BecomeDonorScreen(state: BecomeDonorUiState, onAction: (BecomeDonorAction) -> Unit, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -76,26 +81,25 @@ fun BecomeDonorScreen(
 
 @Composable
 private fun LoadingContent(padding: PaddingValues) {
-    Column(
-        Modifier.fillMaxSize().padding(padding),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        CircularProgressIndicator(Modifier.padding(24.dp))
-        Text("Loading your donor profile\u2026", Modifier.padding(horizontal = 24.dp))
+    Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            CircularProgressIndicator(Modifier.size(36.dp), strokeWidth = 3.dp)
+            Text("Loading your donor profile\u2026", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
 @Composable
-private fun BecomeDonorContent(
-    state: BecomeDonorUiState,
-    onAction: (BecomeDonorAction) -> Unit,
-    padding: PaddingValues,
-) {
+private fun BecomeDonorContent(state: BecomeDonorUiState, onAction: (BecomeDonorAction) -> Unit, padding: PaddingValues) {
     Column(
         Modifier
             .fillMaxSize()
             .padding(padding)
             .verticalScroll(rememberScrollState())
+            .imePadding()
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -117,7 +121,7 @@ private fun BecomeDonorContent(
         DonorDetailsCard(state, onAction)
         state.message?.let { message ->
             Card(
-                Modifier.fillMaxWidth(),
+                Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
             ) {
                 Text(message, Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onSecondaryContainer)
@@ -141,7 +145,7 @@ private fun VerificationCard(profile: DonorProfileMe) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Matching status", fontWeight = FontWeight.Bold)
+            Text("Matching status", fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
             Text(
                 when {
                     profile.isMatchable -> "You are verified and available. You can appear in matching results."
@@ -159,9 +163,14 @@ private fun VerificationCard(profile: DonorProfileMe) {
 private fun AvailabilityCard(profile: DonorProfileMe, saving: Boolean, onAction: (BecomeDonorAction) -> Unit) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Availability", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Availability",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() },
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DonorAvailability.values().forEach { option ->
+                DonorAvailability.entries.forEach { option ->
                     FilterChip(
                         selected = profile.availability == option,
                         enabled = !saving,
@@ -171,6 +180,11 @@ private fun AvailabilityCard(profile: DonorProfileMe, saving: Boolean, onAction:
                     )
                 }
             }
+            Text(
+                "Only a verified, available profile appears in matching results.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -182,9 +196,31 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
     var radius by rememberSaveable(profile.donorId) { mutableStateOf(profile.serviceRadiusKm.toString()) }
     var latitude by rememberSaveable(profile.donorId) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
     var longitude by rememberSaveable(profile.donorId) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
+    var coordinateError by rememberSaveable(profile.donorId) { mutableStateOf<String?>(null) }
+    val applyCoordinates: () -> Unit = {
+        val lat = latitude.toDoubleOrNull()
+        val lng = longitude.toDoubleOrNull()
+        when {
+            latitude.isBlank() || longitude.isBlank() ->
+                coordinateError = "Enter both a latitude and a longitude before applying."
+            lat == null || lng == null ->
+                coordinateError = "Use decimal numbers, for example 14.5995 and 120.9842."
+            !isInRange(lat, lng) ->
+                coordinateError = "Latitude must be between -90 and 90, and longitude between -180 and 180."
+            else -> {
+                coordinateError = null
+                onAction(BecomeDonorAction.UpdateDraft { it.copy(latitude = lat, longitude = lng) })
+            }
+        }
+    }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Donor details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Donor details",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() },
+            )
             OutlinedTextField(
                 value = profile.displayName,
                 onValueChange = { value -> onAction(BecomeDonorAction.UpdateDraft { it.copy(displayName = value) }) },
@@ -205,41 +241,42 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
             LocationFields(
                 latitude = latitude,
                 longitude = longitude,
+                error = coordinateError,
                 onLatitudeChange = { latitude = it },
                 onLongitudeChange = { longitude = it },
-                onApply = {
-                    val lat = latitude.toDoubleOrNull()
-                    val lng = longitude.toDoubleOrNull()
-                    if (isValidCoordinate(lat, lng)) {
-                        onAction(BecomeDonorAction.UpdateDraft { it.copy(latitude = lat, longitude = lng) })
-                    }
-                },
+                onApply = applyCoordinates,
             )
-            OutlinedTextField(
-                value = radius,
-                onValueChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) radius = value },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Service radius (km)") },
-                singleLine = true,
-            )
-            NotificationToggle(profile.notificationsEnabled) { value ->
-                onAction(BecomeDonorAction.UpdateDraft { it.copy(notificationsEnabled = value) })
-            }
-            SaveButton(state, radius, onAction) { value ->
-                onAction(BecomeDonorAction.UpdateDraft { it.copy(serviceRadiusKm = value) })
-            }
+            RadiusAndSave(state, radius, onRadiusChange = { radius = it }, onAction = onAction)
         }
+    }
+}
+
+/** Service-radius field plus the save/become-a-donor action. */
+@Composable
+private fun RadiusAndSave(
+    state: BecomeDonorUiState,
+    radius: String,
+    onRadiusChange: (String) -> Unit,
+    onAction: (BecomeDonorAction) -> Unit,
+) {
+    OutlinedTextField(
+        value = radius,
+        onValueChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) onRadiusChange(value) },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Service radius (km)") },
+        singleLine = true,
+    )
+    NotificationToggle(state.draft.notificationsEnabled) { value ->
+        onAction(BecomeDonorAction.UpdateDraft { it.copy(notificationsEnabled = value) })
+    }
+    SaveButton(state, radius, onAction) { value ->
+        onAction(BecomeDonorAction.UpdateDraft { it.copy(serviceRadiusKm = value) })
     }
 }
 
 /** Save / become-a-donor action, applying the typed radius first. */
 @Composable
-private fun SaveButton(
-    state: BecomeDonorUiState,
-    radius: String,
-    onAction: (BecomeDonorAction) -> Unit,
-    onRadiusCommit: (Int) -> Unit,
-) {
+private fun SaveButton(state: BecomeDonorUiState, radius: String, onAction: (BecomeDonorAction) -> Unit, onRadiusCommit: (Int) -> Unit) {
     Button(
         onClick = {
             radius.toIntOrNull()?.let(onRadiusCommit)
@@ -263,7 +300,7 @@ private fun SaveButton(
 private fun BloodTypePicker(selected: BloodType?, onSelect: (BloodType) -> Unit) {
     Text("Blood type", fontWeight = FontWeight.SemiBold)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        BloodType.values().toList().chunked(4).forEach { rowOptions ->
+        BloodType.entries.chunked(4).forEach { rowOptions ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 rowOptions.forEach { option ->
                     FilterChip(
@@ -283,6 +320,7 @@ private fun BloodTypePicker(selected: BloodType?, onSelect: (BloodType) -> Unit)
 private fun LocationFields(
     latitude: String,
     longitude: String,
+    error: String?,
     onLatitudeChange: (String) -> Unit,
     onLongitudeChange: (String) -> Unit,
     onApply: () -> Unit,
@@ -294,6 +332,7 @@ private fun LocationFields(
             modifier = Modifier.weight(1f),
             label = { Text("Latitude") },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
         OutlinedTextField(
             value = longitude,
@@ -301,7 +340,11 @@ private fun LocationFields(
             modifier = Modifier.weight(1f),
             label = { Text("Longitude") },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
+    }
+    error?.let {
+        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
     }
     OutlinedButton(onClick = onApply, modifier = Modifier.fillMaxWidth()) {
         Text("Use this approximate location")
@@ -311,7 +354,12 @@ private fun LocationFields(
 /** Notification preference for matching requests. */
 @Composable
 private fun NotificationToggle(enabled: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .toggleable(value = enabled, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Column(Modifier.weight(1f)) {
             Text("Notify me about matching requests", fontWeight = FontWeight.SemiBold)
             Text(
@@ -322,7 +370,7 @@ private fun NotificationToggle(enabled: Boolean, onChange: (Boolean) -> Unit) {
         }
         Switch(
             checked = enabled,
-            onCheckedChange = onChange,
+            onCheckedChange = null,
             modifier = Modifier.testTag("donor-notifications"),
         )
     }
@@ -332,9 +380,6 @@ private const val MIN_LATITUDE = -90.0
 private const val MAX_LATITUDE = 90.0
 private const val MIN_LONGITUDE = -180.0
 private const val MAX_LONGITUDE = 180.0
-
-private fun isValidCoordinate(latitude: Double?, longitude: Double?): Boolean =
-    latitude != null && longitude != null && isInRange(latitude, longitude)
 
 private fun isInRange(latitude: Double, longitude: Double): Boolean =
     latitude in MIN_LATITUDE..MAX_LATITUDE && longitude in MIN_LONGITUDE..MAX_LONGITUDE

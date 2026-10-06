@@ -21,17 +21,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -73,9 +74,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -86,6 +93,7 @@ import com.google.android.gms.common.api.ResolvableApiException
 import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.core.location.MapLibreLocationPicker
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
+import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.ContactMethod
 import com.lifelink.app.domain.EmergencyRequestDraft
@@ -290,7 +298,7 @@ private fun DonorPicker(
             }
         }
         if (state.contacts.isNotEmpty()) {
-            Text("Contact activity", fontWeight = FontWeight.SemiBold)
+            Text("Contact activity", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             state.contacts.forEach { contact ->
                 AcceptedContactCard(
                     contact = contact,
@@ -302,7 +310,7 @@ private fun DonorPicker(
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Results", fontWeight = FontWeight.SemiBold)
+            Text("Results", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = !showMap, onClick = { showMap = false }, label = { Text("Donors") })
                 FilterChip(selected = showMap, onClick = { showMap = true }, label = { Text("Map") })
@@ -328,10 +336,12 @@ private fun DonorPicker(
         }
         if (!showMap) {
             if (state.discoveredDonors.isEmpty() && !state.matchesRefreshing && state.matchesError == null) {
-                InfoCard(
-                    "No potential donors yet",
-                    "No donor cards are available for this request right now. Keep the request active and check the request status again later.",
-                    MaterialTheme.colorScheme.secondary,
+                LifeLinkEmptyState(
+                    icon = Icons.Default.LocationOn,
+                    title = "No potential donors yet",
+                    body =
+                    "No donor cards are available for this request right now. " +
+                        "Keep the request active and check the request status again later.",
                 )
             }
             state.discoveredDonors.forEach { donor ->
@@ -349,11 +359,14 @@ private fun DonorPicker(
                         },
                     ),
                 ) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Checkbox(checked = donor.donorId in state.selectedDonorIds, onCheckedChange = {
                             onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId))
                         })
-                        Column(Modifier.padding(start = 8.dp)) {
+                        Column(Modifier.weight(1f).padding(start = 8.dp)) {
                             Text(donor.displayName, fontWeight = FontWeight.SemiBold)
                             Text(
                                 "${donor.bloodType} · ${"%.1f".format(donor.distanceKm)} km · about ${donor.travelMinutes} min",
@@ -397,13 +410,7 @@ private fun DonorPicker(
 
 /** Shows distance-band donor counts around the request location without displaying individual donor pins. */
 @Composable
-private fun PrivacySafeDonorMap(
-    latitude: Double,
-    longitude: Double,
-    withinFiveKm: Int,
-    withinTenKm: Int,
-    beyondTenKm: Int,
-) {
+private fun PrivacySafeDonorMap(latitude: Double, longitude: Double, withinFiveKm: Int, withinTenKm: Int, beyondTenKm: Int) {
     MapLibrePrivacySafeDonorMap(latitude, longitude)
     Text("Within 5 km: $withinFiveKm · 5–10 km: $withinTenKm · Beyond 10 km: $beyondTenKm", style = MaterialTheme.typography.bodySmall)
     Text(
@@ -447,7 +454,10 @@ private fun AcceptedContactCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(contact.displayName, fontWeight = FontWeight.Bold)
-                Text(statusLabel, color = if (accepted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    statusLabel,
+                    color = if (accepted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             if (accepted) {
                 contact.acceptedAt?.let {
@@ -682,18 +692,24 @@ private fun formatContactTimestamp(value: String): String =
             "Step ${step + 1} of $total · ${labels.getOrElse(step) { "Request" }}",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.semantics { heading() },
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .semantics { progressBarRangeInfo = ProgressBarRangeInfo((step + 1).toFloat(), 1f..total.toFloat()) },
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
             repeat(total) { index ->
                 Surface(
-                    Modifier.weight(1f).height(5.dp),
+                    Modifier.weight(1f).height(6.dp),
                     color =
                     if (index <=
                         step
                     ) {
                         MaterialTheme.colorScheme.primary
                     } else {
-                        MaterialTheme.colorScheme.outline
+                        MaterialTheme.colorScheme.surfaceContainerHighest
                     },
                     shape = MaterialTheme.shapes.small,
                 ) {}
@@ -752,7 +768,7 @@ private fun BloodNeedStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequ
                 },
             ) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(draft.urgency == urgency, { onAction(EmergencyRequestAction.UpdateDraft { it.copy(urgency = urgency) }) })
+                    RadioButton(selected = draft.urgency == urgency, onClick = null)
                     Column(Modifier.padding(start = 7.dp)) {
                         Text(urgency.label, fontWeight = FontWeight.SemiBold)
                         Text(urgency.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -936,8 +952,17 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             onClick = {
                 val latitude = manualLatitude.toDoubleOrNull()
                 val longitude = manualLongitude.toDoubleOrNull()
-                if (latitude != null && longitude != null && latitude in -90.0..90.0 && longitude in -180.0..180.0) {
-                    onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+                when {
+                    manualLatitude.isBlank() || manualLongitude.isBlank() ->
+                        locationMessage = "Enter both a latitude and a longitude, or choose a point on the map."
+                    latitude == null || longitude == null ->
+                        locationMessage = "Use decimal numbers, for example 14.5995 and 120.9842."
+                    latitude !in -90.0..90.0 || longitude !in -180.0..180.0 ->
+                        locationMessage = "Latitude must be between -90 and 90, and longitude between -180 and 180."
+                    else -> {
+                        onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+                        locationMessage = "Approximate location set from your coordinates."
+                    }
                 }
             },
         ) { Text("Use this approximate location") }
@@ -1084,7 +1109,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             ) {
                 TextButton(onClick = onSave, enabled = !submitting) { Text("Save as draft") }
             }
-            ; Button(
+            Button(
                 onClick =
                 if (state.step ==
                     RequestStep.REVIEW
@@ -1131,8 +1156,8 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 @Composable private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
         Modifier.height(48.dp).clickable(role = Role.RadioButton, onClick = onClick).semantics {
-            role =
-                Role.RadioButton
+            role = Role.RadioButton
+            this.selected = selected
         },
         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.medium,
@@ -1161,12 +1186,13 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             },
             enabled = quantity > 1,
             modifier =
-            Modifier.size(
-                52.dp,
-            ),
+            Modifier
+                .size(
+                    52.dp,
+                ).semantics { contentDescription = "Decrease units" },
             contentPadding = PaddingValues(0.dp),
         ) { Text("−", fontSize = 24.sp) }
-        ; Text("$quantity unit${if (quantity == 1) "" else "s"}", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold)
+        Text("$quantity unit${if (quantity == 1) "" else "s"}", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold)
         OutlinedButton(
             {
                 if (quantity <
@@ -1177,9 +1203,10 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             },
             enabled = quantity < 20,
             modifier =
-            Modifier.size(
-                52.dp,
-            ),
+            Modifier
+                .size(
+                    52.dp,
+                ).semantics { contentDescription = "Increase units" },
             contentPadding = PaddingValues(0.dp),
         ) { Text("+", fontSize = 24.sp) }
     }
@@ -1188,14 +1215,14 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 /** Displays a checkbox, label, and optional supporting text; clicking the row toggles the value. */
 @Composable private fun CheckRow(checked: Boolean, label: String, supporting: String? = null, onChecked: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(role = Role.Checkbox) { onChecked(!checked) }.semantics {
-            role =
-                Role.Checkbox
-        },
-        verticalAlignment = Alignment.Top,
+        Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = onChecked)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Checkbox(checked, onChecked)
-        Column(Modifier.padding(top = 12.dp, start = 8.dp)) {
+        Checkbox(checked, onCheckedChange = null)
+        Column(Modifier.padding(start = 8.dp).weight(1f)) {
             Text(label)
             supporting?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
         }
@@ -1257,7 +1284,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
         border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline),
     ) {
         Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected, onClick)
+            RadioButton(selected = selected, onClick = null)
             Text(label, fontWeight = FontWeight.Medium)
         }
     }
@@ -1279,7 +1306,10 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 
 /** Displays an error message and delegates retry requests to [onRetry]. */
 @Composable private fun ErrorBanner(message: String, onRetry: () -> Unit) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+    Card(
+        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Something needs attention", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onErrorContainer)
@@ -1292,7 +1322,10 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 
 /** Displays a successful request update in a status card. */
 @Composable private fun SuccessBanner(message: String) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+    Card(
+        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("LifeLink update", fontWeight = FontWeight.SemiBold)
             Text(message, color = MaterialTheme.colorScheme.onSecondaryContainer)
@@ -1341,16 +1374,6 @@ private fun TextField(
                 Text(it)
             }
         },
-        trailingIcon =
-        if (label.contains("deadline")) {
-            (
-                {
-                    Icon(Icons.Default.KeyboardArrowDown, null)
-                }
-                )
-        } else {
-            null
-        },
         shape = MaterialTheme.shapes.medium,
     )
 }
@@ -1358,10 +1381,7 @@ private fun TextField(
 /** Shows the critical-request summary and dispatches confirmation or dismissal actions. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CriticalSheet(
-    draft: EmergencyRequestDraft,
-    onAction: (EmergencyRequestAction) -> Unit,
-) {
+private fun CriticalSheet(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
     ModalBottomSheet(onDismissRequest = {
         onAction(EmergencyRequestAction.DismissCriticalSubmit)
     }) {

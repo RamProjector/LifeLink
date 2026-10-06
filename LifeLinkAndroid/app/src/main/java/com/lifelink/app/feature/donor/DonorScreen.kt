@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Fullscreen
@@ -49,16 +51,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.google.android.gms.common.api.ResolvableApiException
 import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.core.location.MapLibreLocationPicker
+import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfile
@@ -238,7 +246,12 @@ fun DonorScreen(
         Column(Modifier.fillMaxSize().padding(padding)) {
             TabRow(selectedTabIndex = selectedTab.ordinal) {
                 DonorTab.values().forEach { tab ->
-                    Tab(selected = selectedTab == tab, onClick = { selectedTab = tab }, text = { Text(tab.label) })
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(tab.label) },
+                        modifier = Modifier.testTag("donor-tab-${tab.name}"),
+                    )
                 }
             }
             when (selectedTab) {
@@ -369,18 +382,17 @@ private fun DonorRequestsContent(
             item { SetupRequiredCard(state.profile) }
         } else if (state.requests.isEmpty()) {
             item {
-                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("No matching requests", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "New requests will appear here when available. Refreshing does not change your availability.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        OutlinedButton(
-                            onClick = { onAction(DonorAction.RefreshRequests) },
-                            enabled = !state.requestsRefreshing,
-                        ) { Text("Refresh requests") }
-                    }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LifeLinkEmptyState(
+                        icon = Icons.Default.Refresh,
+                        title = "No matching requests",
+                        body = "New requests will appear here when available. Refreshing does not change your availability.",
+                    )
+                    OutlinedButton(
+                        onClick = { onAction(DonorAction.RefreshRequests) },
+                        enabled = !state.requestsRefreshing,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Refresh requests") }
                 }
             }
         } else {
@@ -395,7 +407,7 @@ private fun DonorRequestsContent(
 @Composable
 private fun StatusMessage(message: String, compact: Boolean = false, loading: Boolean = false) {
     Card(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
@@ -422,13 +434,22 @@ private fun StatusMessage(message: String, compact: Boolean = false, loading: Bo
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Availability", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Availability",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() },
+            )
             Text(profile.availability.label, color = MaterialTheme.colorScheme.onSecondaryContainer)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DonorAvailability.values().forEach { option ->
-                    FilterChip(selected = profile.availability == option, enabled = !saving, onClick = {
-                        onAction(DonorAction.SetAvailability(option))
-                    }, label = { Text(option.label) })
+                DonorAvailability.entries.forEach { option ->
+                    FilterChip(
+                        selected = profile.availability == option,
+                        enabled = !saving,
+                        onClick = { onAction(DonorAction.SetAvailability(option)) },
+                        label = { Text(option.label) },
+                        modifier = Modifier.testTag("donor-availability-${option.name}"),
+                    )
                 }
             }
         }
@@ -447,7 +468,12 @@ private fun SetupRequiredCard(profile: DonorProfile) {
         }
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Finish donor setup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Finish donor setup",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() },
+            )
             Text(
                 "Complete ${missing.joinToString()}. Requests stay hidden until your profile is ready.",
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -486,6 +512,7 @@ private fun ProfileCard(
     // unsaved service radius and manual coordinates are owned by DonorScreen so they
     // survive switching between the tabbed and full-screen editors.
     var showMoreSettings by rememberSaveable(profile.donorId) { mutableStateOf(false) }
+    var coordinateError by remember { mutableStateOf<String?>(null) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
@@ -545,7 +572,17 @@ private fun ProfileCard(
                         singleLine = true,
                     )
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = profile.profileVisible,
+                            onValueChange = { value ->
+                                onAction(DonorAction.UpdateDraft { it.copy(profileVisible = value) })
+                            },
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Column(Modifier.weight(1f)) {
                         Text("Profile visible to requesters", fontWeight = FontWeight.SemiBold)
                         Text(
@@ -558,14 +595,12 @@ private fun ProfileCard(
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
-                    Switch(checked = profile.profileVisible, onCheckedChange = { value ->
-                        onAction(DonorAction.UpdateDraft { it.copy(profileVisible = value) })
-                    })
+                    Switch(checked = profile.profileVisible, onCheckedChange = null)
                 }
             }
             Text("Blood type", fontWeight = FontWeight.SemiBold)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                BloodType.values().toList().chunked(4).forEach { rowOptions ->
+                BloodType.entries.chunked(4).forEach { rowOptions ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         rowOptions.forEach { option ->
                             FilterChip(
@@ -620,6 +655,7 @@ private fun ProfileCard(
                     Modifier.weight(1f),
                     label = { Text("Latitude") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
                 OutlinedTextField(
                     manualLongitude,
@@ -627,18 +663,27 @@ private fun ProfileCard(
                     Modifier.weight(1f),
                     label = { Text("Longitude") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
+            }
+            coordinateError?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
             OutlinedButton(
                 onClick = {
                     val latitude = manualLatitude.toDoubleOrNull()
                     val longitude = manualLongitude.toDoubleOrNull()
-                    if (latitude != null &&
-                        longitude != null &&
-                        latitude in -90.0..90.0 &&
-                        longitude in -180.0..180.0
-                    ) {
-                        onLocationSelected(latitude, longitude)
+                    when {
+                        manualLatitude.isBlank() || manualLongitude.isBlank() ->
+                            coordinateError = "Enter both a latitude and a longitude before applying."
+                        latitude == null || longitude == null ->
+                            coordinateError = "Use decimal numbers, for example 14.5995 and 120.9842."
+                        latitude !in -90.0..90.0 || longitude !in -180.0..180.0 ->
+                            coordinateError = "Latitude must be between -90 and 90, and longitude between -180 and 180."
+                        else -> {
+                            coordinateError = null
+                            onLocationSelected(latitude, longitude)
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -717,24 +762,25 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
 ) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            val urgencyColors =
+                when (request.urgency.lowercase()) {
+                    "critical" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+                    "urgent" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+                    else -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+                }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "${request.bloodType} · ${request.units} unit${if (request.units == 1) "" else "s"}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
-                Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.small) {
+                Surface(color = urgencyColors.first, shape = MaterialTheme.shapes.small) {
                     Text(
-                        request.urgency.replaceFirstChar {
-                            it.uppercase()
-                        },
-                        modifier =
-                        Modifier.padding(
-                            horizontal = 10.dp,
-                            vertical = 6.dp,
-                        ),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        request.urgency.replaceFirstChar { it.uppercase() },
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        color = urgencyColors.second,
                         style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
