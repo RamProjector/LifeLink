@@ -123,6 +123,7 @@ class Donor(BaseModel):
     preferred_contact_method: str = "in_app"
     pause_reason: str | None = None
     profile_visible: bool = True
+    map_visible: bool = True
 
 
 class MatchExplanation(BaseModel):
@@ -293,6 +294,7 @@ from .donor_api import (
     DonorResponseOut,
     profile_to_out,
 )
+from .privacy_api import DonorMapEntry, DonorMapOut
 
 
 request_store = InMemoryRequestStore()
@@ -729,3 +731,55 @@ def cancel_emergency_request(request_id: str, principal: Principal = Depends(get
     record.status = RequestStatus.CANCELLED
     request_store.save(record)
     return RequestActionOut(request_id=request_id, status=RequestStatus.CANCELLED, reason="Cancelled by coordinator")
+
+
+def _approximate_map_entries(max_age_minutes: float) -> list[DonorMapEntry]:
+    """Approximate donor areas for the in-memory map.
+
+    Mirrors the PostgreSQL store: only donors who opted in (``map_visible``),
+    are currently available, and are profile-visible appear, and only while
+    their availability snapshot is fresh. Coordinates are coarsened to a
+    one-kilometre grid and no donor identity is returned, so the demo surface
+    cannot be used to pinpoint a donor either.
+    """
+    now = datetime.now(timezone.utc)
+    entries: list[DonorMapEntry] = []
+    for donor in donor_repository.donors:
+        if not (donor.map_visible and donor.available and donor.profile_visible):
+            continue
+        freshness_at = donor.availability_updated_at
+        if freshness_at.tzinfo is None:
+            freshness_at = freshness_at.replace(tzinfo=timezone.utc)
+        age_minutes = int((now - freshness_at).total_seconds() // 60)
+        if age_minutes > max_age_minutes:
+            continue
+        entries.append(
+            DonorMapEntry(
+                area_label="Approximate donor area",
+                latitude=round(donor.latitude, 2),
+                longitude=round(donor.longitude, 2),
+                radius_meters=max(1000, int(donor.service_radius_km * 1000)),
+                blood_type=donor.blood_type,
+                availability="available",
+                freshness_at=freshness_at,
+                freshness_age_minutes=max(0, age_minutes),
+                is_stale=False,
+            )
+        )
+    return entries
+
+
+@app.get("/v1/donor-map", response_model=DonorMapOut)
+def donor_map() -> DonorMapOut:
+    """Approximate donor areas with a freshness timestamp.
+
+    The in-memory/demo counterpart of the PostgreSQL ``/v1/donor-map`` route.
+    Without it the map screen received a 404 whenever the service ran without a
+    database, which is the default local/demo deployment. Only opted-in,
+    available donors appear, and never with an exact pin.
+    """
+    return DonorMapOut(
+        generated_at=datetime.now(timezone.utc),
+        approximate_only=True,
+        entries=_approximate_map_entries(donor_location_max_age_minutes()),
+    )

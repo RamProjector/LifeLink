@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  LifeLink localization infrastructure.
+
+  This is the first strings resource file in the project. It starts the
+  localization work by moving the accessibility labels that were previously
+  hardcoded (and, for the messaging and activity lists, applied as a
+  contentDescription that overrode the visible text) into localizable
+  resources. New user-facing strings should be added here rather than inlined.
+-->
+<resources>
+    <!-- Messaging: accessibility label announced when a conversation row is activated. -->
+    <string name="messaging_open_conversation">Open conversation %1$s</string>
+
+    <!-- Activity/updates: accessibility labels announced when an activity row is activated. -->
+    <string name="updates_open_activity">Open activity</string>
+    <string name="updates_open_activity_for_request">Open activity for request</string>
+
+    <!-- Donor map: reliability controls and location-source feedback. -->
+    <string name="donor_map_recenter">Recenter map on your location</string>
+    <string name="donor_map_overflow">Map options</string>
+    <string name="donor_map_retry">Retry map</string>
+    <string name="donor_map_source_current">Using current location</string>
+    <string name="donor_map_source_manual">Pin selected manually</string>
+    <string name="donor_map_accuracy">Accuracy \u00b1%1$d m</string>
+    <string name="donor_map_move_confirmed">Pin moved to the selected point</string>
+
+    <!-- Map action + donor filter. -->
+    <string name="lifelink_map_action">Open the donor map</string>
+    <string name="donor_map_refresh">Refresh donor areas</string>
+    <string name="donor_map_available_donors">Available donors (%1$d)</string>
+    <string name="donor_map_visibility">Your visibility</string>
+    <string name="donor_map_filter_label">Filter by blood type</string>
+    <string name="donor_map_filter_any">Any type</string>
+</resources>
