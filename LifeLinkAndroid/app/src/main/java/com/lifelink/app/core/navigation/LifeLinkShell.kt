@@ -533,16 +533,10 @@ private fun ShellNavigationIcon(tab: ShellTab) {
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
+                // The header action is always a refresh; the error card below owns the single
+                // "Retry" affordance so the screen never shows two identically-labelled actions.
                 TextButton(onClick = { onAction(EmergencyRequestAction.RefreshHistory) }, enabled = !state.historyRefreshing) {
-                    Text(
-                        if (state.historyRefreshing) {
-                            "Refreshing…"
-                        } else if (state.historyError != null) {
-                            "Retry"
-                        } else {
-                            "Refresh"
-                        },
-                    )
+                    Text(if (state.historyRefreshing) "Refreshing…" else "Refresh")
                 }
             }
         }

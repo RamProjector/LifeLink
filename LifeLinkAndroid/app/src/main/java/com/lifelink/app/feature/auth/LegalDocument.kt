@@ -211,13 +211,31 @@ private fun LegalDocumentBody(document: LegalDocument) {
             document.sections.forEachIndexed { index, (heading, body) ->
                 if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        "${index + 1}. $heading",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.semantics { heading() },
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // The section number is a separate decorative badge so the heading node's
+                        // text is exactly the heading itself — screen readers announce the heading
+                        // rather than "1. What this app does", and the heading stays findable by text.
+                        Surface(
+                            modifier = Modifier.size(22.dp),
+                            shape = MaterialTheme.shapes.extraSmall,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    "${index + 1}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
+                            }
+                        }
+                        Text(
+                            heading,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.semantics { heading() },
+                        )
+                    }
                     Text(body, style = MaterialTheme.typography.bodyMedium)
                 }
             }
