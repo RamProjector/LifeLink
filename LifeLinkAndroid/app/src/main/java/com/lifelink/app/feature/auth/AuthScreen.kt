@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -20,11 +21,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -35,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,14 +69,14 @@ fun AuthScreen(
     onResendConfirmation: (String) -> Unit,
     onUpdatePassword: (String, String) -> Unit,
 ) {
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-    var createAccount by remember { mutableStateOf(false) }
-    var showPassword by remember { mutableStateOf(false) }
-    var showConfirmPassword by remember { mutableStateOf(false) }
-    var recoveryMode by remember { mutableStateOf(false) }
-    var acceptedLegal by remember { mutableStateOf(false) }
+    var email by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var confirmPassword by rememberSaveable { mutableStateOf("") }
+    var createAccount by rememberSaveable { mutableStateOf(false) }
+    var showPassword by rememberSaveable { mutableStateOf(false) }
+    var showConfirmPassword by rememberSaveable { mutableStateOf(false) }
+    var recoveryMode by rememberSaveable { mutableStateOf(false) }
+    var acceptedLegal by rememberSaveable { mutableStateOf(false) }
     var legalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     val busy = state is AuthState.Loading
     val resetReady = state is AuthState.PasswordResetReady
@@ -97,7 +104,22 @@ fun AuthScreen(
                     .padding(horizontal = 24.dp, vertical = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text("LifeLink", style = MaterialTheme.typography.titleLarge)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Surface(
+                        modifier = Modifier.size(44.dp),
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Favorite,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        }
+                    }
+                    Text("LifeLink", style = MaterialTheme.typography.titleLarge)
+                }
                 Spacer(Modifier.height(12.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(
@@ -326,9 +348,14 @@ private fun PasswordField(
         trailingIcon = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isError) {
-                    androidx.compose.material3.Icon(Icons.Default.Error, contentDescription = "Invalid $label")
+                    Icon(Icons.Default.Error, contentDescription = "Invalid $label")
                 }
-                TextButton(onClick = onToggleVisibility) { Text(if (visible) "Hide" else "Show") }
+                IconButton(onClick = onToggleVisibility) {
+                    Icon(
+                        imageVector = if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = if (visible) "Hide $label" else "Show $label",
+                    )
+                }
             }
         },
     )

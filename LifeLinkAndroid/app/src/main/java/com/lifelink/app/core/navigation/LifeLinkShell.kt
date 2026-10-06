@@ -503,9 +503,9 @@ private fun ShellNavigationIcon(tab: ShellTab) {
         }
         item {
             Button(onClick = onCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = MaterialTheme.shapes.medium) {
-                Icon(Icons.Default.Add, null)
+                Icon(Icons.Default.Add, null, Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Create emergency request")
+                Text("Create emergency request", fontWeight = FontWeight.SemiBold)
             }
         }
         item {
@@ -657,7 +657,7 @@ private fun HomeContent(
                 Button(onClick = onCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = MaterialTheme.shapes.medium) {
                     Icon(Icons.Default.Add, null, Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Create emergency request")
+                    Text("Create emergency request", fontWeight = FontWeight.SemiBold)
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

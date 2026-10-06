@@ -2,20 +2,28 @@ package com.lifelink.app.feature.privacy
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -50,10 +58,9 @@ fun MessagingScreen(
                 )
             }
         }
-        if (state.conversationsLoading) {
-            item { LifeLinkLoadingIndicator(label = "Loading conversations…") }
-        } else if (state.conversationsError != null) {
-            item {
+        when {
+            state.conversationsLoading -> item { LifeLinkLoadingIndicator(label = "Loading conversations\u2026") }
+            state.conversationsError != null -> item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(state.conversationsError, color = MaterialTheme.colorScheme.onErrorContainer)
@@ -61,27 +68,50 @@ fun MessagingScreen(
                     }
                 }
             }
-        } else if (state.conversations.isEmpty()) {
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("No conversations yet", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Messaging becomes available after a matched donor or requester accepts a contact request.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        } else {
-            items(state.conversations, key = { it.conversationId }) { conversation ->
+            state.conversations.isEmpty() -> item { EmptyConversationsCard() }
+            else -> items(state.conversations, key = { it.conversationId }) { conversation ->
                 ConversationRow(conversation) { onOpenConversation(conversation.requestId, conversation.donorId) }
             }
         }
     }
 }
 
-/** Displays conversation and request identifiers plus message recency, invoking [onOpen] when tapped. */
+/** Empty state explaining when messaging becomes available. */
+@Composable
+private fun EmptyConversationsCard() {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Surface(
+                modifier = Modifier.size(52.dp),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Chat,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                }
+            }
+            Text("No conversations yet", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Messaging becomes available after a matched donor or requester accepts a contact request.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+/** Displays a conversation with an initials avatar, request reference, and message recency. */
 @Composable
 private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
     Card(
@@ -91,15 +121,39 @@ private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
             .clickable(onClick = onOpen)
             .semantics { contentDescription = "Conversation ${conversation.conversationId.take(8)}, open chat" },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text("Conversation ${conversation.conversationId.take(8)}", fontWeight = FontWeight.SemiBold)
-            Text("Request ${conversation.requestId.take(12)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                conversation.lastMessageAt?.let { "Last message: $it" } ?: "No messages yet",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.primaryContainer,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        conversation.conversationId.take(2).uppercase(),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Conversation ${conversation.conversationId.take(8)}", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Request ${conversation.requestId.take(12)}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    conversation.lastMessageAt?.let { "Last message: $it" } ?: "No messages yet",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

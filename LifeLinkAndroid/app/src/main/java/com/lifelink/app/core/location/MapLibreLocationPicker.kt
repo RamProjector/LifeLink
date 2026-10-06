@@ -193,14 +193,21 @@ fun MapLibreLocationPicker(
             mapLoading -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
                 RowLoading()
             }
             mapError != null -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Map unavailable",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.titleSmall,
+                    )
                     Text(mapError.orEmpty(), color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
                     Button(onClick = { retryRequest++ }) { Text("Retry map") }
                 }
@@ -278,14 +285,16 @@ fun MapLibrePrivacySafeDonorMap(
             mapLoading -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) { RowLoading() }
             mapError -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
                 Text(
                     "Map preview unavailable. Donor results remain available in the list.",
-                    Modifier.padding(14.dp),
+                    Modifier.padding(16.dp),
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     style = MaterialTheme.typography.bodySmall,
                 )

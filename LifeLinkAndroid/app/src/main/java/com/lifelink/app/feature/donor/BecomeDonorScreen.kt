@@ -1,13 +1,16 @@
 package com.lifelink.app.feature.donor
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -31,11 +34,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
@@ -76,12 +81,14 @@ fun BecomeDonorScreen(
 
 @Composable
 private fun LoadingContent(padding: PaddingValues) {
-    Column(
-        Modifier.fillMaxSize().padding(padding),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        CircularProgressIndicator(Modifier.padding(24.dp))
-        Text("Loading your donor profile\u2026", Modifier.padding(horizontal = 24.dp))
+    Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            CircularProgressIndicator(Modifier.size(36.dp), strokeWidth = 3.dp)
+            Text("Loading your donor profile\u2026", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
@@ -171,6 +178,11 @@ private fun AvailabilityCard(profile: DonorProfileMe, saving: Boolean, onAction:
                     )
                 }
             }
+            Text(
+                "Only a verified, available profile appears in matching results.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -294,6 +306,7 @@ private fun LocationFields(
             modifier = Modifier.weight(1f),
             label = { Text("Latitude") },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
         OutlinedTextField(
             value = longitude,
@@ -301,6 +314,7 @@ private fun LocationFields(
             modifier = Modifier.weight(1f),
             label = { Text("Longitude") },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
     }
     OutlinedButton(onClick = onApply, modifier = Modifier.fillMaxWidth()) {

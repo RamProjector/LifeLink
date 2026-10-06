@@ -426,9 +426,13 @@ private fun StatusMessage(message: String, compact: Boolean = false, loading: Bo
             Text(profile.availability.label, color = MaterialTheme.colorScheme.onSecondaryContainer)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DonorAvailability.values().forEach { option ->
-                    FilterChip(selected = profile.availability == option, enabled = !saving, onClick = {
-                        onAction(DonorAction.SetAvailability(option))
-                    }, label = { Text(option.label) })
+                    FilterChip(
+                        selected = profile.availability == option,
+                        enabled = !saving,
+                        onClick = { onAction(DonorAction.SetAvailability(option)) },
+                        label = { Text(option.label) },
+                        modifier = Modifier.testTag("donor-availability-${option.name}"),
+                    )
                 }
             }
         }
@@ -717,24 +721,25 @@ private fun DonorLocationMap(latitude: Double?, longitude: Double?, onLocationSe
 ) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            val urgencyColors =
+                when (request.urgency.lowercase()) {
+                    "critical" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+                    "urgent" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+                    else -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+                }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "${request.bloodType} · ${request.units} unit${if (request.units == 1) "" else "s"}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
-                Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.small) {
+                Surface(color = urgencyColors.first, shape = MaterialTheme.shapes.small) {
                     Text(
-                        request.urgency.replaceFirstChar {
-                            it.uppercase()
-                        },
-                        modifier =
-                        Modifier.padding(
-                            horizontal = 10.dp,
-                            vertical = 6.dp,
-                        ),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        request.urgency.replaceFirstChar { it.uppercase() },
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        color = urgencyColors.second,
                         style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             }

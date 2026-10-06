@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -67,7 +68,17 @@ fun ConversationScreen(
         state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
 
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(state.messages) { message -> MessageBubble(message, message.senderId == currentUserId) }
+            if (state.messages.isEmpty()) {
+                item {
+                    Text(
+                        "No messages yet. Say hello to start the conversation.",
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+            items(state.messages, key = { it.messageId }) { message -> MessageBubble(message, message.senderId == currentUserId) }
         }
 
         if (state.contactShares.isNotEmpty()) {
@@ -198,6 +209,7 @@ fun ConversationScreen(
 private fun MessageBubble(message: ChatMessage, mine: Boolean) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
         Card(
+            modifier = Modifier.widthIn(max = 300.dp),
             colors =
             CardDefaults.cardColors(
                 containerColor =

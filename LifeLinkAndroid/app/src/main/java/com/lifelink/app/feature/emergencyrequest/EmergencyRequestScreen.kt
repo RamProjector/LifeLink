@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -31,7 +32,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -349,11 +349,14 @@ private fun DonorPicker(
                         },
                     ),
                 ) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Checkbox(checked = donor.donorId in state.selectedDonorIds, onCheckedChange = {
                             onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId))
                         })
-                        Column(Modifier.padding(start = 8.dp)) {
+                        Column(Modifier.weight(1f).padding(start = 8.dp)) {
                             Text(donor.displayName, fontWeight = FontWeight.SemiBold)
                             Text(
                                 "${donor.bloodType} · ${"%.1f".format(donor.distanceKm)} km · about ${donor.travelMinutes} min",
@@ -686,14 +689,14 @@ private fun formatContactTimestamp(value: String): String =
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             repeat(total) { index ->
                 Surface(
-                    Modifier.weight(1f).height(5.dp),
+                    Modifier.weight(1f).height(6.dp),
                     color =
                     if (index <=
                         step
                     ) {
                         MaterialTheme.colorScheme.primary
                     } else {
-                        MaterialTheme.colorScheme.outline
+                        MaterialTheme.colorScheme.surfaceContainerHighest
                     },
                     shape = MaterialTheme.shapes.small,
                 ) {}
@@ -1084,7 +1087,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             ) {
                 TextButton(onClick = onSave, enabled = !submitting) { Text("Save as draft") }
             }
-            ; Button(
+            Button(
                 onClick =
                 if (state.step ==
                     RequestStep.REVIEW
@@ -1166,7 +1169,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             ),
             contentPadding = PaddingValues(0.dp),
         ) { Text("−", fontSize = 24.sp) }
-        ; Text("$quantity unit${if (quantity == 1) "" else "s"}", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold)
+        Text("$quantity unit${if (quantity == 1) "" else "s"}", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold)
         OutlinedButton(
             {
                 if (quantity <
@@ -1192,10 +1195,10 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             role =
                 Role.Checkbox
         },
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(checked, onChecked)
-        Column(Modifier.padding(top = 12.dp, start = 8.dp)) {
+        Column(Modifier.padding(start = 8.dp)) {
             Text(label)
             supporting?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
         }
@@ -1340,16 +1343,6 @@ private fun TextField(
             {
                 Text(it)
             }
-        },
-        trailingIcon =
-        if (label.contains("deadline")) {
-            (
-                {
-                    Icon(Icons.Default.KeyboardArrowDown, null)
-                }
-                )
-        } else {
-            null
         },
         shape = MaterialTheme.shapes.medium,
     )
