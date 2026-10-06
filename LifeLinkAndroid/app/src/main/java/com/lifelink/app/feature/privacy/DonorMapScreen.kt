@@ -29,11 +29,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
+import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.domain.DonorMapArea
 
@@ -68,7 +71,10 @@ fun DonorMapScreen(
         item { DonorVisibilityControls(state, onAction) }
         state.mapError?.let { error ->
             item {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                Card(
+                    Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(error, color = MaterialTheme.colorScheme.onErrorContainer)
                         Button(onClick = { onAction(PrivacyAction.LoadMap) }) { Text("Retry") }
@@ -81,7 +87,13 @@ fun DonorMapScreen(
         }
         val areas = state.map?.areas.orEmpty()
         if (!state.mapLoading && state.mapError == null && areas.isEmpty()) {
-            item { EmptyMapCard() }
+            item {
+                LifeLinkEmptyState(
+                    icon = Icons.Default.LocationOn,
+                    title = "No donors on the map yet",
+                    body = "Donors appear here only after they opt in to map visibility.",
+                )
+            }
         }
         if (areas.isNotEmpty()) {
             item {
@@ -124,37 +136,6 @@ private fun PrivacyBanner() {
     }
 }
 
-/** Empty state shown when no donors have opted into the map. */
-@Composable
-private fun EmptyMapCard() {
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Surface(
-                modifier = Modifier.size(52.dp),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.primaryContainer,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-            }
-            Text("No donors on the map yet", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Donors appear here only after they opt in to map visibility.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-    }
-}
-
 /**
  * Displays map visibility and exact-location sharing toggles from [state].
  * Sends changes through [onAction] and disables the toggles while a save is pending.
@@ -164,7 +145,7 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
     val visibility = state.visibility
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Your visibility", fontWeight = FontWeight.Bold)
+            Text("Your visibility", fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Show me on the donor map")
@@ -256,7 +237,7 @@ fun MatchedDonorLocationCard(
     val location = state.matchedLocation
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Donor location", fontWeight = FontWeight.Bold)
+            Text("Donor location", fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
             when {
                 state.locationLoading ->
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {

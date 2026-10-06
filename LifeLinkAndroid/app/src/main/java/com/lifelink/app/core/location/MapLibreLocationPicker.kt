@@ -26,6 +26,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.delay
@@ -191,14 +195,14 @@ fun MapLibreLocationPicker(
         )
         when {
             mapLoading -> Card(
-                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
                 RowLoading()
             }
             mapError != null -> Card(
-                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Assertive },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
@@ -207,6 +211,7 @@ fun MapLibreLocationPicker(
                         "Map unavailable",
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.semantics { heading() },
                     )
                     Text(mapError.orEmpty(), color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
                     Button(onClick = { retryRequest++ }) { Text("Retry map") }
@@ -283,12 +288,12 @@ fun MapLibrePrivacySafeDonorMap(
         )
         when {
             mapLoading -> Card(
-                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) { RowLoading() }
             mapError -> Card(
-                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Assertive },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {

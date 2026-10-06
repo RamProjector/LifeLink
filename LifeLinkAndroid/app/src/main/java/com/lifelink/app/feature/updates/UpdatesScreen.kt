@@ -27,10 +27,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkPageHeader
 import com.lifelink.app.domain.UpdateItem
 
@@ -57,50 +60,22 @@ fun UpdatesScreen(
                     Text(
                         if (unread == 0) "You\u2019re up to date." else "$unread item${if (unread == 1) "" else "s"} need your attention.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
                 if (unread > 0) TextButton(onClick = onMarkAllRead) { Text("Mark all read") }
             }
         }
         if (updates.isEmpty()) {
-            item { EmptyUpdatesCard() }
+            item {
+                LifeLinkEmptyState(
+                    icon = Icons.Default.CheckCircle,
+                    title = "Nothing needs your attention",
+                    body = "Request changes, donor responses, and account notices will appear here when something changes.",
+                )
+            }
         } else {
             items(updates, key = { it.id }) { update -> UpdateRow(update, onOpen) }
-        }
-    }
-}
-
-/** Empty state shown when there is no activity to review. */
-@Composable
-private fun EmptyUpdatesCard() {
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Surface(
-                modifier = Modifier.size(52.dp),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                }
-            }
-            Text("Nothing needs your attention", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Request changes, donor responses, and account notices will appear here when something changes.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
         }
     }
 }

@@ -51,7 +51,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,6 +62,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.gms.common.api.ResolvableApiException
 import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.core.location.MapLibreLocationPicker
+import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfile
@@ -238,7 +242,12 @@ fun DonorScreen(
         Column(Modifier.fillMaxSize().padding(padding)) {
             TabRow(selectedTabIndex = selectedTab.ordinal) {
                 DonorTab.values().forEach { tab ->
-                    Tab(selected = selectedTab == tab, onClick = { selectedTab = tab }, text = { Text(tab.label) })
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(tab.label) },
+                        modifier = Modifier.testTag("donor-tab-${tab.name}"),
+                    )
                 }
             }
             when (selectedTab) {
@@ -369,18 +378,17 @@ private fun DonorRequestsContent(
             item { SetupRequiredCard(state.profile) }
         } else if (state.requests.isEmpty()) {
             item {
-                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("No matching requests", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "New requests will appear here when available. Refreshing does not change your availability.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        OutlinedButton(
-                            onClick = { onAction(DonorAction.RefreshRequests) },
-                            enabled = !state.requestsRefreshing,
-                        ) { Text("Refresh requests") }
-                    }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LifeLinkEmptyState(
+                        icon = Icons.Default.Refresh,
+                        title = "No matching requests",
+                        body = "New requests will appear here when available. Refreshing does not change your availability.",
+                    )
+                    OutlinedButton(
+                        onClick = { onAction(DonorAction.RefreshRequests) },
+                        enabled = !state.requestsRefreshing,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Refresh requests") }
                 }
             }
         } else {
@@ -395,7 +403,7 @@ private fun DonorRequestsContent(
 @Composable
 private fun StatusMessage(message: String, compact: Boolean = false, loading: Boolean = false) {
     Card(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
@@ -422,7 +430,12 @@ private fun StatusMessage(message: String, compact: Boolean = false, loading: Bo
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Availability", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Availability",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() },
+            )
             Text(profile.availability.label, color = MaterialTheme.colorScheme.onSecondaryContainer)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DonorAvailability.values().forEach { option ->
@@ -451,7 +464,12 @@ private fun SetupRequiredCard(profile: DonorProfile) {
         }
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Finish donor setup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Finish donor setup",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() },
+            )
             Text(
                 "Complete ${missing.joinToString()}. Requests stay hidden until your profile is ready.",
                 color = MaterialTheme.colorScheme.onPrimaryContainer,

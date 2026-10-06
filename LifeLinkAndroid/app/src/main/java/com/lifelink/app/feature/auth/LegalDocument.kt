@@ -1,23 +1,34 @@
 package com.lifelink.app.feature.auth
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
+
 internal typealias LegalSection = Pair<String, String>
 
 internal data class LegalDocument(val title: String, val effectiveDate: String, val sections: List<LegalSection>)
@@ -114,14 +125,44 @@ internal val TermsAndConditionsPhilippines = LegalDocument(
 /**
  * Displays [document]'s effective date and sections in a scrollable dialog.
  * Invokes [onDismiss] when the dialog is dismissed or its Close button is pressed.
+ *
+ * Sections are numbered and each heading carries heading semantics so screen-reader users can
+ * navigate the document by heading. The dialog is width-constrained for comfortable line length
+ * on tablets and foldables.
  */
 @Composable
 internal fun LegalDocumentDialog(document: LegalDocument, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .fillMaxWidth()
+            .widthIn(max = 560.dp)
+            .padding(horizontal = 20.dp),
         title = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(document.title, Modifier.semantics { heading() }, fontWeight = FontWeight.Bold)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Surface(
+                        modifier = Modifier.size(36.dp),
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Description,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                    Text(
+                        document.title,
+                        Modifier.semantics { heading() },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer,
                     shape = MaterialTheme.shapes.small,
@@ -146,10 +187,11 @@ internal fun LegalDocumentDialog(document: LegalDocument, onDismiss: () -> Unit)
                     if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            heading,
+                            "${index + 1}. $heading",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.semantics { heading() },
                         )
                         Text(body, style = MaterialTheme.typography.bodyMedium)
                     }

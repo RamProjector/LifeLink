@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -29,8 +31,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.domain.ChatMessage
 
 /**
@@ -57,7 +64,12 @@ fun ConversationScreen(
 
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Conversation", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                "Conversation",
+                Modifier.weight(1f).semantics { heading() },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
             TextButton(onClick = onBack) { Text("Back") }
         }
         Text(
@@ -65,16 +77,21 @@ fun ConversationScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+        state.message?.let {
+            Text(
+                it,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
 
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.messages.isEmpty()) {
                 item {
-                    Text(
-                        "No messages yet. Say hello to start the conversation.",
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium,
+                    LifeLinkEmptyState(
+                        icon = Icons.AutoMirrored.Filled.Chat,
+                        title = "No messages yet",
+                        body = "Say hello to start the conversation.",
                     )
                 }
             }
@@ -90,7 +107,7 @@ fun ConversationScreen(
                     Modifier.padding(12.dp).heightIn(max = 180.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Text("Shared contact details", fontWeight = FontWeight.SemiBold)
+                    Text("Shared contact details", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
                     state.contactShares.forEach { share ->
                         Text(
                             "${share.field.replaceFirstChar { it.uppercase() }}: ${share.value}",
@@ -120,7 +137,7 @@ fun ConversationScreen(
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Share contact details", fontWeight = FontWeight.SemiBold)
+                Text("Share contact details", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { contactField = "phone" }, enabled = contactField != "phone") { Text("Phone") }
                     OutlinedButton(onClick = { contactField = "email" }, enabled = contactField != "email") { Text("Email") }
@@ -151,7 +168,7 @@ fun ConversationScreen(
         // interaction without leaving the conversation.
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Safety", fontWeight = FontWeight.SemiBold)
+                Text("Safety", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
                 Text(
                     "If this conversation feels unsafe, report or block the other person. Reports are reviewed by our team.",
                     style = MaterialTheme.typography.bodySmall,

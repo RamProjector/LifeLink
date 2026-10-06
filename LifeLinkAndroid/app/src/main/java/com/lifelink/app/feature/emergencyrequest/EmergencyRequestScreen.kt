@@ -73,9 +73,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -86,6 +92,7 @@ import com.google.android.gms.common.api.ResolvableApiException
 import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.core.location.MapLibreLocationPicker
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
+import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.ContactMethod
 import com.lifelink.app.domain.EmergencyRequestDraft
@@ -290,7 +297,7 @@ private fun DonorPicker(
             }
         }
         if (state.contacts.isNotEmpty()) {
-            Text("Contact activity", fontWeight = FontWeight.SemiBold)
+            Text("Contact activity", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             state.contacts.forEach { contact ->
                 AcceptedContactCard(
                     contact = contact,
@@ -302,7 +309,7 @@ private fun DonorPicker(
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Results", fontWeight = FontWeight.SemiBold)
+            Text("Results", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = !showMap, onClick = { showMap = false }, label = { Text("Donors") })
                 FilterChip(selected = showMap, onClick = { showMap = true }, label = { Text("Map") })
@@ -328,10 +335,10 @@ private fun DonorPicker(
         }
         if (!showMap) {
             if (state.discoveredDonors.isEmpty() && !state.matchesRefreshing && state.matchesError == null) {
-                InfoCard(
-                    "No potential donors yet",
-                    "No donor cards are available for this request right now. Keep the request active and check the request status again later.",
-                    MaterialTheme.colorScheme.secondary,
+                LifeLinkEmptyState(
+                    icon = Icons.Default.LocationOn,
+                    title = "No potential donors yet",
+                    body = "No donor cards are available for this request right now. Keep the request active and check the request status again later.",
                 )
             }
             state.discoveredDonors.forEach { donor ->
@@ -685,8 +692,14 @@ private fun formatContactTimestamp(value: String): String =
             "Step ${step + 1} of $total · ${labels.getOrElse(step) { "Request" }}",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.semantics { heading() },
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .semantics { progressBarRangeInfo = ProgressBarRangeInfo((step + 1).toFloat(), 1f..total.toFloat()) },
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
             repeat(total) { index ->
                 Surface(
                     Modifier.weight(1f).height(6.dp),
@@ -1134,8 +1147,8 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 @Composable private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
         Modifier.height(48.dp).clickable(role = Role.RadioButton, onClick = onClick).semantics {
-            role =
-                Role.RadioButton
+            role = Role.RadioButton
+            this.selected = selected
         },
         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.medium,
@@ -1166,7 +1179,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             modifier =
             Modifier.size(
                 52.dp,
-            ),
+            ).semantics { contentDescription = "Decrease units" },
             contentPadding = PaddingValues(0.dp),
         ) { Text("−", fontSize = 24.sp) }
         Text("$quantity unit${if (quantity == 1) "" else "s"}", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold)
@@ -1182,7 +1195,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             modifier =
             Modifier.size(
                 52.dp,
-            ),
+            ).semantics { contentDescription = "Increase units" },
             contentPadding = PaddingValues(0.dp),
         ) { Text("+", fontSize = 24.sp) }
     }
@@ -1282,7 +1295,10 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 
 /** Displays an error message and delegates retry requests to [onRetry]. */
 @Composable private fun ErrorBanner(message: String, onRetry: () -> Unit) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+    Card(
+        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Something needs attention", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onErrorContainer)
@@ -1295,7 +1311,10 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
 
 /** Displays a successful request update in a status card. */
 @Composable private fun SuccessBanner(message: String) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+    Card(
+        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("LifeLink update", fontWeight = FontWeight.SemiBold)
             Text(message, color = MaterialTheme.colorScheme.onSecondaryContainer)

@@ -1,6 +1,7 @@
 package com.lifelink.app.feature.activeRequest
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,7 +16,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -39,10 +42,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.core.ui.LifeLinkEmptyState
+import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.ActiveRequestStatus
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
@@ -146,16 +154,32 @@ fun ActiveRequestScreen(
 @Composable
 private fun StatusCard(active: ActiveRequestSnapshot) {
     Card(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                "Current status",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Surface(
+                    modifier = Modifier.size(40.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.primary,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (active.isTerminal) Icons.Default.CheckCircle else Icons.Default.HourglassEmpty,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                }
+                Text(
+                    "Current status",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
             Text(
                 active.status.label,
                 color = MaterialTheme.colorScheme.primary,
@@ -181,7 +205,7 @@ private fun StatusCard(active: ActiveRequestSnapshot) {
 private fun ProgressCard(active: ActiveRequestSnapshot) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("Response activity", fontWeight = FontWeight.SemiBold)
+            Text("Response activity", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MetricTile("Donors notified", active.notificationsCreated.toString(), Modifier.weight(1f))
                 MetricTile("Responses", active.matchesResponded.toString(), Modifier.weight(1f))
@@ -194,7 +218,7 @@ private fun ProgressCard(active: ActiveRequestSnapshot) {
 @Composable
 private fun MetricTile(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.semantics { contentDescription = "$label: $value" },
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = MaterialTheme.shapes.medium,
     ) {
@@ -215,14 +239,15 @@ private fun ContactActivityCard(
 ) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Donor contact activity", fontWeight = FontWeight.SemiBold)
+            Text("Donor contact activity", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             when {
                 state.contactsRefreshing && state.contacts.isEmpty() ->
-                    Text("Refreshing contact activity\u2026", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    LifeLinkLoadingIndicator(label = "Refreshing contact activity\u2026")
                 state.contacts.isEmpty() ->
-                    Text(
-                        "Selected donors and their responses will appear here.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    LifeLinkEmptyState(
+                        icon = Icons.Default.VolunteerActivism,
+                        title = "No contact activity yet",
+                        body = "Selected donors and their responses will appear here.",
                     )
                 else -> {
                     state.contacts.forEachIndexed { index, contact ->

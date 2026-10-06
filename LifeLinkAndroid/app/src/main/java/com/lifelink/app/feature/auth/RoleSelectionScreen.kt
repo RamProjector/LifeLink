@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material3.Button
@@ -43,59 +45,78 @@ import com.lifelink.app.core.auth.UserRole
 @Composable
 fun RoleSelectionScreen(onRoleSelected: (UserRole) -> Unit) {
     Surface(color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 560.dp)
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "How will you use LifeLink?",
+                        Modifier.semantics { heading() },
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        "Choose the experience that fits you. You can change this later from your profile.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                UserRole.values().forEach { role ->
+                    RoleCard(role = role, onSelect = { onRoleSelected(role) })
+                }
                 Text(
-                    "How will you use LifeLink?",
-                    Modifier.semantics { heading() },
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    "Choose the experience that fits you. You can change this later from your profile.",
+                    "LifeLink helps people connect; it does not replace medical professionals or blood-bank screening.",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            UserRole.values().forEach { role ->
-                RoleCard(role = role, onSelect = { onRoleSelected(role) })
-            }
-            Text(
-                "LifeLink helps people connect; it does not replace medical professionals or blood-bank screening.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
 
-/** Displays one capability as a card with an icon, title, description, and a full-width action. */
+/** Short, scannable benefit lines shown inside each capability card. */
+private fun roleHighlights(role: UserRole): List<String> = when (role) {
+    UserRole.REQUESTER -> listOf(
+        "Post an emergency request in seconds",
+        "See eligible donors near you",
+        "Message responders privately",
+    )
+    UserRole.DONOR -> listOf(
+        "Set your availability and blood type",
+        "Get notified about nearby requests",
+        "Choose when to share your contact",
+    )
+}
+
+/** Displays one capability as a card with an icon, title, description, highlights, and a full-width action. */
 @Composable
 private fun RoleCard(role: UserRole, onSelect: () -> Unit) {
     val isDonor = role == UserRole.DONOR
+    val accent = if (isDonor) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer
+    val onAccent = if (isDonor) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Surface(
-                    modifier = Modifier.size(44.dp),
+                    modifier = Modifier.size(48.dp),
                     shape = MaterialTheme.shapes.medium,
-                    color = if (isDonor) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
+                    color = accent,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = if (isDonor) Icons.Default.VolunteerActivism else Icons.Default.Favorite,
                             contentDescription = null,
-                            tint = if (isDonor) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer,
+                            tint = onAccent,
                         )
                     }
                 }
@@ -104,8 +125,25 @@ private fun RoleCard(role: UserRole, onSelect: () -> Unit) {
                     Text(role.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                roleHighlights(role).forEach { highlight ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = onAccent,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Text(highlight, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
             Spacer(Modifier.height(2.dp))
-            Button(onClick = onSelect, modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = onSelect,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = MaterialTheme.shapes.small,
+            ) {
                 Text("Continue as ${if (isDonor) "donor" else "requester"}")
             }
         }

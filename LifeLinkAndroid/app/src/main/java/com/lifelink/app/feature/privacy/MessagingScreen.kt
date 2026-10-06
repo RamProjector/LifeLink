@@ -25,10 +25,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.core.ui.LifeLinkPageHeader
 import com.lifelink.app.domain.Conversation
@@ -61,52 +64,26 @@ fun MessagingScreen(
         when {
             state.conversationsLoading -> item { LifeLinkLoadingIndicator(label = "Loading conversations\u2026") }
             state.conversationsError != null -> item {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                Card(
+                    Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(state.conversationsError, color = MaterialTheme.colorScheme.onErrorContainer)
                         Button(onClick = { onAction(PrivacyAction.LoadConversations) }) { Text("Retry") }
                     }
                 }
             }
-            state.conversations.isEmpty() -> item { EmptyConversationsCard() }
+            state.conversations.isEmpty() -> item {
+                LifeLinkEmptyState(
+                    icon = Icons.AutoMirrored.Filled.Chat,
+                    title = "No conversations yet",
+                    body = "Messaging becomes available after a matched donor or requester accepts a contact request.",
+                )
+            }
             else -> items(state.conversations, key = { it.conversationId }) { conversation ->
                 ConversationRow(conversation) { onOpenConversation(conversation.requestId, conversation.donorId) }
             }
-        }
-    }
-}
-
-/** Empty state explaining when messaging becomes available. */
-@Composable
-private fun EmptyConversationsCard() {
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Surface(
-                modifier = Modifier.size(52.dp),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Chat,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                }
-            }
-            Text("No conversations yet", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Messaging becomes available after a matched donor or requester accepts a contact request.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
         }
     }
 }

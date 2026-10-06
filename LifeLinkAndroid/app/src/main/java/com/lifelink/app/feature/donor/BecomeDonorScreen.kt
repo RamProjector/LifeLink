@@ -37,7 +37,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -124,7 +126,7 @@ private fun BecomeDonorContent(
         DonorDetailsCard(state, onAction)
         state.message?.let { message ->
             Card(
-                Modifier.fillMaxWidth(),
+                Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
             ) {
                 Text(message, Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onSecondaryContainer)
@@ -148,7 +150,7 @@ private fun VerificationCard(profile: DonorProfileMe) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Matching status", fontWeight = FontWeight.Bold)
+            Text("Matching status", fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
             Text(
                 when {
                     profile.isMatchable -> "You are verified and available. You can appear in matching results."
@@ -166,7 +168,12 @@ private fun VerificationCard(profile: DonorProfileMe) {
 private fun AvailabilityCard(profile: DonorProfileMe, saving: Boolean, onAction: (BecomeDonorAction) -> Unit) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Availability", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Availability",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() },
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DonorAvailability.values().forEach { option ->
                     FilterChip(
@@ -196,7 +203,12 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
     var longitude by rememberSaveable(profile.donorId) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Donor details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Donor details",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() },
+            )
             OutlinedTextField(
                 value = profile.displayName,
                 onValueChange = { value -> onAction(BecomeDonorAction.UpdateDraft { it.copy(displayName = value) }) },
