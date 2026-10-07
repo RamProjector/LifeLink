@@ -240,6 +240,7 @@ fun MapLibrePrivacySafeDonorMap(
     latitude: Double,
     longitude: Double,
     modifier: Modifier = Modifier,
+    fullScreen: Boolean = false,
 ) {
     val context = LocalContext.current
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
@@ -268,9 +269,10 @@ fun MapLibrePrivacySafeDonorMap(
             mapError = true
         }
     }
-    Box(modifier.fillMaxWidth().height(280.dp)) {
+    val mapModifier = if (fullScreen) modifier.fillMaxSize() else modifier.fillMaxWidth().height(280.dp)
+    Box(mapModifier) {
         AndroidView(
-            modifier = Modifier.fillMaxWidth().height(280.dp),
+            modifier = Modifier.fillMaxSize(),
             factory = {
                 mapView.apply {
                     addOnDidFailLoadingMapListener {

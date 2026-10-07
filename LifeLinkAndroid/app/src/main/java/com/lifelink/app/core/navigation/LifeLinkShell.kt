@@ -11,12 +11,14 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -48,7 +50,7 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -341,25 +343,29 @@ fun LifeLinkShell(
             },
             bottomBar = {
                 if (!useRail) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        FilledTonalButton(
-                            onClick = { showDonorMap = true },
-                            modifier = Modifier.padding(bottom = 4.dp).testTag("open-fullscreen-donor-map"),
-                        ) {
-                            Icon(Icons.Default.Map, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Find donors on full-screen map")
-                        }
+                    Box {
                         NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
-                            ShellTab.entries.forEach { destination ->
-                                NavigationBarItem(
-                                    selected = tab == destination,
-                                    onClick = { tab = destination },
-                                    icon = { ShellNavigationIcon(destination) },
-                                    label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                    modifier = Modifier.testTag("nav-${destination.name}"),
-                                )
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                ShellTab.entries.take(2).forEach { destination ->
+                                    ShellNavigationBarItem(destination, tab == destination) { tab = destination }
+                                }
+                                Spacer(Modifier.width(76.dp))
+                                ShellTab.entries.drop(2).forEach { destination ->
+                                    ShellNavigationBarItem(destination, tab == destination) { tab = destination }
+                                }
                             }
+                        }
+                        FloatingActionButton(
+                            onClick = { showDonorMap = true },
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .offset(y = (-28).dp)
+                                .testTag("open-fullscreen-donor-map"),
+                            shape = CircleShape,
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        ) {
+                            Icon(Icons.Default.Map, contentDescription = "Open full-screen donor map")
                         }
                     }
                 }
@@ -443,6 +449,18 @@ fun LifeLinkShell(
             }
         }
     }
+}
+
+/** Renders one bottom-navigation item while leaving the centered map action unobstructed. */
+@Composable
+private fun RowScope.ShellNavigationBarItem(tab: ShellTab, selected: Boolean, onClick: () -> Unit) {
+    NavigationBarItem(
+        selected = selected,
+        onClick = onClick,
+        icon = { ShellNavigationIcon(tab) },
+        label = { Text(tab.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        modifier = Modifier.weight(1f).testTag("nav-${tab.name}"),
+    )
 }
 
 /** Renders the tab icon and caps the visible unread-update badge at 99+. */
