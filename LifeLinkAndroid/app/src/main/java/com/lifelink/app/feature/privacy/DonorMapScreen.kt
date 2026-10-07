@@ -1,35 +1,48 @@
 package com.lifelink.app.feature.privacy
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -40,66 +53,156 @@ import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
-import com.lifelink.app.domain.DonorMapArea
 
 /**
  * Donor map. Shows approximate areas and a freshness timestamp only \u2014 never
  * individual donor pins or exact coordinates. Donors control their own
  * visibility from the same screen.
  */
+@Suppress("LongMethod")
 @Composable
 fun DonorMapScreen(state: PrivacyUiState, onAction: (PrivacyAction) -> Unit, onBack: () -> Unit) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
-    LazyColumn(
-        Modifier.fillMaxSize().statusBarsPadding().padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Donor map",
-                    Modifier.weight(1f).semantics { heading() },
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                TextButton(onClick = onBack) { Text("Back") }
-            }
-        }
-        item { PrivacyBanner() }
-        item { DonorVisibilityControls(state, onAction) }
-        state.mapError?.let { error ->
-            item { DonorMapErrorCard(error = error, onRetry = { onAction(PrivacyAction.LoadMap) }) }
-        }
-        if (state.mapLoading) {
-            item { LifeLinkLoadingIndicator(label = "Loading donor areas\u2026") }
-        }
-        val areas = state.map?.areas.orEmpty()
-        if (!state.mapLoading && state.mapError == null && areas.isEmpty()) {
-            item {
+    var filtersOpen by rememberSaveable { mutableStateOf(false) }
+    var privacyOpen by rememberSaveable { mutableStateOf(false) }
+    var selectedBloodType by rememberSaveable { mutableStateOf("All") }
+    var availableOnly by rememberSaveable { mutableStateOf(false) }
+    val areas = state.map?.areas.orEmpty()
+    val bloodTypes = listOf("All") + areas.map { it.bloodType }.distinct().sorted()
+    val filteredAreas = areas.filter { area ->
+        (selectedBloodType == "All" || area.bloodType == selectedBloodType) &&
+            (!availableOnly || area.availability.equals("Available", ignoreCase = true))
+    }
+    val mapArea = filteredAreas.firstOrNull()
+
+    Box(Modifier.fillMaxSize().testTag("donor-map-fullscreen")) {
+        if (mapArea != null) {
+            MapLibrePrivacySafeDonorMap(
+                latitude = mapArea.latitude,
+                longitude = mapArea.longitude,
+                modifier = Modifier.fillMaxSize(),
+                fullScreen = true,
+            )
+        } else {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 LifeLinkEmptyState(
                     icon = Icons.Default.LocationOn,
-                    title = "No donors on the map yet",
-                    body = "Donors appear here only after they opt in to map visibility.",
+                    title = if (areas.isEmpty()) "No donors on the map yet" else "No donors match these filters",
+                    body = "Donor areas appear here only after donors opt in. Exact donor locations are never shown.",
                 )
             }
         }
-        if (areas.isNotEmpty()) {
-            item {
-                MapLibrePrivacySafeDonorMap(
-                    latitude = areas.first().latitude,
-                    longitude = areas.first().longitude,
+
+        Row(
+            Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close donor map")
+            }
+            Surface(
+                Modifier.weight(1f),
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                shadowElevation = 3.dp,
+            ) {
+                Text(
+                    "Find donors",
+                    Modifier.padding(horizontal = 16.dp, vertical = 10.dp).semantics { heading() },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
+            IconButton(onClick = { filtersOpen = !filtersOpen }) {
+                Icon(Icons.Default.FilterList, contentDescription = if (filtersOpen) "Hide map filters" else "Show map filters")
+            }
+            IconButton(onClick = { privacyOpen = !privacyOpen }) {
+                Icon(Icons.Default.Shield, contentDescription = "Map privacy controls")
+            }
+            IconButton(onClick = { onAction(PrivacyAction.LoadMap) }) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh donor map")
+            }
         }
-        items(areas, key = { "${it.areaLabel}-${it.bloodType}-${it.latitude}-${it.longitude}" }) { area -> DonorAreaCard(area) }
+
+        if (filtersOpen) {
+            Card(
+                Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text("Filter donor areas", Modifier.padding(start = 8.dp), style = MaterialTheme.typography.titleSmall)
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        FilterChip(
+                            selected = availableOnly,
+                            onClick = { availableOnly = !availableOnly },
+                            label = { Text("Available now") },
+                        )
+                        bloodTypes.forEach { type ->
+                            FilterChip(
+                                selected = selectedBloodType == type,
+                                onClick = { selectedBloodType = type },
+                                label = { Text(type) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (privacyOpen) {
+            Card(
+                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            ) {
+                DonorVisibilityControls(state, onAction)
+            }
+        } else {
+            Card(
+                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(
+                        "Approximate areas only",
+                        Modifier.padding(start = 8.dp).weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text("${filteredAreas.size} areas", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+
+        state.mapError?.let { error ->
+            DonorMapErrorCard(
+                error = error,
+                onRetry = { onAction(PrivacyAction.LoadMap) },
+                modifier = Modifier.align(Alignment.Center).padding(16.dp),
+            )
+        }
+        if (state.mapLoading) {
+            LifeLinkLoadingIndicator(Modifier.align(Alignment.Center), label = "Loading donor areas…")
+        }
     }
 }
 
 /** Error surface with a retry action, announced assertively to screen readers. */
 @Composable
-private fun DonorMapErrorCard(error: String, onRetry: () -> Unit) {
+private fun DonorMapErrorCard(error: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
     Card(
-        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
+        modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
     ) {
         Row(
@@ -120,37 +223,6 @@ private fun DonorMapErrorCard(error: String, onRetry: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
             )
             Button(onClick = onRetry) { Text("Retry") }
-        }
-    }
-}
-
-/** Explains the approximate-only privacy guarantee at the top of the map. */
-@Composable
-private fun PrivacyBanner() {
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-    ) {
-        Row(
-            Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            Icon(
-                Icons.Default.Shield,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Approximate areas only", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                Text(
-                    "The map shows where donors are available as approximate areas with a freshness timestamp. " +
-                        "Exact donor locations are never shown here \u2014 they are shared only with a matched requester, " +
-                        "and only while the donor allows it.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-            }
         }
     }
 }
@@ -232,40 +304,6 @@ private fun VisibilitySwitchRow(title: String, subtitle: String, checked: Boolea
             enabled = enabled,
             onCheckedChange = null,
         )
-    }
-}
-
-/** Summarizes [area] with its blood type, approximate radius, and location freshness. */
-@Composable
-private fun DonorAreaCard(area: DonorMapArea) {
-    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.small) {
-                    Text(
-                        area.bloodType,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                Text(
-                    if (area.isStale) "Location may be outdated" else "Updated ${area.freshnessAgeMinutes} min ago",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (area.isStale) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Text(
-                area.areaLabel,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.semantics { heading() },
-            )
-            Text(
-                "Approx. radius ${area.radiusMeters} m",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
 }
 

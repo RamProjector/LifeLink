@@ -5,6 +5,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -85,6 +86,13 @@ class LifeLinkWorkflowVisualTest {
         render()
         assertVisible("Your requests")
         capture("workflow-home")
+
+        composeRule.onNodeWithTag("open-fullscreen-donor-map").performClick()
+        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
+        capture("workflow-donor-map")
+        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitForIdle()
 
         tapTab("Requests")
         assertVisible("No active request")

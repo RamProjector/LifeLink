@@ -6,6 +6,7 @@ import android.view.MotionEvent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -240,6 +241,7 @@ fun MapLibrePrivacySafeDonorMap(
     latitude: Double,
     longitude: Double,
     modifier: Modifier = Modifier,
+    fullScreen: Boolean = false,
 ) {
     val context = LocalContext.current
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
@@ -268,9 +270,10 @@ fun MapLibrePrivacySafeDonorMap(
             mapError = true
         }
     }
-    Box(modifier.fillMaxWidth().height(280.dp)) {
+    val mapModifier = if (fullScreen) modifier.fillMaxSize() else modifier.fillMaxWidth().height(280.dp)
+    Box(mapModifier) {
         AndroidView(
-            modifier = Modifier.fillMaxWidth().height(280.dp),
+            modifier = Modifier.fillMaxSize(),
             factory = {
                 mapView.apply {
                     addOnDidFailLoadingMapListener {
