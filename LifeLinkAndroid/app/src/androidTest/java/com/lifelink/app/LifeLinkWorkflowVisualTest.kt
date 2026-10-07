@@ -121,7 +121,7 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Emergency and medical limitation")
         composeRule.onNodeWithText("Close").performClick()
 
-        tap("Appearance")
+        tap("Theme")
         assertVisible("Use device setting")
         capture("workflow-settings-theme")
 
