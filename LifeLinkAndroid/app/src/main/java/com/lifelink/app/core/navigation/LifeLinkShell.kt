@@ -76,6 +76,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -103,6 +104,10 @@ import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.domain.UpdateItem
 import com.lifelink.app.feature.activeRequest.ActiveRequestScreen
+import com.lifelink.app.feature.auth.LegalDocument
+import com.lifelink.app.feature.auth.LegalDocumentDialog
+import com.lifelink.app.feature.auth.PrivacyPolicyPhilippines
+import com.lifelink.app.feature.auth.TermsAndConditionsPhilippines
 import com.lifelink.app.feature.donor.BecomeDonorAction
 import com.lifelink.app.feature.donor.BecomeDonorScreen
 import com.lifelink.app.feature.donor.BecomeDonorUiState
@@ -1126,7 +1131,9 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
 }
 
 /** Displays product limitations, emergency guidance, and legal and safety information. */
-@Composable private fun LegalContent() {
+@Composable
+private fun LegalContent() {
+    var legalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
             "Legal & Safety Center",
@@ -1138,6 +1145,14 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
             "Product guidance for a Philippines-oriented service. This is not legal or medical advice; counsel, clinicians, and licensed blood-service partners must review the final release.",
             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = { legalDocument = PrivacyPolicyPhilippines }, modifier = Modifier.weight(1f)) {
+                Text("Privacy Policy")
+            }
+            OutlinedButton(onClick = { legalDocument = TermsAndConditionsPhilippines }, modifier = Modifier.weight(1f)) {
+                Text("Terms")
+            }
+        }
         EmergencyHelpCard()
         LegalSection(
             "How matching works",
@@ -1173,6 +1188,9 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
             style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+    legalDocument?.let { document ->
+        LegalDocumentDialog(document = document, onDismiss = { legalDocument = null })
     }
 }
 

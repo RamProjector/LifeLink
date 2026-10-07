@@ -33,11 +33,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 
-internal typealias LegalSection = Pair<String, String>
+typealias LegalSection = Pair<String, String>
 
-internal data class LegalDocument(val title: String, val effectiveDate: String, val sections: List<LegalSection>)
+data class LegalDocument(val title: String, val effectiveDate: String, val sections: List<LegalSection>)
 
-internal val PrivacyPolicyPhilippines =
+val PrivacyPolicyPhilippines =
     LegalDocument(
         title = "Privacy Policy",
         effectiveDate = "October 3, 2026",
@@ -87,7 +87,7 @@ internal val PrivacyPolicyPhilippines =
         ),
     )
 
-internal val TermsAndConditionsPhilippines =
+val TermsAndConditionsPhilippines =
     LegalDocument(
         title = "Terms and Conditions",
         effectiveDate = "October 3, 2026",
@@ -140,7 +140,7 @@ internal val TermsAndConditionsPhilippines =
  * padding keeps the sheet clear of screen edges on small devices.
  */
 @Composable
-internal fun LegalDocumentDialog(document: LegalDocument, onDismiss: () -> Unit) {
+fun LegalDocumentDialog(document: LegalDocument, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),

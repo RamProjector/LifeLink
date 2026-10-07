@@ -112,6 +112,15 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Account, privacy, and LifeLink information.")
         capture("workflow-settings-profile")
 
+        tap("Legal")
+        assertVisible("Legal & Safety Center")
+        composeRule.onNodeWithText("Privacy Policy").performClick()
+        assertVisible("What this app does")
+        composeRule.onNodeWithText("Close").performClick()
+        composeRule.onNodeWithText("Terms").performClick()
+        assertVisible("Emergency and medical limitation")
+        composeRule.onNodeWithText("Close").performClick()
+
         tap("Appearance")
         assertVisible("Use device setting")
         capture("workflow-settings-theme")
