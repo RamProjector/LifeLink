@@ -121,13 +121,19 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Emergency and medical limitation")
         composeRule.onNodeWithText("Close").performClick()
 
-        tap("Theme")
+        tap("Appearance")
         assertVisible("Use device setting")
         capture("workflow-settings-theme")
 
         tap("Security")
         assertVisible("Reset password")
         capture("workflow-settings-security")
+
+        tap("Profile")
+        composeRule.onNodeWithText("Become a donor").performScrollTo().performClick()
+        assertVisible("Offer to donate")
+        assertVisible("Donor details")
+        capture("workflow-donor")
     }
 
     @Test
