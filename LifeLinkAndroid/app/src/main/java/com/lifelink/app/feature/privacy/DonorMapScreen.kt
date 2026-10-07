@@ -59,6 +59,7 @@ import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
  * individual donor pins or exact coordinates. Donors control their own
  * visibility from the same screen.
  */
+@Suppress("LongMethod")
 @Composable
 fun DonorMapScreen(state: PrivacyUiState, onAction: (PrivacyAction) -> Unit, onBack: () -> Unit) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
