@@ -1145,14 +1145,7 @@ private fun LegalContent() {
             "Product guidance for a Philippines-oriented service. This is not legal or medical advice; counsel, clinicians, and licensed blood-service partners must review the final release.",
             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(onClick = { legalDocument = PrivacyPolicyPhilippines }, modifier = Modifier.weight(1f)) {
-                Text("Privacy Policy")
-            }
-            OutlinedButton(onClick = { legalDocument = TermsAndConditionsPhilippines }, modifier = Modifier.weight(1f)) {
-                Text("Terms")
-            }
-        }
+        LegalDocumentPicker(onSelect = { legalDocument = it })
         EmergencyHelpCard()
         LegalSection(
             "How matching works",
@@ -1191,6 +1184,19 @@ private fun LegalContent() {
     }
     legalDocument?.let { document ->
         LegalDocumentDialog(document = document, onDismiss = { legalDocument = null })
+    }
+}
+
+/** Buttons that open the full privacy policy and terms documents. */
+@Composable
+private fun LegalDocumentPicker(onSelect: (LegalDocument) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = { onSelect(PrivacyPolicyPhilippines) }, modifier = Modifier.weight(1f)) {
+            Text("Privacy Policy")
+        }
+        OutlinedButton(onClick = { onSelect(TermsAndConditionsPhilippines) }, modifier = Modifier.weight(1f)) {
+            Text("Terms")
+        }
     }
 }
 
