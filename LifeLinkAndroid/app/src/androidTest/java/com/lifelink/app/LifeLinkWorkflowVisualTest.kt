@@ -113,11 +113,11 @@ class LifeLinkWorkflowVisualTest {
         capture("workflow-settings-profile")
 
         tap("Legal")
-        assertVisible("Legal & Safety Center")
+        assertVisible("Legal Documents")
         composeRule.onNodeWithText("Privacy Policy").performClick()
         assertVisible("What this app does")
         composeRule.onNodeWithText("Close").performClick()
-        composeRule.onNodeWithText("Terms").performClick()
+        composeRule.onNodeWithText("Terms and Conditions").performClick()
         assertVisible("Emergency and medical limitation")
         composeRule.onNodeWithText("Close").performClick()
 

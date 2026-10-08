@@ -385,7 +385,7 @@ fun AuthScreen(
                                         androidx.compose.foundation.layout
                                             .PaddingValues(0.dp),
                                     ) {
-                                        Text("Terms")
+                                        Text("Terms and Conditions")
                                     }
                                 }
                             }

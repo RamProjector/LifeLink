@@ -50,7 +50,7 @@ class AuthScreenVisualTest {
         composeRule.onNodeWithText("Privacy Policy").performClick()
         composeRule.onNodeWithText("What this app does").assertIsDisplayed()
         composeRule.onNodeWithText("Close").performClick()
-        composeRule.onNodeWithText("Terms").performClick()
+        composeRule.onNodeWithText("Terms and Conditions").performClick()
         composeRule.onNodeWithText("Emergency and medical limitation").assertIsDisplayed()
         composeRule.onNodeWithText("Close").performClick()
         composeRule.onNodeWithText("Already have an account? Sign in").performScrollTo().performClick()
