@@ -1132,6 +1132,7 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
 
 /** Displays product limitations, emergency guidance, and legal and safety information. */
 @Composable
+@Suppress("LongMethod")
 private fun LegalContent() {
     var legalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
