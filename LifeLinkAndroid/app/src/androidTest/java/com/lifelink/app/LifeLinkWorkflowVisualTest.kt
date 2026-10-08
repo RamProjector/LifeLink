@@ -130,7 +130,7 @@ class LifeLinkWorkflowVisualTest {
         capture("workflow-settings-security")
 
         tap("Profile")
-        composeRule.onNodeWithText("Become a donor").performScrollTo().performClick()
+        composeRule.onNodeWithTag("open-become-donor").performScrollTo().performClick()
         assertVisible("Donor details")
         capture("workflow-donor")
     }
