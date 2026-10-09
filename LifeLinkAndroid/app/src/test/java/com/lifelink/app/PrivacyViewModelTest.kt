@@ -128,7 +128,7 @@ class PrivacyViewModelTest {
         viewModel.openConversation("request-old", "donor-old")
         repository.open = { _, _ -> Result.failure(IllegalStateException("Try again")) }
         viewModel.openConversation("request-new", "donor-new")
-        assertEquals("Try again", viewModel.state.value.message)
+        assertEquals("The conversation could not be opened.", viewModel.state.value.message)
         repository.open = { requestId, donorId -> Result.success(conversation("chat-new", requestId, donorId)) }
         repository.loadedMessages = listOf(chatMessage("chat-new"))
         repository.loadedShares = listOf(contactShare("chat-new"))
