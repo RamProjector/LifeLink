@@ -108,6 +108,10 @@ class LifeLinkWorkflowVisualTest {
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
 
+        composeRule.onNodeWithTag("open-profile").performClick()
+        composeRule.waitForIdle()
+        assertVisible("Account, privacy, and LifeLink information.")
+
         tapTab("Profile")
         assertVisible("Account, privacy, and LifeLink information.")
         capture("workflow-settings-profile")

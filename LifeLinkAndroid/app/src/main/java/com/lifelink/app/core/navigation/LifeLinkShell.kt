@@ -123,7 +123,7 @@ import com.lifelink.app.feature.updates.UpdatesScreen
 private enum class ShellTab(val label: String) {
     HOME("Home"),
     REQUESTS("Requests"),
-    MESSAGING("Messaging"),
+    MESSAGING("Chat"),
     PROFILE("Profile"),
 }
 
@@ -339,6 +339,12 @@ fun LifeLinkShell(
                                 contentDescription = if (unreadUpdates > 0) "$unreadUpdates unread notifications" else "Notifications",
                             )
                         }
+                    }
+                    IconButton(
+                        onClick = { tab = ShellTab.PROFILE },
+                        modifier = Modifier.testTag("open-profile"),
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = "Profile")
                     }
                 }
             },
