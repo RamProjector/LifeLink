@@ -101,7 +101,7 @@ class PrivacyViewModelTest {
 
         assertNoConversationContent()
         assertFalse(viewModel.state.value.chatLoading)
-        assertEquals("Access denied", viewModel.state.value.message)
+        assertEquals("The conversation could not be opened.", viewModel.state.value.message)
         assertTrue(repository.sends.isEmpty())
         assertTrue(repository.shares.isEmpty())
         assertEquals(listOf("chat-old"), repository.messageReads)
@@ -163,6 +163,19 @@ class PrivacyViewModelTest {
         assertEquals(listOf("chat-old", "chat-new"), repository.shareReads)
     }
 
+    /** Ensures a failed send stops the progress state and exposes a retry-safe error. */
+    @Test
+    fun failed_send_stops_progress_and_reports_the_failure() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+        repository.sendFailure = IllegalStateException("server rejected message")
+
+        viewModel.onAction(PrivacyAction.SendMessage("Hello"))
+
+        assertFalse(viewModel.state.value.sending)
+        assertEquals("Message could not be sent.", viewModel.state.value.message)
+        assertEquals(listOf("chat-old" to "Hello"), repository.sends)
+    }
+
     /** Asserts that the conversation ID, messages, and contact shares have all been cleared. */
     private fun assertNoConversationContent() {
         assertNull(viewModel.state.value.conversationId)
@@ -180,6 +193,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
     var loadedMessages = listOf(chatMessage("chat-old"))
     var loadedShares = listOf(contactShare("chat-old"))
     var failHistory = false
+    var sendFailure: Throwable? = null
     var open: suspend (String, String) -> Result<Conversation> = { requestId, donorId ->
         Result.success(conversation("chat-old", requestId, donorId))
     }
@@ -207,6 +221,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
     /** Records the destination and body, then returns a synthetic message for that conversation. */
     override suspend fun sendMessage(conversationId: String, body: String): Result<ChatMessage> {
         sends += conversationId to body
+        sendFailure?.let { return Result.failure(it) }
         return Result.success(chatMessage(conversationId).copy(body = body))
     }
 

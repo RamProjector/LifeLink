@@ -3,6 +3,7 @@ package com.lifelink.app.feature.privacy
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.lifelink.app.core.errors.userFacingError
 import com.lifelink.app.domain.ChatMessage
 import com.lifelink.app.domain.ContactShare
 import com.lifelink.app.domain.Conversation
@@ -104,7 +105,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     _state.value =
                         _state.value.copy(
                             mapLoading = false,
-                            mapError = error.message ?: "The donor map could not be loaded.",
+                            mapError = userFacingError(error, "The donor map could not be loaded."),
                         )
                 }
         }
@@ -120,7 +121,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     _state.value =
                         _state.value.copy(
                             conversationsLoading = false,
-                            conversationsError = error.message ?: "Messages could not be loaded.",
+                            conversationsError = userFacingError(error, "Messages could not be loaded."),
                         )
                 }
         }
@@ -143,7 +144,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     _state.value =
                         _state.value.copy(
                             visibilitySaving = false,
-                            message = error.message ?: "Map visibility could not be updated.",
+                            message = userFacingError(error, "Map visibility could not be updated."),
                         )
                 }
         }
@@ -162,7 +163,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                         _state.value.copy(
                             matchedLocation = null,
                             locationLoading = false,
-                            message = error.message ?: "Donor location could not be loaded.",
+                            message = userFacingError(error, "Donor location could not be loaded."),
                         )
                 }
         }
@@ -176,7 +177,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     _state.value = _state.value.copy(message = "Exact location sharing is active for this request.")
                     loadMatchedLocation(requestId, donorId)
                 }.onFailure { error ->
-                    _state.value = _state.value.copy(message = error.message ?: "Exact location sharing could not be activated.")
+                    _state.value = _state.value.copy(message = userFacingError(error, "Exact location sharing could not be activated."))
                 }
         }
     }
@@ -193,7 +194,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                             message = "Exact location sharing was revoked.",
                         )
                 }.onFailure { error ->
-                    _state.value = _state.value.copy(message = error.message ?: "Exact location sharing could not be revoked.")
+                    _state.value = _state.value.copy(message = userFacingError(error, "Exact location sharing could not be revoked."))
                 }
         }
     }
@@ -232,7 +233,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     _state.value =
                         _state.value.copy(
                             chatLoading = false,
-                            message = error.message ?: "The conversation could not be opened.",
+                            message = userFacingError(error, "The conversation could not be opened."),
                         )
                 }
         }
@@ -261,7 +262,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     refreshConversation(conversationId, generation)
                 }.onFailure { error ->
                     if (generation != conversationGeneration) return@onFailure
-                    _state.value = _state.value.copy(sending = false, message = error.message ?: "Message could not be sent.")
+                    _state.value = _state.value.copy(sending = false, message = userFacingError(error, "Message could not be sent."))
                 }
         }
     }
@@ -279,7 +280,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     refreshConversation(conversationId, generation)
                 }.onFailure { error ->
                     if (generation != conversationGeneration) return@onFailure
-                    _state.value = _state.value.copy(message = error.message ?: "Contact details could not be shared.")
+                    _state.value = _state.value.copy(message = userFacingError(error, "Contact details could not be shared."))
                 }
         }
     }
@@ -290,7 +291,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
             repository
                 .reportParticipant(conversationId, reason)
                 .onSuccess { _state.value = _state.value.copy(message = "Report submitted. Our team will review it.") }
-                .onFailure { error -> _state.value = _state.value.copy(message = error.message ?: "Report could not be submitted.") }
+                .onFailure { error -> _state.value = _state.value.copy(message = userFacingError(error, "Report could not be submitted.")) }
         }
     }
 
@@ -300,7 +301,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
             repository
                 .blockParticipant(conversationId)
                 .onSuccess { _state.value = _state.value.copy(message = "This person is now blocked.") }
-                .onFailure { error -> _state.value = _state.value.copy(message = error.message ?: "Block could not be submitted.") }
+                .onFailure { error -> _state.value = _state.value.copy(message = userFacingError(error, "Block could not be submitted.")) }
         }
     }
 }
