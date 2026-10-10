@@ -766,7 +766,7 @@ async def upsert_donor_profile(
     except SQLAlchemyError as exc:
         await session.rollback()
         logger.exception("Donor profile save database failure for operation donor_profile_upsert")
-        raise HTTPException(status_code=503, detail="donor_profile_save_database_failure") from exc
+        raise HTTPException(status_code=503, detail="Donor profile could not be saved right now. Please try again.") from exc
 
 
 @app.get("/v1/donor-profile", response_model=DonorProfileMeOut)
@@ -894,11 +894,11 @@ async def register_donor_postgres(
     except SQLAlchemyError as exc:
         await session.rollback()
         logger.exception("Donor profile save database failure for operation donor_profile_save")
-        raise HTTPException(status_code=503, detail="donor_profile_save_database_failure") from exc
+        raise HTTPException(status_code=503, detail="Donor profile could not be saved right now. Please try again.") from exc
     except Exception as exc:
         await session.rollback()
         logger.exception("Donor profile save application failure for operation donor_profile_save")
-        raise HTTPException(status_code=500, detail=f"donor_profile_save_application_failure:{type(exc).__name__}") from exc
+        raise HTTPException(status_code=500, detail="Donor profile could not be saved because of a temporary server problem.") from exc
 
 
 @app.patch("/v1/donors/{donor_id}/availability", response_model=DonorProfileOut)

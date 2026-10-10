@@ -169,6 +169,18 @@ jobs:
           # keeping a 4 GB Gradle daemon resident next to the 4 GB emulator.
           ./gradlew connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --no-daemon --stacktrace
           test_exit=$?
+          if [[ "$test_exit" != "0" ]]; then
+            echo "::error::Android instrumentation failed with exit code $test_exit. Inspect the uploaded test-results and logcat artifacts."
+            echo "--- Failed instrumentation result files ---"
+            find "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build" -type f \
+              \( -path '*/outputs/androidTest-results/*' -o -path '*/reports/androidTests/connected/*' \) \
+              -print 2>/dev/null | sort || true
+            echo "--- Failure and error excerpts ---"
+            rg -n -i -C 2 'failure|error|exception|assertion|timeout|no tests found' \
+              "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results" \
+              "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/reports/androidTests/connected" \
+              2>/dev/null | head -240 || true
+          fi
           exit "$test_exit"
           EOF
           chmod +x "$RUNNER_TEMP/lifelink-visual-test.sh"
