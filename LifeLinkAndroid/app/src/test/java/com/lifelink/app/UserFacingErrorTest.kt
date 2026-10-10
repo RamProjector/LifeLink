@@ -1,10 +1,10 @@
 package com.lifelink.app
 
 import com.lifelink.app.core.errors.userFacingError
-import java.io.IOException
-import java.net.UnknownHostException
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.io.IOException
+import java.net.UnknownHostException
 
 class UserFacingErrorTest {
     @Test
