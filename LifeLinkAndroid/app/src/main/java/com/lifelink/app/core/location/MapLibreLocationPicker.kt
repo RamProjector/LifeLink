@@ -12,10 +12,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -74,6 +78,8 @@ fun MapLibreLocationPicker(
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf<String?>(null) }
     var retryRequest by remember { mutableStateOf(0) }
+    var recenterBump by remember { mutableStateOf(0) }
+    val effectiveRecenterRequest = recenterRequest + recenterBump
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
         MapView(context).also { it.onCreate(null) }
@@ -137,7 +143,7 @@ fun MapLibreLocationPicker(
                             }
                             appliedLatitude = latestLatitude
                             appliedLongitude = latestLongitude
-                            appliedRecenterRequest = recenterRequest
+                            appliedRecenterRequest = effectiveRecenterRequest
                             marker = currentPosition?.let {
                                 map.addMarker(MarkerOptions().position(it).title("Selected approximate location"))
                             }
@@ -177,20 +183,22 @@ fun MapLibreLocationPicker(
                         map.setStyle(OPEN_FREE_MAP_STYLE) { mapLoading = false }
                         retryRequest = 0
                     }
-                    if (target != null &&
-                        (appliedLatitude != latitude || appliedLongitude != longitude || appliedRecenterRequest != recenterRequest)
-                    ) {
-                        appliedLatitude = latitude
-                        appliedLongitude = longitude
-                        appliedRecenterRequest = recenterRequest
-                        marker?.let {
-                            it.position = target
-                            map.updateMarker(it)
+                    if (target != null) {
+                        val targetChanged = appliedLatitude != latitude || appliedLongitude != longitude
+                        val recenterChanged = appliedRecenterRequest != effectiveRecenterRequest
+                        if (targetChanged || recenterChanged) {
+                            appliedLatitude = latitude
+                            appliedLongitude = longitude
+                            appliedRecenterRequest = effectiveRecenterRequest
+                            marker?.let {
+                                it.position = target
+                                map.updateMarker(it)
+                            }
+                            map.cameraPosition = CameraPosition.Builder()
+                                .target(target)
+                                .zoom(map.cameraPosition.zoom.coerceAtLeast(12.0))
+                                .build()
                         }
-                        map.cameraPosition = CameraPosition.Builder()
-                            .target(target)
-                            .zoom(map.cameraPosition.zoom.coerceAtLeast(12.0))
-                            .build()
                     }
                 }
             },
@@ -217,6 +225,17 @@ fun MapLibreLocationPicker(
                     )
                     Text(mapError.orEmpty(), color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
                     Button(onClick = { retryRequest++ }) { Text("Retry map") }
+                }
+            }
+        }
+
+        if (!mapLoading && mapError == null) {
+            if (latitude != null && longitude != null) {
+                IconButton(
+                    onClick = { recenterBump++ },
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(12.dp),
+                ) {
+                    Icon(Icons.Default.MyLocation, contentDescription = "Recenter map on selected location")
                 }
             }
         }
@@ -248,6 +267,8 @@ fun MapLibrePrivacySafeDonorMap(
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf(false) }
     var retryRequest by remember { mutableStateOf(0) }
+    var recenterRequest by remember { mutableStateOf(0) }
+    var appliedRecenterRequest by remember { mutableStateOf(-1) }
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
         MapView(context).also { it.onCreate(null) }
@@ -286,6 +307,7 @@ fun MapLibrePrivacySafeDonorMap(
                             mapLoading = false
                             mapError = false
                             map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
+                            appliedRecenterRequest = recenterRequest
                             map.addMarker(MarkerOptions().position(center).title("Your request location"))
                         }
                     }
@@ -303,6 +325,13 @@ fun MapLibrePrivacySafeDonorMap(
                         .target(LatLng(latitude, longitude))
                         .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
                         .build()
+                    if (appliedRecenterRequest != recenterRequest) {
+                        map.cameraPosition = CameraPosition.Builder()
+                            .target(center)
+                            .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
+                            .build()
+                        appliedRecenterRequest = recenterRequest
+                    }
                 }
             },
         )
@@ -331,6 +360,14 @@ fun MapLibrePrivacySafeDonorMap(
                     )
                     Button(onClick = { retryRequest++ }) { Text("Retry map") }
                 }
+            }
+        }
+        if (!mapLoading && !mapError) {
+            IconButton(
+                onClick = { recenterRequest++ },
+                modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(12.dp),
+            ) {
+                Icon(Icons.Default.MyLocation, contentDescription = "Recenter map on request location")
             }
         }
     }
