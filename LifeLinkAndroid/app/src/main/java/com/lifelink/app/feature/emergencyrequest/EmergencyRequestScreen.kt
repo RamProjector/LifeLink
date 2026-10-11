@@ -851,6 +851,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
     val scope = rememberCoroutineScope()
     var locationCaptureRequest by remember { mutableStateOf(0) }
     var locationMessage by remember { mutableStateOf<String?>(null) }
+    var locationSource by rememberSaveable { mutableStateOf<String?>(null) }
     var fullMapVisible by remember { mutableStateOf(false) }
     val settingsResolutionLauncher =
         rememberLauncherForActivityResult(
@@ -896,6 +897,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                     locationMessage = "Finding your current location…"
                     provider.currentLocation()?.let { location ->
                         onAction(EmergencyRequestAction.SetGpsLocation(location.latitude, location.longitude, location.precisionMeters))
+                        locationSource = "Current device location"
                         locationMessage = "Map centered on your current location (accuracy ±${location.precisionMeters} m)."
                     } ?: run { locationMessage = "Could not get a current fix. Try again or choose a location manually." }
                 }
@@ -935,10 +937,20 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
         Text("Choose a point", fontWeight = FontWeight.SemiBold)
         LocationMapPicker(
             draft = draft,
-            onLocationSelected = { latitude, longitude -> onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500)) },
+            onLocationSelected = { latitude, longitude ->
+                locationSource = "Pin selected manually"
+                onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+            },
             recenterRequest = locationCaptureRequest,
             modifier = Modifier.height(260.dp),
         )
+        locationSource?.let { source ->
+            Text(
+                "$source · accuracy about ${draft.locationPrecisionMeters} m",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { fullMapVisible = true }) {
             Text("Open full map")
         }
@@ -974,6 +986,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                     latitude !in -90.0..90.0 || longitude !in -180.0..180.0 ->
                         locationMessage = "Latitude must be between -90 and 90, and longitude between -180 and 180."
                     else -> {
+                        locationSource = "Coordinates entered manually"
                         onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
                         locationMessage = "Approximate location set from your coordinates."
                     }
@@ -996,7 +1009,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                     null
                 ) {
                     Text(
-                        "Using a selected pin · accuracy about ${draft.locationPrecisionMeters} m",
+                        "${locationSource ?: "Approximate location"} · accuracy about ${draft.locationPrecisionMeters} m",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1018,9 +1031,10 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                 LocationMapPicker(
                     draft = draft,
                     onLocationSelected = {
-                            latitude,
+                        latitude,
                             longitude,
                         ->
+                        locationSource = "Pin selected manually"
                         onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
                     },
                     modifier = Modifier.height(520.dp),
