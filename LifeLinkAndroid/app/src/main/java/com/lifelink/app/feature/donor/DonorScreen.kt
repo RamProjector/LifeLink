@@ -96,6 +96,7 @@ fun DonorScreen(
     val scope = rememberCoroutineScope()
     var locationCaptureRequest by remember { mutableStateOf(0) }
     var locationMessage by remember { mutableStateOf<String?>(null) }
+    var locationSource by rememberSaveable(state.profile.donorId) { mutableStateOf<String?>(null) }
     val settingsResolutionLauncher =
         rememberLauncherForActivityResult(
             ActivityResultContracts.StartIntentSenderForResult(),
@@ -126,7 +127,8 @@ fun DonorScreen(
                     locationMessage = "Finding your current location\u2026"
                     provider.currentLocation()?.let { location ->
                         onAction(DonorAction.SetLocation(location.latitude, location.longitude, location.precisionMeters))
-                        locationMessage = "Location captured. Save your profile to update matching."
+                        locationSource = "GPS"
+                        locationMessage = "GPS location captured. Save your profile to update matching."
                     } ?: run { locationMessage = "Could not get a current fix. Try again or choose a location manually." }
                 }
             },
@@ -152,7 +154,10 @@ fun DonorScreen(
             locationLauncher.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
         }
     }
-    val selectLocation: (Double, Double) -> Unit = { latitude, longitude -> onAction(DonorAction.SetLocation(latitude, longitude, 500)) }
+    val selectLocation: (Double, Double) -> Unit = { latitude, longitude ->
+        locationSource = "Manual"
+        onAction(DonorAction.SetLocation(latitude, longitude, 500))
+    }
     // Unsaved editor input lives here, not inside ProfileCard, so switching between the
     // tabbed editor and the full-screen editor does not reset what the donor typed.
     var serviceRadius by remember(state.profile.donorId) { mutableStateOf(state.profile.serviceRadiusKm.toString()) }
@@ -221,6 +226,7 @@ fun DonorScreen(
                                 onAction = onAction,
                                 onCaptureLocation = captureLocation,
                                 onLocationSelected = selectLocation,
+                                locationSource = locationSource,
                                 serviceRadius = serviceRadius,
                                 onServiceRadiusChange = { value ->
                                     if (value.length <= 3 &&
@@ -265,6 +271,7 @@ fun DonorScreen(
                         onAction = onAction,
                         onCaptureLocation = captureLocation,
                         onLocationSelected = selectLocation,
+                        locationSource = locationSource,
                         serviceRadius = serviceRadius,
                         onServiceRadiusChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value },
                         manualLatitude = manualLatitude,
@@ -293,6 +300,7 @@ private fun DonorHomeContent(
     onAction: (DonorAction) -> Unit,
     onCaptureLocation: () -> Unit,
     onLocationSelected: (Double, Double) -> Unit,
+    locationSource: String?,
     serviceRadius: String,
     onServiceRadiusChange: (String) -> Unit,
     manualLatitude: String,
@@ -335,6 +343,7 @@ private fun DonorHomeContent(
                     onAction = onAction,
                     onCaptureLocation = onCaptureLocation,
                     onLocationSelected = onLocationSelected,
+                    locationSource = locationSource,
                     serviceRadius = serviceRadius,
                     onServiceRadiusChange = onServiceRadiusChange,
                     manualLatitude = manualLatitude,
@@ -501,6 +510,7 @@ private fun ProfileCard(
     onAction: (DonorAction) -> Unit,
     onCaptureLocation: () -> Unit,
     onLocationSelected: (Double, Double) -> Unit,
+    locationSource: String?,
     serviceRadius: String,
     onServiceRadiusChange: (String) -> Unit,
     manualLatitude: String,
@@ -633,6 +643,20 @@ private fun ProfileCard(
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (profile.latitude != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(
+                        "Source: ${locationSource ?: "Previously saved"}",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
             Button(onClick = onCaptureLocation, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
                 Text(
                     if (profile.latitude ==
