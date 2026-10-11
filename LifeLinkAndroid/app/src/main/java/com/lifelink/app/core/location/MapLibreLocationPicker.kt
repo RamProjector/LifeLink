@@ -183,20 +183,22 @@ fun MapLibreLocationPicker(
                         map.setStyle(OPEN_FREE_MAP_STYLE) { mapLoading = false }
                         retryRequest = 0
                     }
-                    if (target != null &&
-                        (appliedLatitude != latitude || appliedLongitude != longitude || appliedRecenterRequest != effectiveRecenterRequest)
-                    ) {
-                        appliedLatitude = latitude
-                        appliedLongitude = longitude
-                        appliedRecenterRequest = effectiveRecenterRequest
-                        marker?.let {
-                            it.position = target
-                            map.updateMarker(it)
+                    if (target != null) {
+                        val targetChanged = appliedLatitude != latitude || appliedLongitude != longitude
+                        val recenterChanged = appliedRecenterRequest != effectiveRecenterRequest
+                        if (targetChanged || recenterChanged) {
+                            appliedLatitude = latitude
+                            appliedLongitude = longitude
+                            appliedRecenterRequest = effectiveRecenterRequest
+                            marker?.let {
+                                it.position = target
+                                map.updateMarker(it)
+                            }
+                            map.cameraPosition = CameraPosition.Builder()
+                                .target(target)
+                                .zoom(map.cameraPosition.zoom.coerceAtLeast(12.0))
+                                .build()
                         }
-                        map.cameraPosition = CameraPosition.Builder()
-                            .target(target)
-                            .zoom(map.cameraPosition.zoom.coerceAtLeast(12.0))
-                            .build()
                     }
                 }
             },
@@ -227,12 +229,14 @@ fun MapLibreLocationPicker(
             }
         }
 
-        if (!mapLoading && mapError == null && latitude != null && longitude != null) {
-            IconButton(
-                onClick = { recenterBump++ },
-                modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(12.dp),
-            ) {
-                Icon(Icons.Default.MyLocation, contentDescription = "Recenter map on selected location")
+        if (!mapLoading && mapError == null) {
+            if (latitude != null && longitude != null) {
+                IconButton(
+                    onClick = { recenterBump++ },
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(12.dp),
+                ) {
+                    Icon(Icons.Default.MyLocation, contentDescription = "Recenter map on selected location")
+                }
             }
         }
     }
