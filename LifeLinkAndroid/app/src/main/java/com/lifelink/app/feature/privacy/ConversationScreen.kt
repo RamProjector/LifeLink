@@ -74,6 +74,7 @@ fun ConversationScreen(
     var reportReason by remember { mutableStateOf("") }
     var showBlockConfirm by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val chatReady = !state.chatLoading && state.conversationId != null
     // Chat convention: keep the newest message in view as the thread grows.
     LaunchedEffect(state.messages.size) {
         if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
@@ -114,7 +115,26 @@ fun ConversationScreen(
             state = listState,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (state.messages.isEmpty()) {
+            if (state.chatLoading) {
+                item {
+                    Column(
+                        Modifier.fillMaxWidth().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        CircularProgressIndicator(Modifier.size(28.dp))
+                        Text("Loading conversation…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            } else if (state.conversationId == null) {
+                item {
+                    LifeLinkEmptyState(
+                        icon = Icons.AutoMirrored.Filled.Chat,
+                        title = "Conversation unavailable",
+                        body = "This conversation could not be opened. Go back and try again.",
+                    )
+                }
+            } else if (state.messages.isEmpty()) {
                 item {
                     LifeLinkEmptyState(
                         icon = Icons.AutoMirrored.Filled.Chat,
@@ -133,16 +153,20 @@ fun ConversationScreen(
         MessageComposer(
             draft = draft,
             sending = state.sending,
+            enabled = chatReady,
             onDraftChange = { if (it.length <= MAX_MESSAGE_LENGTH) draft = it },
             onSend = {
-                onAction(PrivacyAction.SendMessage(draft))
-                draft = ""
+                if (chatReady) {
+                    onAction(PrivacyAction.SendMessage(draft))
+                    draft = ""
+                }
             },
         )
 
         ShareContactCard(
             contactField = contactField,
             contactValue = contactValue,
+            enabled = chatReady,
             onFieldChange = { contactField = it },
             onValueChange = { if (it.length <= MAX_CONTACT_VALUE_LENGTH) contactValue = it },
             onShare = {
@@ -234,12 +258,19 @@ private fun SharedContactsCard(shares: List<ContactShare>) {
 
 /** Message input row with an IME send action and a send button that shows progress while sending. */
 @Composable
-private fun MessageComposer(draft: String, sending: Boolean, onDraftChange: (String) -> Unit, onSend: () -> Unit) {
-    val canSend = draft.isNotBlank() && !sending
+private fun MessageComposer(
+    draft: String,
+    sending: Boolean,
+    enabled: Boolean,
+    onDraftChange: (String) -> Unit,
+    onSend: () -> Unit,
+) {
+    val canSend = draft.isNotBlank() && !sending && enabled
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = draft,
             onValueChange = onDraftChange,
+            enabled = enabled,
             modifier = Modifier.weight(1f),
             label = { Text("Message") },
             maxLines = 4,
@@ -271,6 +302,7 @@ private fun MessageComposer(draft: String, sending: Boolean, onDraftChange: (Str
 private fun ShareContactCard(
     contactField: String,
     contactValue: String,
+    enabled: Boolean,
     onFieldChange: (String) -> Unit,
     onValueChange: (String) -> Unit,
     onShare: () -> Unit,
@@ -280,18 +312,19 @@ private fun ShareContactCard(
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Share contact details", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { onFieldChange("phone") }, enabled = !isPhone) { Text("Phone") }
-                OutlinedButton(onClick = { onFieldChange("email") }, enabled = isPhone) { Text("Email") }
+                OutlinedButton(onClick = { onFieldChange("phone") }, enabled = enabled && !isPhone) { Text("Phone") }
+                OutlinedButton(onClick = { onFieldChange("email") }, enabled = enabled && isPhone) { Text("Email") }
             }
             OutlinedTextField(
                 value = contactValue,
                 onValueChange = onValueChange,
+                enabled = enabled,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(if (isPhone) "Phone number" else "Email address") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = if (isPhone) KeyboardType.Phone else KeyboardType.Email),
             )
-            Button(onClick = onShare, enabled = contactValue.isNotBlank()) { Text("Share $contactField") }
+            Button(onClick = onShare, enabled = enabled && contactValue.isNotBlank()) { Text("Share $contactField") }
             Text(
                 "Sharing is recorded in an audit log. You can share each field separately.",
                 style = MaterialTheme.typography.bodySmall,
