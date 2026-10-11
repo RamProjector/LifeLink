@@ -291,6 +291,7 @@ private enum class DonorTab(val label: String) {
 }
 
 /** Shows donor availability or setup guidance, status messages, and the expandable profile editor. */
+@Suppress("LongParameterList") // The editor keeps each field callback explicit for Compose state ownership.
 @Composable
 private fun DonorHomeContent(
     state: DonorUiState,
@@ -503,6 +504,7 @@ private fun SetupRequiredCard(profile: DonorProfile) {
  * The caller owns unsaved radius and manual coordinate text so it survives switching
  * between the tabbed and full-screen profile editors.
  */
+@Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod")
 @Composable
 private fun ProfileCard(
     profile: DonorProfile,
