@@ -1031,7 +1031,7 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                 LocationMapPicker(
                     draft = draft,
                     onLocationSelected = {
-                        latitude,
+                            latitude,
                             longitude,
                         ->
                         locationSource = "Pin selected manually"
