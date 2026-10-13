@@ -85,6 +85,8 @@ class ConversationNavigationTest {
     @Test
     fun donor_can_open_chat_and_system_back_returns_to_the_donor_workspace() {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
+        composeRule.onNodeWithContentDescription("Profile").performClick()
+        composeRule.onNodeWithText("Open donor workspace", substring = false).performClick()
         composeRule.onNodeWithText("Requests", substring = false).performClick()
         composeRule.onNodeWithText("Message requester").performScrollTo().performClick()
 

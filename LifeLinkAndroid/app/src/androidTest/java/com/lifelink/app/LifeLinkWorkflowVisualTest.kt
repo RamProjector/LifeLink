@@ -157,10 +157,9 @@ class LifeLinkWorkflowVisualTest {
     }
 
     @Test
-    fun returningDonorOpensDonorWorkspace() {
+    fun returningDonorLandsOnHome() {
         render(role = UserRole.DONOR)
-        assertVisible("Donor workspace")
-        assertVisible("Finish donor setup")
+        assertVisible("Your requests")
     }
 
     @Test

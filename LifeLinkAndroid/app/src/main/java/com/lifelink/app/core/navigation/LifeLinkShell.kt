@@ -196,12 +196,6 @@ fun LifeLinkShell(
         if (accountUserId.isNotBlank()) welcomePrefs.edit().putBoolean("seen_$accountUserId", true).apply()
         showStart = false
     }
-    LaunchedEffect(accountUserId, role) {
-        if (accountUserId.isNotBlank() && role == UserRole.DONOR) {
-            showStart = false
-            showDonor = true
-        }
-    }
     LaunchedEffect(notificationRequestId) {
         notificationRequestId?.takeIf { it.isNotBlank() }?.let {
             showStart = false
