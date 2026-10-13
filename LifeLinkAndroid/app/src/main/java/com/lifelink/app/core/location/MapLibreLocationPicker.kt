@@ -255,7 +255,7 @@ private fun RowLoading() {
     }
 }
 
-@Suppress("LongMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun MapLibrePrivacySafeDonorMap(
     latitude: Double,
