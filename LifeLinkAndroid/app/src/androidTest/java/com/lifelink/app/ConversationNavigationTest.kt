@@ -81,7 +81,7 @@ class ConversationNavigationTest {
         assertOpenedTimes(2)
     }
 
-    /** Checks that a donor opens chat once and system Back returns to the donor workspace. */
+    /** Checks that a donor opens chat once and system Back returns to the Requests tab. */
     @Test
     fun donor_can_open_chat_and_system_back_returns_to_the_donor_workspace() {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
@@ -93,7 +93,7 @@ class ConversationNavigationTest {
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
 
         composeRule.onNodeWithText("Conversation").assertDoesNotExist()
-        composeRule.onNodeWithText("Donor workspace").assertIsDisplayed()
+        composeRule.onNodeWithText("Requests", substring = false).assertIsDisplayed()
         assertOpenedTimes(1)
     }
 
