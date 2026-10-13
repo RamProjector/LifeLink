@@ -307,7 +307,13 @@ fun LifeLinkShell(
     }
     if (showDonorMap) {
         BackHandler { showDonorMap = false }
-        DonorMapScreen(state = privacyState, onAction = onPrivacyAction, onBack = { showDonorMap = false })
+        DonorMapScreen(
+            state = privacyState,
+            onAction = onPrivacyAction,
+            onBack = { showDonorMap = false },
+            centerLatitude = state.draft.requesterLatitude,
+            centerLongitude = state.draft.requesterLongitude,
+        )
         return
     }
     BackHandler(enabled = tab != ShellTab.HOME) { tab = ShellTab.HOME }
