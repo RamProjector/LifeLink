@@ -38,6 +38,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.lifelink.app.domain.DonorMapArea
 import kotlinx.coroutines.delay
 import org.maplibre.android.MapLibre
 import org.maplibre.android.annotations.Marker
@@ -259,6 +260,7 @@ private fun RowLoading() {
 fun MapLibrePrivacySafeDonorMap(
     latitude: Double,
     longitude: Double,
+    areas: List<DonorMapArea> = emptyList(),
     modifier: Modifier = Modifier,
     fullScreen: Boolean = false,
 ) {
@@ -269,6 +271,12 @@ fun MapLibrePrivacySafeDonorMap(
     var retryRequest by remember { mutableStateOf(0) }
     var recenterRequest by remember { mutableStateOf(0) }
     var appliedRecenterRequest by remember { mutableStateOf(-1) }
+    var appliedAreasSignature by remember { mutableStateOf("") }
+    val areasSignature = remember(areas) {
+        areas.joinToString(separator = "|") { area ->
+            "${area.latitude},${area.longitude},${area.bloodType},${area.availability},${area.freshnessAt}"
+        }
+    }
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
         MapView(context).also { it.onCreate(null) }
@@ -308,7 +316,15 @@ fun MapLibrePrivacySafeDonorMap(
                             mapError = false
                             map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
                             appliedRecenterRequest = recenterRequest
-                            map.addMarker(MarkerOptions().position(center).title("Your request location"))
+                            areas.forEach { area ->
+                                map.addMarker(
+                                    MarkerOptions()
+                                        .position(LatLng(area.latitude, area.longitude))
+                                        .title("Donor pin · ${area.bloodType}")
+                                        .snippet("${area.availability} · Approximate location only"),
+                                )
+                            }
+                            appliedAreasSignature = areasSignature
                         }
                     }
                 }
@@ -318,8 +334,32 @@ fun MapLibrePrivacySafeDonorMap(
                     if (retryRequest > 0) {
                         mapLoading = true
                         mapError = false
-                        map.setStyle(OPEN_FREE_MAP_STYLE) { mapLoading = false }
+                        map.setStyle(OPEN_FREE_MAP_STYLE) {
+                            mapLoading = false
+                            areas.forEach { area ->
+                                map.addMarker(
+                                    MarkerOptions()
+                                        .position(LatLng(area.latitude, area.longitude))
+                                        .title("Donor pin · ${area.bloodType}")
+                                        .snippet("${area.availability} · Approximate location only"),
+                                )
+                            }
+                            appliedAreasSignature = areasSignature
+                        }
                         retryRequest = 0
+                    }
+                    if (appliedAreasSignature != areasSignature) {
+                        map.setStyle(OPEN_FREE_MAP_STYLE) {
+                            areas.forEach { area ->
+                                map.addMarker(
+                                    MarkerOptions()
+                                        .position(LatLng(area.latitude, area.longitude))
+                                        .title("Donor pin · ${area.bloodType}")
+                                        .snippet("${area.availability} · Approximate location only"),
+                                )
+                            }
+                            appliedAreasSignature = areasSignature
+                        }
                     }
                     map.cameraPosition = CameraPosition.Builder()
                         .target(LatLng(latitude, longitude))

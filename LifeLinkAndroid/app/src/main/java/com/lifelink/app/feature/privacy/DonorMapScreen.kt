@@ -55,8 +55,8 @@ import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 
 /**
- * Donor map. Shows approximate areas and a freshness timestamp only \u2014 never
- * individual donor pins or exact coordinates. Donors control their own
+ * Donor map. Shows opt-in, coarsened donor pins and a freshness timestamp only \u2014 never
+ * exact coordinates or donor identities. Donors control their own
  * visibility from the same screen.
  */
 @Suppress("LongMethod")
@@ -80,6 +80,7 @@ fun DonorMapScreen(state: PrivacyUiState, onAction: (PrivacyAction) -> Unit, onB
             MapLibrePrivacySafeDonorMap(
                 latitude = mapArea.latitude,
                 longitude = mapArea.longitude,
+                areas = filteredAreas,
                 modifier = Modifier.fillMaxSize(),
                 fullScreen = true,
             )
@@ -88,7 +89,7 @@ fun DonorMapScreen(state: PrivacyUiState, onAction: (PrivacyAction) -> Unit, onB
                 LifeLinkEmptyState(
                     icon = Icons.Default.LocationOn,
                     title = if (areas.isEmpty()) "No donors on the map yet" else "No donors match these filters",
-                    body = "Donor areas appear here only after donors opt in. Exact donor locations are never shown.",
+                    body = "Donor pins appear here only after donors opt in. Exact donor locations are never shown.",
                 )
             }
         }
@@ -176,7 +177,7 @@ fun DonorMapScreen(state: PrivacyUiState, onAction: (PrivacyAction) -> Unit, onB
                 ) {
                     Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text(
-                        "Approximate areas only",
+                        "Approximate donor pins only",
                         Modifier.padding(start = 8.dp).weight(1f),
                         style = MaterialTheme.typography.bodySmall,
                     )
