@@ -62,7 +62,7 @@ private const val DEFAULT_MAP_LONGITUDE = 120.9842
  * exact coordinates or donor identities. Donors control their own
  * visibility from the same screen.
  */
-@Suppress("LongMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun DonorMapScreen(
     state: PrivacyUiState,
