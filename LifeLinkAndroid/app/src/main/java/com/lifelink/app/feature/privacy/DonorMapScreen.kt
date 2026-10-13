@@ -54,6 +54,9 @@ import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 
+private const val DEFAULT_MAP_LATITUDE = 14.5995
+private const val DEFAULT_MAP_LONGITUDE = 120.9842
+
 /**
  * Donor map. Shows opt-in, coarsened donor pins and a freshness timestamp only \u2014 never
  * exact coordinates or donor identities. Donors control their own
@@ -61,7 +64,13 @@ import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
  */
 @Suppress("LongMethod")
 @Composable
-fun DonorMapScreen(state: PrivacyUiState, onAction: (PrivacyAction) -> Unit, onBack: () -> Unit) {
+fun DonorMapScreen(
+    state: PrivacyUiState,
+    onAction: (PrivacyAction) -> Unit,
+    onBack: () -> Unit,
+    centerLatitude: Double? = null,
+    centerLongitude: Double? = null,
+) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
     var privacyOpen by rememberSaveable { mutableStateOf(false) }
@@ -73,23 +82,31 @@ fun DonorMapScreen(state: PrivacyUiState, onAction: (PrivacyAction) -> Unit, onB
         (selectedBloodType == "All" || area.bloodType == selectedBloodType) &&
             (!availableOnly || area.availability.equals("Available", ignoreCase = true))
     }
-    val mapArea = filteredAreas.firstOrNull()
+    val mapArea = filteredAreas.firstOrNull() ?: areas.firstOrNull()
+    val mapLatitude = mapArea?.latitude ?: centerLatitude ?: DEFAULT_MAP_LATITUDE
+    val mapLongitude = mapArea?.longitude ?: centerLongitude ?: DEFAULT_MAP_LONGITUDE
 
     Box(Modifier.fillMaxSize().testTag("donor-map-fullscreen")) {
-        if (mapArea != null) {
-            MapLibrePrivacySafeDonorMap(
-                latitude = mapArea.latitude,
-                longitude = mapArea.longitude,
-                areas = filteredAreas,
-                modifier = Modifier.fillMaxSize(),
-                fullScreen = true,
-            )
-        } else {
-            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        MapLibrePrivacySafeDonorMap(
+            latitude = mapLatitude,
+            longitude = mapLongitude,
+            areas = filteredAreas,
+            modifier = Modifier.fillMaxSize(),
+            fullScreen = true,
+        )
+
+        if (filteredAreas.isEmpty()) {
+            Surface(
+                Modifier.align(Alignment.Center).padding(24.dp),
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                shadowElevation = 4.dp,
+            ) {
                 LifeLinkEmptyState(
                     icon = Icons.Default.LocationOn,
-                    title = if (areas.isEmpty()) "No donors on the map yet" else "No donors match these filters",
-                    body = "Donor pins appear here only after donors opt in. Exact donor locations are never shown.",
+                    title = if (areas.isEmpty()) "No donors visible yet" else "No donors match these filters",
+                    body =
+                    "The map stays active while we search. Donor pins appear when available donors opt in and share a fresh location.",
                 )
             }
         }
