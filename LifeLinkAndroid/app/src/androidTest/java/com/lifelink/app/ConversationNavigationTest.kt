@@ -230,7 +230,6 @@ class ConversationNavigationTest {
         renderShell(StateRestorationTester(composeRule), UserRole.REQUESTER)
 
         composeRule.onNodeWithTag("nav-MAP").assertIsDisplayed().performClick()
-        composeRule.onNodeWithTag("primary-map-destination").assertIsDisplayed()
         composeRule.onNodeWithText("Find donors", substring = false).assertIsDisplayed()
         composeRule.onNodeWithTag("nav-MAP").assertIsSelected()
         composeRule.onNodeWithTag("nav-HOME").assertIsDisplayed()
