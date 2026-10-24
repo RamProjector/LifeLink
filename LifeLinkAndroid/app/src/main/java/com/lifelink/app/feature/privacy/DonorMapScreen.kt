@@ -83,9 +83,11 @@ fun DonorMapScreen(
         (selectedBloodType == "All" || area.bloodType == selectedBloodType) &&
             (!availableOnly || area.availability.equals("Available", ignoreCase = true))
     }
-    val mapArea = filteredAreas.firstOrNull() ?: areas.firstOrNull()
-    val mapLatitude = mapArea?.latitude ?: centerLatitude ?: DEFAULT_MAP_LATITUDE
-    val mapLongitude = mapArea?.longitude ?: centerLongitude ?: DEFAULT_MAP_LONGITUDE
+    // Keep the viewport anchored to the overall result set. Filtering should change pins,
+    // not unexpectedly jump the user's map to whichever blood type happens to sort first.
+    val mapArea = areas.firstOrNull()
+    val mapLatitude = centerLatitude ?: mapArea?.latitude ?: DEFAULT_MAP_LATITUDE
+    val mapLongitude = centerLongitude ?: mapArea?.longitude ?: DEFAULT_MAP_LONGITUDE
 
     Box(Modifier.fillMaxSize().testTag("donor-map-fullscreen")) {
         MapLibrePrivacySafeDonorMap(
