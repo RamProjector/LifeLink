@@ -100,3 +100,9 @@ These are implementation or operational follow-ups. They do not imply that the c
 ## Security note
 
 This document intentionally contains no Supabase URLs beyond the public API endpoint, no publishable or service-role keys, no database connection strings, no JWT secrets, and no personal or medical information. It is a project-state record for continuity across future maintenance chats.
+
+## Security scan triage — 2026-10-24
+
+The scheduled full-history Gitleaks run on `main` (run 39251627310, commit `f530322d`) failed on one historical value in `.github/workflows/android-build.yml` at commit `ee80ccf`. Inspection of the commit diff confirmed the value used the `sb_publishable_*` Supabase publishable-client-key format; the current workflow references the `SUPABASE_PUBLISHABLE_KEY` GitHub Actions secret instead. Publishable keys are intended for client use and are not service-role credentials.
+
+PR [#114](https://github.com/RamProjector/LifeLink/pull/114) adds a narrowly scoped Gitleaks allowlist for that publishable-key prefix only. The PR's Security scan passed on its first run (run 40079963502). This records scanner triage, not a general assertion that the repository contains no secrets. Any separate database password, service-role key, signing credential, or other Gitleaks finding must still be investigated and remediated. The PR has not been merged at the time of this note.
