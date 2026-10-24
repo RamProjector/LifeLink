@@ -99,7 +99,7 @@ class ConversationNavigationTest {
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
 
         composeRule.onNodeWithText("Conversation").assertDoesNotExist()
-        composeRule.onNodeWithText("Donor dashboard").assertIsDisplayed()
+        composeRule.onNodeWithText("Donor workspace").assertIsDisplayed()
         assertOpenedTimes(1)
     }
 
