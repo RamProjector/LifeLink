@@ -354,18 +354,18 @@ fun MapLibrePrivacySafeDonorMap(
                         retryRequest = 0
                     }
                     if (appliedAreasSignature != areasSignature) {
-                        map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            map.clear()
-                            areas.forEach { area ->
-                                map.addMarker(
-                                    MarkerOptions()
-                                        .position(LatLng(area.latitude, area.longitude))
-                                        .title("Donor pin · ${area.bloodType}")
-                                        .snippet("${area.availability} · Approximate location only"),
-                                )
-                            }
-                            appliedAreasSignature = areasSignature
+                        // Update annotations in place. Reloading the whole style for a
+                        // blood-type/availability filter needlessly reloads map tiles.
+                        map.clear()
+                        areas.forEach { area ->
+                            map.addMarker(
+                                MarkerOptions()
+                                    .position(LatLng(area.latitude, area.longitude))
+                                    .title("Donor pin · ${area.bloodType}")
+                                    .snippet("${area.availability} · Approximate location only"),
+                            )
                         }
+                        appliedAreasSignature = areasSignature
                     }
                     // Repeated Compose updates must not keep resetting the camera.
                     // Unnecessary camera moves cancel vector-tile requests and make the map
