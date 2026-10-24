@@ -77,6 +77,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
      * active conversation's id, messages, or contact shares.
      */
     private var conversationGeneration = 0
+    private var mapLoadGeneration = 0
 
     fun onAction(action: PrivacyAction) {
         when (action) {
@@ -96,12 +97,18 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     }
 
     private fun loadMap() {
+        // Ignore stale responses when a refresh or visibility change starts a newer load.
+        val generation = ++mapLoadGeneration
         viewModelScope.launch {
             _state.value = _state.value.copy(mapLoading = true, mapError = null)
             repository
                 .donorMap()
-                .onSuccess { _state.value = _state.value.copy(map = it, mapLoading = false) }
+                .onSuccess { map ->
+                    if (generation != mapLoadGeneration) return@onSuccess
+                    _state.value = _state.value.copy(map = map, mapLoading = false, mapError = null)
+                }
                 .onFailure { error ->
+                    if (generation != mapLoadGeneration) return@onFailure
                     _state.value =
                         _state.value.copy(
                             mapLoading = false,
