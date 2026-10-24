@@ -1,6 +1,6 @@
 # Design research — centered action button with 4 tabs (mobile)
 
-> **Superseded for the current LifeLink client (2026-10-24):** this document records an earlier centered-FAB proposal. The current staged redesign uses a labelled, selected **Map** destination as the middle item of the primary navigation, keeps navigation available while the donor map is open, and adapts the same destination into the wider-layout navigation rail. See [the HCI redesign roadmap](ANDROID_HCI_REDESIGN_ROADMAP.md) and [PR #119](https://github.com/RamProjector/LifeLink/pull/119). The “GPS Map” wording and device-location behavior in the separate TACResQ app must not be copied literally into LifeLink: LifeLink currently displays approximate donor areas, not a confirmed device GPS fix or continuous tracker.
+> **Superseded for the current LifeLink client (2026-10-24):** this document records an earlier centered-FAB proposal. The current staged redesign uses a labelled, selected **Map** destination as the middle item of the primary navigation, keeps navigation available while the donor map is open, and adapts the same destination into the wider-layout navigation rail. See [PR #119](https://github.com/RamProjector/LifeLink/pull/119). The “GPS Map” wording and device-location behavior in the separate TACResQ app must not be copied literally into LifeLink: LifeLink currently displays approximate donor areas, not a confirmed device GPS fix or continuous tracker.
 
 
 Scope: LifeLink Android (Jetpack Compose, Material 3). The bottom bar needs a
