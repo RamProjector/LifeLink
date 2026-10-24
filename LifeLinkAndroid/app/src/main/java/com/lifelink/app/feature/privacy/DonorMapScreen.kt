@@ -97,19 +97,57 @@ fun DonorMapScreen(
             fullScreen = true,
         )
 
-        if (filteredAreas.isEmpty()) {
+        // Never show an empty result while a request is loading or has failed.
+        // Those states need their own truthful feedback and recovery action.
+        if (!state.mapLoading && state.mapError == null && filteredAreas.isEmpty()) {
             Surface(
                 Modifier.align(Alignment.Center).padding(24.dp),
                 shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
                 shadowElevation = 4.dp,
             ) {
-                LifeLinkEmptyState(
-                    icon = Icons.Default.LocationOn,
-                    title = if (areas.isEmpty()) "No donors visible yet" else "No donors match these filters",
-                    body =
-                    "The map stays active while we search. Donor pins appear when available donors opt in and share a fresh location.",
-                )
+                Column(
+                    Modifier.fillMaxWidth().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                    ) {
+                        Icon(
+                            Icons.Default.LocationOn,
+                            contentDescription = null,
+                            modifier = Modifier.padding(18.dp).size(30.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                    Text(
+                        if (areas.isEmpty()) "No donor areas available" else "No areas match these filters",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                    Text(
+                        if (areas.isEmpty()) {
+                            "Donor areas appear when eligible donors opt in and share a recent approximate location."
+                        } else {
+                            "Try a different blood type or turn off “Available now” to see more areas."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (areas.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = {
+                                selectedBloodType = "All"
+                                availableOnly = false
+                            },
+                        ) {
+                            Text("Clear filters")
+                        }
+                    }
+                }
             }
         }
 
