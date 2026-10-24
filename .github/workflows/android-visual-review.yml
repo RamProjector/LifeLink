@@ -45,9 +45,8 @@ jobs:
   visual-review:
     name: Capture Android visual evidence
     runs-on: ubuntu-latest
-    # Visual review is required evidence, not a best-effort check. If the runner
-    # cannot provide KVM, fail explicitly rather than reporting a green workflow
-    # with the instrumentation tests silently skipped.
+    # Prefer KVM for speed, but run real instrumentation in software-emulation
+    # mode when the hosted runner does not expose /dev/kvm. Never skip the tests.
     timeout-minutes: 45
     defaults:
       run:
@@ -104,11 +103,9 @@ jobs:
             echo "available=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Require KVM for visual instrumentation
+      - name: Select emulator acceleration mode
         if: steps.kvm.outputs.available != 'true'
-        run: |
-          echo "::error::Visual review cannot run because /dev/kvm is unavailable or inaccessible. Instrumentation and screenshot evidence are required; this run must not be treated as a pass. Re-run on a GitHub-hosted runner with KVM enabled."
-          exit 1
+        run: echo "::warning::KVM is unavailable; running the same instrumentation suite with software emulation. This can be substantially slower."
 
       - name: Build visual-test APKs
         # --no-daemon: the runner has 16 GB and the emulator below claims 4 GB
@@ -232,7 +229,6 @@ jobs:
           script: echo "Generated AVD snapshot for caching."
 
       - name: Run visual smoke test on emulator
-        if: steps.kvm.outputs.available == 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
@@ -240,12 +236,9 @@ jobs:
           arch: ${{ env.AVD_ARCH }}
           profile: ${{ env.AVD_PROFILE }}
           force-avd-creation: false
-          # -no-snapshot-save keeps the cached snapshot pristine; the emulator
-          # still loads it, so boot is fast. -no-metrics / -camera-* none /
-          # -netfast trim startup and runtime overhead; -gpu swiftshader_indirect
-          # keeps rendering deterministic on a headless runner. Hardware
-          # acceleration is provided by the KVM step above.
-          emulator-options: -no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics -camera-back none -camera-front none -netfast -gpu swiftshader_indirect
+          # Reuse the cached snapshot when available. Without KVM, explicitly
+          # disable acceleration rather than silently skipping visual tests.
+          emulator-options: ${{ steps.kvm.outputs.available == 'true' && '-no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics -camera-back none -camera-front none -netfast -gpu swiftshader_indirect' || '-no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics -camera-back none -camera-front none -netfast -accel off -gpu swiftshader_indirect' }}
           cores: 4
           ram-size: 4096M
           heap-size: 512M
