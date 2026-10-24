@@ -44,6 +44,16 @@ class RoleSwitcherTest {
     }
 
     @Test
+    fun returningToRequesterWithoutAnActualDonorProfileRemovesDonorCapability() {
+        val donorMode = RoleSwitcher.capabilities(UserRole.DONOR, hasDonorProfile = false)
+        assertTrue(donorMode.canDonate)
+
+        val requesterMode = RoleSwitcher.capabilities(UserRole.REQUESTER, hasDonorProfile = false)
+        assertTrue(requesterMode.canRequest)
+        assertFalse(requesterMode.canDonate)
+    }
+
+    @Test
     fun onlyDonorRoleOpensTheDonorWorkspace() {
         assertTrue(RoleSwitcher.opensDonorWorkspace(UserRole.DONOR))
         assertFalse(RoleSwitcher.opensDonorWorkspace(UserRole.REQUESTER))
