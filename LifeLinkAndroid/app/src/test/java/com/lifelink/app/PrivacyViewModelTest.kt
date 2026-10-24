@@ -47,6 +47,33 @@ class PrivacyViewModelTest {
         Dispatchers.resetMain()
     }
 
+    /** Prevents an older, slower map refresh from overwriting the latest successful result. */
+    @Test
+    fun stale_map_refresh_result_cannot_overwrite_newer_result() = runTest {
+        val olderResponse = CompletableDeferred<Result<DonorMap>>()
+        var mapCalls = 0
+        repository.map = {
+            mapCalls++
+            if (mapCalls == 1) {
+                olderResponse.await()
+            } else {
+                Result.success(DonorMap("new", approximateOnly = true, areas = emptyList()))
+            }
+        }
+
+        viewModel.onAction(PrivacyAction.LoadMap)
+        viewModel.onAction(PrivacyAction.LoadMap)
+
+        assertEquals("new", viewModel.state.value.map?.generatedAt)
+        assertFalse(viewModel.state.value.mapLoading)
+
+        olderResponse.complete(Result.success(DonorMap("stale", approximateOnly = true, areas = emptyList())))
+
+        assertEquals("new", viewModel.state.value.map?.generatedAt)
+        assertFalse(viewModel.state.value.mapLoading)
+        assertNull(viewModel.state.value.mapError)
+    }
+
     /** Verifies that opening a chat loads history and contact shares for the returned conversation ID. */
     @Test
     fun open_action_loads_the_requested_conversation_messages_and_contact_shares() = runTest {
@@ -190,6 +217,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
     val shareReads = mutableListOf<String>()
     val sends = mutableListOf<Pair<String, String>>()
     val shares = mutableListOf<Triple<String, String, String>>()
+    var map: suspend () -> Result<DonorMap> = { error("Unexpected map request") }
     var loadedMessages = listOf(chatMessage("chat-old"))
     var loadedShares = listOf(contactShare("chat-old"))
     var failHistory = false
@@ -231,8 +259,8 @@ private class ConversationRepositoryFake : PrivacyRepository {
         return Result.success(contactShare(conversationId).copy(field = field, value = value))
     }
 
-    /** Fails immediately if a conversation test unexpectedly requests the donor map. */
-    override suspend fun donorMap(): Result<DonorMap> = error("Unexpected map request")
+    /** Returns the configured map response for map-loading regression tests. */
+    override suspend fun donorMap(): Result<DonorMap> = map()
 
     /** Fails immediately if a conversation test unexpectedly changes map visibility. */
     override suspend fun setMapVisibility(mapVisible: Boolean, exactLocationSharingEnabled: Boolean): Result<DonorMapVisibility> =
