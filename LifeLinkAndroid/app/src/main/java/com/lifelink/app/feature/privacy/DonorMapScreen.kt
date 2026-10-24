@@ -70,6 +70,8 @@ fun DonorMapScreen(
     onBack: () -> Unit,
     centerLatitude: Double? = null,
     centerLongitude: Double? = null,
+    showCloseButton: Boolean = true,
+    embeddedInShell: Boolean = false,
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
@@ -112,11 +114,15 @@ fun DonorMapScreen(
         }
 
         Row(
-            Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth()
+                .then(if (embeddedInShell) Modifier else Modifier.statusBarsPadding())
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close donor map")
+            if (showCloseButton) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close donor map")
+                }
             }
             Surface(
                 Modifier.weight(1f),
@@ -176,7 +182,9 @@ fun DonorMapScreen(
 
         if (privacyOpen) {
             Card(
-                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp),
+                Modifier.align(Alignment.BottomCenter)
+                    .then(if (embeddedInShell) Modifier else Modifier.navigationBarsPadding())
+                    .padding(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             ) {
@@ -184,7 +192,9 @@ fun DonorMapScreen(
             }
         } else {
             Card(
-                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp),
+                Modifier.align(Alignment.BottomCenter)
+                    .then(if (embeddedInShell) Modifier else Modifier.navigationBarsPadding())
+                    .padding(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
