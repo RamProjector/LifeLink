@@ -74,6 +74,29 @@ class PrivacyViewModelTest {
         assertNull(viewModel.state.value.mapError)
     }
 
+    /** Prevents a stale failed refresh from replacing a newer successful map with an error state. */
+    @Test
+    fun stale_map_refresh_failure_cannot_replace_newer_success() = runTest {
+        val olderResponse = CompletableDeferred<Result<DonorMap>>()
+        var mapCalls = 0
+        repository.map = {
+            mapCalls++
+            if (mapCalls == 1) {
+                olderResponse.await()
+            } else {
+                Result.success(DonorMap("new", approximateOnly = true, areas = emptyList()))
+            }
+        }
+
+        viewModel.onAction(PrivacyAction.LoadMap)
+        viewModel.onAction(PrivacyAction.LoadMap)
+        olderResponse.complete(Result.failure(IllegalStateException("Stale network failure")))
+
+        assertEquals("new", viewModel.state.value.map?.generatedAt)
+        assertFalse(viewModel.state.value.mapLoading)
+        assertNull(viewModel.state.value.mapError)
+    }
+
     /** Verifies that opening a chat loads history and contact shares for the returned conversation ID. */
     @Test
     fun open_action_loads_the_requested_conversation_messages_and_contact_shares() = runTest {
