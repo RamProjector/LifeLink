@@ -106,3 +106,9 @@ This document intentionally contains no Supabase URLs beyond the public API endp
 The scheduled full-history Gitleaks run on `main` (run 39251627310, commit `f530322d`) failed on one historical value in `.github/workflows/android-build.yml` at commit `ee80ccf`. Inspection of the commit diff confirmed the value used the `sb_publishable_*` Supabase publishable-client-key format; the current workflow references the `SUPABASE_PUBLISHABLE_KEY` GitHub Actions secret instead. Publishable keys are intended for client use and are not service-role credentials.
 
 PR [#114](https://github.com/RamProjector/LifeLink/pull/114) adds a narrowly scoped Gitleaks allowlist for that publishable-key prefix only. The PR's Security scan passed on its first run (run 40079963502). This records scanner triage, not a general assertion that the repository contains no secrets. Any separate database password, service-role key, signing credential, or other Gitleaks finding must still be investigated and remediated. The PR has not been merged at the time of this note.
+
+## Role capability/profile-existence audit — 2026-10-24
+
+PR [#115](https://github.com/RamProjector/LifeLink/pull/115) addresses a mismatch in `MainActivity`: the code described `hasDonorProfile` as distinct from `canDonate`, but initialized it from the server profile's `can_donate` capability flag. That flag can be enabled by switching into donor mode before donor onboarding is complete, so it is not proof that a donor profile exists.
+
+The change checks the authenticated user's actual `/v1/donor-profile` resource before switching back to requester mode, keeps the current role if that lookup fails, and avoids showing a role transition before the server accepts the capability update. CI and device verification are pending; this entry records the audit and intended behavior, not a claim that the change has shipped.
