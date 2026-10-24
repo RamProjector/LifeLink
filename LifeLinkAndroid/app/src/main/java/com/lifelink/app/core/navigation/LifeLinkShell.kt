@@ -181,16 +181,24 @@ fun LifeLinkShell(
     var conversationDonorId by rememberSaveable { mutableStateOf("") }
     var conversationOpenedFromDonor by rememberSaveable { mutableStateOf(false) }
     val closeConversation = {
-        showConversation = false
-        // Keep the donor workspace as the return destination even if a child screen
-        // updates its own navigation state while the conversation is visible.
+        // Restore the originating workspace before dismissing the conversation.
+        // Explicit origin is supplied by the caller; it must not depend on a captured
+        // value of showDonor from a previous composition.
         if (conversationOpenedFromDonor) showDonor = true
+        showConversation = false
     }
-    val openConversation: (String, String) -> Unit = { requestId, donorId ->
+    val openConversationFrom: (String, String, Boolean) -> Unit = { requestId, donorId, fromDonor ->
         conversationRequestId = requestId
         conversationDonorId = donorId
-        conversationOpenedFromDonor = showDonor
+        conversationOpenedFromDonor = fromDonor
+        if (fromDonor) showDonor = true
         showConversation = true
+    }
+    val openConversation: (String, String) -> Unit = { requestId, donorId ->
+        openConversationFrom(requestId, donorId, false)
+    }
+    val openDonorConversation: (String, String) -> Unit = { requestId, donorId ->
+        openConversationFrom(requestId, donorId, true)
     }
     var showStart by rememberSaveable(accountUserId) {
         mutableStateOf(
@@ -301,7 +309,7 @@ fun LifeLinkShell(
             state = donorState,
             onAction = onDonorAction,
             onBack = { showDonor = false },
-            onOpenConversation = openConversation,
+            onOpenConversation = openDonorConversation,
         )
         return
     }
