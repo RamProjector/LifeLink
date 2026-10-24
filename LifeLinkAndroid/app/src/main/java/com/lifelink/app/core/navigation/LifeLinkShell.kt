@@ -440,18 +440,45 @@ fun LifeLinkShell(
 /** Renders one labelled top-level destination in the app navigation. */
 @Composable
 private fun RowScope.ShellNavigationBarItem(tab: ShellTab, selected: Boolean, onClick: () -> Unit) {
+    val isPrimaryMap = tab == ShellTab.MAP
     NavigationBarItem(
         selected = selected,
         onClick = onClick,
-        icon = { ShellNavigationIcon(tab) },
-        label = { Text(tab.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        icon = {
+            if (isPrimaryMap) {
+                // The map is LifeLink's core matching surface, so give the centered
+                // destination a clear visual anchor without changing navigation order.
+                Surface(
+                    modifier = Modifier.size(48.dp).testTag("primary-map-destination"),
+                    shape = CircleShape,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                    tonalElevation = if (selected) 3.dp else 1.dp,
+                    shadowElevation = if (selected) 3.dp else 0.dp,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        ShellNavigationIcon(tab, size = 25.dp)
+                    }
+                }
+            } else {
+                ShellNavigationIcon(tab)
+            }
+        },
+        label = {
+            Text(
+                tab.label,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = if (isPrimaryMap) FontWeight.Bold else FontWeight.Medium,
+            )
+        },
         modifier = Modifier.weight(1f).testTag("nav-${tab.name}"),
     )
 }
 
-/** Renders the tab icon and caps the visible unread-update badge at 99+. */
+/** Renders a consistent navigation icon with optional emphasis for the primary map destination. */
 @Composable
-private fun ShellNavigationIcon(tab: ShellTab) {
+private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp = 24.dp) {
     val icon =
         when (tab) {
             ShellTab.HOME -> Icons.Default.Home
@@ -460,7 +487,7 @@ private fun ShellNavigationIcon(tab: ShellTab) {
             ShellTab.MESSAGING -> Icons.Default.ChatBubbleOutline
             ShellTab.PROFILE -> Icons.Default.Person
         }
-    Icon(icon, contentDescription = null)
+    Icon(icon, contentDescription = null, modifier = Modifier.size(size))
 }
 
 /** Shows request history with actions to create, resume, or view the current request. */
