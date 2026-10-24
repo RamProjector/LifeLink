@@ -38,10 +38,9 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Use the latest stable Android platform (Android 17 / API 37) and the latest
-# published emulator-runner release verified during this update. The action owns
-# SDK installation and boot/wait logic. We do not
-      # pre-gate on /dev/kvm: runner capability is established by the actual boot.
+            # Use the latest stable Android platform (Android 17 / API 37) and the latest
+      # published emulator-runner release verified during this update. The action owns
+      # SDK installation and boot/wait logic. We do not pre-gate on /dev/kvm: runner capability is established by the actual boot.
       - name: Boot Android 17 (API 37) emulator and run Compose visual walkthrough
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
