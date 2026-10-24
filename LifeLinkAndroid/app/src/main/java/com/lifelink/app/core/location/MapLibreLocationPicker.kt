@@ -271,6 +271,7 @@ fun MapLibrePrivacySafeDonorMap(
     var retryRequest by remember { mutableStateOf(0) }
     var recenterRequest by remember { mutableStateOf(0) }
     var appliedRecenterRequest by remember { mutableStateOf(-1) }
+    var appliedCenter by remember { mutableStateOf<LatLng?>(null) }
     var appliedAreasSignature by remember { mutableStateOf("") }
     val areasSignature = remember(areas) {
         areas.joinToString(separator = "|") { area ->
@@ -315,7 +316,9 @@ fun MapLibrePrivacySafeDonorMap(
                             mapLoading = false
                             mapError = false
                             map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
+                            appliedCenter = center
                             appliedRecenterRequest = recenterRequest
+                            map.clear()
                             areas.forEach { area ->
                                 map.addMarker(
                                     MarkerOptions()
@@ -336,6 +339,8 @@ fun MapLibrePrivacySafeDonorMap(
                         mapError = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
                             mapLoading = false
+                            mapError = false
+                            map.clear()
                             areas.forEach { area ->
                                 map.addMarker(
                                     MarkerOptions()
@@ -350,6 +355,7 @@ fun MapLibrePrivacySafeDonorMap(
                     }
                     if (appliedAreasSignature != areasSignature) {
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
+                            map.clear()
                             areas.forEach { area ->
                                 map.addMarker(
                                     MarkerOptions()
@@ -361,10 +367,16 @@ fun MapLibrePrivacySafeDonorMap(
                             appliedAreasSignature = areasSignature
                         }
                     }
-                    map.cameraPosition = CameraPosition.Builder()
-                        .target(LatLng(latitude, longitude))
-                        .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
-                        .build()
+                    // Repeated Compose updates must not keep resetting the camera.
+                    // Unnecessary camera moves cancel vector-tile requests and make the map
+                    // feel broken while filters, loading state, or visibility controls change.
+                    if (appliedCenter != center) {
+                        map.cameraPosition = CameraPosition.Builder()
+                            .target(center)
+                            .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
+                            .build()
+                        appliedCenter = center
+                    }
                     if (appliedRecenterRequest != recenterRequest) {
                         map.cameraPosition = CameraPosition.Builder()
                             .target(center)
