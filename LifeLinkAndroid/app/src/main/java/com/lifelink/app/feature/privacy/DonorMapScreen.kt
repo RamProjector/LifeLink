@@ -150,7 +150,9 @@ fun DonorMapScreen(
 
         if (filtersOpen) {
             Card(
-                Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                Modifier.align(Alignment.TopCenter)
+                    .then(if (embeddedInShell) Modifier else Modifier.statusBarsPadding())
+                    .padding(top = 72.dp, start = 16.dp, end = 16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             ) {
