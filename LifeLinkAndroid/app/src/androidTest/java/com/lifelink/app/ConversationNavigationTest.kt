@@ -251,10 +251,12 @@ class ConversationNavigationTest {
 
         composeRule.onNodeWithText("Loading donor areas…").assertIsDisplayed()
         composeRule.onNodeWithText("No donor areas available").assertDoesNotExist()
+        composeRule.onNodeWithText("0 areas").assertDoesNotExist()
 
         composeRule.runOnIdle { state.value = PrivacyUiState(mapError = "Could not load donor areas.") }
         composeRule.onNodeWithText("Could not load donor areas.").assertIsDisplayed()
         composeRule.onNodeWithText("No donor areas available").assertDoesNotExist()
+        composeRule.onNodeWithText("0 areas").assertDoesNotExist()
 
         composeRule.runOnIdle { state.value = PrivacyUiState() }
         composeRule.onNodeWithText("No donor areas available").assertIsDisplayed()
