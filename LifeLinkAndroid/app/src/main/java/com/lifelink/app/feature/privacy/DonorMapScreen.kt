@@ -231,7 +231,8 @@ fun DonorMapScreen(
             ) {
                 DonorVisibilityControls(state, onAction)
             }
-        } else {
+        } else if (!state.mapLoading && state.mapError == null) {
+            // Do not pair a loading/error surface with a stale "0 areas" footer.
             Card(
                 Modifier.align(Alignment.BottomCenter)
                     .then(if (embeddedInShell) Modifier else Modifier.navigationBarsPadding())
