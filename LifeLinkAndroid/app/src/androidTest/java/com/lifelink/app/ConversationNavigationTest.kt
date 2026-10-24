@@ -3,6 +3,7 @@ package com.lifelink.app
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -228,7 +229,7 @@ class ConversationNavigationTest {
 
         composeRule.onNodeWithTag("nav-MAP").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Find donors", substring = false).assertIsDisplayed()
-        composeRule.onNodeWithTag("nav-MAP").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav-MAP").assertIsSelected()
         composeRule.onNodeWithTag("nav-HOME").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Close donor map").assertDoesNotExist()
 
