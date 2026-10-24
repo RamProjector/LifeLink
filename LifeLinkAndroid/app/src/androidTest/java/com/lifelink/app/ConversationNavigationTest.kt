@@ -230,7 +230,7 @@ class ConversationNavigationTest {
         composeRule.onNodeWithText("Find donors", substring = false).assertIsDisplayed()
         composeRule.onNodeWithTag("nav-MAP").assertIsDisplayed()
         composeRule.onNodeWithTag("nav-HOME").assertIsDisplayed()
-        composeRule.onNodeWithText("Close donor map", substring = false).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Close donor map").assertDoesNotExist()
 
         composeRule.onNodeWithTag("nav-HOME").performClick()
         composeRule.onNodeWithText("LifeLink", substring = false).assertIsDisplayed()
