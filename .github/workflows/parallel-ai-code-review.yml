@@ -1,0 +1,47 @@
+name: Parallel AI code review
+
+# SECURITY: This uses pull_request_target so it can access the repository secret.
+# Never check out or execute PR-head code in this workflow. The script is checked
+# out from the trusted base branch; the PR diff is treated only as untrusted text.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  specialist-review:
+    name: Parallel specialist AI review
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out trusted base-branch reviewer
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Explain missing API key
+        if: env.OPENAI_API_KEY == ''
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "::warning::AI review was skipped because the OPENAI_API_KEY repository secret is not configured."
+          echo "Configure OPENAI_API_KEY in repository Actions secrets to enable the four parallel reviewers."
+
+      - name: Run specialist reviewers and publish one consolidated comment
+        if: env.OPENAI_API_KEY != ''
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_REVIEW_MODEL: ${{ vars.OPENAI_REVIEW_MODEL }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python3 .github/scripts/ai_code_review.py
