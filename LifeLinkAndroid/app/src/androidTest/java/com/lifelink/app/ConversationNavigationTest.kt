@@ -29,6 +29,7 @@ import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestScreen
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
 import com.lifelink.app.feature.emergencyrequest.SubmissionState
+import com.lifelink.app.feature.privacy.DonorMapScreen
 import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
 import org.junit.After
@@ -236,6 +237,27 @@ class ConversationNavigationTest {
 
         composeRule.onNodeWithTag("nav-HOME").performClick()
         composeRule.onNodeWithText("LifeLink", substring = false).assertIsDisplayed()
+    }
+
+    /** Verifies that map loading, errors, and empty results are mutually exclusive and truthful. */
+    @Test
+    fun donor_map_shows_the_correct_loading_error_and_empty_state() {
+        val state = mutableStateOf(PrivacyUiState(mapLoading = true))
+        composeRule.setContent {
+            LifeLinkTheme {
+                DonorMapScreen(state.value, onAction = {}, onBack = {})
+            }
+        }
+
+        composeRule.onNodeWithText("Loading donor areas…").assertIsDisplayed()
+        composeRule.onNodeWithText("No donor areas available").assertDoesNotExist()
+
+        composeRule.runOnIdle { state.value = PrivacyUiState(mapError = "Could not load donor areas.") }
+        composeRule.onNodeWithText("Could not load donor areas.").assertIsDisplayed()
+        composeRule.onNodeWithText("No donor areas available").assertDoesNotExist()
+
+        composeRule.runOnIdle { state.value = PrivacyUiState() }
+        composeRule.onNodeWithText("No donor areas available").assertIsDisplayed()
     }
 
     /** Renders a restorable shell for the supplied role, skips welcome, and records privacy actions. */
