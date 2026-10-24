@@ -4,6 +4,10 @@ name: Optional Android visual evidence
 # runs the existing Compose workflow tests, and uploads real device screenshots.
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - ci/optional-android-visual-evidence
   pull_request:
     paths:
       - "LifeLinkAndroid/**"
