@@ -87,7 +87,7 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Your requests")
         capture("workflow-home")
 
-        composeRule.onNodeWithTag("open-fullscreen-donor-map").performClick()
+        composeRule.onNodeWithTag("nav-MAP").performClick()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
         capture("workflow-donor-map")

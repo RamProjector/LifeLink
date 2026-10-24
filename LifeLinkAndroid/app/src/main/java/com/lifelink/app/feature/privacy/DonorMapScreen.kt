@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,7 +52,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
-import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 
 private const val DEFAULT_MAP_LATITUDE = 14.5995
@@ -70,6 +70,8 @@ fun DonorMapScreen(
     onBack: () -> Unit,
     centerLatitude: Double? = null,
     centerLongitude: Double? = null,
+    showCloseButton: Boolean = true,
+    embeddedInShell: Boolean = false,
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
@@ -82,9 +84,11 @@ fun DonorMapScreen(
         (selectedBloodType == "All" || area.bloodType == selectedBloodType) &&
             (!availableOnly || area.availability.equals("Available", ignoreCase = true))
     }
-    val mapArea = filteredAreas.firstOrNull() ?: areas.firstOrNull()
-    val mapLatitude = mapArea?.latitude ?: centerLatitude ?: DEFAULT_MAP_LATITUDE
-    val mapLongitude = mapArea?.longitude ?: centerLongitude ?: DEFAULT_MAP_LONGITUDE
+    // Keep the viewport anchored to the overall result set. Filtering should change pins,
+    // not unexpectedly jump the user's map to whichever blood type happens to sort first.
+    val mapArea = areas.firstOrNull()
+    val mapLatitude = centerLatitude ?: mapArea?.latitude ?: DEFAULT_MAP_LATITUDE
+    val mapLongitude = centerLongitude ?: mapArea?.longitude ?: DEFAULT_MAP_LONGITUDE
 
     Box(Modifier.fillMaxSize().testTag("donor-map-fullscreen")) {
         MapLibrePrivacySafeDonorMap(
@@ -95,28 +99,70 @@ fun DonorMapScreen(
             fullScreen = true,
         )
 
-        if (filteredAreas.isEmpty()) {
+        // Never show an empty result while a request is loading or has failed.
+        // Those states need their own truthful feedback and recovery action.
+        if (!state.mapLoading && state.mapError == null && filteredAreas.isEmpty()) {
             Surface(
-                Modifier.align(Alignment.Center).padding(24.dp),
+                Modifier.align(Alignment.Center).padding(24.dp).widthIn(max = 360.dp),
                 shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
                 shadowElevation = 4.dp,
             ) {
-                LifeLinkEmptyState(
-                    icon = Icons.Default.LocationOn,
-                    title = if (areas.isEmpty()) "No donors visible yet" else "No donors match these filters",
-                    body =
-                    "The map stays active while we search. Donor pins appear when available donors opt in and share a fresh location.",
-                )
+                Column(
+                    Modifier.fillMaxWidth().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                    ) {
+                        Icon(
+                            Icons.Default.LocationOn,
+                            contentDescription = null,
+                            modifier = Modifier.padding(18.dp).size(30.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                    Text(
+                        if (areas.isEmpty()) "No donor areas available" else "No areas match these filters",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                    Text(
+                        if (areas.isEmpty()) {
+                            "Donor areas appear when eligible donors opt in and share a recent approximate location."
+                        } else {
+                            "Try a different blood type or turn off “Available now” to see more areas."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (areas.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = {
+                                selectedBloodType = "All"
+                                availableOnly = false
+                            },
+                        ) {
+                            Text("Clear filters")
+                        }
+                    }
+                }
             }
         }
 
         Row(
-            Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth()
+                .then(if (embeddedInShell) Modifier else Modifier.statusBarsPadding())
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close donor map")
+            if (showCloseButton) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close donor map")
+                }
             }
             Surface(
                 Modifier.weight(1f),
@@ -144,7 +190,9 @@ fun DonorMapScreen(
 
         if (filtersOpen) {
             Card(
-                Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                Modifier.align(Alignment.TopCenter)
+                    .then(if (embeddedInShell) Modifier else Modifier.statusBarsPadding())
+                    .padding(top = 72.dp, start = 16.dp, end = 16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             ) {
@@ -170,21 +218,47 @@ fun DonorMapScreen(
                             )
                         }
                     }
+                    if (selectedBloodType != "All" || availableOnly) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "${filteredAreas.size} matching areas",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            OutlinedButton(
+                                onClick = {
+                                    selectedBloodType = "All"
+                                    availableOnly = false
+                                },
+                            ) {
+                                Text("Clear filters")
+                            }
+                        }
+                    }
                 }
             }
         }
 
         if (privacyOpen) {
             Card(
-                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp),
+                Modifier.align(Alignment.BottomCenter)
+                    .then(if (embeddedInShell) Modifier else Modifier.navigationBarsPadding())
+                    .padding(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             ) {
                 DonorVisibilityControls(state, onAction)
             }
-        } else {
+        } else if (!state.mapLoading && state.mapError == null) {
+            // Do not pair a loading/error surface with a stale "0 areas" footer.
             Card(
-                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp),
+                Modifier.align(Alignment.BottomCenter)
+                    .then(if (embeddedInShell) Modifier else Modifier.navigationBarsPadding())
+                    .padding(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {

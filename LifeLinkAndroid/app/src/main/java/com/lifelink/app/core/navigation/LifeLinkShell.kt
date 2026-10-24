@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -46,7 +45,6 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -123,6 +121,7 @@ import com.lifelink.app.feature.updates.UpdatesScreen
 private enum class ShellTab(val label: String) {
     HOME("Home"),
     REQUESTS("Requests"),
+    MAP("Map"),
     MESSAGING("Chat"),
     PROFILE("Profile"),
 }
@@ -172,7 +171,6 @@ fun LifeLinkShell(
     var showDonor by rememberSaveable { mutableStateOf(false) }
     // Separate donor-profile flow: opt in to donating after account creation.
     var showBecomeDonor by rememberSaveable { mutableStateOf(false) }
-    var showDonorMap by rememberSaveable { mutableStateOf(false) }
     var showNotifications by rememberSaveable { mutableStateOf(false) }
     // The in-app conversation was previously unreachable: ConversationScreen and
     // PrivacyViewModel.openConversation existed, but nothing navigated to them.
@@ -181,10 +179,26 @@ fun LifeLinkShell(
     var showConversation by rememberSaveable { mutableStateOf(false) }
     var conversationRequestId by rememberSaveable { mutableStateOf("") }
     var conversationDonorId by rememberSaveable { mutableStateOf("") }
-    val openConversation: (String, String) -> Unit = { requestId, donorId ->
+    var conversationOpenedFromDonor by rememberSaveable { mutableStateOf(false) }
+    val closeConversation = {
+        // Restore the originating workspace before dismissing the conversation.
+        // Explicit origin is supplied by the caller; it must not depend on a captured
+        // value of showDonor from a previous composition.
+        if (conversationOpenedFromDonor) showDonor = true
+        showConversation = false
+    }
+    val openConversationFrom: (String, String, Boolean) -> Unit = { requestId, donorId, fromDonor ->
         conversationRequestId = requestId
         conversationDonorId = donorId
+        conversationOpenedFromDonor = fromDonor
+        if (fromDonor) showDonor = true
         showConversation = true
+    }
+    val openConversation: (String, String) -> Unit = { requestId, donorId ->
+        openConversationFrom(requestId, donorId, false)
+    }
+    val openDonorConversation: (String, String) -> Unit = { requestId, donorId ->
+        openConversationFrom(requestId, donorId, true)
     }
     var showStart by rememberSaveable(accountUserId) {
         mutableStateOf(
@@ -226,14 +240,14 @@ fun LifeLinkShell(
         return
     }
     if (showConversation && conversationRequestId.isNotBlank() && conversationDonorId.isNotBlank()) {
-        BackHandler { showConversation = false }
+        BackHandler { closeConversation() }
         ConversationScreen(
             state = privacyState,
             requestId = conversationRequestId,
             donorId = conversationDonorId,
             currentUserId = accountUserId,
             onAction = onPrivacyAction,
-            onBack = { showConversation = false },
+            onBack = { closeConversation() },
         )
         return
     }
@@ -295,18 +309,7 @@ fun LifeLinkShell(
             state = donorState,
             onAction = onDonorAction,
             onBack = { showDonor = false },
-            onOpenConversation = openConversation,
-        )
-        return
-    }
-    if (showDonorMap) {
-        BackHandler { showDonorMap = false }
-        DonorMapScreen(
-            state = privacyState,
-            onAction = onPrivacyAction,
-            onBack = { showDonorMap = false },
-            centerLatitude = state.draft.requesterLatitude,
-            centerLongitude = state.draft.requesterLongitude,
+            onOpenConversation = openDonorConversation,
         )
         return
     }
@@ -319,60 +322,42 @@ fun LifeLinkShell(
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                Row(
-                    Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    IconButton(
-                        onClick = { showNotifications = true },
-                        modifier = Modifier.testTag("open-notifications"),
+                if (tab != ShellTab.MAP) {
+                    Row(
+                        Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.End,
                     ) {
-                        BadgedBox(badge = {
-                            if (unreadUpdates >
-                                0
-                            ) {
-                                Badge { Text(if (unreadUpdates > 99) "99+" else unreadUpdates.toString()) }
+                        IconButton(
+                            onClick = { showNotifications = true },
+                            modifier = Modifier.testTag("open-notifications"),
+                        ) {
+                            BadgedBox(badge = {
+                                if (unreadUpdates > 0) {
+                                    Badge { Text(if (unreadUpdates > 99) "99+" else unreadUpdates.toString()) }
+                                }
+                            }) {
+                                Icon(
+                                    Icons.Default.NotificationsNone,
+                                    contentDescription = if (unreadUpdates > 0) "$unreadUpdates unread notifications" else "Notifications",
+                                )
                             }
-                        }) {
-                            Icon(
-                                Icons.Default.NotificationsNone,
-                                contentDescription = if (unreadUpdates > 0) "$unreadUpdates unread notifications" else "Notifications",
-                            )
                         }
-                    }
-                    IconButton(
-                        onClick = { tab = ShellTab.PROFILE },
-                        modifier = Modifier.testTag("open-profile"),
-                    ) {
-                        Icon(Icons.Default.Person, contentDescription = "Profile")
+                        IconButton(
+                            onClick = { tab = ShellTab.PROFILE },
+                            modifier = Modifier.testTag("open-profile"),
+                        ) {
+                            Icon(Icons.Default.Person, contentDescription = "Profile")
+                        }
                     }
                 }
             },
             bottomBar = {
                 if (!useRail) {
-                    Box {
-                        NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                ShellTab.entries.take(2).forEach { destination ->
-                                    ShellNavigationBarItem(destination, tab == destination) { tab = destination }
-                                }
-                                Spacer(Modifier.width(76.dp))
-                                ShellTab.entries.drop(2).forEach { destination ->
-                                    ShellNavigationBarItem(destination, tab == destination) { tab = destination }
-                                }
+                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+                        ShellTab.entries.forEach { destination ->
+                            ShellNavigationBarItem(destination, tab == destination) {
+                                tab = destination
                             }
-                        }
-                        FloatingActionButton(
-                            onClick = { showDonorMap = true },
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .offset(y = (-28).dp)
-                                .testTag("open-fullscreen-donor-map"),
-                            shape = CircleShape,
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ) {
-                            Icon(Icons.Default.Map, contentDescription = "Open full-screen donor map")
                         }
                     }
                 }
@@ -384,14 +369,6 @@ fun LifeLinkShell(
                         modifier = Modifier.fillMaxHeight().testTag("navigation-rail"),
                         containerColor = MaterialTheme.colorScheme.surface,
                     ) {
-                        NavigationRailItem(
-                            selected = false,
-                            onClick = { showDonorMap = true },
-                            icon = { Icon(Icons.Default.Map, contentDescription = null) },
-                            label = { Text("Map") },
-                            modifier = Modifier.testTag("open-fullscreen-donor-map-rail"),
-                        )
-                        HorizontalDivider()
                         ShellTab.entries.forEach { destination ->
                             NavigationRailItem(
                                 selected = tab == destination,
@@ -421,6 +398,16 @@ fun LifeLinkShell(
                                     showRequest =
                                         true
                                 }, onActive = { showActive = true })
+                            ShellTab.MAP ->
+                                DonorMapScreen(
+                                    state = privacyState,
+                                    onAction = onPrivacyAction,
+                                    onBack = { tab = ShellTab.HOME },
+                                    centerLatitude = state.draft.requesterLatitude,
+                                    centerLongitude = state.draft.requesterLongitude,
+                                    showCloseButton = false,
+                                    embeddedInShell = true,
+                                )
                             ShellTab.MESSAGING ->
                                 MessagingScreen(
                                     state = privacyState,
@@ -458,29 +445,57 @@ fun LifeLinkShell(
     }
 }
 
-/** Renders one bottom-navigation item while leaving the centered map action unobstructed. */
+/** Renders one labelled top-level destination in the app navigation. */
 @Composable
 private fun RowScope.ShellNavigationBarItem(tab: ShellTab, selected: Boolean, onClick: () -> Unit) {
+    val isPrimaryMap = tab == ShellTab.MAP
     NavigationBarItem(
         selected = selected,
         onClick = onClick,
-        icon = { ShellNavigationIcon(tab) },
-        label = { Text(tab.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        icon = {
+            if (isPrimaryMap) {
+                // The map is LifeLink's core matching surface, so give the centered
+                // destination a clear visual anchor without changing navigation order.
+                Surface(
+                    modifier = Modifier.size(48.dp).testTag("primary-map-destination"),
+                    shape = CircleShape,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                    tonalElevation = if (selected) 3.dp else 1.dp,
+                    shadowElevation = if (selected) 3.dp else 0.dp,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        ShellNavigationIcon(tab, size = 25.dp)
+                    }
+                }
+            } else {
+                ShellNavigationIcon(tab)
+            }
+        },
+        label = {
+            Text(
+                tab.label,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = if (isPrimaryMap) FontWeight.Bold else FontWeight.Medium,
+            )
+        },
         modifier = Modifier.weight(1f).testTag("nav-${tab.name}"),
     )
 }
 
-/** Renders the tab icon and caps the visible unread-update badge at 99+. */
+/** Renders a consistent navigation icon with optional emphasis for the primary map destination. */
 @Composable
-private fun ShellNavigationIcon(tab: ShellTab) {
+private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp = 24.dp) {
     val icon =
         when (tab) {
             ShellTab.HOME -> Icons.Default.Home
             ShellTab.REQUESTS -> Icons.AutoMirrored.Filled.Assignment
+            ShellTab.MAP -> Icons.Default.Map
             ShellTab.MESSAGING -> Icons.Default.ChatBubbleOutline
             ShellTab.PROFILE -> Icons.Default.Person
         }
-    Icon(icon, contentDescription = null)
+    Icon(icon, contentDescription = null, modifier = Modifier.size(size))
 }
 
 /** Shows request history with actions to create, resume, or view the current request. */

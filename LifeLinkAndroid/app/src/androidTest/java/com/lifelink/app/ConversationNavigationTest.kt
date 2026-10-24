@@ -3,10 +3,12 @@ package com.lifelink.app
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -27,6 +29,7 @@ import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestScreen
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
 import com.lifelink.app.feature.emergencyrequest.SubmissionState
+import com.lifelink.app.feature.privacy.DonorMapScreen
 import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
 import org.junit.After
@@ -87,7 +90,8 @@ class ConversationNavigationTest {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
         composeRule.onNodeWithContentDescription("Profile").performClick()
         composeRule.onNodeWithText("Open donor workspace", substring = false).performClick()
-        composeRule.onNodeWithText("Requests", substring = false).performClick()
+        composeRule.onNodeWithText("Donor workspace", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-tab-REQUESTS").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Message requester").performScrollTo().performClick()
 
         composeRule.onNodeWithText("Conversation").assertIsDisplayed()
@@ -219,6 +223,44 @@ class ConversationNavigationTest {
             resultsRequestId = "request-42",
             contacts = listOf(RequesterContact("donor-42", "Alex Donor", status)),
         )
+
+    /** Verifies that the donor map is a labelled top-level destination and navigation remains available. */
+    @Test
+    fun donor_map_is_a_labeled_top_level_destination_and_navigation_remains_available() {
+        renderShell(StateRestorationTester(composeRule), UserRole.REQUESTER)
+
+        composeRule.onNodeWithTag("nav-MAP").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Find donors", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithTag("nav-MAP").assertIsSelected()
+        composeRule.onNodeWithTag("nav-HOME").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Close donor map").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("nav-HOME").performClick()
+        composeRule.onNodeWithText("LifeLink", substring = false).assertIsDisplayed()
+    }
+
+    /** Verifies that map loading, errors, and empty results are mutually exclusive and truthful. */
+    @Test
+    fun donor_map_shows_the_correct_loading_error_and_empty_state() {
+        val state = mutableStateOf(PrivacyUiState(mapLoading = true))
+        composeRule.setContent {
+            LifeLinkTheme {
+                DonorMapScreen(state.value, onAction = {}, onBack = {})
+            }
+        }
+
+        composeRule.onNodeWithText("Loading donor areas…").assertIsDisplayed()
+        composeRule.onNodeWithText("No donor areas available").assertDoesNotExist()
+        composeRule.onNodeWithText("0 areas").assertDoesNotExist()
+
+        composeRule.runOnIdle { state.value = PrivacyUiState(mapError = "Could not load donor areas.") }
+        composeRule.onNodeWithText("Could not load donor areas.").assertIsDisplayed()
+        composeRule.onNodeWithText("No donor areas available").assertDoesNotExist()
+        composeRule.onNodeWithText("0 areas").assertDoesNotExist()
+
+        composeRule.runOnIdle { state.value = PrivacyUiState() }
+        composeRule.onNodeWithText("No donor areas available").assertIsDisplayed()
+    }
 
     /** Renders a restorable shell for the supplied role, skips welcome, and records privacy actions. */
     private fun renderShell(restoration: StateRestorationTester, role: UserRole) {
