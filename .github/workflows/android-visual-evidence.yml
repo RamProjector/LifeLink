@@ -1,0 +1,72 @@
+name: Optional Android visual evidence
+
+# This is an evidence workflow, not a merge gate. It boots a hosted emulator,
+# runs the existing Compose workflow tests, and uploads real device screenshots.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "LifeLinkAndroid/**"
+      - ".github/workflows/android-visual-evidence.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-visual-evidence-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-evidence:
+    name: Boot emulator, exercise UI, collect screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # The emulator action owns SDK installation and boot/wait logic. We do not
+      # pre-gate on /dev/kvm: runner capability is established by the actual boot.
+      - name: Boot Android emulator and run Compose visual walkthrough
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none
+          disable-animations: true
+          working-directory: LifeLinkAndroid
+          script: |
+            set -o pipefail
+            adb devices
+            adb shell getprop sys.boot_completed | grep -q 1
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest \
+              -Pandroid.testInstrumentationRunnerArguments.class=com.lifelink.app.LifeLinkWorkflowVisualTest
+
+      - name: Collect screenshots from emulator
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/lifelink-visual-evidence"
+          adb devices || true
+          adb pull /sdcard/Android/data/com.lifelink.app/files "$RUNNER_TEMP/lifelink-visual-evidence/device-files" || true
+          find "$RUNNER_TEMP/lifelink-visual-evidence" -type f -print || true
+
+      - name: Upload real emulator screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifelink-visual-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/lifelink-visual-evidence/
+          if-no-files-found: warn
+          retention-days: 14
