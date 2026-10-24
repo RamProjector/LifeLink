@@ -45,10 +45,9 @@ jobs:
   visual-review:
     name: Capture Android visual evidence
     runs-on: ubuntu-latest
-    # With KVM + a cached AVD snapshot the job finishes in a few minutes. When
-    # KVM is unavailable the emulator falls back to software emulation, which is
-    # far slower, so allow headroom for that path rather than failing on the
-    # timeout.
+    # Visual review is required evidence, not a best-effort check. If the runner
+    # cannot provide KVM, fail explicitly rather than reporting a green workflow
+    # with the instrumentation tests silently skipped.
     timeout-minutes: 45
     defaults:
       run:
@@ -81,11 +80,9 @@ jobs:
       # runners do not expose /dev/kvm at all. Granting access lets the emulator
       # use hardware acceleration, which is the dominant cost of this job.
       #
-      # This step is deliberately best-effort: a runner that lacks KVM is an
-      # infrastructure difference, not a defect in the change under review, so
-      # we warn and continue instead of turning an unrelated PR red. The
-      # emulator steps below are gated on the `available` output this step
-      # publishes, because an x86_64 system image cannot boot without KVM.
+      # This step records whether the runner can execute the x86_64 emulator.
+      # The required guard below fails the job when KVM is unavailable, so
+      # skipped instrumentation cannot be mistaken for successful visual review.
       - name: Enable KVM hardware acceleration (best effort)
         id: kvm
         run: |
@@ -106,6 +103,12 @@ jobs:
             echo "::warning::/dev/kvm is not accessible; the emulator cannot boot the x86_64 system image on this runner, so the emulator steps will be skipped."
             echo "available=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Require KVM for visual instrumentation
+        if: steps.kvm.outputs.available != 'true'
+        run: |
+          echo "::error::Visual review cannot run because /dev/kvm is unavailable or inaccessible. Instrumentation and screenshot evidence are required; this run must not be treated as a pass. Re-run on a GitHub-hosted runner with KVM enabled."
+          exit 1
 
       - name: Build visual-test APKs
         # --no-daemon: the runner has 16 GB and the emulator below claims 4 GB
