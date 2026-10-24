@@ -44,7 +44,7 @@ env:
 jobs:
   visual-review:
     name: Capture Android visual evidence
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Prefer KVM for speed, but run real instrumentation in software-emulation
     # mode when the hosted runner does not expose /dev/kvm. Never skip the tests.
     timeout-minutes: 45
