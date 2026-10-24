@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -219,6 +220,21 @@ class ConversationNavigationTest {
             resultsRequestId = "request-42",
             contacts = listOf(RequesterContact("donor-42", "Alex Donor", status)),
         )
+
+    /** Verifies that the donor map is a labelled top-level destination and navigation remains available. */
+    @Test
+    fun donor_map_is_a_labeled_top_level_destination_and_navigation_remains_available() {
+        renderShell(StateRestorationTester(composeRule), UserRole.REQUESTER)
+
+        composeRule.onNodeWithTag("nav-MAP").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Find donors", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithTag("nav-MAP").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav-HOME").assertIsDisplayed()
+        composeRule.onNodeWithText("Close donor map", substring = false).assertDoesNotExist()
+
+        composeRule.onNodeWithTag("nav-HOME").performClick()
+        composeRule.onNodeWithText("LifeLink", substring = false).assertIsDisplayed()
+    }
 
     /** Renders a restorable shell for the supplied role, skips welcome, and records privacy actions. */
     private fun renderShell(restoration: StateRestorationTester, role: UserRole) {
