@@ -44,7 +44,7 @@ env:
 jobs:
   visual-review:
     name: Capture Android visual evidence
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     # Prefer KVM for speed, but run real instrumentation in software-emulation
     # mode when the hosted runner does not expose /dev/kvm. Never skip the tests.
     timeout-minutes: 45
@@ -99,8 +99,9 @@ jobs:
             echo "KVM is available: $(ls -l /dev/kvm)"
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::/dev/kvm is not accessible; the emulator cannot boot the x86_64 system image on this runner, so the emulator steps will be skipped."
+            echo "::error::/dev/kvm is not accessible on this runner. The configured x86_64 Android emulator cannot reliably boot with software emulation in this CI environment."
             echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
 
       - name: Select emulator acceleration mode
