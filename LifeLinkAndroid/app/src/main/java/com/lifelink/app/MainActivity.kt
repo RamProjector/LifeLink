@@ -145,7 +145,9 @@ class MainActivity : ComponentActivity() {
                                         displayName = profile.displayName.orEmpty()
                                         canRequest = profile.canRequest
                                         canDonate = profile.canDonate
-                                        hasDonorProfile = profile.canDonate
+                                        // canDonate is a capability flag, not proof that a donor
+                                        // profile exists. Resolve profile existence from /v1/donor-profile
+                                        // when switching back to requester mode.
                                         role = if (profile.role.equals("donor", ignoreCase = true)) UserRole.DONOR else UserRole.REQUESTER
                                         roleStore.save(accountUserId, role!!)
                                     }
@@ -292,16 +294,33 @@ class MainActivity : ComponentActivity() {
                         if (!roleSwitchInFlight) {
                             roleSwitchInFlight = true
                             val previousRole = role ?: UserRole.REQUESTER
-                            val previousCanRequest = canRequest
-                            val previousCanDonate = canDonate
                             val next = RoleSwitcher.toggled(previousRole)
-                            val caps = RoleSwitcher.capabilities(next, hasDonorProfile = hasDonorProfile)
-                            role = next
-                            canRequest = caps.canRequest
-                            canDonate = caps.canDonate
-                            roleStore.save(accountUserId, next)
                             roleSyncScope.launch {
                                 try {
+                                    // A profile's can_donate flag can be true merely because the
+                                    // user opened donor mode. Before switching back to requester,
+                                    // verify actual donor-profile existence from the server.
+                                    val donorProfileExists =
+                                        if (next == UserRole.REQUESTER) {
+                                            val profileResult = runCatching { account.donorProfileRepository.load() }
+                                            val error = profileResult.exceptionOrNull()
+                                            if (error is CancellationException) throw error
+                                            if (error != null) {
+                                                profileMessage =
+                                                    "Your donor profile could not be checked. Your role was not changed; please retry."
+                                                return@launch
+                                            }
+                                            profileResult.getOrNull() != null
+                                        } else {
+                                            hasDonorProfile
+                                        }
+                                    if (next == UserRole.REQUESTER) {
+                                        hasDonorProfile = donorProfileExists
+                                    }
+                                    val caps = RoleSwitcher.capabilities(
+                                        next,
+                                        hasDonorProfile = donorProfileExists,
+                                    )
                                     val saved =
                                         profileWriteMutex.withLock {
                                             runCatching {
@@ -315,13 +334,15 @@ class MainActivity : ComponentActivity() {
                                                 )
                                             }
                                         }
-                                    if (saved.getOrNull()?.isSuccessful != true) {
-                                        // The server did not accept the new role: roll the UI back
-                                        // so it never shows a role the backend did not save.
-                                        role = previousRole
-                                        canRequest = previousCanRequest
-                                        canDonate = previousCanDonate
-                                        roleStore.save(accountUserId, previousRole)
+                                    val error = saved.exceptionOrNull()
+                                    if (error is CancellationException) throw error
+                                    if (saved.getOrNull()?.isSuccessful == true) {
+                                        role = next
+                                        canRequest = caps.canRequest
+                                        canDonate = caps.canDonate
+                                        roleStore.save(accountUserId, next)
+                                        profileMessage = null
+                                    } else {
                                         profileMessage = "Role could not be switched. Please try again."
                                     }
                                 } finally {
