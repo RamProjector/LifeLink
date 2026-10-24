@@ -179,9 +179,17 @@ fun LifeLinkShell(
     var showConversation by rememberSaveable { mutableStateOf(false) }
     var conversationRequestId by rememberSaveable { mutableStateOf("") }
     var conversationDonorId by rememberSaveable { mutableStateOf("") }
+    var conversationOpenedFromDonor by rememberSaveable { mutableStateOf(false) }
+    val closeConversation = {
+        showConversation = false
+        // Keep the donor workspace as the return destination even if a child screen
+        // updates its own navigation state while the conversation is visible.
+        if (conversationOpenedFromDonor) showDonor = true
+    }
     val openConversation: (String, String) -> Unit = { requestId, donorId ->
         conversationRequestId = requestId
         conversationDonorId = donorId
+        conversationOpenedFromDonor = showDonor
         showConversation = true
     }
     var showStart by rememberSaveable(accountUserId) {
@@ -224,14 +232,14 @@ fun LifeLinkShell(
         return
     }
     if (showConversation && conversationRequestId.isNotBlank() && conversationDonorId.isNotBlank()) {
-        BackHandler { showConversation = false }
+        BackHandler { closeConversation() }
         ConversationScreen(
             state = privacyState,
             requestId = conversationRequestId,
             donorId = conversationDonorId,
             currentUserId = accountUserId,
             onAction = onPrivacyAction,
-            onBack = { showConversation = false },
+            onBack = { closeConversation() },
         )
         return
     }
