@@ -34,18 +34,15 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Single source of truth for the emulator image. Bump API_LEVEL only when the
-  # app's minSdk/targetSdk or the visual harness actually requires it; a lower
-  # API level boots faster and keeps the AVD snapshot cache key stable.
-  # Use the installed 37.2 compile platform with the stable Android 17 (API 37)
-  # emulator image. The emulator action otherwise tries to install the missing
-  # platforms;android-37 package and exits before booting.
+  # Keep the installed 37.2 compile platform separate from the stable Android
+  # 17 (API 37) emulator image. The emulator action otherwise tries to install
+  # the missing platforms;android-37 package and exits before booting.
   API_LEVEL: 37.2
   SYSTEM_IMAGE_API_LEVEL: 37
   AVD_TARGET: google_apis
   AVD_ARCH: x86_64
   AVD_PROFILE: pixel_2
-  # Bump to invalidate the cached AVD snapshot after changing emulator options.
+  # Bump after changing the platform, system image, or emulator options.
   AVD_CACHE_VERSION: v3-api37-stable-image
 
 jobs:
