@@ -240,6 +240,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
+          system-image-api-level: ${{ env.SYSTEM_IMAGE_API_LEVEL }}
           target: ${{ env.AVD_TARGET }}
           arch: ${{ env.AVD_ARCH }}
           profile: ${{ env.AVD_PROFILE }}
