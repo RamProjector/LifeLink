@@ -1,6 +1,5 @@
 package com.lifelink.app.feature.admin
 
-import java.io.IOException
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +32,7 @@ import com.lifelink.app.data.remote.AdminUser
 import com.lifelink.app.data.remote.AdminUserUpdateRequest
 import com.lifelink.app.data.remote.LifeLinkApi
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 private enum class AdminPage(val title: String) {
     OVERVIEW("Overview"),
@@ -107,28 +107,52 @@ private suspend fun loadAdminPage(
 ): String? {
     return try {
         when (page) {
-            AdminPage.OVERVIEW -> {
-                val response = api.adminDashboard()
-                if (!response.isSuccessful) return "Dashboard request failed (${response.code()})."
-                onDashboard(response.body() ?: return "Dashboard response was empty.")
-            }
-            AdminPage.USERS -> {
-                val response = api.adminUsers()
-                if (!response.isSuccessful) return "User list request failed (${response.code()})."
-                onUsers(response.body()?.items ?: emptyList())
-            }
-            AdminPage.AUDIT, AdminPage.ERRORS -> {
-                val response = if (page == AdminPage.AUDIT) api.adminAudit() else api.adminErrors()
-                if (!response.isSuccessful) return "Log request failed (${response.code()})."
-                onEvents(response.body()?.items ?: emptyList())
-            }
+            AdminPage.OVERVIEW -> loadDashboard(api, onDashboard)
+            AdminPage.USERS -> loadUsers(api, onUsers)
+            AdminPage.AUDIT, AdminPage.ERRORS -> loadEvents(api, page, onEvents)
         }
-        null
     } catch (failure: IOException) {
         failure.message ?: "Network error while loading admin data."
     } catch (failure: JsonParseException) {
         failure.message ?: "The server returned unreadable admin data."
     }
+}
+
+private suspend fun loadDashboard(
+    api: LifeLinkApi,
+    onDashboard: (AdminDashboardResponse) -> Unit,
+): String? {
+    val response = api.adminDashboard()
+    val data = response.body()
+    return when {
+        !response.isSuccessful -> "Dashboard request failed (${response.code()})."
+        data == null -> "Dashboard response was empty."
+        else -> {
+            onDashboard(data)
+            null
+        }
+    }
+}
+
+private suspend fun loadUsers(
+    api: LifeLinkApi,
+    onUsers: (List<AdminUser>) -> Unit,
+): String? {
+    val response = api.adminUsers()
+    if (!response.isSuccessful) return "User list request failed (${response.code()})."
+    onUsers(response.body()?.items ?: emptyList())
+    return null
+}
+
+private suspend fun loadEvents(
+    api: LifeLinkApi,
+    page: AdminPage,
+    onEvents: (List<AdminAuditEvent>) -> Unit,
+): String? {
+    val response = if (page == AdminPage.AUDIT) api.adminAudit() else api.adminErrors()
+    if (!response.isSuccessful) return "Log request failed (${response.code()})."
+    onEvents(response.body()?.items ?: emptyList())
+    return null
 }
 
 @Composable
