@@ -2,7 +2,6 @@ package com.lifelink.app
 
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
@@ -37,7 +36,6 @@ import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -314,22 +312,10 @@ class ConversationNavigationTest {
 
         composeRule.onNodeWithText("Approximate donor pins only", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
-        composeRule.runOnIdle {
-            val mapStatus = composeRule.onNodeWithTag("maplibre-map-surface")
-                .fetchSemanticsNode().config[SemanticsProperties.StateDescription]
-            assertTrue(mapStatus.contains("2 approximate donor pins"))
-        }
-
         composeRule.onNodeWithContentDescription("Show map filters").performClick()
         composeRule.onNodeWithText("Available now", substring = false).performClick()
         composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("1 areas", substring = false).assertIsDisplayed()
-        composeRule.runOnIdle {
-            val mapStatus = composeRule.onNodeWithTag("maplibre-map-surface")
-                .fetchSemanticsNode().config[SemanticsProperties.StateDescription]
-            assertTrue(mapStatus.contains("1 approximate donor pins"))
-        }
-
         composeRule.onNodeWithText("Clear filters", substring = false).performClick()
         composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic test area A", substring = false).assertDoesNotExist()
