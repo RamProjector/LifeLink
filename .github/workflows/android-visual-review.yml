@@ -37,13 +37,16 @@ env:
   # Single source of truth for the emulator image. Bump API_LEVEL only when the
   # app's minSdk/targetSdk or the visual harness actually requires it; a lower
   # API level boots faster and keeps the AVD snapshot cache key stable.
-  # Android 17 is the current stable Android release (API 37); exercise the app on it.
-  API_LEVEL: 37
+  # Use the installed 37.2 compile platform with the stable Android 17 (API 37)
+  # emulator image. The emulator action otherwise tries to install the missing
+  # platforms;android-37 package and exits before booting.
+  API_LEVEL: 37.2
+  SYSTEM_IMAGE_API_LEVEL: 37
   AVD_TARGET: google_apis
   AVD_ARCH: x86_64
   AVD_PROFILE: pixel_2
   # Bump to invalidate the cached AVD snapshot after changing emulator options.
-  AVD_CACHE_VERSION: v2-api37
+  AVD_CACHE_VERSION: v3-api37-stable-image
 
 jobs:
   visual-review:
@@ -206,7 +209,7 @@ jobs:
           path: |
             ~/.android/avd/*
             /usr/local/lib/android/sdk/system-images
-          key: avd-${{ env.API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_PROFILE }}-${{ env.AVD_CACHE_VERSION }}
+          key: avd-${{ env.API_LEVEL }}-${{ env.SYSTEM_IMAGE_API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_PROFILE }}-${{ env.AVD_CACHE_VERSION }}
 
       # On a cache miss, boot the emulator once and let it save a snapshot that
       # the cache step above persists for the next run.
@@ -215,6 +218,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
+          system-image-api-level: ${{ env.SYSTEM_IMAGE_API_LEVEL }}
           target: ${{ env.AVD_TARGET }}
           arch: ${{ env.AVD_ARCH }}
           profile: ${{ env.AVD_PROFILE }}
