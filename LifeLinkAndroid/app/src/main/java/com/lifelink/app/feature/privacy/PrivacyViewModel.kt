@@ -111,6 +111,9 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     if (generation != mapLoadGeneration) return@onFailure
                     _state.value =
                         _state.value.copy(
+                            // Donor visibility and freshness may change between refreshes.
+                            // Do not keep old donor pins visible after a failed refresh.
+                            map = null,
                             mapLoading = false,
                             mapError = userFacingError(error, "The donor map could not be loaded."),
                         )
