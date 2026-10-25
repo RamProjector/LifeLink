@@ -223,7 +223,7 @@ async def admin_errors(
     result = await session.execute(
         text(
             "SELECT id, actor_id, action, metadata, created_at, outcome, target_type, target_id, correlation_id "
-            "FROM audit_events WHERE action LIKE 'error.%' OR outcome = 'error' "
+            "FROM audit_events WHERE action LIKE 'error.%' OR outcome IN ('error', 'denied') "
             "ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
         ),
         {"limit": limit, "offset": offset},
