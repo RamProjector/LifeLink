@@ -1,0 +1,154 @@
+name: Android visual review
+
+on:
+  pull_request:
+    paths:
+      - "LifeLinkAndroid/**"
+      - ".github/workflows/android-visual-review.yml"
+  push:
+    branches: [main]
+    paths:
+      - "LifeLinkAndroid/**"
+      - ".github/workflows/android-visual-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-visual-review-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-review:
+    name: Run Android instrumentation and capture evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANDROID_SERIAL: emulator-5554
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+
+      - name: Install Android SDK and API 36 emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install \
+            "platforms;android-37.2" \
+            "build-tools;37.0.0" \
+            "platforms;android-36" \
+            "emulator" \
+            "system-images;android-36;google_apis;x86_64"
+
+      - name: Create and boot Android 16 emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "no" | avdmanager create avd --force \
+            -n lifelink-api36 \
+            -k "system-images;android-36;google_apis;x86_64" \
+            --device "pixel_2"
+          mkdir -p "$RUNNER_TEMP/lifelink-visual-evidence"
+          "$ANDROID_HOME/emulator/emulator" \
+            -avd lifelink-api36 \
+            -no-window -no-audio -no-boot-anim \
+            -no-snapshot -no-snapshot-save \
+            -gpu swiftshader_indirect -camera-back none \
+            -cores 2 -memory 2048 \
+            > "$RUNNER_TEMP/lifelink-emulator.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/lifelink-emulator.pid"
+          adb start-server
+          adb wait-for-device
+
+          deadline=$((SECONDS + 1200))
+          attempt=0
+          ready=false
+          while (( SECONDS < deadline )); do
+            attempt=$((attempt + 1))
+            booted="$(timeout 5s adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+            input_service="$(timeout 5s adb shell service check input 2>/dev/null || true)"
+            settings_service="$(timeout 5s adb shell service check settings 2>/dev/null || true)"
+            if [[ "$booted" == "1" && "$input_service" == *"found"* && "$settings_service" == *"found"* ]]; then
+              echo "Android framework and input services are ready."
+              ready=true
+              break
+            fi
+            if (( attempt % 6 == 0 )); then
+              echo "Waiting for Android readiness (attempt $attempt; boot=$booted; input=$input_service; settings=$settings_service)."
+              adb devices || true
+            fi
+            sleep 2
+          done
+
+          if [[ "$ready" != true ]]; then
+            echo "::error::Android emulator did not become ready within 20 minutes."
+            adb devices || true
+            tail -n 200 "$RUNNER_TEMP/lifelink-emulator.log" || true
+            exit 1
+          fi
+
+          adb shell settings put global window_animation_scale 0.0
+          adb shell settings put global transition_animation_scale 0.0
+          adb shell settings put global animator_duration_scale 0.0
+          adb devices
+
+      - name: Run all Android instrumentation tests with isolated test configuration
+        shell: bash
+        working-directory: LifeLinkAndroid
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon :app:connectedDebugAndroidTest \
+            -PlifelinkApiBaseUrl=https://api.example.invalid/ \
+            -PlifelinkApiToken=synthetic-visual-test \
+            -PsupabaseUrl=https://supabase.example.invalid \
+            -PsupabasePublishableKey=synthetic-visual-test \
+            --stacktrace
+
+      - name: Collect emulator logs, screenshots, and test reports
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          evidence="$RUNNER_TEMP/lifelink-visual-evidence"
+          mkdir -p "$evidence"
+          adb logcat -d -v threadtime > "$evidence/logcat.txt" 2>&1
+          adb exec-out screencap -p > "$evidence/emulator-final-screen.png" 2>/dev/null
+          adb shell run-as com.lifelink.app tar -C files -cf - lifelink-evidence 2>/dev/null | tar -xf - -C "$evidence" 2>/dev/null
+          cp -R LifeLinkAndroid/app/build/reports/androidTests "$evidence/" 2>/dev/null
+          cp -R LifeLinkAndroid/app/build/outputs/androidTest-results "$evidence/" 2>/dev/null
+          cp -R LifeLinkAndroid/app/build/reports/tests "$evidence/" 2>/dev/null
+          cp "$RUNNER_TEMP/lifelink-emulator.log" "$evidence/" 2>/dev/null
+          find "$evidence" -type f -print || true
+
+      - name: Stop Android emulator
+        if: always()
+        shell: bash
+        run: |
+          adb emu kill || true
+          if [[ -f "$RUNNER_TEMP/lifelink-emulator.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/lifelink-emulator.pid")" 2>/dev/null || true
+          fi
+
+      - name: Upload Android visual evidence and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lifelink-android-visual-review-${{ github.sha }}
+          path: ${{ runner.temp }}/lifelink-visual-evidence/
+          if-no-files-found: warn
+          retention-days: 14
