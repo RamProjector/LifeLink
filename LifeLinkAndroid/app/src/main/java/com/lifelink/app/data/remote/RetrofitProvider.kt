@@ -20,7 +20,7 @@ object RetrofitProvider {
     fun create(
         baseUrl: String = BuildConfig.LIFELINK_API_BASE_URL.ifBlank { DEFAULT_BASE_URL },
         tokenProvider: () -> String? = { null },
-        onUnauthorized: (suspend () -> String?)? = null
+        onUnauthorized: (suspend () -> String?)? = null,
     ): LifeLinkApi {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
@@ -38,7 +38,7 @@ object RetrofitProvider {
             chain.proceed(
                 chain.request().newBuilder()
                     .header("Authorization", "Bearer $refreshedToken")
-                    .build()
+                    .build(),
             )
         }
         val client = OkHttpClient.Builder()
