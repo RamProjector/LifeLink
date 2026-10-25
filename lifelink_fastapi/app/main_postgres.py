@@ -201,6 +201,18 @@ def donor_setup_complete(row: DonorRow) -> bool:
     )
 
 
+@app.middleware("http")
+async def audit_admin_denials(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/v1/admin/") and response.status_code in {401, 403}:
+        await _record_api_error(
+            request,
+            HTTPException(status_code=response.status_code),
+            outcome="denied",
+        )
+    return response
+
+
 @app.exception_handler(IntegrityError)
 async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
     logger.exception("Database constraint failure on %s", request.scope.get("route"))
