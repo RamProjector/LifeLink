@@ -43,7 +43,7 @@ env:
   AVD_ARCH: x86_64
   AVD_PROFILE: pixel_2
   # Bump after changing the platform, system image, or emulator options.
-  AVD_CACHE_VERSION: v3-api37-stable-image
+  AVD_CACHE_VERSION: v4-api37-stable-image-fallback
 
 jobs:
   visual-review:
@@ -80,34 +80,30 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
-      # GitHub's ubuntu-latest runners usually expose /dev/kvm, but the runner
-      # user is not always in the kvm group, and some hosted/containerised
-      # runners do not expose /dev/kvm at all. Granting access lets the emulator
-      # use hardware acceleration, which is the dominant cost of this job.
-      #
-      # Visual instrumentation is a required quality gate, not a best-effort
-      # screenshot job. If this runner cannot accelerate the x86_64 emulator,
-      # fail visibly instead of silently skipping the tests.
-      - name: Enable and require KVM hardware acceleration
+      # Prefer KVM, but never skip visual instrumentation when a hosted runner
+      # lacks it. Explicitly relax /dev/kvm permissions when possible; otherwise
+      # tell the emulator action to use software virtualization (slower, but
+      # still a real emulator run with the same tests and screenshot assertions).
+      - name: Detect emulator hardware acceleration
         id: kvm
         run: |
-          # The udev setup is best-effort: on a runner without a udev daemon these
-          # commands fail, and the default fail-fast shell would then abort the
-          # step BEFORE `available` is written. Guard each one so the /dev/kvm
-          # check below always runs and always publishes an output.
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null || \
             echo "::warning::could not write the udev rule; continuing."
           sudo udevadm control --reload-rules || \
             echo "::warning::udevadm control --reload-rules failed; continuing."
           sudo udevadm trigger --name-match=kvm || \
             echo "::warning::udevadm trigger failed; continuing."
+          if [[ -e /dev/kvm ]]; then
+            sudo chmod 666 /dev/kvm || echo "::warning::could not chmod /dev/kvm; checking access."
+          fi
           if [[ -r /dev/kvm && -w /dev/kvm ]]; then
             echo "KVM is available: $(ls -l /dev/kvm)"
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::error::/dev/kvm is not accessible; visual instrumentation requires the Android emulator to run."
+            echo "::warning::KVM is unavailable; visual instrumentation will run with software virtualization."
+            ls -l /dev/kvm 2>&1 || true
+            id || true
             echo "available=false" >> "$GITHUB_OUTPUT"
-            exit 1
           fi
 
       - name: Build visual-test APKs
@@ -200,22 +196,22 @@ jobs:
       # The emulator regenerates it on first use, which is harmless here.
       - name: Cache AVD snapshot and system image
         id: avd-cache
-        if: steps.kvm.outputs.available == 'true'
         uses: actions/cache@v4
         with:
           path: |
             ~/.android/avd/*
             /usr/local/lib/android/sdk/system-images
-          key: avd-${{ env.API_LEVEL }}-${{ env.SYSTEM_IMAGE_API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_PROFILE }}-${{ env.AVD_CACHE_VERSION }}
+          key: avd-${{ env.API_LEVEL }}-${{ env.SYSTEM_IMAGE_API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_PROFILE }}-kvm-${{ steps.kvm.outputs.available }}-${{ env.AVD_CACHE_VERSION }}
 
       # On a cache miss, boot the emulator once and let it save a snapshot that
       # the cache step above persists for the next run.
       - name: Create AVD and generate snapshot for caching
-        if: steps.kvm.outputs.available == 'true' && steps.avd-cache.outputs.cache-hit != 'true'
+        if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
           system-image-api-level: ${{ env.SYSTEM_IMAGE_API_LEVEL }}
+          disable-linux-hw-accel: ${{ steps.kvm.outputs.available != 'true' }}
           target: ${{ env.AVD_TARGET }}
           arch: ${{ env.AVD_ARCH }}
           profile: ${{ env.AVD_PROFILE }}
@@ -227,17 +223,17 @@ jobs:
           ram-size: 4096M
           heap-size: 512M
           disk-size: 4096M
-          emulator-boot-timeout: 300
+          emulator-boot-timeout: 600
           disable-spellchecker: true
           disable-animations: true
           script: echo "Generated AVD snapshot for caching."
 
       - name: Run visual smoke test on emulator
-        if: steps.kvm.outputs.available == 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
           system-image-api-level: ${{ env.SYSTEM_IMAGE_API_LEVEL }}
+          disable-linux-hw-accel: ${{ steps.kvm.outputs.available != 'true' }}
           target: ${{ env.AVD_TARGET }}
           arch: ${{ env.AVD_ARCH }}
           profile: ${{ env.AVD_PROFILE }}
@@ -245,14 +241,15 @@ jobs:
           # -no-snapshot-save keeps the cached snapshot pristine; the emulator
           # still loads it, so boot is fast. -no-metrics / -camera-* none /
           # -netfast trim startup and runtime overhead; -gpu swiftshader_indirect
-          # keeps rendering deterministic on a headless runner. Hardware
-          # acceleration is provided by the KVM step above.
+          # keeps rendering deterministic on a headless runner. The KVM check
+          # above selects hardware acceleration when available and software
+          # virtualization when it is not; neither mode skips instrumentation.
           emulator-options: -no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics -camera-back none -camera-front none -netfast -gpu swiftshader_indirect
           cores: 4
           ram-size: 4096M
           heap-size: 512M
           disk-size: 4096M
-          emulator-boot-timeout: 300
+          emulator-boot-timeout: 600
           disable-spellchecker: true
           disable-animations: true
           script: |
