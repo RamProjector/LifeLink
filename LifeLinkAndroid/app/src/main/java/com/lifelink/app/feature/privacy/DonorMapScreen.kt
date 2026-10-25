@@ -225,7 +225,7 @@ fun DonorMapScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "${filteredAreas.size} matching areas",
+                                "${filteredAreas.size} ${if (filteredAreas.size == 1) "matching area" else "matching areas"}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -272,7 +272,7 @@ fun DonorMapScreen(
                         Modifier.padding(start = 8.dp).weight(1f),
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    Text("${filteredAreas.size} areas", style = MaterialTheme.typography.labelMedium)
+                    Text("${filteredAreas.size} ${if (filteredAreas.size == 1) "area" else "areas"}", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
