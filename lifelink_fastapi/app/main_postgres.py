@@ -10,6 +10,7 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -152,6 +153,17 @@ async def _expire_timed_out_requests_forever() -> None:
 
 
 app = FastAPI(title="LifeLink Matching Service \u2014 PostgreSQL", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        origin.strip().rstrip("/")
+        for origin in os.getenv("LIFELINK_CORS_ORIGINS", "").split(",")
+        if origin.strip() and origin.strip() != "*"
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "PATCH", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Correlation-ID"],
+)
 app.include_router(admin_router)
 logger = logging.getLogger("lifelink.api")
 
