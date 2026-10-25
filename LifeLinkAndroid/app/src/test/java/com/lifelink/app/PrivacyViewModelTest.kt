@@ -114,20 +114,31 @@ class PrivacyViewModelTest {
         assertEquals("The donor map could not be loaded.", viewModel.state.value.mapError)
     }
 
-    /** Refreshes the public map after a donor opts out so their previous area is not left visible. */
+    /** Clears the old donor map immediately and refreshes it after a donor opts out of visibility. */
     @Test
-    fun hiding_donor_refreshes_public_map() = runTest {
+    fun hiding_donor_clears_stale_map_while_refreshing_and_then_loads_fresh_map() = runTest {
+        val previousMap = DonorMap("before-hide", approximateOnly = true, areas = emptyList())
+        repository.map = { Result.success(previousMap) }
+        viewModel.onAction(PrivacyAction.LoadMap)
+        assertEquals("before-hide", viewModel.state.value.map?.generatedAt)
+
+        val refreshedMap = CompletableDeferred<Result<DonorMap>>()
         var mapCalls = 0
         repository.map = {
             mapCalls++
-            Result.success(DonorMap("after-hide", approximateOnly = true, areas = emptyList()))
+            refreshedMap.await()
         }
 
         viewModel.onAction(PrivacyAction.SetMapVisibility(mapVisible = false, exactLocationSharingEnabled = false))
 
         assertEquals(1, mapCalls)
-        assertEquals("after-hide", viewModel.state.value.map?.generatedAt)
+        assertNull(viewModel.state.value.map)
+        assertTrue(viewModel.state.value.mapLoading)
         assertEquals(false, viewModel.state.value.visibility?.mapVisible)
+
+        refreshedMap.complete(Result.success(DonorMap("after-hide", approximateOnly = true, areas = emptyList())))
+
+        assertEquals("after-hide", viewModel.state.value.map?.generatedAt)
         assertFalse(viewModel.state.value.mapLoading)
         assertNull(viewModel.state.value.mapError)
     }
