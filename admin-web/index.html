@@ -48,7 +48,18 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
  async function signIn() {
    const supabase=$("supabase-url").value.trim().replace(/\/$/,""), key=$("supabase-key").value.trim();
    apiBase=$("api-url").value.trim().replace(/\/$/,"");
+   const secureEndpoint = value => {
+     try {
+       const parsed = new URL(value);
+       return parsed.protocol === "https:" ||
+         (parsed.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname));
+     } catch { return false; }
+   };
    if (!supabase || !key || !apiBase || !$("email").value.trim() || !$("password").value) { message("login-message","Complete all fields first.",true); return; }
+   if (!secureEndpoint(supabase) || !secureEndpoint(apiBase)) {
+     message("login-message","Use HTTPS for Supabase and the LifeLink API. HTTP is allowed only for localhost development.",true);
+     return;
+   }
    $("signin").disabled=true; message("login-message","Signing in…");
    try {
      const response=await fetch(supabase+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":key,"Content-Type":"application/json"},body:JSON.stringify({email:$("email").value.trim(),password:$("password").value})});
