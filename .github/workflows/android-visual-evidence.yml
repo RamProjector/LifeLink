@@ -39,37 +39,64 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       # API 37 was unavailable in the hosted runner's SDK package index.
-      # API 36 boots successfully; keep this workflow optional, not a merge gate.
-      - name: Boot Android 16 (API 36) emulator and run Compose visual walkthrough
-        uses: reactivecircus/android-emulator-runner@v2.38.0
-        with:
-          api-level: 36
-          target: google_apis
-          arch: x86_64
-          # Use a lower-resolution AVD to reduce cold-boot pressure on hosted runners.
-          profile: pixel_2
-          # Explicitly disable snapshot loading/saving: missing snapshots were
-          # causing slow cold boots on the hosted runner.
-          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -no-snapshot-save -gpu swiftshader_indirect -camera-back none -cores 2 -memory 2048
-          emulator-boot-timeout: 1200
-          disable-animations: true
-          working-directory: LifeLinkAndroid
-          script: |
-            set -o pipefail
-            mkdir -p "$RUNNER_TEMP/lifelink-visual-evidence"
-            # Collect screenshots before android-emulator-runner shuts the AVD down.
-            # An EXIT trap is too late: the action's post-step cleanup can kill adb first.
-            adb devices
-            adb shell getprop sys.boot_completed | grep -q 1
-            ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.lifelink.app.LifeLinkWorkflowVisualTest
-            adb pull /sdcard/Android/data/com.lifelink.app/files "$RUNNER_TEMP/lifelink-visual-evidence/device-files" || true
-            # VisualEvidence falls back to app-private storage if shared storage is unavailable.
-            mkdir -p "$RUNNER_TEMP/lifelink-visual-evidence/private-files"
-            adb shell run-as com.lifelink.app tar -C files -cf - lifelink-evidence 2>/dev/null | tar -xf - -C "$RUNNER_TEMP/lifelink-visual-evidence/private-files" 2>/dev/null || true
-            # Keep a final emulator frame as supplemental evidence, not as the main screenshots.
-            adb exec-out screencap -p > "$RUNNER_TEMP/lifelink-visual-evidence/emulator-screen.png" 2>/dev/null || true
-            find "$RUNNER_TEMP/lifelink-visual-evidence" -type f -print
+      # Boot manually instead of relying on android-emulator-runner v2.38.0:
+      # upstream issue #489 documents a race where sys.boot_completed becomes 1
+      # before Android's input service is ready, causing the action to abort.
+      - name: Install Android 16 (API 36) emulator packages
+        uses: android-actions/setup-android@v3
 
+      - name: Create, boot, and verify Android 16 emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "emulator" "system-images;android-36;google_apis;x86_64"
+          echo "no" | avdmanager create avd --force -n lifelink-api36 -k "system-images;android-36;google_apis;x86_64" --device "pixel_2"
+          "$ANDROID_HOME/emulator/emulator" -avd lifelink-api36 -no-window -no-audio -no-boot-anim -no-snapshot -no-snapshot-save -gpu swiftshader_indirect -camera-back none -cores 2 -memory 2048 > "$RUNNER_TEMP/lifelink-emulator.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/lifelink-emulator.pid"
+          adb start-server
+          adb wait-for-device
+          # sys.boot_completed alone is not sufficient; wait for framework services too.
+          for attempt in $(seq 1 600); do
+            booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+            input_service="$(adb shell service check input 2>/dev/null || true)"
+            settings_service="$(adb shell service check settings 2>/dev/null || true)"
+            if [[ "$booted" == "1" && "$input_service" == *"found"* && "$settings_service" == *"found"* ]]; then
+              echo "Android framework and input/settings services are ready."
+              break
+            fi
+            if [[ "$attempt" == "600" ]]; then
+              echo "Emulator did not become fully ready. Emulator log tail:"
+              tail -n 160 "$RUNNER_TEMP/lifelink-emulator.log" || true
+              exit 1
+            fi
+            sleep 2
+          done
+          adb shell settings put global window_animation_scale 0.0
+          adb shell settings put global transition_animation_scale 0.0
+          adb shell settings put global animator_duration_scale 0.0
+          adb devices
+
+      - name: Run Compose visual walkthrough and collect screenshots
+        shell: bash
+        working-directory: LifeLinkAndroid
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/lifelink-visual-evidence"
+          ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.lifelink.app.LifeLinkWorkflowVisualTest
+          adb pull /sdcard/Android/data/com.lifelink.app/files "$RUNNER_TEMP/lifelink-visual-evidence/device-files" || true
+          mkdir -p "$RUNNER_TEMP/lifelink-visual-evidence/private-files"
+          adb shell run-as com.lifelink.app tar -C files -cf - lifelink-evidence 2>/dev/null | tar -xf - -C "$RUNNER_TEMP/lifelink-visual-evidence/private-files" 2>/dev/null || true
+          adb exec-out screencap -p > "$RUNNER_TEMP/lifelink-visual-evidence/emulator-screen.png" 2>/dev/null || true
+          find "$RUNNER_TEMP/lifelink-visual-evidence" -type f -print
+
+      - name: Stop Android emulator
+        if: always()
+        shell: bash
+        run: |
+          adb emu kill || true
+          if [[ -f "$RUNNER_TEMP/lifelink-emulator.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/lifelink-emulator.pid")" 2>/dev/null || true
+          fi
       - name: List collected visual evidence
         if: always()
         shell: bash
