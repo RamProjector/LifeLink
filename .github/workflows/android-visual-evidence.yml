@@ -38,13 +38,13 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-            # Use the latest stable Android platform (Android 17 / API 37) and the latest
-      # published emulator-runner release verified during this update. The action owns
-      # SDK installation and boot/wait logic. We do not pre-gate on /dev/kvm: runner capability is established by the actual boot.
-      - name: Boot Android 17 (API 37) emulator and run Compose visual walkthrough
+      # Android 16 / API 36 is a stable SDK target. API 37 was not available
+      # in the hosted runner's SDK package index, so the emulator never booted.
+      # Keep this workflow optional: real boot/test results determine capability.
+      - name: Boot Android 16 (API 36) emulator and run Compose visual walkthrough
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
-          api-level: 37
+          api-level: 36
           target: google_apis
           arch: x86_64
           profile: pixel_7_pro
