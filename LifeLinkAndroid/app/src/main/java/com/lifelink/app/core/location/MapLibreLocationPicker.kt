@@ -32,6 +32,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -268,6 +269,8 @@ fun MapLibrePrivacySafeDonorMap(
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf(false) }
+    var mapRendered by remember { mutableStateOf(false) }
+    var styleReady by remember { mutableStateOf(false) }
     var retryRequest by remember { mutableStateOf(0) }
     var recenterRequest by remember { mutableStateOf(0) }
     var appliedRecenterRequest by remember { mutableStateOf(-1) }
@@ -298,22 +301,33 @@ fun MapLibrePrivacySafeDonorMap(
         if (mapLoading) {
             mapLoading = false
             mapError = true
+            mapRendered = false
         }
     }
     val mapModifier = if (fullScreen) modifier.fillMaxSize() else modifier.fillMaxWidth().height(280.dp)
-    Box(mapModifier) {
+    Box(mapModifier.testTag(if (mapRendered) "maplibre-map-rendered" else "maplibre-map-not-rendered")) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = {
                 mapView.apply {
+                    addOnDidFinishRenderingMapListener { fully ->
+                        if (fully && styleReady) {
+                            mapLoading = false
+                            mapError = false
+                            mapRendered = true
+                        }
+                    }
                     addOnDidFailLoadingMapListener {
                         mapLoading = false
                         mapError = true
+                        mapRendered = false
                     }
                     getMapAsync { map ->
                         mapLoading = true
+                        mapError = false
+                        mapRendered = false
+                        styleReady = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            mapLoading = false
                             mapError = false
                             map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
                             appliedCenter = center
@@ -328,6 +342,7 @@ fun MapLibrePrivacySafeDonorMap(
                                 )
                             }
                             appliedAreasSignature = areasSignature
+                            styleReady = true
                         }
                     }
                 }
@@ -337,8 +352,9 @@ fun MapLibrePrivacySafeDonorMap(
                     if (retryRequest > 0) {
                         mapLoading = true
                         mapError = false
+                        mapRendered = false
+                        styleReady = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            mapLoading = false
                             mapError = false
                             map.clear()
                             areas.forEach { area ->
@@ -350,6 +366,7 @@ fun MapLibrePrivacySafeDonorMap(
                                 )
                             }
                             appliedAreasSignature = areasSignature
+                            styleReady = true
                         }
                         retryRequest = 0
                     }
