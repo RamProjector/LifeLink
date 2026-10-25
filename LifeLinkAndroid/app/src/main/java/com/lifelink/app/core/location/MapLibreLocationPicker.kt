@@ -247,14 +247,14 @@ fun MapLibreLocationPicker(
 }
 
 @Composable
-private fun RowLoading() {
+private fun RowLoading(label: String = "Loading map preview…") {
     androidx.compose.foundation.layout.Row(
         Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-        Text("Loading map preview…", style = MaterialTheme.typography.bodySmall)
+        Text(label, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -439,7 +439,7 @@ fun MapLibrePrivacySafeDonorMap(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-            ) { RowLoading() }
+            ) { RowLoading(if (fullScreen) "Loading map tiles…" else "Loading map preview…") }
             mapError -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Assertive },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
@@ -447,13 +447,17 @@ fun MapLibrePrivacySafeDonorMap(
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        "Map preview unavailable",
+                        if (fullScreen) "Map unavailable" else "Map preview unavailable",
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.semantics { heading() },
                     )
                     Text(
-                        "Donor results remain available in the list, so you can still review and select donors.",
+                        if (fullScreen) {
+                            "Donor areas could not be rendered. Retry to reload the map."
+                        } else {
+                            "Donor results remain available in the list, so you can still review and select donors."
+                        },
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         style = MaterialTheme.typography.bodySmall,
                     )
