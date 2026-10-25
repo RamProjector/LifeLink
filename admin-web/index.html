@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LifeLink · Admin Console</title>
+<style>
+:root{color-scheme:light;--ink:#182638;--muted:#66758a;--line:#e4eaf0;--paper:#f5f8fb;--white:#fff;--blue:#215fce;--navy:#142b4a;--red:#b42318;--green:#18794e}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;background:var(--blue);color:white;font-weight:650}button.secondary{background:white;color:var(--ink);border:1px solid var(--line)}button:disabled{opacity:.55;cursor:wait}
+.top{background:var(--navy);color:white;padding:18px clamp(18px,4vw,48px);display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{font-size:19px;font-weight:800;letter-spacing:-.4px}.brand span{color:#9fc5ff}.top small{color:#c5d3e4}.wrap{max-width:1200px;margin:28px auto;padding:0 20px}.login{max-width:470px;margin:7vh auto;background:white;border:1px solid var(--line);border-radius:20px;padding:28px;box-shadow:0 12px 34px #1834540b}.eyebrow{font-size:12px;font-weight:800;letter-spacing:1.3px;color:var(--blue);text-transform:uppercase}.login h1{font-size:29px;line-height:1.2;letter-spacing:-.8px;margin:8px 0}.muted{color:var(--muted)}label{display:block;font-weight:650;font-size:13px;margin:16px 0 6px}input{width:100%;padding:11px 12px;border:1px solid #ccd6e2;border-radius:9px;background:#fff;color:var(--ink)}input:focus{outline:3px solid #215fce22;border-color:var(--blue)}.notice{margin-top:14px;padding:10px 12px;border-radius:9px;background:#eff6ff;color:#244a81;overflow-wrap:anywhere}.notice.error{background:#fff0ef;color:var(--red)}.hidden{display:none!important}.headrow{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}.headrow h1{margin:3px 0;font-size:30px;letter-spacing:-1px}.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:22px;overflow:auto}.tab{background:transparent;color:var(--muted);border-radius:9px 9px 0 0;border-bottom:2px solid transparent}.tab.active{color:var(--blue);background:#eaf1ff;border-bottom-color:var(--blue)}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.stat,.panel{background:white;border:1px solid var(--line);border-radius:15px;padding:18px}.stat small{color:var(--muted);font-weight:650}.stat strong{display:block;font-size:30px;letter-spacing:-1px;margin-top:7px}.panel{margin-top:16px}.panel h2{font-size:17px;margin:0 0 12px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px}td code{overflow-wrap:anywhere}.tag{display:inline-block;border-radius:99px;padding:3px 8px;background:#eef2f6;font-size:11px;font-weight:700}.tag.success{background:#e6f6ed;color:var(--green)}.tag.fail{background:#fff0ef;color:var(--red)}.actions{display:flex;gap:8px;flex-wrap:wrap}.empty{padding:30px;text-align:center;color:var(--muted)}.foot{font-size:12px;color:var(--muted);margin:18px 0 40px}.small{font-size:12px}.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1}@media(max-width:780px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.top{align-items:flex-start}.stat strong{font-size:25px}}@media(max-width:440px){.grid{grid-template-columns:1fr 1fr}.login{padding:21px}}
+</style>
+</head>
+<body>
+<header class="top"><div><div class="brand">Life<span>Link</span> / Admin</div><small>Restricted operations console</small></div><div id="session-tools" class="hidden"><button id="signout" class="secondary">Sign out</button></div></header>
+<main id="login-view" class="login">
+ <div class="eyebrow">Administrator access</div><h1>Sign in securely.</h1><p class="muted">Use your existing LifeLink account. The server verifies administrator authorization after sign-in; creating an account does not grant admin access.</p>
+ <label for="supabase-url">Supabase project URL</label><input id="supabase-url" type="url" placeholder="https://your-project.supabase.co" autocomplete="url">
+ <label for="supabase-key">Supabase publishable / anon key</label><input id="supabase-key" type="password" autocomplete="off" placeholder="Public client key (not a service-role key)">
+ <label for="api-url">LifeLink API URL</label><input id="api-url" type="url" placeholder="https://your-lifelink-api.example.com">
+ <label for="email">Email</label><input id="email" type="email" autocomplete="username" required>
+ <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
+ <button id="signin" style="width:100%;margin-top:20px">Sign in</button>
+ <div id="login-message" class="notice hidden" role="status" aria-live="polite"></div>
+ <p class="foot">Configuration is held in this browser tab. Never enter a service-role key. Admin rights must be provisioned server-side.</p>
+</main>
+<main id="app-view" class="wrap hidden">
+ <div class="headrow"><div><div class="eyebrow">Operations overview</div><h1>Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary">Refresh data</button></div></div>
+ <nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview">Overview</button><button class="tab" data-page="users">User management</button><button class="tab" data-page="audit">Audit logs</button><button class="tab" data-page="errors">Errors</button></nav>
+ <section id="page-overview"><div class="grid"><div class="stat"><small>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small>Donor records</small><strong id="stat-donors">—</strong></div><div class="stat"><small>Emergency requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small>Authorization</small><strong style="font-size:20px;color:var(--green)">Verified</strong></div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is checked by the API on every request. User capability changes are audited. Audit records are read-only in this interface. Error entries contain operational context, not passwords or access tokens.</p><p id="generated" class="small muted"></p></div></section>
+ <section id="page-users" class="panel hidden"><h2>User management</h2><p class="muted small">Change requester/donor capabilities only. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div></section>
+ <section id="page-audit" class="panel hidden"><h2>Audit history</h2><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div></section>
+ <section id="page-errors" class="panel hidden"><h2>Application errors</h2><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div></section>
+ <div id="app-message" class="notice hidden" role="status" aria-live="polite"></div><p class="foot">LifeLink Admin · Keep this browser session private. Sign out when finished.</p>
+</main>
+<script>
+(() => {
+ let accessToken = null, apiBase = "", activePage = "overview";
+ const $ = id => document.getElementById(id);
+ const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+ const message = (id, text, error=false) => { const el=$(id); el.textContent=text; el.classList.toggle("hidden",!text); el.classList.toggle("error",error); };
+ const url = path => apiBase.replace(/\/$/,"") + path;
+ async function api(path, options={}) {
+   const response = await fetch(url(path), { ...options, headers: { "Authorization":"Bearer "+accessToken, "Content-Type":"application/json", "X-Correlation-ID": crypto.randomUUID(), ...(options.headers||{}) }});
+   const body = await response.text(); let data={}; try { data=body?JSON.parse(body):{}; } catch {}
+   if (!response.ok) throw new Error(data.detail || ("Request failed ("+response.status+")"));
+   return data;
+ }
+ async function signIn() {
+   const supabase=$("supabase-url").value.trim().replace(/\/$/,""), key=$("supabase-key").value.trim();
+   apiBase=$("api-url").value.trim().replace(/\/$/,"");
+   const secureEndpoint = value => {
+     try {
+       const parsed = new URL(value);
+       return parsed.protocol === "https:" ||
+         (parsed.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname));
+     } catch { return false; }
+   };
+   if (!supabase || !key || !apiBase || !$("email").value.trim() || !$("password").value) { message("login-message","Complete all fields first.",true); return; }
+   if (!secureEndpoint(supabase) || !secureEndpoint(apiBase)) {
+     message("login-message","Use HTTPS for Supabase and the LifeLink API. HTTP is allowed only for localhost development.",true);
+     return;
+   }
+   $("signin").disabled=true; message("login-message","Signing in…");
+   try {
+     const response=await fetch(supabase+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":key,"Content-Type":"application/json"},body:JSON.stringify({email:$("email").value.trim(),password:$("password").value})});
+     const session=await response.json();
+     if(!response.ok || !session.access_token) throw new Error(session.msg||session.message||"Sign-in failed. Check your credentials.");
+     accessToken=session.access_token;
+     await api("/v1/admin/me");
+     $("identity").textContent="Signed in as "+(session.user?.email||"authorized administrator");
+     $("login-view").classList.add("hidden"); $("app-view").classList.remove("hidden"); $("session-tools").classList.remove("hidden");
+     $("password").value=""; message("login-message","");
+     await loadPage("overview");
+   } catch(e) { accessToken=null; message("login-message",e.message||"Unable to sign in.",true); }
+   finally { $("signin").disabled=false; }
+ }
+ function table(items, cols) {
+   if(!items?.length) return '<div class="empty">No records found.</div>';
+   return '<table><thead><tr>'+cols.map(c=>'<th>'+esc(c.label)+'</th>').join('')+'</tr></thead><tbody>'+items.map(item=>'<tr>'+cols.map(c=>'<td>'+c.render(item)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+ }
+ async function loadUsers() {
+   const data=await api("/v1/admin/users?limit=100");
+   $("users-table").innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Capabilities",render:u=>'Request: '+(u.can_request?'Yes':'No')+'<br>Donate: '+(u.can_donate?'Yes':'No')},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Actions",render:u=>'<div class="actions"><button class="secondary" data-action="requester" data-id="'+esc(u.user_id)+'">Requester</button><button class="secondary" data-action="donor" data-id="'+esc(u.user_id)+'">Donor</button></div>'}]);
+   $("users-table").querySelectorAll("button[data-action]").forEach(btn=>btn.addEventListener("click",async()=>{if(!confirm("Update capabilities for this user? This action is recorded in the audit log."))return;try{await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify({role:btn.dataset.action,can_request:btn.dataset.action==="requester",can_donate:btn.dataset.action==="donor"})});message("app-message","User capabilities updated and audit event recorded.");await loadUsers();}catch(e){message("app-message",e.message,true);}}));
+ }
+ async function loadEvents(kind) {
+   const data=await api("/v1/admin/"+kind+"?limit=100");
+   const target=kind==="audit"?"audit-table":"errors-table";
+   $(target).innerHTML=table(data.items,[{label:"Time",render:e=>esc(e.created_at?new Date(e.created_at).toLocaleString():"—")},{label:"Action",render:e=>'<code>'+esc(e.action)+'</code><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"event")+'</span>'},{label:"Actor",render:e=>'<code>'+esc(e.actor_id||"system")+'</code>'},{label:"Target",render:e=>esc(e.target_type||"—")+'<br><code>'+esc(e.target_id||"")+'</code>'},{label:"Details",render:e=>'<code>'+esc(JSON.stringify(e.metadata||{}))+'</code><br><span class="muted small">Correlation: '+esc(e.correlation_id||"—")+'</span>'}]);
+ }
+ async function loadPage(page) {
+   activePage=page; document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
+   ["overview","users","audit","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
+   message("app-message","");
+   try {
+     if(page==="overview"){const d=await api("/v1/admin/dashboard");$("stat-users").textContent=d.users;$("stat-donors").textContent=d.donors;$("stat-requests").textContent=d.requests;$("generated").textContent="Updated "+new Date(d.generated_at).toLocaleString()+" · Correlation ID "+d.correlation_id;}
+     if(page==="users") await loadUsers();
+     if(page==="audit") await loadEvents("audit");
+     if(page==="errors") await loadEvents("errors");
+   } catch(e) { message("app-message",e.message||"Could not load data.",true); }
+ }
+ $("signin").addEventListener("click",signIn);
+ $("password").addEventListener("keydown",e=>{if(e.key==="Enter")signIn()});
+ document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>loadPage(b.dataset.page)));
+ $("refresh").addEventListener("click",()=>loadPage(activePage));
+ $("signout").addEventListener("click",()=>{accessToken=null;apiBase="";$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("supabase-key").value="";$("password").value="";message("login-message","Signed out.");});
+})();
+</script>
+</body></html>

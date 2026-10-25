@@ -51,6 +51,7 @@ import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeStore
 import com.lifelink.app.data.remote.ProfileRequest
 import com.lifelink.app.domain.UpdateType
+import com.lifelink.app.feature.admin.AdminConsoleScreen
 import com.lifelink.app.feature.auth.AuthScreen
 import com.lifelink.app.feature.auth.AuthState
 import com.lifelink.app.feature.auth.AuthViewModel
@@ -126,6 +127,20 @@ class MainActivity : ComponentActivity() {
                 // and desync the UI from the server.
                 var roleSwitchInFlight by remember(accountUserId) { mutableStateOf(false) }
                 val account = remember(accountUserId) { app.accountContainer(accountUserId) }
+                var adminAccess by remember(accountUserId) { mutableStateOf<Boolean?>(null) }
+                LaunchedEffect(accountUserId) {
+                    adminAccess = runCatching {
+                        val response = account.api.adminMe()
+                        response.isSuccessful && response.body()?.isAdmin == true
+                    }.getOrDefault(false)
+                }
+                if (adminAccess == true) {
+                    AdminConsoleScreen(
+                        api = account.api,
+                        onSignOut = authViewModel::signOut,
+                    )
+                    return@LifeLinkTheme
+                }
                 // Serializes profile writes so a role switch cannot be overtaken by an
                 // in-flight write and leave the server on the wrong role.
                 val profileWriteMutex = remember(accountUserId) { Mutex() }
