@@ -46,8 +46,12 @@ jobs:
           api-level: 36
           target: google_apis
           arch: x86_64
-          profile: pixel_7_pro
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none
+          # Use a lower-resolution AVD to reduce cold-boot pressure on hosted runners.
+          profile: pixel_2
+          # Explicitly disable snapshot loading/saving: missing snapshots were
+          # causing slow cold boots on the hosted runner.
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -no-snapshot-save -gpu swiftshader_indirect -camera-back none -cores 2 -memory 2048
+          emulator-boot-timeout: 1200
           disable-animations: true
           working-directory: LifeLinkAndroid
           script: |
