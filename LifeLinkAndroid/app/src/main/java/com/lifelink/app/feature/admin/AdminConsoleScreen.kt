@@ -136,14 +136,14 @@ fun AdminConsoleScreen(
                                 Text("Role: ${user.role} · Request: ${user.canRequest} · Donate: ${user.canDonate}")
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedButton(onClick = {
-                                        updateUser(api, user, "requester") { errorText ->
-                                            message = errorText
+                                        scope.launch {
+                                            message = updateUser(api, user, "requester")
                                             refresh(AdminPage.USERS)
                                         }
                                     }) { Text("Set requester") }
                                     OutlinedButton(onClick = {
-                                        updateUser(api, user, "donor") { errorText ->
-                                            message = errorText
+                                        scope.launch {
+                                            message = updateUser(api, user, "donor")
                                             refresh(AdminPage.USERS)
                                         }
                                     }) { Text("Set donor") }
@@ -188,22 +188,19 @@ private fun StatCard(label: String, value: String) {
     }
 }
 
-private fun updateUser(
+private suspend fun updateUser(
     api: LifeLinkApi,
     user: AdminUser,
     role: String,
-    onComplete: (String?) -> Unit,
-) {
+): String {
     // The API refuses self-updates and records the before/after capability state.
-    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-        try {
-            val response = api.adminUpdateUser(
-                user.userId,
-                AdminUserUpdateRequest(role, canRequest = role == "requester", canDonate = role == "donor"),
-            )
-            onComplete(if (response.isSuccessful) "User capabilities updated and audited." else "User update failed (${response.code()}).")
-        } catch (failure: Exception) {
-            onComplete(failure.message ?: "User update failed.")
-        }
+    return try {
+        val response = api.adminUpdateUser(
+            user.userId,
+            AdminUserUpdateRequest(role, canRequest = role == "requester", canDonate = role == "donor"),
+        )
+        if (response.isSuccessful) "User capabilities updated and audited." else "User update failed (${response.code()})."
+    } catch (failure: Exception) {
+        failure.message ?: "User update failed."
     }
 }
