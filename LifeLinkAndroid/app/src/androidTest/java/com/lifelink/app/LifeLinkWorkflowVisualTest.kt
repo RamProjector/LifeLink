@@ -2,6 +2,7 @@ package com.lifelink.app
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -18,9 +19,12 @@ import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.domain.ActiveRequestStatus
+import com.lifelink.app.domain.DonorMap
+import com.lifelink.app.domain.DonorMapArea
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,6 +33,36 @@ import org.junit.runner.RunWith
 class LifeLinkWorkflowVisualTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
+
+    // Deliberately synthetic data: visual tests never seed, read, or mutate live donor records.
+    private val syntheticMap = DonorMap(
+        generatedAt = "2026-10-25T00:00:00Z",
+        approximateOnly = true,
+        areas = listOf(
+            DonorMapArea(
+                areaLabel = "Synthetic demo area A",
+                latitude = 14.6000,
+                longitude = 120.9800,
+                radiusMeters = 1000,
+                bloodType = "O+",
+                availability = "Available",
+                freshnessAt = "2026-10-25T00:00:00Z",
+                freshnessAgeMinutes = 2,
+                isStale = false,
+            ),
+            DonorMapArea(
+                areaLabel = "Synthetic demo area B",
+                latitude = 14.6100,
+                longitude = 120.9900,
+                radiusMeters = 1000,
+                bloodType = "A+",
+                availability = "Paused",
+                freshnessAt = "2026-10-25T00:00:00Z",
+                freshnessAgeMinutes = 3,
+                isStale = false,
+            ),
+        ),
+    )
 
     private fun render(
         state: EmergencyRequestUiState = EmergencyRequestUiState(),
@@ -52,7 +86,7 @@ class LifeLinkWorkflowVisualTest {
                         onDonorAction = {},
                         becomeDonorState = com.lifelink.app.feature.donor.BecomeDonorUiState(loading = false),
                         onBecomeDonorAction = {},
-                        privacyState = com.lifelink.app.feature.privacy.PrivacyUiState(),
+                        privacyState = com.lifelink.app.feature.privacy.PrivacyUiState(map = syntheticMap),
                         onPrivacyAction = {},
                         role = role,
                         onSwitchRole = {},
@@ -90,7 +124,20 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("nav-MAP").performClick()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
+        waitForMapTilesToRender(expectedPinCount = 2)
+        composeRule.onNodeWithText("Approximate donor pins only", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
         capture("workflow-donor-map")
+
+        // Verify filtering changes the synthetic pin count without reloading the map style.
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("Available now", substring = false).performClick()
+        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
+        waitForMapTilesToRender(expectedPinCount = 1)
+        capture("workflow-donor-map-filtered")
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
+
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
 
@@ -214,6 +261,26 @@ class LifeLinkWorkflowVisualTest {
     private fun tap(label: String) {
         composeRule.onNodeWithTag("settings-${label.uppercase()}").performScrollTo().performClick()
         composeRule.waitForIdle()
+    }
+
+    private fun waitForMapTilesToRender(expectedPinCount: Int) {
+        composeRule.waitUntil(
+            timeoutMillis = 45_000,
+            conditionDescription = "MapLibre should render a complete frame with $expectedPinCount synthetic donor pins",
+        ) {
+            runCatching {
+                val status = composeRule.onNodeWithTag("maplibre-map-surface")
+                    .fetchSemanticsNode().config[SemanticsProperties.StateDescription]
+                status.startsWith("Map tiles rendered") && status.contains("$expectedPinCount approximate donor pins")
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("maplibre-map-surface").assertIsDisplayed()
+        composeRule.runOnIdle {
+            val status = composeRule.onNodeWithTag("maplibre-map-surface")
+                .fetchSemanticsNode().config[SemanticsProperties.StateDescription]
+            assertTrue(status.startsWith("Map tiles rendered"))
+            assertTrue(status.contains("$expectedPinCount approximate donor pins"))
+        }
     }
 
     private fun assertVisible(label: String) {
