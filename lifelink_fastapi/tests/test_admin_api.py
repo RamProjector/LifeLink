@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from fastapi import HTTPException
 
+from app import db
 from app.admin_api import _configured_admin_ids, _correlation_id, require_admin
 from app.security import Principal
 
@@ -29,16 +32,46 @@ def test_admin_allowlist_grants_only_configured_subject(monkeypatch):
 
 def test_correlation_id_is_bounded_and_sanitized():
     assert _correlation_id("web:request-1") == "web:request-1"
-    generated = _correlation_id("bad\nforged")
-    assert generated != "bad\nforged"
+    generated = _correlation_id("bad\\nforged")
+    assert generated != "bad\\nforged"
     assert len(generated) <= 36
 
-def test_startup_admin_audit_schema_statements_are_idempotent():
-    from pathlib import Path
 
-    db_source = Path(__file__).parents[1].joinpath("app", "db.py").read_text()
+class _FakeConnection:
+    def __init__(self):
+        self.statements: list[str] = []
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        return False
+
+    async def run_sync(self, callback):
+        # Schema creation itself is covered by database integration tests.
+        # This unit test focuses on additive SQL issued during startup.
+        return None
+
+    async def execute(self, statement, *args, **kwargs):
+        self.statements.append(str(statement))
+
+
+class _FakeEngine:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def begin(self):
+        return self.connection
+
+
+def test_startup_adds_admin_audit_columns_and_indexes(monkeypatch):
+    connection = _FakeConnection()
+    monkeypatch.setattr(db, "engine", _FakeEngine(connection))
+
+    asyncio.run(db.create_all_tables())
+
+    statements = "\\n".join(connection.statements)
     for column in ("outcome", "target_type", "target_id", "correlation_id"):
-        assert f"ADD COLUMN IF NOT EXISTS {column}" in db_source
-    assert "ix_audit_events_created_at" in db_source
-    assert "ix_audit_events_action_created_at" in db_source
-
+        assert f"ADD COLUMN IF NOT EXISTS {column}" in statements
+    assert "ix_audit_events_created_at" in statements
+    assert "ix_audit_events_action_created_at" in statements
