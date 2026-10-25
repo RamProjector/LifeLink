@@ -13,7 +13,7 @@ The admin console is an additional, restricted interface for the existing FastAP
 
 ## Database migration
 
-Apply lifelink_fastapi/sql/011_admin_audit_metadata.sql to the existing LifeLink PostgreSQL database after the existing 005_audit_events.sql migration. It only adds nullable/metadata columns and indexes; it does not delete or rewrite existing audit events. Review the SQL and take the normal database backup before applying it to production.
+The API startup path also applies the same idempotent, additive column/index changes as `lifelink_fastapi/sql/011_admin_audit_metadata.sql`, because this service already performs schema upgrades during startup. The standalone SQL migration remains the canonical script for separately managed databases and manual rollout. It does not delete or rewrite existing audit events. Review the SQL and take the normal database backup before any separately managed production rollout.
 
 The API uses the existing audit_events table. Ensure the application database identity can insert and select audit records, and restrict direct update/delete access as appropriate for your database roles and existing deployment. Do not make broad RLS or role changes without reviewing the current production policies.
 
