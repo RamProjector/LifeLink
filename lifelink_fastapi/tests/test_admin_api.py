@@ -32,8 +32,8 @@ def test_admin_allowlist_grants_only_configured_subject(monkeypatch):
 
 def test_correlation_id_is_bounded_and_sanitized():
     assert _correlation_id("web:request-1") == "web:request-1"
-    generated = _correlation_id("bad\\nforged")
-    assert generated != "bad\\nforged"
+    generated = _correlation_id("bad\nforged")
+    assert generated != "bad\nforged"
     assert len(generated) <= 36
 
 
@@ -70,7 +70,7 @@ def test_startup_adds_admin_audit_columns_and_indexes(monkeypatch):
 
     asyncio.run(db.create_all_tables())
 
-    statements = "\\n".join(connection.statements)
+    statements = "\n".join(connection.statements)
     for column in ("outcome", "target_type", "target_id", "correlation_id"):
         assert f"ADD COLUMN IF NOT EXISTS {column}" in statements
     assert "ix_audit_events_created_at" in statements
