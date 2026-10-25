@@ -343,7 +343,7 @@ fun MapLibrePrivacySafeDonorMap(
                                 )
                             }
                             appliedAreasSignature = areasSignature
-                            renderedAreasCount = areas.size
+                        renderedAreasCount = areas.size
                         }
                     }
                 }
