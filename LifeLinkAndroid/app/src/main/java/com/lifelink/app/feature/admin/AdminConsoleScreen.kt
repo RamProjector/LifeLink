@@ -104,18 +104,16 @@ private suspend fun loadAdminPage(
     onDashboard: (AdminDashboardResponse) -> Unit,
     onUsers: (List<AdminUser>) -> Unit,
     onEvents: (List<AdminAuditEvent>) -> Unit,
-): String? {
-    return try {
-        when (page) {
-            AdminPage.OVERVIEW -> loadDashboard(api, onDashboard)
-            AdminPage.USERS -> loadUsers(api, onUsers)
-            AdminPage.AUDIT, AdminPage.ERRORS -> loadEvents(api, page, onEvents)
-        }
-    } catch (failure: IOException) {
-        failure.message ?: "Network error while loading admin data."
-    } catch (failure: JsonParseException) {
-        failure.message ?: "The server returned unreadable admin data."
+): String? = try {
+    when (page) {
+        AdminPage.OVERVIEW -> loadDashboard(api, onDashboard)
+        AdminPage.USERS -> loadUsers(api, onUsers)
+        AdminPage.AUDIT, AdminPage.ERRORS -> loadEvents(api, page, onEvents)
     }
+} catch (failure: IOException) {
+    failure.message ?: "Network error while loading admin data."
+} catch (failure: JsonParseException) {
+    failure.message ?: "The server returned unreadable admin data."
 }
 
 private suspend fun loadDashboard(
