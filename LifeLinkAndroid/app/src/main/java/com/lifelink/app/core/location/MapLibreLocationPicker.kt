@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -273,6 +274,7 @@ fun MapLibrePrivacySafeDonorMap(
     var appliedRecenterRequest by remember { mutableStateOf(-1) }
     var appliedCenter by remember { mutableStateOf<LatLng?>(null) }
     var appliedAreasSignature by remember { mutableStateOf("") }
+    var renderedAreasCount by remember { mutableStateOf(0) }
     val areasSignature = remember(areas) {
         areas.joinToString(separator = "|") { area ->
             "${area.latitude},${area.longitude},${area.bloodType},${area.availability},${area.freshnessAt}"
@@ -301,7 +303,14 @@ fun MapLibrePrivacySafeDonorMap(
         }
     }
     val mapModifier = if (fullScreen) modifier.fillMaxSize() else modifier.fillMaxWidth().height(280.dp)
-    Box(mapModifier) {
+    val mapStatusDescription = when {
+        mapLoading -> "Map loading"
+        mapError -> "Map unavailable"
+        renderedAreasCount == 0 -> "Map ready; no approximate donor pins"
+        renderedAreasCount == 1 -> "Map ready; 1 approximate donor pin"
+        else -> "Map ready; $renderedAreasCount approximate donor pins"
+    }
+    Box(mapModifier.semantics { contentDescription = mapStatusDescription }) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = {
@@ -334,6 +343,7 @@ fun MapLibrePrivacySafeDonorMap(
                                 )
                             }
                             appliedAreasSignature = areasSignature
+                            renderedAreasCount = areas.size
                         }
                     }
                 }
@@ -355,6 +365,7 @@ fun MapLibrePrivacySafeDonorMap(
                                 )
                             }
                             appliedAreasSignature = areasSignature
+                            renderedAreasCount = areas.size
                         }
                         retryRequest = 0
                     }
@@ -371,6 +382,7 @@ fun MapLibrePrivacySafeDonorMap(
                             )
                         }
                         appliedAreasSignature = areasSignature
+                            renderedAreasCount = areas.size
                     }
                     // Repeated Compose updates must not keep resetting the camera.
                     // Unnecessary camera moves cancel vector-tile requests and make the map
