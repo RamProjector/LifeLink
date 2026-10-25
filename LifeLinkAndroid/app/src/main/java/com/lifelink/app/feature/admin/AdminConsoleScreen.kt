@@ -54,10 +54,10 @@ fun AdminConsoleScreen(
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    fun refresh(target: AdminPage) {
+    fun refresh(target: AdminPage, statusMessage: String? = null) {
         scope.launch {
             loading = true
-            message = loadAdminPage(
+            message = statusMessage ?: loadAdminPage(
                 api = api,
                 page = target,
                 onDashboard = { dashboard = it },
@@ -85,8 +85,8 @@ fun AdminConsoleScreen(
                 loading = loading,
                 onSetRole = { user, role ->
                     scope.launch {
-                        message = updateUser(api, user, role)
-                        refresh(AdminPage.USERS)
+                        val result = updateUser(api, user, role)
+                        refresh(AdminPage.USERS, result)
                     }
                 },
             )
