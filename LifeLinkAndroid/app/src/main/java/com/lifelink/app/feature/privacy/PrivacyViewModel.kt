@@ -149,7 +149,10 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                             visibilitySaving = false,
                             message = if (mapVisible) "You are visible on the donor map." else "You are hidden from the donor map.",
                         )
-                    if (mapVisible) loadMap()
+                    // Clear the previous map immediately when opting out; do not display the old area while refreshing.
+                    if (!mapVisible) _state.value = _state.value.copy(map = null)
+                    // Both enabling and disabling visibility can change the public donor map.
+                    loadMap()
                 }.onFailure { error ->
                     _state.value =
                         _state.value.copy(

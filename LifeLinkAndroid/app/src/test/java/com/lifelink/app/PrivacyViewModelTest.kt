@@ -114,6 +114,35 @@ class PrivacyViewModelTest {
         assertEquals("The donor map could not be loaded.", viewModel.state.value.mapError)
     }
 
+    /** Clears the old donor map immediately and refreshes it after a donor opts out of visibility. */
+    @Test
+    fun hiding_donor_clears_stale_map_while_refreshing_and_then_loads_fresh_map() = runTest {
+        val previousMap = DonorMap("before-hide", approximateOnly = true, areas = emptyList())
+        repository.map = { Result.success(previousMap) }
+        viewModel.onAction(PrivacyAction.LoadMap)
+        assertEquals("before-hide", viewModel.state.value.map?.generatedAt)
+
+        val refreshedMap = CompletableDeferred<Result<DonorMap>>()
+        var mapCalls = 0
+        repository.map = {
+            mapCalls++
+            refreshedMap.await()
+        }
+
+        viewModel.onAction(PrivacyAction.SetMapVisibility(mapVisible = false, exactLocationSharingEnabled = false))
+
+        assertEquals(1, mapCalls)
+        assertNull(viewModel.state.value.map)
+        assertTrue(viewModel.state.value.mapLoading)
+        assertEquals(false, viewModel.state.value.visibility?.mapVisible)
+
+        refreshedMap.complete(Result.success(DonorMap("after-hide", approximateOnly = true, areas = emptyList())))
+
+        assertEquals("after-hide", viewModel.state.value.map?.generatedAt)
+        assertFalse(viewModel.state.value.mapLoading)
+        assertNull(viewModel.state.value.mapError)
+    }
+
     /** Verifies that opening a chat loads history and contact shares for the returned conversation ID. */
     @Test
     fun open_action_loads_the_requested_conversation_messages_and_contact_shares() = runTest {
@@ -258,6 +287,9 @@ private class ConversationRepositoryFake : PrivacyRepository {
     val sends = mutableListOf<Pair<String, String>>()
     val shares = mutableListOf<Triple<String, String, String>>()
     var map: suspend () -> Result<DonorMap> = { error("Unexpected map request") }
+    var visibility: suspend (Boolean, Boolean) -> Result<DonorMapVisibility> = { visible, exact ->
+        Result.success(DonorMapVisibility(mapVisible = visible, exactLocationSharingEnabled = exact))
+    }
     var loadedMessages = listOf(chatMessage("chat-old"))
     var loadedShares = listOf(contactShare("chat-old"))
     var failHistory = false
@@ -304,7 +336,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
 
     /** Fails immediately if a conversation test unexpectedly changes map visibility. */
     override suspend fun setMapVisibility(mapVisible: Boolean, exactLocationSharingEnabled: Boolean): Result<DonorMapVisibility> =
-        error("Unexpected visibility change")
+        visibility(mapVisible, exactLocationSharingEnabled)
 
     /** Fails immediately if a conversation test unexpectedly activates location sharing. */
     override suspend fun activateLocationShare(requestId: String, donorId: String): Result<Unit> = error("Unexpected location share")
