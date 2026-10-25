@@ -38,9 +38,8 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Android 16 / API 36 is a stable SDK target. API 37 was not available
-      # in the hosted runner's SDK package index, so the emulator never booted.
-      # Keep this workflow optional: real boot/test results determine capability.
+      # API 37 was unavailable in the hosted runner's SDK package index.
+      # API 36 boots successfully; keep this workflow optional, not a merge gate.
       - name: Boot Android 16 (API 36) emulator and run Compose visual walkthrough
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
@@ -53,18 +52,19 @@ jobs:
           working-directory: LifeLinkAndroid
           script: |
             set -o pipefail
+            mkdir -p "$RUNNER_TEMP/lifelink-visual-evidence"
+            # The emulator action shuts the device down when this step exits,
+            # so collect evidence here while adb is still connected.
+            trap 'adb exec-out screencap -p > "$RUNNER_TEMP/lifelink-visual-evidence/emulator-screen.png" 2>/dev/null || true; adb pull /sdcard/Android/data/com.lifelink.app/files "$RUNNER_TEMP/lifelink-visual-evidence/device-files" || true' EXIT
             adb devices
             adb shell getprop sys.boot_completed | grep -q 1
-            ./gradlew --no-daemon :app:connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class=com.lifelink.app.LifeLinkWorkflowVisualTest
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.lifelink.app.LifeLinkWorkflowVisualTest
 
-      - name: Collect screenshots from emulator
+      - name: List collected visual evidence
         if: always()
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/lifelink-visual-evidence"
-          adb devices || true
-          adb pull /sdcard/Android/data/com.lifelink.app/files "$RUNNER_TEMP/lifelink-visual-evidence/device-files" || true
           find "$RUNNER_TEMP/lifelink-visual-evidence" -type f -print || true
 
       - name: Upload real emulator screenshots
