@@ -337,11 +337,11 @@ fun MapLibrePrivacySafeDonorMap(
             .semantics {
                 contentDescription = if (fullScreen) "Donor map" else "Location map preview"
                 stateDescription = when {
-                    mapError && fullScreen -> "Map tiles unavailable; ${appliedAreasCount} approximate donor pins"
-                    mapLoading && fullScreen -> "Loading map tiles; ${appliedAreasCount} approximate donor pins"
+                    mapError && fullScreen -> "Map tiles unavailable; $appliedAreasCount approximate donor pins"
+                    mapLoading && fullScreen -> "Loading map tiles; $appliedAreasCount approximate donor pins"
                     mapRendered && renderedAreasSignature == appliedAreasSignature && fullScreen ->
-                        "Map tiles rendered; ${appliedAreasCount} approximate donor pins"
-                    fullScreen -> "Updating map; ${appliedAreasCount} approximate donor pins"
+                        "Map tiles rendered; $appliedAreasCount approximate donor pins"
+                    fullScreen -> "Updating map; $appliedAreasCount approximate donor pins"
                     mapError -> "Map preview unavailable"
                     mapLoading -> "Loading map preview"
                     mapRendered -> "Map preview rendered"
