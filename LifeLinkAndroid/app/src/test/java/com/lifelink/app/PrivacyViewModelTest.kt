@@ -97,6 +97,23 @@ class PrivacyViewModelTest {
         assertNull(viewModel.state.value.mapError)
     }
 
+    /** Removes old donor pins when the latest refresh fails instead of displaying stale locations. */
+    @Test
+    fun failed_map_refresh_clears_previously_loaded_donor_areas() = runTest {
+        repository.map = {
+            Result.success(DonorMap("previous", approximateOnly = true, areas = emptyList()))
+        }
+        viewModel.onAction(PrivacyAction.LoadMap)
+        assertEquals("previous", viewModel.state.value.map?.generatedAt)
+
+        repository.map = { Result.failure(IllegalStateException("Network unavailable")) }
+        viewModel.onAction(PrivacyAction.LoadMap)
+
+        assertNull(viewModel.state.value.map)
+        assertFalse(viewModel.state.value.mapLoading)
+        assertEquals("The donor map could not be loaded.", viewModel.state.value.mapError)
+    }
+
     /** Verifies that opening a chat loads history and contact shares for the returned conversation ID. */
     @Test
     fun open_action_loads_the_requested_conversation_messages_and_contact_shares() = runTest {
