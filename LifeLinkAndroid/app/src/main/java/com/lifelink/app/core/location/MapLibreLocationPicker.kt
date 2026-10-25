@@ -205,25 +205,16 @@ fun MapLibreLocationPicker(
                 }
             },
         )
-        // Keep map loading/error feedback visible when DonorMapScreen also shows
-        // its centered empty-results card. A hidden preview error is not actionable.
-        val mapStatusCardModifier =
-            if (fullScreen) {
-                Modifier.align(androidx.compose.ui.Alignment.TopCenter)
-                    .padding(top = 84.dp, start = 16.dp, end = 16.dp)
-            } else {
-                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp)
-            }
         when {
             mapLoading -> Card(
-                mapStatusCardModifier.semantics { liveRegion = LiveRegionMode.Polite },
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
                 RowLoading()
             }
             mapError != null -> Card(
-                mapStatusCardModifier.semantics { liveRegion = LiveRegionMode.Assertive },
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Assertive },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
@@ -413,14 +404,23 @@ fun MapLibrePrivacySafeDonorMap(
                 }
             },
         )
+        // Keep map loading/error feedback visible when DonorMapScreen also shows
+        // its centered empty-results card. A hidden preview error is not actionable.
+        val mapStatusCardModifier =
+            if (fullScreen) {
+                Modifier.align(androidx.compose.ui.Alignment.TopCenter)
+                    .padding(top = 84.dp, start = 16.dp, end = 16.dp)
+            } else {
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp)
+            }
         when {
             mapLoading -> Card(
-                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                mapStatusCardModifier.semantics { liveRegion = LiveRegionMode.Polite },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) { RowLoading() }
             mapError -> Card(
-                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Assertive },
+                mapStatusCardModifier.semantics { liveRegion = LiveRegionMode.Assertive },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
