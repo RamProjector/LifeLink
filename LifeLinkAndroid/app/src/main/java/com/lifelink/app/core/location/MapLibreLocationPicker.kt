@@ -442,14 +442,23 @@ fun MapLibrePrivacySafeDonorMap(
                 }
             },
         )
+        // The donor-area empty state occupies the map center. Keep native map
+        // loading/error feedback below the toolbar on full-screen maps so both
+        // messages remain readable instead of stacking over each other.
         when {
             mapLoading -> Card(
-                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                Modifier.align(
+                    if (fullScreen) androidx.compose.ui.Alignment.TopCenter else androidx.compose.ui.Alignment.Center,
+                ).padding(start = 16.dp, top = if (fullScreen) 80.dp else 16.dp, end = 16.dp, bottom = 16.dp)
+                    .semantics { liveRegion = LiveRegionMode.Polite },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) { RowLoading(if (fullScreen) "Loading map tiles…" else "Loading map preview…") }
             mapError -> Card(
-                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Assertive },
+                Modifier.align(
+                    if (fullScreen) androidx.compose.ui.Alignment.TopCenter else androidx.compose.ui.Alignment.Center,
+                ).padding(start = 16.dp, top = if (fullScreen) 80.dp else 16.dp, end = 16.dp, bottom = 16.dp)
+                    .semantics { liveRegion = LiveRegionMode.Assertive },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
