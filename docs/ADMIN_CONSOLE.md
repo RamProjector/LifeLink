@@ -30,7 +30,7 @@ No administrator UUID or credentials are configured by this change. Do not add t
 
 ## Web console
 
-Serve admin-web/index.html over HTTPS using an existing static host. Enter the Supabase project URL, the publishable/anon key, and the LifeLink API base URL at sign-in. Values are not written to local storage; the access token remains in page memory and is cleared on sign-out. Configure the API's existing CORS policy to permit only the exact deployed admin-web origin before deployment; do not enable wildcard origins with credentials.
+Serve admin-web/index.html over HTTPS using an existing static host. Enter the Supabase project URL, the publishable/anon key, and the LifeLink API base URL at sign-in. Values are not written to local storage; the access token remains in page memory and is cleared on sign-out. Configure LIFELINK_CORS_ORIGINS on the API host with only the exact deployed admin-web origin (comma-separated for multiple known origins) before deployment. The API rejects wildcard entries and does not enable credentialed CORS. Do not add broad origins.
 
 ## Android console
 
