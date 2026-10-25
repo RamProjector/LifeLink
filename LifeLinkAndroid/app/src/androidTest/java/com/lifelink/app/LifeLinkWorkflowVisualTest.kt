@@ -124,6 +124,7 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("nav-MAP").performClick()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
+        capture("workflow-donor-map-loading")
         waitForMapTilesToRender(expectedPinCount = 2)
         composeRule.onNodeWithText("Approximate donor pins only", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
@@ -179,6 +180,20 @@ class LifeLinkWorkflowVisualTest {
         tap("Security")
         assertVisible("Reset password")
         capture("workflow-settings-security")
+
+        // Capture deterministic empty and API-error states with no live service calls.
+        renderMap(com.lifelink.app.feature.privacy.PrivacyUiState())
+        assertVisible("No donor areas available")
+        capture("workflow-donor-map-empty")
+
+        renderMap(
+            com.lifelink.app.feature.privacy.PrivacyUiState(
+                mapError = "Synthetic map service unavailable",
+            ),
+        )
+        assertVisible("Synthetic map service unavailable")
+        assertVisible("Retry")
+        capture("workflow-donor-map-error")
     }
 
     @Test
@@ -251,6 +266,23 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("request-history").performScrollToNode(hasText("Request history-29"))
         assertVisible("Request history-29")
         capture("request-history")
+    }
+
+    private fun renderMap(state: com.lifelink.app.feature.privacy.PrivacyUiState) {
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    com.lifelink.app.feature.privacy.DonorMapScreen(
+                        state = state,
+                        onAction = {},
+                        onBack = {},
+                        showCloseButton = false,
+                        embeddedInShell = true,
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
     }
 
     private fun tapTab(label: String) {
