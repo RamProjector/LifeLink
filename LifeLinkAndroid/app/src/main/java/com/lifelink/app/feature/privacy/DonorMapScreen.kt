@@ -84,6 +84,14 @@ fun DonorMapScreen(
         (selectedBloodType == "All" || area.bloodType == selectedBloodType) &&
             (!availableOnly || area.availability.equals("Available", ignoreCase = true))
     }
+    val matchingAreasLabel = when (filteredAreas.size) {
+        1 -> "1 matching area"
+        else -> "${filteredAreas.size} matching areas"
+    }
+    val areaCountLabel = when (filteredAreas.size) {
+        1 -> "1 area"
+        else -> "${filteredAreas.size} areas"
+    }
     // Keep the viewport anchored to the overall result set. Filtering should change pins,
     // not unexpectedly jump the user's map to whichever blood type happens to sort first.
     val mapArea = areas.firstOrNull()
@@ -225,7 +233,7 @@ fun DonorMapScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "${filteredAreas.size} ${if (filteredAreas.size == 1) "matching area" else "matching areas"}",
+                                matchingAreasLabel,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -272,7 +280,7 @@ fun DonorMapScreen(
                         Modifier.padding(start = 8.dp).weight(1f),
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    Text("${filteredAreas.size} ${if (filteredAreas.size == 1) "area" else "areas"}", style = MaterialTheme.typography.labelMedium)
+                    Text(areaCountLabel, style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
