@@ -281,13 +281,13 @@ private suspend fun updateUser(
     role: String,
 ): String = try {
     val response = api.adminUpdateUser(
-            user.userId,
-            AdminUserUpdateRequest(
-                role = role,
-                canRequest = role == "requester",
-                canDonate = role == "donor",
-            ),
-        )
+        user.userId,
+        AdminUserUpdateRequest(
+            role = role,
+            canRequest = role == "requester",
+            canDonate = role == "donor",
+        ),
+    )
     if (response.isSuccessful) {
         "User capabilities updated and audited."
     } else {
