@@ -2,6 +2,7 @@ package com.lifelink.app
 
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
@@ -19,6 +20,8 @@ import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.domain.BloodType
+import com.lifelink.app.domain.DonorMap
+import com.lifelink.app.domain.DonorMapArea
 import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
@@ -34,6 +37,7 @@ import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -89,7 +93,9 @@ class ConversationNavigationTest {
     fun donor_can_open_chat_and_system_back_returns_to_the_donor_workspace() {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
         composeRule.onNodeWithContentDescription("Profile").performClick()
-        composeRule.onNodeWithText("Open donor workspace", substring = false).performClick()
+        composeRule.onNodeWithText("Account, privacy, and LifeLink information.").assertIsDisplayed()
+        composeRule.onNodeWithText("Open donor workspace", substring = false).performScrollTo().performClick()
+        composeRule.waitForIdle()
         composeRule.onNodeWithText("Donor workspace", substring = false).assertIsDisplayed()
         composeRule.onNodeWithTag("donor-tab-REQUESTS").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Message requester").performScrollTo().performClick()
@@ -260,6 +266,74 @@ class ConversationNavigationTest {
 
         composeRule.runOnIdle { state.value = PrivacyUiState() }
         composeRule.onNodeWithText("No donor areas available").assertIsDisplayed()
+    }
+
+    /** Exercises donor-area filters with fake, approximate-only fixture data; no account or API is involved. */
+    @Test
+    fun donor_map_filters_synthetic_approximate_areas_without_exposing_identity() {
+        val syntheticMap = DonorMap(
+            generatedAt = "2026-10-25T00:00:00Z",
+            approximateOnly = true,
+            areas = listOf(
+                DonorMapArea(
+                    areaLabel = "Synthetic test area A",
+                    latitude = 14.6000,
+                    longitude = 120.9800,
+                    radiusMeters = 1000,
+                    bloodType = "O+",
+                    availability = "Available",
+                    freshnessAt = "2026-10-25T00:00:00Z",
+                    freshnessAgeMinutes = 2,
+                    isStale = false,
+                ),
+                DonorMapArea(
+                    areaLabel = "Synthetic test area B",
+                    latitude = 14.6100,
+                    longitude = 120.9900,
+                    radiusMeters = 1000,
+                    bloodType = "A+",
+                    availability = "Paused",
+                    freshnessAt = "2026-10-25T00:00:00Z",
+                    freshnessAgeMinutes = 3,
+                    isStale = false,
+                ),
+            ),
+        )
+        val state = mutableStateOf(PrivacyUiState(map = syntheticMap))
+        composeRule.setContent {
+            LifeLinkTheme {
+                DonorMapScreen(
+                    state = state.value,
+                    onAction = {},
+                    onBack = {},
+                    showCloseButton = false,
+                    embeddedInShell = true,
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Approximate donor pins only", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
+        composeRule.runOnIdle {
+            val mapStatus = composeRule.onNodeWithTag("maplibre-map-surface")
+                .fetchSemanticsNode().config[SemanticsProperties.StateDescription]
+            assertTrue(mapStatus.contains("2 approximate donor pins"))
+        }
+
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("Available now", substring = false).performClick()
+        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("1 areas", substring = false).assertIsDisplayed()
+        composeRule.runOnIdle {
+            val mapStatus = composeRule.onNodeWithTag("maplibre-map-surface")
+                .fetchSemanticsNode().config[SemanticsProperties.StateDescription]
+            assertTrue(mapStatus.contains("1 approximate donor pins"))
+        }
+
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic test area A", substring = false).assertDoesNotExist()
+        composeRule.onNodeWithText("donor-42", substring = false).assertDoesNotExist()
     }
 
     /** Renders a restorable shell for the supplied role, skips welcome, and records privacy actions. */
