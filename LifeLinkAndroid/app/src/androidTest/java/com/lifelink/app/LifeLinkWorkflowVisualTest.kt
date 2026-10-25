@@ -198,6 +198,10 @@ class LifeLinkWorkflowVisualTest {
         capture("workflow-donor-map-filtered")
         composeRule.onNodeWithText("Clear filters", substring = false).performClick()
         composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription("Map ready; 2 approximate donor pins")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
 
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
