@@ -34,16 +34,15 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Keep the installed 37.2 compile platform separate from the stable Android
-  # 17 (API 37) emulator image. The emulator action otherwise tries to install
-  # the missing platforms;android-37 package and exits before booting.
+  # Match the emulator system image to the installed API 37.2 platform. The
+  # SDK manager in the CI runner does not publish a separate API 37 image.
   API_LEVEL: 37.2
-  SYSTEM_IMAGE_API_LEVEL: 37
+  SYSTEM_IMAGE_API_LEVEL: 37.2
   AVD_TARGET: google_apis
   AVD_ARCH: x86_64
   AVD_PROFILE: pixel_2
   # Bump after changing the platform, system image, or emulator options.
-  AVD_CACHE_VERSION: v4-api37-stable-image-fallback
+  AVD_CACHE_VERSION: v5-api37.2-image-fallback
 
 jobs:
   visual-review:
