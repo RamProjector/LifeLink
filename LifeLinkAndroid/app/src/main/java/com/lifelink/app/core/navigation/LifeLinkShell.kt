@@ -210,6 +210,21 @@ fun LifeLinkShell(
         if (accountUserId.isNotBlank()) welcomePrefs.edit().putBoolean("seen_$accountUserId", true).apply()
         showStart = false
     }
+    // Route every entry point through one state transition so stale overlays cannot
+    // take precedence over the donor workspace after a profile/home action.
+    val openDonorWorkspace = {
+        markWelcomeSeen()
+        showRequest = false
+        showActive = false
+        showBecomeDonor = false
+        showNotifications = false
+        showConversation = false
+        conversationRequestId = ""
+        conversationDonorId = ""
+        conversationOpenedFromDonor = false
+        showDonor = true
+        tab = ShellTab.HOME
+    }
     LaunchedEffect(notificationRequestId) {
         notificationRequestId?.takeIf { it.isNotBlank() }?.let {
             showStart = false
@@ -232,10 +247,7 @@ fun LifeLinkShell(
                 markWelcomeSeen()
                 showRequest = true
             },
-            onOpenDonor = {
-                markWelcomeSeen()
-                showDonor = true
-            },
+            onOpenDonor = { openDonorWorkspace() },
         )
         return
     }
@@ -387,9 +399,7 @@ fun LifeLinkShell(
                                 HomeContent(state, donorState, role, onSwitchRole, onCreate = { showRequest = true }, onActive = {
                                     showActive =
                                         true
-                                }, onDonor = {
-                                    showDonor = true
-                                }, updates = updates, onRequests = {
+                                }, onDonor = { openDonorWorkspace() }, updates = updates, onRequests = {
                                     tab =
                                         ShellTab.REQUESTS
                                 }, onUpdates = { showNotifications = true })
@@ -426,11 +436,7 @@ fun LifeLinkShell(
                                     themeMode,
                                     onThemeModeChange,
                                     onRequestPasswordReset,
-                                    onOpenDonor = {
-                                        showStart =
-                                            false
-                                        ; showDonor = true
-                                    },
+                                    onOpenDonor = { openDonorWorkspace() },
                                     onBecomeDonor = {
                                         showStart = false
                                         showBecomeDonor = true
