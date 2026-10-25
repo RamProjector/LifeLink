@@ -1,0 +1,124 @@
+name: Android visual review
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'LifeLinkAndroid/app/src/main/**'
+      - 'LifeLinkAndroid/app/src/androidTest/**'
+      - 'LifeLinkAndroid/app/build.gradle.kts'
+      - 'LifeLinkAndroid/build.gradle.kts'
+      - 'LifeLinkAndroid/settings.gradle.kts'
+      - 'LifeLinkAndroid/gradle/**'
+      - '.github/workflows/android-visual-review.yml'
+  pull_request:
+    paths:
+      - 'LifeLinkAndroid/app/src/main/**'
+      - 'LifeLinkAndroid/app/src/androidTest/**'
+      - 'LifeLinkAndroid/app/build.gradle.kts'
+      - 'LifeLinkAndroid/build.gradle.kts'
+      - 'LifeLinkAndroid/settings.gradle.kts'
+      - 'LifeLinkAndroid/gradle/**'
+      - '.github/workflows/android-visual-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-visual-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-review:
+    name: Android 17 emulator walkthrough
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: LifeLinkAndroid
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-37.2 build-tools;37.0.0'
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Require KVM instead of silently skipping instrumentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -e /dev/kvm ]]; then
+            echo "::error::This runner has no /dev/kvm device; refusing to report emulator review as passed without running it."
+            exit 1
+          fi
+          sudo chmod 666 /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          ls -l /dev/kvm
+
+      - name: Build app and instrumentation APKs
+        run: ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon --stacktrace
+
+      - name: Run connected instrumentation on Android 17
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 37
+          target: google_apis
+          arch: x86_64
+          profile: pixel_8
+          force-avd-creation: true
+          emulator-options: -no-snapshot -no-window -no-audio -no-boot-anim -no-metrics -camera-back none -camera-front none -netfast -gpu swiftshader_indirect
+          cores: 4
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 4096M
+          emulator-boot-timeout: 300
+          disable-spellchecker: true
+          disable-animations: true
+          script: ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+
+      - name: Collect emulator diagnostics and screenshots
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p ../visual-artifacts
+          adb devices -l > ../visual-artifacts/adb-devices.txt 2>&1
+          timeout 10s adb -s emulator-5554 shell getprop sys.boot_completed > ../visual-artifacts/boot-completed.txt 2>&1
+          timeout 15s adb -s emulator-5554 logcat -d -t 5000 > ../visual-artifacts/logcat.txt 2>&1
+          for remote_file in $(timeout 10s adb -s emulator-5554 shell ls /sdcard/Android/data/com.lifelink.app/files/lifelink-*.png 2>/dev/null | tr -d '\r'); do
+            timeout 15s adb -s emulator-5554 pull "$remote_file" ../visual-artifacts/ || true
+          done
+          for evidence_file in $(timeout 10s adb -s emulator-5554 shell run-as com.lifelink.app ls files/lifelink-evidence 2>/dev/null | tr -d '\r' | grep -E '^lifelink-.*\.png$'); do
+            timeout 15s adb -s emulator-5554 exec-out run-as com.lifelink.app cat "files/lifelink-evidence/$evidence_file" > "../visual-artifacts/$evidence_file" || true
+          done
+          if [[ -d app/build/reports/androidTests/connected ]]; then
+            cp -R app/build/reports/androidTests/connected ../visual-artifacts/android-test-report
+          fi
+          if [[ -d app/build/outputs/androidTest-results ]]; then
+            cp -R app/build/outputs/androidTest-results ../visual-artifacts/test-results
+          fi
+          if [[ -d app/build/reports/tests ]]; then
+            cp -R app/build/reports/tests ../visual-artifacts/unit-test-reports
+          fi
+
+      - name: Upload visual evidence and test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lifelink-android-visual-review-${{ github.sha }}
+          path: visual-artifacts/**
+          if-no-files-found: warn
+          retention-days: 14
