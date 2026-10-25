@@ -20,8 +20,14 @@ A failed instrumentation test fails the visual-review workflow after evidence co
 
 Hosted emulators may boot slowly. The workflow verifies that Android's boot property and input/settings services are ready before starting tests, disables UI animations, and collects diagnostics on failure.
 
+## Emulator acceleration workaround
+
+The first CI attempt confirmed that `/dev/kvm` existed on the Linux runner, but the runner user did not have permission to use it. The workflow now applies the standard ephemeral-runner KVM device permission rule, checks access with `emulator -accel-check`, and explicitly enables acceleration. This changes only the disposable GitHub-hosted runner, not the repository's production environment. If KVM is absent or remains unusable, the workflow fails early with a clear diagnostic rather than waiting for an emulator timeout.
+
 ## References
 
 - [MapLibre Native Android: MapView](https://maplibre.org/maplibre-native/android/api/-map-libre%20-native%20-android/org.maplibre.android.maps/-map-view/index.html)
+- [Android Developers: Emulator acceleration](https://developer.android.com/studio/run/emulator-acceleration)
+- [ReactiveCircus: Android emulator runner and KVM setup guidance](https://github.com/ReactiveCircus/android-emulator-runner)
 - [MapLibre Native Android: map finished loading](https://maplibre.org/maplibre-native/android/api/-map-libre%20-native%20-android/org.maplibre.android.maps/-map-view/-on-did-finish-loading-map-listener/on-did-finish-loading-map.html)
 - [Android Developers: Compose testing APIs](https://developer.android.com/develop/ui/compose/testing/apis)
