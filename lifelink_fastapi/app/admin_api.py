@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import os
 import re
 from datetime import datetime, timezone
@@ -15,7 +14,6 @@ from .db import get_db_session
 from .db_models import Donor, EmergencyRequest, LifeLinkProfile
 from .security import Principal, get_postgres_principal, require_verified_email
 
-logger = logging.getLogger("lifelink.admin")
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
 
 
@@ -80,7 +78,16 @@ def _correlation_id(value: str | None) -> str:
 
 
 @router.get("/me")
-async def admin_me(principal: Principal = Depends(require_admin)):
+async def admin_me(
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin),
+    x_correlation_id: str | None = Header(default=None),
+):
+    await _write_audit(
+        session, principal.subject, "admin.session.verified", target_type="admin_session",
+        correlation_id=_correlation_id(x_correlation_id),
+    )
+    await session.commit()
     return {"is_admin": True, "subject": principal.subject}
 
 
