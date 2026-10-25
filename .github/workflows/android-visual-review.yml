@@ -72,7 +72,7 @@ jobs:
             -cores 2 -memory 2048 \
             > "$RUNNER_TEMP/lifelink-emulator.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/lifelink-emulator.pid"
-          adb start-server
+          timeout 10s adb start-server
           timeout 120s adb wait-for-device
 
           deadline=$((SECONDS + 1200))
@@ -97,15 +97,15 @@ jobs:
 
           if [[ "$ready" != true ]]; then
             echo "::error::Android emulator did not become ready within 20 minutes."
-            adb devices || true
+            timeout 10s adb devices || true
             tail -n 200 "$RUNNER_TEMP/lifelink-emulator.log" || true
             exit 1
           fi
 
-          adb shell settings put global window_animation_scale 0.0
-          adb shell settings put global transition_animation_scale 0.0
-          adb shell settings put global animator_duration_scale 0.0
-          adb devices
+          timeout 10s adb shell settings put global window_animation_scale 0.0
+          timeout 10s adb shell settings put global transition_animation_scale 0.0
+          timeout 10s adb shell settings put global animator_duration_scale 0.0
+          timeout 10s adb devices
 
       - name: Run all Android instrumentation tests with isolated test configuration
         shell: bash
