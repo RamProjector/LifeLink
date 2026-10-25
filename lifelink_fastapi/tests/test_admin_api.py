@@ -32,3 +32,13 @@ def test_correlation_id_is_bounded_and_sanitized():
     generated = _correlation_id("bad\nforged")
     assert generated != "bad\nforged"
     assert len(generated) <= 36
+
+def test_startup_admin_audit_schema_statements_are_idempotent():
+    from pathlib import Path
+
+    db_source = Path(__file__).parents[1].joinpath("app", "db.py").read_text()
+    for column in ("outcome", "target_type", "target_id", "correlation_id"):
+        assert f"ADD COLUMN IF NOT EXISTS {column}" in db_source
+    assert "ix_audit_events_created_at" in db_source
+    assert "ix_audit_events_action_created_at" in db_source
+
