@@ -279,9 +279,8 @@ private suspend fun updateUser(
     api: LifeLinkApi,
     user: AdminUser,
     role: String,
-): String {
-    return try {
-        val response = api.adminUpdateUser(
+): String = try {
+    val response = api.adminUpdateUser(
             user.userId,
             AdminUserUpdateRequest(
                 role = role,
@@ -289,14 +288,13 @@ private suspend fun updateUser(
                 canDonate = role == "donor",
             ),
         )
-        if (response.isSuccessful) {
-            "User capabilities updated and audited."
-        } else {
-            "User update failed (${response.code()})."
-        }
-    } catch (failure: IOException) {
-        failure.message ?: "Network error while updating the user."
-    } catch (failure: JsonParseException) {
-        failure.message ?: "The server returned unreadable update data."
+    if (response.isSuccessful) {
+        "User capabilities updated and audited."
+    } else {
+        "User update failed (${response.code()})."
     }
+} catch (failure: IOException) {
+    failure.message ?: "Network error while updating the user."
+} catch (failure: JsonParseException) {
+    failure.message ?: "The server returned unreadable update data."
 }
