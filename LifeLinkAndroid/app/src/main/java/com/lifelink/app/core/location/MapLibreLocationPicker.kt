@@ -343,7 +343,7 @@ fun MapLibrePrivacySafeDonorMap(
                                 )
                             }
                             appliedAreasSignature = areasSignature
-                        renderedAreasCount = areas.size
+                            renderedAreasCount = areas.size
                         }
                     }
                 }
@@ -382,7 +382,7 @@ fun MapLibrePrivacySafeDonorMap(
                             )
                         }
                         appliedAreasSignature = areasSignature
-                            renderedAreasCount = areas.size
+                        renderedAreasCount = areas.size
                     }
                     // Repeated Compose updates must not keep resetting the camera.
                     // Unnecessary camera moves cancel vector-tile requests and make the map
