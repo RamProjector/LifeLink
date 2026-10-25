@@ -5,6 +5,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -18,9 +19,13 @@ import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.domain.ActiveRequestStatus
+import com.lifelink.app.domain.DonorMap
+import com.lifelink.app.domain.DonorMapArea
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
+import com.lifelink.app.feature.privacy.PrivacyAction
+import com.lifelink.app.feature.privacy.PrivacyUiState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,6 +39,8 @@ class LifeLinkWorkflowVisualTest {
         state: EmergencyRequestUiState = EmergencyRequestUiState(),
         updates: List<com.lifelink.app.domain.UpdateItem> = emptyList(),
         role: UserRole = UserRole.REQUESTER,
+        privacyState: PrivacyUiState = PrivacyUiState(),
+        onPrivacyAction: (PrivacyAction) -> Unit = {},
         onAction: (com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction) -> Unit = {},
     ) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -52,8 +59,8 @@ class LifeLinkWorkflowVisualTest {
                         onDonorAction = {},
                         becomeDonorState = com.lifelink.app.feature.donor.BecomeDonorUiState(loading = false),
                         onBecomeDonorAction = {},
-                        privacyState = com.lifelink.app.feature.privacy.PrivacyUiState(),
-                        onPrivacyAction = {},
+                        privacyState = privacyState,
+                        onPrivacyAction = onPrivacyAction,
                         role = role,
                         onSwitchRole = {},
                         accountEmail = "visual-test@example.invalid",
@@ -83,14 +90,28 @@ class LifeLinkWorkflowVisualTest {
     /** Verifies navigation through requests, notifications, settings, and donor setup, capturing each screen. */
     @Test
     fun navigatesCoreWorkflowsAndCapturesEvidence() {
-        render()
+        render(privacyState = syntheticDonorMapState())
         assertVisible("Your requests")
         capture("workflow-home")
 
         composeRule.onNodeWithTag("nav-MAP").performClick()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            composeRule.onAllNodesWithTag("maplibre-map-rendered").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("maplibre-map-rendered").assertIsDisplayed()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
         capture("workflow-donor-map")
+
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("O+", substring = false).performClick()
+        composeRule.onNodeWithText("Available now", substring = false).performClick()
+        composeRule.onNodeWithText("1 matching area", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithTag("maplibre-map-rendered").assertIsDisplayed()
+        capture("workflow-donor-map-filtered")
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
 
@@ -205,6 +226,38 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Request history-29")
         capture("request-history")
     }
+
+    private fun syntheticDonorMapState(): PrivacyUiState =
+        PrivacyUiState(
+            map = DonorMap(
+                generatedAt = "2026-10-25T00:00:00Z",
+                approximateOnly = true,
+                areas = listOf(
+                    DonorMapArea(
+                        areaLabel = "Synthetic test area North",
+                        latitude = 14.5995,
+                        longitude = 120.9842,
+                        radiusMeters = 500,
+                        bloodType = "O+",
+                        availability = "Available",
+                        freshnessAt = "2026-10-25T00:00:00Z",
+                        freshnessAgeMinutes = 1,
+                        isStale = false,
+                    ),
+                    DonorMapArea(
+                        areaLabel = "Synthetic test area South",
+                        latitude = 14.61,
+                        longitude = 120.99,
+                        radiusMeters = 500,
+                        bloodType = "A-",
+                        availability = "Unavailable",
+                        freshnessAt = "2026-10-25T00:00:00Z",
+                        freshnessAgeMinutes = 1,
+                        isStale = false,
+                    ),
+                ),
+            ),
+        )
 
     private fun tapTab(label: String) {
         composeRule.onNodeWithTag("nav-${label.uppercase()}").performClick()
