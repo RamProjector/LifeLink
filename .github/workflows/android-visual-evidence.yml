@@ -44,6 +44,9 @@ jobs:
       # before Android's input service is ready, causing the action to abort.
       - name: Install Android 16 (API 36) emulator packages
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default `tools` package was removed from current SDK repositories.
+          packages: platform-tools
 
       - name: Create, boot, and verify Android 16 emulator
         shell: bash
