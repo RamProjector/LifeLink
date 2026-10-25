@@ -2,9 +2,12 @@ package com.lifelink.app
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -18,9 +21,12 @@ import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.domain.ActiveRequestStatus
+import com.lifelink.app.domain.DonorMap
+import com.lifelink.app.domain.DonorMapArea
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
+import com.lifelink.app.feature.privacy.PrivacyUiState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,6 +40,7 @@ class LifeLinkWorkflowVisualTest {
         state: EmergencyRequestUiState = EmergencyRequestUiState(),
         updates: List<com.lifelink.app.domain.UpdateItem> = emptyList(),
         role: UserRole = UserRole.REQUESTER,
+        privacyState: PrivacyUiState = PrivacyUiState(),
         onAction: (com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction) -> Unit = {},
     ) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -52,7 +59,7 @@ class LifeLinkWorkflowVisualTest {
                         onDonorAction = {},
                         becomeDonorState = com.lifelink.app.feature.donor.BecomeDonorUiState(loading = false),
                         onBecomeDonorAction = {},
-                        privacyState = com.lifelink.app.feature.privacy.PrivacyUiState(),
+                        privacyState = privacyState,
                         onPrivacyAction = {},
                         role = role,
                         onSwitchRole = {},
@@ -77,20 +84,77 @@ class LifeLinkWorkflowVisualTest {
         composeRule.waitForIdle()
     }
 
+    private fun syntheticPrivacyState(): PrivacyUiState =
+        PrivacyUiState(
+            map = DonorMap(
+                generatedAt = "2026-10-25T00:00:00Z",
+                approximateOnly = true,
+                areas = listOf(
+                    DonorMapArea(
+                        areaLabel = "Synthetic test area A",
+                        latitude = 11.2440,
+                        longitude = 125.0030,
+                        radiusMeters = 800,
+                        bloodType = "O+",
+                        availability = "Available",
+                        freshnessAt = "2026-10-25T00:00:00Z",
+                        freshnessAgeMinutes = 5,
+                        isStale = false,
+                    ),
+                    DonorMapArea(
+                        areaLabel = "Synthetic test area B",
+                        latitude = 11.2510,
+                        longitude = 125.0110,
+                        radiusMeters = 800,
+                        bloodType = "A+",
+                        availability = "Unavailable",
+                        freshnessAt = "2026-10-25T00:00:00Z",
+                        freshnessAgeMinutes = 5,
+                        isStale = false,
+                    ),
+                ),
+            ),
+        )
+
     private val testTheme: ThemeMode
         get() = if (InstrumentationRegistry.getArguments().getString("theme") == "dark") ThemeMode.DARK else ThemeMode.LIGHT
 
     /** Verifies navigation through requests, notifications, settings, and donor setup, capturing each screen. */
     @Test
     fun navigatesCoreWorkflowsAndCapturesEvidence() {
-        render()
+        // This fixture is local to the emulator test. It never reads or writes donor data.
+        render(privacyState = syntheticPrivacyState())
         assertVisible("Your requests")
         capture("workflow-home")
 
         composeRule.onNodeWithTag("nav-MAP").performClick()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
+        // Do not capture the MapLibre background immediately after the style JSON
+        // loads. Wait for the visible map and its synthetic annotations to finish.
+        composeRule.waitUntil(timeoutMillis = 35_000) {
+            val mapReady = composeRule.onAllNodesWithContentDescription("Map ready; 2 approximate donor pins")
+                .fetchSemanticsNodes().isNotEmpty()
+            val mapFailed = composeRule.onAllNodesWithText("Map preview unavailable")
+                .fetchSemanticsNodes().isNotEmpty()
+            mapReady || mapFailed
+        }
+        composeRule.onNodeWithText("Map preview unavailable", substring = false).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Map ready; 2 approximate donor pins").assertIsDisplayed()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
         capture("workflow-donor-map")
+
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("Available now", substring = false).performClick()
+        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription("Map ready; 1 approximate donor pin")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        capture("workflow-donor-map-filtered")
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
+
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
 
