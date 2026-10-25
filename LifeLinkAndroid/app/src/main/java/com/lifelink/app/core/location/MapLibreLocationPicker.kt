@@ -32,9 +32,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -268,6 +270,8 @@ fun MapLibrePrivacySafeDonorMap(
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf(false) }
+    var mapStyleLoaded by remember { mutableStateOf(false) }
+    var mapRendered by remember { mutableStateOf(false) }
     var retryRequest by remember { mutableStateOf(0) }
     var recenterRequest by remember { mutableStateOf(0) }
     var appliedRecenterRequest by remember { mutableStateOf(-1) }
@@ -282,10 +286,31 @@ fun MapLibrePrivacySafeDonorMap(
         MapLibre.getInstance(context.applicationContext)
         MapView(context).also { it.onCreate(null) }
     }
-    DisposableEffect(mapView) {
+    // A style callback alone does not prove that the native map has rendered its
+    // first complete frame. Keep loading visible until MapLibre confirms rendering.
+    val mapFailedListener = remember(mapView) {
+        MapView.OnDidFailLoadingMapListener {
+            mapStyleLoaded = false
+            mapRendered = false
+            mapLoading = false
+            mapError = true
+        }
+    }
+    val mapRenderedListener = remember(mapView) {
+        MapView.OnDidFinishRenderingMapListener { fully ->
+            if (fully && mapStyleLoaded) {
+                mapRendered = true
+                mapLoading = false
+                mapError = false
+            }
+        }
+    }
+    DisposableEffect(mapView, mapFailedListener, mapRenderedListener) {
         mapView.onStart()
         mapView.onResume()
         onDispose {
+            mapView.removeOnDidFailLoadingMapListener(mapFailedListener)
+            mapView.removeOnDidFinishRenderingMapListener(mapRenderedListener)
             mapView.onPause()
             mapView.onStop()
             mapView.onDestroy()
@@ -297,24 +322,39 @@ fun MapLibrePrivacySafeDonorMap(
         delay(MAP_LOAD_TIMEOUT_MS)
         if (mapLoading) {
             mapLoading = false
+            mapRendered = false
             mapError = true
         }
     }
     val mapModifier = if (fullScreen) modifier.fillMaxSize() else modifier.fillMaxWidth().height(280.dp)
-    Box(mapModifier) {
+    Box(
+        mapModifier
+            .testTag("maplibre-map-surface")
+            .semantics {
+                contentDescription = "Donor map"
+                stateDescription = when {
+                    mapError -> "Map tiles unavailable; ${areas.size} approximate donor pins"
+                    mapLoading -> "Loading map tiles; ${areas.size} approximate donor pins"
+                    mapRendered -> "Map tiles rendered; ${areas.size} approximate donor pins"
+                    else -> "Preparing map tiles; ${areas.size} approximate donor pins"
+                }
+            },
+    ) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = {
                 mapView.apply {
-                    addOnDidFailLoadingMapListener {
-                        mapLoading = false
-                        mapError = true
-                    }
+                    addOnDidFailLoadingMapListener(mapFailedListener)
+                    addOnDidFinishRenderingMapListener(mapRenderedListener)
                     getMapAsync { map ->
                         mapLoading = true
+                        mapError = false
+                        mapStyleLoaded = false
+                        mapRendered = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            mapLoading = false
+                            mapStyleLoaded = true
                             mapError = false
+                            if (mapRendered) mapLoading = false
                             map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
                             appliedCenter = center
                             appliedRecenterRequest = recenterRequest
@@ -337,9 +377,12 @@ fun MapLibrePrivacySafeDonorMap(
                     if (retryRequest > 0) {
                         mapLoading = true
                         mapError = false
+                        mapStyleLoaded = false
+                        mapRendered = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            mapLoading = false
+                            mapStyleLoaded = true
                             mapError = false
+                            if (mapRendered) mapLoading = false
                             map.clear()
                             areas.forEach { area ->
                                 map.addMarker(
