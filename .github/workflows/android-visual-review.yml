@@ -74,7 +74,9 @@ jobs:
       - name: Run connected instrumentation on Android 17
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 37
+          # The SDK platform package is 37.2; the emulator system image is published as 37.0.
+          api-level: 37.2
+          system-image-api-level: 37.0
           target: google_apis
           arch: x86_64
           profile: pixel_8
