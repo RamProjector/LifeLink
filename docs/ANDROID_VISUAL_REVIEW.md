@@ -1,29 +1,34 @@
 # Android visual review
 
-LifeLink now has an emulator-based visual-review workflow for a stable, unauthenticated screen: the signed-out authentication screen.
+LifeLink's visual review runs real Compose instrumentation tests on an Android emulator. It covers navigation and a deterministic donor-map scenario, and uploads screenshots, Android test reports, and logcat for review.
 
-## What it records
+## Emulator and workflow
 
-The workflow builds the debug app and instrumentation APK, launches an API 34 Pixel 2 emulator with animations disabled, runs the Compose visual smoke test, captures `auth-screen.png`, and uploads the screenshot plus Android test reports as a GitHub Actions artifact.
+The workflow is `.github/workflows/android-visual-review.yml`. It runs on relevant Android UI/test changes, on pushes to `main`, and on manual dispatch. It uses a Pixel 8 emulator with Android 17 (API 37), Java 21, animations disabled, and the existing Gradle/Jetpack Compose/MapLibre stack.
 
-The test also asserts that the current auth screen visibly contains:
+The job requires KVM and fails visibly if the runner cannot run the emulator. It does not silently skip instrumentation and then report success. Emulator logs and test artifacts are uploaded even when the tests fail.
 
-- `Welcome back. Sign in to continue.`
-- `Email address`
-- `Forgot password?`
+## Synthetic map scenario
 
-These assertions catch missing content, broken composition, and major copy/layout regressions. The screenshot is the visual evidence used for design review; it is not yet compared against a frozen baseline.
+`LifeLinkWorkflowVisualTest` injects two fixed `DonorMapArea` fixtures directly into `PrivacyUiState`. The callback for `PrivacyAction.LoadMap` is a no-op in this visual test; it does not log in, call the live API, seed a database, or create donor accounts. Fixture labels explicitly identify the areas as synthetic. Coordinates are only map-test inputs and are not sourced from donors.
 
-## Failure behavior
+The map walkthrough asserts that:
 
-A failed visual test fails the workflow after the reports are collected. The Critical bug bot watches this workflow on the default branch and opens a deduplicated critical issue containing the workflow link and failed job information.
+- the Map destination and map controls are present;
+- MapLibre reaches its fully-rendered callback before the screenshot is captured;
+- both synthetic areas appear in the count;
+- blood-type and availability filters reduce the count as expected;
+- clearing filters restores the full synthetic result count; and
+- the map remains rendered while filters change.
 
-## Why the first scope is intentionally small
+Screenshots are captured for the unfiltered and filtered map, along with the other core screens. A timeout or map load failure makes the instrumentation test fail; the workflow collects the emulator logs and report rather than treating an unrendered beige map as success.
 
-Authenticated donor and requester screens contain live data, maps, timestamps, permissions, and account-specific state. Capturing those without dedicated test accounts and deterministic fixtures would create noisy false positives and could risk exposing user data. The next expansion should use test-only accounts or dependency-injected fixture data, then add stable checkpoints for Welcome, Home, Requests, Donor Home, Donor Requests, Profile, Safety, and the accepted-contact states.
+## Scope and limitations
 
-Intentional design changes should be reviewed from the uploaded artifact before establishing or updating a baseline. The bot detects visual/test failures; it does not make aesthetic decisions autonomously.
+The screenshots are evidence for human visual review, not pixel-baseline comparisons. A passing map-render test confirms that MapLibre reported a fully rendered frame on the CI emulator; it does not prove that live donor data is correct, that a real requester/donor exchange works end-to-end, or that a physical device's GPS is enabled. Those require separate integration and device checks.
+
+The test uses the configured public OpenFreeMap style and requires the CI emulator to reach the style/tile endpoints. If network access or the map provider fails, the test should report the failure with logs; it must not substitute real donor data or silently skip map validation.
 
 ## Screenshot reliability
 
-Hosted emulators are slow, and two things were seen failing transiently right after boot: `Context.getExternalFilesDir()` returned `null` while the emulated shared-storage volume was still mounting (the screenshot then targeted a relative path on a read-only filesystem), and the first `UiAutomation` screenshot returned `null`. `VisualEvidence.capture()` therefore retries, prefers the app's external files directory, falls back to app-private storage (which the workflow reads with `run-as`), and logs a warning instead of failing a test whose UI assertions passed.
+`VisualEvidence.capture()` retries screenshots, prefers the app's external files directory, and falls back to app-private storage. The workflow retrieves evidence from either location and uploads it with connected-test reports and logcat. A screenshot is supplementary evidence; required UI and rendering assertions determine test success.
