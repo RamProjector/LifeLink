@@ -58,22 +58,35 @@ jobs:
           echo $! > "$RUNNER_TEMP/lifelink-emulator.pid"
           adb start-server
           adb wait-for-device
-          # sys.boot_completed alone is not sufficient; wait for framework services too.
-          for attempt in $(seq 1 600); do
-            booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
-            input_service="$(adb shell service check input 2>/dev/null || true)"
-            settings_service="$(adb shell service check settings 2>/dev/null || true)"
+          # Bound the entire readiness check by wall-clock time. ADB shell calls can
+          # themselves hang during a bad boot, so each probe also has a short timeout.
+          deadline=$((SECONDS + 1200))
+          attempt=0
+          ready=false
+          while (( SECONDS < deadline )); do
+            attempt=$((attempt + 1))
+            booted="$(timeout 5s adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+            input_service="$(timeout 5s adb shell service check input 2>/dev/null || true)"
+            settings_service="$(timeout 5s adb shell service check settings 2>/dev/null || true)"
             if [[ "$booted" == "1" && "$input_service" == *"found"* && "$settings_service" == *"found"* ]]; then
-              echo "Android framework and input/settings services are ready."
+              echo "Android framework and input/settings services are ready after $((SECONDS)) seconds."
+              ready=true
               break
             fi
-            if [[ "$attempt" == "600" ]]; then
-              echo "Emulator did not become fully ready. Emulator log tail:"
-              tail -n 160 "$RUNNER_TEMP/lifelink-emulator.log" || true
-              exit 1
+            if (( attempt % 6 == 0 )); then
+              echo "Still waiting for Android readiness (attempt $attempt; boot=$booted; input=$input_service; settings=$settings_service)."
+              adb devices || true
             fi
             sleep 2
           done
+          if [[ "$ready" != true ]]; then
+            echo "Emulator did not become fully ready before the 20-minute deadline."
+            echo "ADB device state:"
+            adb devices || true
+            echo "Emulator log tail:"
+            tail -n 200 "$RUNNER_TEMP/lifelink-emulator.log" || true
+            exit 1
+          fi
           adb shell settings put global window_animation_scale 0.0
           adb shell settings put global transition_animation_scale 0.0
           adb shell settings put global animator_duration_scale 0.0
