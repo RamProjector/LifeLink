@@ -318,6 +318,13 @@ class ConversationNavigationTest {
         composeRule.onNodeWithText("1 areas", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("Clear filters", substring = false).performClick()
         composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
+
+        // Blood-type filtering must also reduce the pin set and remain reversible.
+        composeRule.onNodeWithText("O+", substring = false).performClick()
+        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("1 areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic test area A", substring = false).assertDoesNotExist()
         composeRule.onNodeWithText("donor-42", substring = false).assertDoesNotExist()
     }
