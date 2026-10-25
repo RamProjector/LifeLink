@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- The file contains Supabase access and refresh tokens. -->
+        <exclude domain="sharedpref" path="lifelink_auth.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <!-- Exclude it from direct device-to-device migration too. -->
+        <exclude domain="sharedpref" path="lifelink_auth.xml" />
+    </device-transfer>
+</data-extraction-rules>
