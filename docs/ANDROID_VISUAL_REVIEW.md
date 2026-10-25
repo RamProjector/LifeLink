@@ -4,7 +4,7 @@ LifeLink's visual review runs real Compose instrumentation tests on an Android e
 
 ## Emulator and workflow
 
-The workflow is `.github/workflows/android-visual-review.yml`. It runs on relevant Android UI/test changes, on pushes to `main`, and on manual dispatch. It uses a Pixel 8 emulator with Android 17 (API 37), Java 21, animations disabled, and the existing Gradle/Jetpack Compose/MapLibre stack.
+The workflow is `.github/workflows/android-visual-review.yml`. It runs on relevant Android UI/test changes, on pushes to `main`, and on manual dispatch. It uses a Pixel 7 Pro emulator with the Android 17 (API 37.0) system image and SDK platform 37.2, Java 21, animations disabled, and the existing Gradle/Jetpack Compose/MapLibre stack.
 
 The job requires KVM and fails visibly if the runner cannot run the emulator. It does not silently skip instrumentation and then report success. Emulator logs and test artifacts are uploaded even when the tests fail.
 
