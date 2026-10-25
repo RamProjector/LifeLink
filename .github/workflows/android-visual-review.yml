@@ -79,7 +79,7 @@ jobs:
           system-image-api-level: '37.0'
           target: google_apis
           arch: x86_64
-          profile: pixel_8
+          profile: pixel_7_pro
           force-avd-creation: true
           emulator-options: -no-snapshot -no-window -no-audio -no-boot-anim -no-metrics -camera-back none -camera-front none -netfast -gpu swiftshader_indirect
           cores: 4
