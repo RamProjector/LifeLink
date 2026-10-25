@@ -128,6 +128,7 @@ jobs:
           mkdir -p "$evidence"
           timeout 15s adb logcat -d -v threadtime > "$evidence/logcat.txt" 2>&1 || true
           timeout 15s adb exec-out screencap -p > "$evidence/emulator-final-screen.png" 2>/dev/null || true
+          timeout 15s adb pull /sdcard/Android/data/com.lifelink.app/files "$evidence/external-files" >/dev/null 2>&1 || true
           timeout 15s adb shell run-as com.lifelink.app tar -C files -cf - lifelink-evidence 2>/dev/null | timeout 15s tar -xf - -C "$evidence" 2>/dev/null || true
           cp -R LifeLinkAndroid/app/build/reports/androidTests "$evidence/" 2>/dev/null
           cp -R LifeLinkAndroid/app/build/outputs/androidTest-results "$evidence/" 2>/dev/null
