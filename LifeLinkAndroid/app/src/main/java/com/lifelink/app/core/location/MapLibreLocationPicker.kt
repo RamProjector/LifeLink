@@ -331,12 +331,15 @@ fun MapLibrePrivacySafeDonorMap(
         mapModifier
             .testTag("maplibre-map-surface")
             .semantics {
-                contentDescription = "Donor map"
+                contentDescription = if (fullScreen) "Donor map" else "Location map preview"
                 stateDescription = when {
-                    mapError -> "Map tiles unavailable; ${areas.size} approximate donor pins"
-                    mapLoading -> "Loading map tiles; ${areas.size} approximate donor pins"
-                    mapRendered -> "Map tiles rendered; ${areas.size} approximate donor pins"
-                    else -> "Preparing map tiles; ${areas.size} approximate donor pins"
+                    mapError && fullScreen -> "Map tiles unavailable; ${areas.size} approximate donor pins"
+                    mapLoading && fullScreen -> "Loading map tiles; ${areas.size} approximate donor pins"
+                    mapRendered && fullScreen -> "Map tiles rendered; ${areas.size} approximate donor pins"
+                    mapError -> "Map preview unavailable"
+                    mapLoading -> "Loading map preview"
+                    mapRendered -> "Map preview rendered"
+                    else -> "Preparing map preview"
                 }
             },
     ) {
