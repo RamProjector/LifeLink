@@ -127,36 +127,7 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Your requests")
         capture("workflow-home")
 
-        composeRule.onNodeWithTag("nav-MAP").performClick()
-        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
-        // Do not capture the MapLibre background immediately after the style JSON
-        // loads. Wait for the visible map and its synthetic annotations to finish.
-        composeRule.waitUntil(timeoutMillis = 35_000) {
-            val mapReady = composeRule.onAllNodesWithContentDescription("Map ready; 2 approximate donor pins")
-                .fetchSemanticsNodes().isNotEmpty()
-            val mapFailed = composeRule.onAllNodesWithText("Map preview unavailable")
-                .fetchSemanticsNodes().isNotEmpty()
-            mapReady || mapFailed
-        }
-        composeRule.onNodeWithText("Map preview unavailable", substring = false).assertDoesNotExist()
-        composeRule.onNodeWithContentDescription("Map ready; 2 approximate donor pins").assertIsDisplayed()
-        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
-        capture("workflow-donor-map")
-
-        composeRule.onNodeWithContentDescription("Show map filters").performClick()
-        composeRule.onNodeWithText("Available now", substring = false).performClick()
-        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithContentDescription("Map ready; 1 approximate donor pin")
-                .fetchSemanticsNodes().isNotEmpty()
-        }
-        capture("workflow-donor-map-filtered")
-        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
-        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
-
-        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
-        composeRule.waitForIdle()
+        captureSyntheticMapEvidence()
 
         tapTab("Requests")
         assertVisible("No active request")
@@ -196,6 +167,40 @@ class LifeLinkWorkflowVisualTest {
         tap("Security")
         assertVisible("Reset password")
         capture("workflow-settings-security")
+    }
+
+    /** Captures a loaded synthetic map and verifies availability filtering and marker-state updates. */
+    private fun captureSyntheticMapEvidence() {
+        composeRule.onNodeWithTag("nav-MAP").performClick()
+        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
+        // Do not capture the MapLibre background immediately after the style JSON
+        // loads. Wait for the visible map and its synthetic annotations to finish.
+        composeRule.waitUntil(timeoutMillis = 35_000) {
+            val mapReady = composeRule.onAllNodesWithContentDescription("Map ready; 2 approximate donor pins")
+                .fetchSemanticsNodes().isNotEmpty()
+            val mapFailed = composeRule.onAllNodesWithText("Map preview unavailable")
+                .fetchSemanticsNodes().isNotEmpty()
+            mapReady || mapFailed
+        }
+        composeRule.onNodeWithText("Map preview unavailable", substring = false).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Map ready; 2 approximate donor pins").assertIsDisplayed()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
+        capture("workflow-donor-map")
+
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("Available now", substring = false).performClick()
+        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription("Map ready; 1 approximate donor pin")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        capture("workflow-donor-map-filtered")
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
+
+        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitForIdle()
     }
 
     @Test
