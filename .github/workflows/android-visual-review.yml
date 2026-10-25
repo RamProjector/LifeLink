@@ -73,7 +73,7 @@ jobs:
             > "$RUNNER_TEMP/lifelink-emulator.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/lifelink-emulator.pid"
           adb start-server
-          adb wait-for-device
+          timeout 120s adb wait-for-device
 
           deadline=$((SECONDS + 1200))
           attempt=0
@@ -90,7 +90,7 @@ jobs:
             fi
             if (( attempt % 6 == 0 )); then
               echo "Waiting for Android readiness (attempt $attempt; boot=$booted; input=$input_service; settings=$settings_service)."
-              adb devices || true
+              timeout 10s adb devices || true
             fi
             sleep 2
           done
@@ -126,9 +126,9 @@ jobs:
           set +e
           evidence="$RUNNER_TEMP/lifelink-visual-evidence"
           mkdir -p "$evidence"
-          adb logcat -d -v threadtime > "$evidence/logcat.txt" 2>&1
-          adb exec-out screencap -p > "$evidence/emulator-final-screen.png" 2>/dev/null
-          adb shell run-as com.lifelink.app tar -C files -cf - lifelink-evidence 2>/dev/null | tar -xf - -C "$evidence" 2>/dev/null
+          timeout 15s adb logcat -d -v threadtime > "$evidence/logcat.txt" 2>&1 || true
+          timeout 15s adb exec-out screencap -p > "$evidence/emulator-final-screen.png" 2>/dev/null || true
+          timeout 15s adb shell run-as com.lifelink.app tar -C files -cf - lifelink-evidence 2>/dev/null | timeout 15s tar -xf - -C "$evidence" 2>/dev/null || true
           cp -R LifeLinkAndroid/app/build/reports/androidTests "$evidence/" 2>/dev/null
           cp -R LifeLinkAndroid/app/build/outputs/androidTest-results "$evidence/" 2>/dev/null
           cp -R LifeLinkAndroid/app/build/reports/tests "$evidence/" 2>/dev/null
@@ -139,7 +139,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          adb emu kill || true
+          timeout 10s adb emu kill || true
           if [[ -f "$RUNNER_TEMP/lifelink-emulator.pid" ]]; then
             kill "$(cat "$RUNNER_TEMP/lifelink-emulator.pid")" 2>/dev/null || true
           fi
