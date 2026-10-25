@@ -589,8 +589,17 @@ data class AdminUser(
     @SerializedName("created_at") val createdAt: String? = null,
 )
 data class AdminUsersResponse(val items: List<AdminUser>, val total: Int)
-data class AdminUserUpdateRequest(val role: String, @SerializedName("can_request") val canRequest: Boolean, @SerializedName("can_donate") val canDonate: Boolean)
-data class AdminUserUpdateResponse(@SerializedName("user_id") val userId: String, val role: String, @SerializedName("can_request") val canRequest: Boolean, @SerializedName("can_donate") val canDonate: Boolean)
+data class AdminUserUpdateRequest(
+    val role: String,
+    @SerializedName("can_request") val canRequest: Boolean,
+    @SerializedName("can_donate") val canDonate: Boolean,
+)
+data class AdminUserUpdateResponse(
+    @SerializedName("user_id") val userId: String,
+    val role: String,
+    @SerializedName("can_request") val canRequest: Boolean,
+    @SerializedName("can_donate") val canDonate: Boolean,
+)
 data class AdminAuditEvent(
     val id: String,
     @SerializedName("actor_id") val actorId: String,
