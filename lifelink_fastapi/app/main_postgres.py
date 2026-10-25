@@ -70,7 +70,7 @@ from .privacy_repositories import SqlAlchemyPrivacyStore
 from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
 from .security import Principal, get_postgres_principal, require_verified_email
 from .rate_limit import enforce_rate_limit
-from .admin_api import router as admin_router
+from .admin_api import _correlation_id, _write_audit, router as admin_router
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -156,6 +156,36 @@ app.include_router(admin_router)
 logger = logging.getLogger("lifelink.api")
 
 
+async def _record_api_error(request: Request, exc: Exception, outcome: str = "error") -> None:
+    """Best-effort operational audit record; never expose exception details to clients."""
+    try:
+        from .db import AsyncSessionLocal
+
+        route = request.scope.get("route")
+        route_path = getattr(route, "path", "unmatched")
+        async with AsyncSessionLocal() as session:
+            await _write_audit(
+                session,
+                "system",
+                "error.api",
+                outcome=outcome,
+                target_type="api_route",
+                target_id=str(route_path)[:128],
+                correlation_id=_correlation_id(request.headers.get("x-correlation-id")),
+                metadata={
+                    "error_type": type(exc).__name__[:120],
+                    "status_code": getattr(exc, "status_code", 500),
+                    "method": request.method,
+                },
+            )
+            await session.commit()
+    except Exception:
+        # Logging failure must not mask the original API response; operational
+        # logs still contain the exception class and route without request data.
+        logger.exception("Could not persist API error audit event")
+
+
+
 def enum_value(value):
     """Accept SQLAlchemy enum instances and plain values on newly inserted rows."""
     return getattr(value, "value", value)
@@ -173,14 +203,23 @@ def donor_setup_complete(row: DonorRow) -> bool:
 
 @app.exception_handler(IntegrityError)
 async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
-    logger.exception("Database constraint failure on %s", request.url.path)
+    logger.exception("Database constraint failure on %s", request.scope.get("route"))
+    await _record_api_error(request, exc)
     return JSONResponse(status_code=409, content={"detail": "This request conflicts with current server data. Refresh and submit again."})
 
 
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_error_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
-    logger.exception("Database failure on %s", request.url.path)
+    logger.exception("Database failure on %s", request.scope.get("route"))
+    await _record_api_error(request, exc)
     return JSONResponse(status_code=503, content={"detail": "LifeLink could not save the request right now. Please retry."})
+
+
+@app.exception_handler(Exception)
+async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled API failure on %s", request.scope.get("route"))
+    await _record_api_error(request, exc)
+    return JSONResponse(status_code=500, content={"detail": "LifeLink encountered an unexpected error. Please retry."})
 
 
 async def _push_recipients_for_donors(session: AsyncSession, donor_ids: list[str]) -> list[tuple[str, str]]:
