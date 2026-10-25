@@ -97,6 +97,7 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("nav-MAP").performClick()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
+        capture("workflow-donor-map-loading")
         composeRule.waitUntil(timeoutMillis = 45_000) {
             composeRule.onAllNodesWithTag("maplibre-map-rendered").fetchSemanticsNodes().isNotEmpty()
         }
