@@ -310,10 +310,16 @@ fun MapLibrePrivacySafeDonorMap(
                         mapLoading = false
                         mapError = true
                     }
+                    // A style callback only means the style JSON loaded. Keep the
+                    // loading state until MapLibre finishes loading the visible map
+                    // so we do not reveal a blank canvas while vector tiles are pending.
+                    addOnDidFinishLoadingMapListener {
+                        mapLoading = false
+                        mapError = false
+                    }
                     getMapAsync { map ->
                         mapLoading = true
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            mapLoading = false
                             mapError = false
                             map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
                             appliedCenter = center
@@ -338,7 +344,6 @@ fun MapLibrePrivacySafeDonorMap(
                         mapLoading = true
                         mapError = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            mapLoading = false
                             mapError = false
                             map.clear()
                             areas.forEach { area ->
