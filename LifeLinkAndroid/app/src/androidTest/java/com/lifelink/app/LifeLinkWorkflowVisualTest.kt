@@ -181,7 +181,10 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Reset password")
         capture("workflow-settings-security")
 
-        // Capture deterministic empty and API-error states with no live service calls.
+    }
+
+    @Test
+    fun donorMapCapturesEmptyAndErrorStates() {
         renderMap(com.lifelink.app.feature.privacy.PrivacyUiState())
         assertVisible("No donor areas available")
         capture("workflow-donor-map-empty")
