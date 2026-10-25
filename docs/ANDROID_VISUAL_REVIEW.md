@@ -1,29 +1,27 @@
 # Android visual review
 
-LifeLink now has an emulator-based visual-review workflow for a stable, unauthenticated screen: the signed-out authentication screen.
+The `.github/workflows/android-visual-review.yml` workflow runs the Android instrumentation suite on an Android 16 (API 36) Pixel 2 emulator for Android changes and supports manual dispatch. The app still compiles against the repository's Android 37 SDK. Java 21 is used to match the Android build workflow.
 
 ## What it records
 
-The workflow builds the debug app and instrumentation APK, launches an API 34 Pixel 2 emulator with animations disabled, runs the Compose visual smoke test, captures `auth-screen.png`, and uploads the screenshot plus Android test reports as a GitHub Actions artifact.
+The workflow runs `:app:connectedDebugAndroidTest`, then uploads screenshots, Android test reports, full logcat, and emulator boot logs as a GitHub Actions artifact (14-day retention). The workflow has a bounded emulator-readiness check so a stuck emulator fails with diagnostics rather than waiting indefinitely.
 
-The test also asserts that the current auth screen visibly contains:
+The Compose workflow visual test uses an in-memory synthetic donor-map fixture labelled as synthetic test areas. It does not create accounts, call the donor API, or write fixture data to Supabase or another production service. Build-time API and Supabase values are `.invalid` placeholders in this workflow; they are not production credentials.
 
-- `Welcome back. Sign in to continue.`
-- `Email address`
-- `Forgot password?`
+## Map-render validation
 
-These assertions catch missing content, broken composition, and major copy/layout regressions. The screenshot is the visual evidence used for design review; it is not yet compared against a frozen baseline.
+The map screenshot is captured only after MapLibre reports that the visible map has finished loading and the synthetic approximate-pin annotations have been applied. The test checks the initial pin count, filters to available donors, verifies the count and marker-state description update, then clears the filter.
 
-## Failure behavior
+The base map style is loaded from OpenFreeMap over the network. That means a successful map-render test requires the hosted runner to reach the public style and tile endpoints. If tile loading fails or stalls, the test fails instead of accepting a blank background as a successful map. The uploaded logcat helps distinguish an app regression from an upstream/network failure. Backend loading, error, and empty-state behavior remains covered separately by deterministic Compose tests.
 
-A failed visual test fails the workflow after the reports are collected. The Critical bug bot watches this workflow on the default branch and opens a deduplicated critical issue containing the workflow link and failed job information.
+## Failure behavior and review
 
-## Why the first scope is intentionally small
+A failed instrumentation test fails the visual-review workflow after evidence collection. Review the uploaded screenshot and logcat before merging UI changes; a green APK compilation alone does not demonstrate that map tiles rendered correctly. The screenshot is visual evidence, not a pixel-perfect baseline comparison.
 
-Authenticated donor and requester screens contain live data, maps, timestamps, permissions, and account-specific state. Capturing those without dedicated test accounts and deterministic fixtures would create noisy false positives and could risk exposing user data. The next expansion should use test-only accounts or dependency-injected fixture data, then add stable checkpoints for Welcome, Home, Requests, Donor Home, Donor Requests, Profile, Safety, and the accepted-contact states.
+Hosted emulators may boot slowly. The workflow verifies that Android's boot property and input/settings services are ready before starting tests, disables UI animations, and collects diagnostics on failure.
 
-Intentional design changes should be reviewed from the uploaded artifact before establishing or updating a baseline. The bot detects visual/test failures; it does not make aesthetic decisions autonomously.
+## References
 
-## Screenshot reliability
-
-Hosted emulators are slow, and two things were seen failing transiently right after boot: `Context.getExternalFilesDir()` returned `null` while the emulated shared-storage volume was still mounting (the screenshot then targeted a relative path on a read-only filesystem), and the first `UiAutomation` screenshot returned `null`. `VisualEvidence.capture()` therefore retries, prefers the app's external files directory, falls back to app-private storage (which the workflow reads with `run-as`), and logs a warning instead of failing a test whose UI assertions passed.
+- [MapLibre Native Android: MapView](https://maplibre.org/maplibre-native/android/api/-map-libre%20-native%20-android/org.maplibre.android.maps/-map-view/index.html)
+- [MapLibre Native Android: map finished loading](https://maplibre.org/maplibre-native/android/api/-map-libre%20-native%20-android/org.maplibre.android.maps/-map-view/-on-did-finish-loading-map-listener/on-did-finish-loading-map.html)
+- [Android Developers: Compose testing APIs](https://developer.android.com/develop/ui/compose/testing/apis)
