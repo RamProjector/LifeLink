@@ -136,6 +136,20 @@ jobs:
           cp "$RUNNER_TEMP/lifelink-emulator.log" "$evidence/" 2>/dev/null
           find "$evidence" -type f -print || true
 
+      - name: Require map screenshots in the evidence artifact
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/lifelink-visual-evidence"
+          for pattern in '*workflow-donor-map.png' '*workflow-donor-map-filtered.png'; do
+            if ! find "$evidence" -type f -name "$pattern" -print -quit | grep -q .; then
+              echo "::error::Required map screenshot is missing: $pattern"
+              find "$evidence" -type f -print || true
+              exit 1
+            fi
+          done
+
       - name: Stop Android emulator
         if: always()
         shell: bash
