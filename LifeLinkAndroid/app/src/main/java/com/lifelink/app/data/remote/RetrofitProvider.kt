@@ -13,12 +13,13 @@ object RetrofitProvider {
     private const val DEFAULT_BASE_URL = "http://10.0.2.2:8000/"
 
     /**
-     * The token provider is deliberately injected so Firebase/Auth0/another
-     * identity provider can own refresh and secure storage in the production app.
+     * Authentication is opt-in per client: account-scoped callers must inject
+     * the signed-in Supabase access token. Never bake a shared development
+     * identity or bearer token into the APK's BuildConfig.
      */
     fun create(
         baseUrl: String = BuildConfig.LIFELINK_API_BASE_URL.ifBlank { DEFAULT_BASE_URL },
-        tokenProvider: () -> String? = { BuildConfig.LIFELINK_API_TOKEN.takeIf { it.isNotBlank() } },
+        tokenProvider: () -> String? = { null },
         onUnauthorized: (suspend () -> String?)? = null
     ): LifeLinkApi {
         val logging = HttpLoggingInterceptor().apply {
