@@ -278,6 +278,8 @@ fun MapLibrePrivacySafeDonorMap(
     var appliedRecenterRequest by remember { mutableStateOf(-1) }
     var appliedCenter by remember { mutableStateOf<LatLng?>(null) }
     var appliedAreasSignature by remember { mutableStateOf("") }
+    var appliedAreasCount by remember { mutableStateOf(0) }
+    var renderedAreasSignature by remember { mutableStateOf("") }
     val areasSignature = remember(areas) {
         areas.joinToString(separator = "|") { area ->
             "${area.latitude},${area.longitude},${area.bloodType},${area.availability},${area.freshnessAt}"
@@ -300,6 +302,7 @@ fun MapLibrePrivacySafeDonorMap(
     val mapRenderedListener = remember(mapView) {
         MapView.OnDidFinishRenderingMapListener { fully ->
             if (fully && mapStyleLoaded) {
+                renderedAreasSignature = appliedAreasSignature
                 mapRendered = true
                 mapLoading = false
                 mapError = false
@@ -334,9 +337,11 @@ fun MapLibrePrivacySafeDonorMap(
             .semantics {
                 contentDescription = if (fullScreen) "Donor map" else "Location map preview"
                 stateDescription = when {
-                    mapError && fullScreen -> "Map tiles unavailable; ${areas.size} approximate donor pins"
-                    mapLoading && fullScreen -> "Loading map tiles; ${areas.size} approximate donor pins"
-                    mapRendered && fullScreen -> "Map tiles rendered; ${areas.size} approximate donor pins"
+                    mapError && fullScreen -> "Map tiles unavailable; ${appliedAreasCount} approximate donor pins"
+                    mapLoading && fullScreen -> "Loading map tiles; ${appliedAreasCount} approximate donor pins"
+                    mapRendered && renderedAreasSignature == appliedAreasSignature && fullScreen ->
+                        "Map tiles rendered; ${appliedAreasCount} approximate donor pins"
+                    fullScreen -> "Updating map; ${appliedAreasCount} approximate donor pins"
                     mapError -> "Map preview unavailable"
                     mapLoading -> "Loading map preview"
                     mapRendered -> "Map preview rendered"
@@ -372,6 +377,7 @@ fun MapLibrePrivacySafeDonorMap(
                                 )
                             }
                             appliedAreasSignature = areasSignature
+                            appliedAreasCount = areas.size
                         }
                     }
                 }
@@ -397,6 +403,7 @@ fun MapLibrePrivacySafeDonorMap(
                                 )
                             }
                             appliedAreasSignature = areasSignature
+                            appliedAreasCount = areas.size
                         }
                         retryRequest = 0
                     }
@@ -413,6 +420,7 @@ fun MapLibrePrivacySafeDonorMap(
                             )
                         }
                         appliedAreasSignature = areasSignature
+                        appliedAreasCount = areas.size
                     }
                     // Repeated Compose updates must not keep resetting the camera.
                     // Unnecessary camera moves cancel vector-tile requests and make the map
