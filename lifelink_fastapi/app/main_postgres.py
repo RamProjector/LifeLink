@@ -216,11 +216,11 @@ def donor_setup_complete(row: DonorRow) -> bool:
 @app.middleware("http")
 async def audit_admin_denials(request: Request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith("/v1/admin/") and response.status_code in {401, 403}:
+    if request.url.path.startswith("/v1/admin/") and response.status_code >= 400:
         await _record_api_error(
             request,
             HTTPException(status_code=response.status_code),
-            outcome="denied",
+            outcome="denied" if response.status_code in {401, 403} else "error",
         )
     return response
 
