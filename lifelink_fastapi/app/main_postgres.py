@@ -70,6 +70,7 @@ from .privacy_repositories import SqlAlchemyPrivacyStore
 from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
 from .security import Principal, get_postgres_principal, require_verified_email
 from .rate_limit import enforce_rate_limit
+from .admin_api import router as admin_router
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -151,6 +152,7 @@ async def _expire_timed_out_requests_forever() -> None:
 
 
 app = FastAPI(title="LifeLink Matching Service \u2014 PostgreSQL", lifespan=lifespan)
+app.include_router(admin_router)
 logger = logging.getLogger("lifelink.api")
 
 
