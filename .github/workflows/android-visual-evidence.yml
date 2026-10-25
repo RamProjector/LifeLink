@@ -7,7 +7,6 @@ on:
   push:
     branches:
       - main
-      - ci/optional-android-visual-evidence
   pull_request:
     paths:
       - "LifeLinkAndroid/**"
