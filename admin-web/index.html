@@ -25,9 +25,9 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
  <div class="headrow"><div><div class="eyebrow">Operations overview</div><h1>Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary">Refresh data</button></div></div>
  <nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview">Overview</button><button class="tab" data-page="users">User management</button><button class="tab" data-page="audit">Audit logs</button><button class="tab" data-page="errors">Errors</button></nav>
  <section id="page-overview"><div class="grid"><div class="stat"><small>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small>Donor records</small><strong id="stat-donors">—</strong></div><div class="stat"><small>Emergency requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small>Authorization</small><strong style="font-size:20px;color:var(--green)">Verified</strong></div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is checked by the API on every request. User capability changes are audited. Audit records are read-only in this interface. Error entries contain operational context, not passwords or access tokens.</p><p id="generated" class="small muted"></p></div></section>
- <section id="page-users" class="panel hidden"><h2>User management</h2><p class="muted small">Change requester/donor capabilities only. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div></section>
- <section id="page-audit" class="panel hidden"><h2>Audit history</h2><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div></section>
- <section id="page-errors" class="panel hidden"><h2>Application errors</h2><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div></section>
+ <section id="page-users" class="panel hidden"><h2>User management</h2><p class="muted small">Change requester/donor capabilities only. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled>Previous</button><button id="users-next" class="secondary" disabled>Next</button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-audit" class="panel hidden"><h2>Audit history</h2><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div><div class="actions" style="margin-top:14px"><button id="audit-prev" class="secondary" disabled>Previous</button><button id="audit-next" class="secondary" disabled>Next</button><span id="audit-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-errors" class="panel hidden"><h2>Application errors</h2><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div><div class="actions" style="margin-top:14px"><button id="errors-prev" class="secondary" disabled>Previous</button><button id="errors-next" class="secondary" disabled>Next</button><span id="errors-page" class="muted small" aria-live="polite"></span></div></section>
  <div id="app-message" class="notice hidden" role="status" aria-live="polite"></div><p class="foot">LifeLink Admin · Keep this browser session private. Sign out when finished.</p>
 </main>
 <script>
@@ -36,6 +36,8 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_0BnXY2k96nRr0k0zaZvMgQ_IQYSlyQu";
  const API_BASE_URL = "https://lifelink-api-uzje.onrender.com";
  let accessToken = null, activePage = "overview";
+ const pageSize = 50;
+ const offsets = { users: 0, audit: 0, errors: 0 };
  const $ = id => document.getElementById(id);
  const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
  const message = (id, text, error=false) => { const el=$(id); el.textContent=text; el.classList.toggle("hidden",!text); el.classList.toggle("error",error); };
@@ -68,13 +70,21 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
    return '<table><thead><tr>'+cols.map(c=>'<th>'+esc(c.label)+'</th>').join('')+'</tr></thead><tbody>'+items.map(item=>'<tr>'+cols.map(c=>'<td>'+c.render(item)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
  }
  async function loadUsers() {
-   const data=await api("/v1/admin/users?limit=100");
+   const offset=offsets.users;
+   const data=await api("/v1/admin/users?limit="+pageSize+"&offset="+offset);
+   $("users-prev").disabled=offset===0;
+   $("users-next").disabled=offset+pageSize>=data.total;
+   $("users-page").textContent=(data.total===0?"0 users":(offset+1)+"–"+Math.min(offset+pageSize,data.total)+" of "+data.total);
    $("users-table").innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Capabilities",render:u=>'Request: '+(u.can_request?'Yes':'No')+'<br>Donate: '+(u.can_donate?'Yes':'No')},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Actions",render:u=>'<div class="actions"><button class="secondary" data-action="requester" data-id="'+esc(u.user_id)+'">Requester</button><button class="secondary" data-action="donor" data-id="'+esc(u.user_id)+'">Donor</button></div>'}]);
    $("users-table").querySelectorAll("button[data-action]").forEach(btn=>btn.addEventListener("click",async()=>{if(!confirm("Update capabilities for this user? This action is recorded in the audit log."))return;try{await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify({role:btn.dataset.action,can_request:btn.dataset.action==="requester",can_donate:btn.dataset.action==="donor"})});message("app-message","User capabilities updated and audit event recorded.");await loadUsers();}catch(e){message("app-message",e.message,true);}}));
  }
  async function loadEvents(kind) {
-   const data=await api("/v1/admin/"+kind+"?limit=100");
+   const offset=offsets[kind];
+   const data=await api("/v1/admin/"+kind+"?limit="+pageSize+"&offset="+offset);
    const target=kind==="audit"?"audit-table":"errors-table";
+   $(kind+"-prev").disabled=offset===0;
+   $(kind+"-next").disabled=data.items.length<pageSize;
+   $(kind+"-page").textContent=data.items.length===0?"No records on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
    $(target).innerHTML=table(data.items,[{label:"Time",render:e=>esc(e.created_at?new Date(e.created_at).toLocaleString():"—")},{label:"Action",render:e=>'<code>'+esc(e.action)+'</code><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"event")+'</span>'},{label:"Actor",render:e=>'<code>'+esc(e.actor_id||"system")+'</code>'},{label:"Target",render:e=>esc(e.target_type||"—")+'<br><code>'+esc(e.target_id||"")+'</code>'},{label:"Details",render:e=>'<code>'+esc(JSON.stringify(e.metadata||{}))+'</code><br><span class="muted small">Correlation: '+esc(e.correlation_id||"—")+'</span>'}]);
  }
  async function loadPage(page) {
@@ -92,6 +102,10 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
  $("password").addEventListener("keydown",e=>{if(e.key==="Enter")signIn()});
  document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>loadPage(b.dataset.page)));
  $("refresh").addEventListener("click",()=>loadPage(activePage));
+ ["users","audit","errors"].forEach(kind=>{
+   $(kind+"-prev").addEventListener("click",()=>{offsets[kind]=Math.max(0,offsets[kind]-pageSize);loadPage(kind==="users"?"users":kind);});
+   $(kind+"-next").addEventListener("click",()=>{offsets[kind]+=pageSize;loadPage(kind==="users"?"users":kind);});
+ });
  $("signout").addEventListener("click",()=>{accessToken=null;$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("password").value="";message("login-message","Signed out.");});
 })();
 </script>
