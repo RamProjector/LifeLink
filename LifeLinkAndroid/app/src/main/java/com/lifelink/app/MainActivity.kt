@@ -75,7 +75,13 @@ import kotlinx.coroutines.tasks.await
 class MainActivity : ComponentActivity() {
     private fun notificationDestination(intent: Intent?): String? {
         val conversationId = intent?.getStringExtra("conversation_id")?.takeIf { it.isNotBlank() }
-        return conversationId?.let { "conversation:$it" } ?: intent?.getStringExtra("request_id")
+        val requestId = intent?.getStringExtra("request_id")?.takeIf { it.isNotBlank() }
+        val eventId = intent?.getStringExtra("notification_event_id").orEmpty()
+        return when {
+            conversationId != null -> "conversation:$conversationId|$eventId"
+            requestId != null -> "request:$requestId|$eventId"
+            else -> null
+        }
     }
 
     private var recoveryUri by mutableStateOf<Uri?>(null)
