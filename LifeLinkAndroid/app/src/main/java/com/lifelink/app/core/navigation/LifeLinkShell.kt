@@ -213,13 +213,20 @@ fun LifeLinkShell(
     LaunchedEffect(notificationRequestId) {
         notificationRequestId?.takeIf { it.isNotBlank() }?.let { destination ->
             showStart = false
-            if (destination.startsWith("conversation:")) {
-                showActive = false
-                showNotifications = false
-                tab = ShellTab.MESSAGING
-            } else {
-                showActive = true
-                onAction(EmergencyRequestAction.OpenRequest(destination))
+            when {
+                destination.startsWith("conversation:") -> {
+                    showActive = false
+                    showNotifications = false
+                    tab = ShellTab.MESSAGING
+                }
+                destination.startsWith("request:") -> {
+                    showActive = true
+                    onAction(EmergencyRequestAction.OpenRequest(destination.substringAfter("request:").substringBefore("|")))
+                }
+                else -> {
+                    showActive = true
+                    onAction(EmergencyRequestAction.OpenRequest(destination))
+                }
             }
         }
     }
@@ -422,7 +429,8 @@ fun LifeLinkShell(
                                     onOpenConversation = openConversation,
                                     targetConversationId = notificationRequestId
                                         ?.takeIf { it.startsWith("conversation:") }
-                                        ?.removePrefix("conversation:"),
+                                        ?.substringAfter("conversation:")
+                                        ?.substringBefore("|"),
                                 )
                             ShellTab.PROFILE ->
                                 SettingsContent(
