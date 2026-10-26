@@ -1,5 +1,6 @@
 package com.lifelink.app
 
+import android.graphics.Color
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
@@ -26,6 +27,7 @@ import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
 import com.lifelink.app.feature.privacy.PrivacyUiState
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -214,6 +216,12 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
         composeRule.onNodeWithTag("toggle-donor-map-view").assertIsDisplayed()
         awaitMapRender()
+        composeRule.waitUntil(timeoutMillis = 5_000) { countVisibleDonorPinPixels() >= 800 }
+        val unfilteredPinPixels = countVisibleDonorPinPixels()
+        assertTrue(
+            "Expected two distinct synthetic donor pins to be visible; found $unfilteredPinPixels matching pixels.",
+            unfilteredPinPixels >= 800,
+        )
         capture("workflow-donor-map-synthetic")
 
         composeRule.onNodeWithContentDescription("Show map filters").performClick()
@@ -237,6 +245,16 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         awaitMapRender()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val filteredPinPixels = countVisibleDonorPinPixels()
+            filteredPinPixels > 0 && filteredPinPixels < unfilteredPinPixels * 0.75
+        }
+        val filteredPinPixels = countVisibleDonorPinPixels()
+        assertTrue(
+            "Filtering to available O+ areas should remove the unavailable synthetic pin; " +
+                "before=$unfilteredPinPixels pixels, after=$filteredPinPixels pixels.",
+            filteredPinPixels > 0 && filteredPinPixels < unfilteredPinPixels * 0.75,
+        )
         capture("workflow-donor-map-filtered")
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
@@ -249,6 +267,38 @@ class LifeLinkWorkflowVisualTest {
                 composeRule.onAllNodesWithTag("donor-map-render-error").fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithTag("donor-map-render-ready").assertIsDisplayed()
+    }
+
+    /**
+     * Counts the custom donor-pin color in the map viewport, excluding the status and bottom-navigation bars.
+     * This verifies native marker pixels, not merely the Compose loading state or map-style callback.
+     */
+    private fun countVisibleDonorPinPixels(): Int {
+        val screenshot = requireNotNull(
+            InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot(),
+        ) { "Could not capture the emulator screen to verify donor pins." }
+        try {
+            var matchingPixels = 0
+            val startX = screenshot.width / 8
+            val endX = screenshot.width * 7 / 8
+            val startY = screenshot.height / 12
+            val endY = screenshot.height * 3 / 4
+            for (y in startY until endY) {
+                for (x in startX until endX) {
+                    val pixel = screenshot.getPixel(x, y)
+                    if (
+                        Color.red(pixel) <= 25 &&
+                        Color.green(pixel) in 85..115 &&
+                        Color.blue(pixel) in 105..140
+                    ) {
+                        matchingPixels++
+                    }
+                }
+            }
+            return matchingPixels
+        } finally {
+            screenshot.recycle()
+        }
     }
 
     /** Fake coarsened locations for emulator-only UI tests; never loaded or persisted to a backend. */
@@ -271,8 +321,8 @@ class LifeLinkWorkflowVisualTest {
                     ),
                     DonorMapArea(
                         areaLabel = "Synthetic A- area",
-                        latitude = 14.6020,
-                        longitude = 120.9870,
+                        latitude = 14.6200,
+                        longitude = 121.0100,
                         radiusMeters = 1600,
                         bloodType = "A-",
                         availability = "Unavailable",
