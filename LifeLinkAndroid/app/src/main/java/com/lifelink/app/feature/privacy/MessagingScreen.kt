@@ -56,7 +56,7 @@ fun MessagingScreen(
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadConversations) }
     var handledNotificationKey by remember { mutableStateOf<String?>(null) }
     val notificationKey = targetConversationId?.let { conversationId ->
-        "$" + "conversationId|" + "$" + "{targetConversationEventId.orEmpty()}"
+        "$conversationId|${targetConversationEventId.orEmpty()}"
     }
     LaunchedEffect(notificationKey, state.conversations, state.conversationsLoading) {
         if (notificationKey != null && notificationKey != handledNotificationKey && !state.conversationsLoading) {
