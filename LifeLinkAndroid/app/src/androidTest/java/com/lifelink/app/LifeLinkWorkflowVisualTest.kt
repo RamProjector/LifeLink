@@ -3,6 +3,7 @@ package com.lifelink.app
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -20,21 +21,55 @@ import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.domain.ActiveRequestStatus
+import com.lifelink.app.domain.DonorMap
+import com.lifelink.app.domain.DonorMapArea
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
+import com.lifelink.app.feature.privacy.PrivacyUiState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class LifeLinkWorkflowVisualTest {
+    // Synthetic-only map fixture: these coordinates and labels are not tied to donor accounts,
+    // are never sent to a backend, and exist solely to exercise map rendering and local filters.
+    private val syntheticDonorMap = DonorMap(
+        generatedAt = "2026-10-26T00:00:00Z",
+        approximateOnly = true,
+        areas = listOf(
+            DonorMapArea(
+                areaLabel = "Synthetic demo area — test fixture",
+                latitude = 37.7749,
+                longitude = -122.4194,
+                radiusMeters = 5_000,
+                bloodType = "O+",
+                availability = "Available",
+                freshnessAt = "2026-10-26T00:00:00Z",
+                freshnessAgeMinutes = 2,
+                isStale = false,
+            ),
+            DonorMapArea(
+                areaLabel = "Synthetic unavailable area — test fixture",
+                latitude = 37.7849,
+                longitude = -122.4094,
+                radiusMeters = 5_000,
+                bloodType = "A+",
+                availability = "Unavailable",
+                freshnessAt = "2026-10-26T00:00:00Z",
+                freshnessAgeMinutes = 4,
+                isStale = false,
+            ),
+        ),
+    )
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private fun render(
         state: EmergencyRequestUiState = EmergencyRequestUiState(),
         updates: List<com.lifelink.app.domain.UpdateItem> = emptyList(),
+        privacyState: PrivacyUiState = PrivacyUiState(),
         role: UserRole = UserRole.REQUESTER,
         onAction: (com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction) -> Unit = {},
     ) {
@@ -54,7 +89,7 @@ class LifeLinkWorkflowVisualTest {
                         onDonorAction = {},
                         becomeDonorState = com.lifelink.app.feature.donor.BecomeDonorUiState(loading = false),
                         onBecomeDonorAction = {},
-                        privacyState = com.lifelink.app.feature.privacy.PrivacyUiState(),
+                        privacyState = privacyState,
                         onPrivacyAction = {},
                         role = role,
                         onSwitchRole = {},
@@ -85,7 +120,7 @@ class LifeLinkWorkflowVisualTest {
     /** Verifies navigation through requests, notifications, settings, and donor setup, capturing each screen. */
     @Test
     fun navigatesCoreWorkflowsAndCapturesEvidence() {
-        render()
+        render(privacyState = PrivacyUiState(map = syntheticDonorMap))
         assertVisible("Your requests")
         capture("workflow-home")
 
@@ -93,11 +128,22 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
         composeRule.onNodeWithTag("toggle-donor-map-view").assertIsDisplayed()
+        capture("workflow-donor-map-loading")
+        // Wait for MapLibre's full-render callback, not Compose idleness alone. A parsed style
+        // can still leave the native map blank while vector tiles are being fetched.
+        runCatching {
+            composeRule.waitUntil(timeoutMillis = 45_000) {
+                composeRule.onAllNodesWithTag("maplibre-map-rendered").fetchSemanticsNodes().isNotEmpty() ||
+                    composeRule.onAllNodesWithTag("maplibre-map-error").fetchSemanticsNodes().isNotEmpty()
+            }
+        }
+        val mapRendered = composeRule.onAllNodesWithTag("maplibre-map-rendered").fetchSemanticsNodes().isNotEmpty()
+        capture(if (mapRendered) "workflow-donor-map" else "workflow-donor-map-render-error")
+        composeRule.onNodeWithTag("maplibre-map-rendered").assertIsDisplayed()
         composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
         composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
         composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
-        capture("workflow-donor-map")
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
 
@@ -139,6 +185,28 @@ class LifeLinkWorkflowVisualTest {
         tap("Security")
         assertVisible("Reset password")
         capture("workflow-settings-security")
+    }
+
+    @Test
+    fun syntheticDonorMapDemoFiltersLocallyWithoutLiveDonorData() {
+        render(privacyState = PrivacyUiState(map = syntheticDonorMap))
+        composeRule.onNodeWithTag("nav-MAP").performClick()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+
+        composeRule.onNodeWithText("O+", substring = false).performClick()
+        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+        composeRule.onNodeWithText("Available now", substring = false).performClick()
+        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
+
+        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
+        composeRule.onNodeWithText("Synthetic demo area — test fixture", substring = false)
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic unavailable area — test fixture", substring = false)
+            .assertDoesNotExist()
+        composeRule.onNodeWithText("Approximate donor pins only", substring = false).assertIsDisplayed()
     }
 
     @Test
