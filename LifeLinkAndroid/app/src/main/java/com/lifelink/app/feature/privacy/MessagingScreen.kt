@@ -25,6 +25,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -47,11 +51,17 @@ fun MessagingScreen(
     onAction: (PrivacyAction) -> Unit,
     onOpenConversation: (String, String) -> Unit,
     targetConversationId: String? = null,
+    targetConversationEventId: String? = null,
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadConversations) }
-    LaunchedEffect(targetConversationId, state.conversations, state.conversationsLoading) {
-        if (!targetConversationId.isNullOrBlank() && !state.conversationsLoading) {
+    var handledNotificationKey by remember { mutableStateOf<String?>(null) }
+    val notificationKey = targetConversationId?.let { conversationId ->
+        "$conversationId|${targetConversationEventId.orEmpty()}"
+    }
+    LaunchedEffect(notificationKey, state.conversations, state.conversationsLoading) {
+        if (notificationKey != null && notificationKey != handledNotificationKey && !state.conversationsLoading) {
             state.conversations.firstOrNull { it.conversationId == targetConversationId }?.let { conversation ->
+                handledNotificationKey = notificationKey
                 onOpenConversation(conversation.requestId, conversation.donorId)
             }
         }
