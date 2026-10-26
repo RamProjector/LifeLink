@@ -163,6 +163,7 @@ fun LifeLinkShell(
     onMarkAllUpdatesRead: () -> Unit,
     notificationOpenUpdates: Boolean = false,
     notificationRequestId: String? = null,
+    notificationConversationId: String? = null,
 ) {
     val context = LocalContext.current
     val welcomePrefs = context.getSharedPreferences("lifelink_welcome", 0)
@@ -221,6 +222,14 @@ fun LifeLinkShell(
         if (notificationOpenUpdates) {
             showStart = false
             showNotifications = true
+        }
+    }
+    LaunchedEffect(notificationConversationId) {
+        if (!notificationConversationId.isNullOrBlank()) {
+            showStart = false
+            showNotifications = false
+            showActive = false
+            tab = ShellTab.MESSAGING
         }
     }
 
@@ -413,6 +422,7 @@ fun LifeLinkShell(
                                     state = privacyState,
                                     onAction = onPrivacyAction,
                                     onOpenConversation = openConversation,
+                                    targetConversationId = notificationConversationId,
                                 )
                             ShellTab.PROFILE ->
                                 SettingsContent(
