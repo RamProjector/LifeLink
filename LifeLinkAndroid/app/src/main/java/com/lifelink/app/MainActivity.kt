@@ -75,12 +75,14 @@ import kotlinx.coroutines.tasks.await
 class MainActivity : ComponentActivity() {
     private var recoveryUri by mutableStateOf<Uri?>(null)
     private var notificationRequestId by mutableStateOf<String?>(null)
+    private var notificationConversationId by mutableStateOf<String?>(null)
     private var notificationOpenUpdates by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         recoveryUri = intent?.data
         notificationRequestId = intent?.getStringExtra("request_id")
+        notificationConversationId = intent?.getStringExtra("conversation_id")
         notificationOpenUpdates = intent?.getBooleanExtra("open_updates", false) == true
         enableEdgeToEdge()
         val app = application as LifeLinkApplication
@@ -427,6 +429,7 @@ class MainActivity : ComponentActivity() {
                     onMarkAllUpdatesRead = updatesViewModel::markAllRead,
                     notificationOpenUpdates = notificationOpenUpdates,
                     notificationRequestId = notificationRequestId,
+                    notificationConversationId = notificationConversationId,
                 )
             }
         }
@@ -437,6 +440,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         recoveryUri = intent.data
         notificationRequestId = intent.getStringExtra("request_id")
+        notificationConversationId = intent.getStringExtra("conversation_id")
         notificationOpenUpdates = intent.getBooleanExtra("open_updates", false)
     }
 }
