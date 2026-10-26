@@ -75,3 +75,30 @@ def test_startup_adds_admin_audit_columns_and_indexes(monkeypatch):
         assert f"ADD COLUMN IF NOT EXISTS {column}" in statements
     assert "ix_audit_events_created_at" in statements
     assert "ix_audit_events_action_created_at" in statements
+
+
+from app.admin_api import _safe_audit_metadata
+
+
+def test_admin_audit_metadata_redacts_sensitive_fields_recursively():
+    metadata = {
+        "operation": "admin.user.update",
+        "nested": {"email": "private@example.test", "authorization": "Bearer secret", "count": 2},
+        "location": {"latitude": 14.0, "longitude": 121.0},
+    }
+
+    safe = _safe_audit_metadata(metadata)
+
+    assert safe["operation"] == "admin.user.update"
+    assert safe["nested"]["email"] == "[REDACTED]"
+    assert safe["nested"]["authorization"] == "[REDACTED]"
+    assert safe["nested"]["count"] == 2
+    assert safe["location"] == "[REDACTED]"
+
+
+def test_admin_audit_metadata_is_bounded():
+    safe = _safe_audit_metadata({"items": list(range(60)), "details": "x" * 1200})
+
+    assert len(safe["items"]) == 51
+    assert safe["items"][-1] == "[TRUNCATED]"
+    assert len(safe["details"]) == 1000
