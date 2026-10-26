@@ -4,12 +4,12 @@ on:
   pull_request:
     paths:
       - "LifeLinkAndroid/**"
-      - ".github/workflows/android-visual-review.yml"
+      - ".github/workflows/android-map-visual-evidence.yml"
   push:
     branches: [main]
     paths:
       - "LifeLinkAndroid/**"
-      - ".github/workflows/android-visual-review.yml"
+      - ".github/workflows/android-map-visual-evidence.yml"
   workflow_dispatch:
 
 permissions:
@@ -178,7 +178,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: lifelink-android-visual-review-${{ github.sha }}
+          name: lifelink-android-map-visual-evidence-${{ github.sha }}
           path: ${{ runner.temp }}/lifelink-visual-evidence/
           if-no-files-found: warn
           retention-days: 14
