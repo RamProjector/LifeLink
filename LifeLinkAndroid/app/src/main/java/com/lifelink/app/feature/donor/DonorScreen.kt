@@ -175,7 +175,7 @@ fun DonorScreen(
                 .orEmpty(),
         )
     }
-    Scaffold(topBar = {
+    Scaffold(modifier = Modifier.testTag("donor-workspace-screen"), topBar = {
         TopAppBar(
             title = { Text("Donor workspace") },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
