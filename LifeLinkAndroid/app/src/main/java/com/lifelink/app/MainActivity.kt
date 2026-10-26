@@ -73,6 +73,17 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 
 class MainActivity : ComponentActivity() {
+    private fun notificationDestination(intent: Intent?): String? {
+        val conversationId = intent?.getStringExtra("conversation_id")?.takeIf { it.isNotBlank() }
+        val requestId = intent?.getStringExtra("request_id")?.takeIf { it.isNotBlank() }
+        val eventId = intent?.getStringExtra("notification_event_id").orEmpty()
+        return when {
+            conversationId != null -> "conversation:$conversationId|$eventId"
+            requestId != null -> "request:$requestId|$eventId"
+            else -> null
+        }
+    }
+
     private var recoveryUri by mutableStateOf<Uri?>(null)
     private var notificationRequestId by mutableStateOf<String?>(null)
     private var notificationOpenUpdates by mutableStateOf(false)
@@ -80,7 +91,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         recoveryUri = intent?.data
-        notificationRequestId = intent?.getStringExtra("request_id")
+        notificationRequestId = notificationDestination(intent)
         notificationOpenUpdates = intent?.getBooleanExtra("open_updates", false) == true
         enableEdgeToEdge()
         val app = application as LifeLinkApplication
@@ -436,7 +447,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         recoveryUri = intent.data
-        notificationRequestId = intent.getStringExtra("request_id")
+        notificationRequestId = notificationDestination(intent)
         notificationOpenUpdates = intent.getBooleanExtra("open_updates", false)
     }
 }
