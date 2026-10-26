@@ -5,6 +5,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -146,7 +148,7 @@ class LifeLinkWorkflowVisualTest {
         if (widthDp >= 600) {
             composeRule.onNodeWithTag("navigation-rail").assertIsDisplayed()
         } else {
-            composeRule.onNodeWithTag("navigation-rail").assertDoesNotExist()
+            org.junit.Assert.assertTrue(composeRule.onAllNodesWithTag("navigation-rail").fetchSemanticsNodes().isEmpty())
         }
         assertVisible("Your requests")
         capture("home-adaptive")
@@ -191,7 +193,7 @@ class LifeLinkWorkflowVisualTest {
         render(state = EmergencyRequestUiState(historyError = "Couldn\u2019t load your requests."), onAction = { actions += it })
         tapTab("Requests")
         assertVisible("Requests unavailable")
-        composeRule.onNodeWithText("No active request").assertDoesNotExist()
+        org.junit.Assert.assertTrue(composeRule.onAllNodesWithText("No active request").fetchSemanticsNodes().isEmpty())
         composeRule.onNodeWithText("Retry").performScrollTo().performClick()
         org.junit.Assert.assertEquals(listOf(com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction.RefreshHistory), actions)
     }

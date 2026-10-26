@@ -414,6 +414,31 @@ fun MapLibrePrivacySafeDonorMap(
                 }
             }
         }
+        if (!mapLoading && !mapError && areas.isEmpty()) {
+            Card(
+                modifier = Modifier
+                    .align(androidx.compose.ui.Alignment.BottomStart)
+                    .padding(12.dp)
+                    .semantics { liveRegion = LiveRegionMode.Polite },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            ) {
+                Column(
+                    Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        "No donor areas to show",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                    Text(
+                        "The map is available. Try adjusting filters or switch to List.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
         if (!mapLoading && !mapError) {
             IconButton(
                 onClick = { recenterRequest++ },
