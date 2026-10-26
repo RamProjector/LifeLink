@@ -32,6 +32,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -268,6 +269,7 @@ fun MapLibrePrivacySafeDonorMap(
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf(false) }
+    var styleLoaded by remember { mutableStateOf(false) }
     var retryRequest by remember { mutableStateOf(0) }
     var recenterRequest by remember { mutableStateOf(0) }
     var appliedRecenterRequest by remember { mutableStateOf(-1) }
@@ -301,7 +303,12 @@ fun MapLibrePrivacySafeDonorMap(
         }
     }
     val mapModifier = if (fullScreen) modifier.fillMaxSize() else modifier.fillMaxWidth().height(280.dp)
-    Box(mapModifier) {
+    val renderTag = when {
+        mapLoading -> "donor-map-rendering"
+        mapError -> "donor-map-render-error"
+        else -> "donor-map-render-ready"
+    }
+    Box(mapModifier.testTag(renderTag)) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = {
@@ -310,10 +317,20 @@ fun MapLibrePrivacySafeDonorMap(
                         mapLoading = false
                         mapError = true
                     }
+                    addOnDidFinishLoadingMapListener {
+                        if (styleLoaded) {
+                            mapLoading = false
+                            mapError = false
+                        }
+                    }
                     getMapAsync { map ->
                         mapLoading = true
+                        mapError = false
+                        styleLoaded = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            mapLoading = false
+                            // A loaded style is not proof that vector tiles have rendered.
+                            // Keep the loading state until MapLibre reports a loaded map.
+                            styleLoaded = true
                             mapError = false
                             map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
                             appliedCenter = center
@@ -337,9 +354,13 @@ fun MapLibrePrivacySafeDonorMap(
                     if (retryRequest > 0) {
                         mapLoading = true
                         mapError = false
+                        styleLoaded = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            mapLoading = false
+                            styleLoaded = true
                             mapError = false
+                            map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
+                            appliedCenter = center
+                            appliedRecenterRequest = recenterRequest
                             map.clear()
                             areas.forEach { area ->
                                 map.addMarker(
@@ -353,6 +374,10 @@ fun MapLibrePrivacySafeDonorMap(
                         }
                         retryRequest = 0
                     }
+                    // Compose can re-run AndroidView.update before the style callback.
+                    // Applying camera changes during that window cancels vector-tile
+                    // requests; the style callback applies the initial camera once.
+                    if (!styleLoaded) return@getMapAsync
                     if (appliedAreasSignature != areasSignature) {
                         // Update annotations in place. Reloading the whole style for a
                         // blood-type/availability filter needlessly reloads map tiles.
