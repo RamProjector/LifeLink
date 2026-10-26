@@ -3,6 +3,7 @@ package com.lifelink.app.feature.privacy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,6 +78,7 @@ fun DonorMapScreen(
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
+    var showList by rememberSaveable { mutableStateOf(false) }
     var privacyOpen by rememberSaveable { mutableStateOf(false) }
     var selectedBloodType by rememberSaveable { mutableStateOf("All") }
     var availableOnly by rememberSaveable { mutableStateOf(false) }
@@ -91,13 +95,61 @@ fun DonorMapScreen(
     val mapLongitude = centerLongitude ?: mapArea?.longitude ?: DEFAULT_MAP_LONGITUDE
 
     Box(Modifier.fillMaxSize().testTag("donor-map-fullscreen")) {
-        MapLibrePrivacySafeDonorMap(
-            latitude = mapLatitude,
-            longitude = mapLongitude,
-            areas = filteredAreas,
-            modifier = Modifier.fillMaxSize(),
-            fullScreen = true,
-        )
+        if (showList) {
+            Column(
+                Modifier.fillMaxSize().padding(top = 80.dp, bottom = 8.dp),
+            ) {
+                Text(
+                    "Donor areas",
+                    Modifier.padding(horizontal = 20.dp, vertical = 8.dp).semantics { heading() },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().testTag("donor-map-area-list"),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(filteredAreas) { area ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            ),
+                        ) {
+                            Column(
+                                Modifier.fillMaxWidth().padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    area.areaLabel,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    "${area.bloodType} · ${area.availability}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Text(
+                                    if (area.isStale) "Location may be out of date" else
+                                        "Approximate area · updated ${area.freshnessAgeMinutes} min ago",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            MapLibrePrivacySafeDonorMap(
+                latitude = mapLatitude,
+                longitude = mapLongitude,
+                areas = filteredAreas,
+                modifier = Modifier.fillMaxSize(),
+                fullScreen = true,
+            )
+        }
 
         // Never show an empty result while a request is loading or has failed.
         // Those states need their own truthful feedback and recovery action.
@@ -176,6 +228,12 @@ fun DonorMapScreen(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
+            }
+            OutlinedButton(
+                onClick = { showList = !showList },
+                modifier = Modifier.testTag("toggle-donor-map-view"),
+            ) {
+                Text(if (showList) "Map" else "List")
             }
             IconButton(onClick = { filtersOpen = !filtersOpen }) {
                 Icon(Icons.Default.FilterList, contentDescription = if (filtersOpen) "Hide map filters" else "Show map filters")
