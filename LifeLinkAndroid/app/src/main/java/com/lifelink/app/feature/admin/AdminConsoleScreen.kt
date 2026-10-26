@@ -2,6 +2,7 @@ package com.lifelink.app.feature.admin
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +35,8 @@ import com.lifelink.app.data.remote.LifeLinkApi
 import kotlinx.coroutines.launch
 import java.io.IOException
 
+private const val ADMIN_PAGE_SIZE = 50
+
 private enum class AdminPage(val title: String) {
     OVERVIEW("Overview"),
     USERS("Users"),
@@ -52,6 +55,8 @@ fun AdminConsoleScreen(
     var events by remember { mutableStateOf<List<AdminAuditEvent>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var usersOffset by remember { mutableStateOf(0) }
+    var eventsOffset by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
 
     fun refresh(target: AdminPage, statusMessage: String? = null) {
@@ -60,6 +65,8 @@ fun AdminConsoleScreen(
             message = statusMessage ?: loadAdminPage(
                 api = api,
                 page = target,
+                usersOffset = usersOffset,
+                eventsOffset = eventsOffset,
                 onDashboard = { dashboard = it },
                 onUsers = { users = it },
                 onEvents = { events = it },
@@ -83,6 +90,9 @@ fun AdminConsoleScreen(
             AdminPage.USERS -> AdminUsers(
                 users = users,
                 loading = loading,
+                offset = usersOffset,
+                onPrevious = { usersOffset = (usersOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0); refresh(AdminPage.USERS) },
+                onNext = { usersOffset += ADMIN_PAGE_SIZE; refresh(AdminPage.USERS) },
                 onSetRole = { user, role ->
                     scope.launch {
                         val result = updateUser(api, user, role)
@@ -90,8 +100,16 @@ fun AdminConsoleScreen(
                     }
                 },
             )
-            AdminPage.AUDIT -> AdminEvents(events, loading, emptyLabel = "No audit events recorded.")
-            AdminPage.ERRORS -> AdminEvents(events, loading, emptyLabel = "No errors recorded.")
+            AdminPage.AUDIT -> AdminEvents(
+                events, loading, eventsOffset, "No audit events recorded.",
+                onPrevious = { eventsOffset = (eventsOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0); refresh(AdminPage.AUDIT) },
+                onNext = { eventsOffset += ADMIN_PAGE_SIZE; refresh(AdminPage.AUDIT) },
+            )
+            AdminPage.ERRORS -> AdminEvents(
+                events, loading, eventsOffset, "No errors recorded.",
+                onPrevious = { eventsOffset = (eventsOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0); refresh(AdminPage.ERRORS) },
+                onNext = { eventsOffset += ADMIN_PAGE_SIZE; refresh(AdminPage.ERRORS) },
+            )
         }
         Spacer(modifier = Modifier.height(4.dp))
         OutlinedButton(onClick = { refresh(page) }, enabled = !loading) { Text("Refresh") }
@@ -101,14 +119,16 @@ fun AdminConsoleScreen(
 private suspend fun loadAdminPage(
     api: LifeLinkApi,
     page: AdminPage,
+    usersOffset: Int,
+    eventsOffset: Int,
     onDashboard: (AdminDashboardResponse) -> Unit,
     onUsers: (List<AdminUser>) -> Unit,
     onEvents: (List<AdminAuditEvent>) -> Unit,
 ): String? = try {
     when (page) {
         AdminPage.OVERVIEW -> loadDashboard(api, onDashboard)
-        AdminPage.USERS -> loadUsers(api, onUsers)
-        AdminPage.AUDIT, AdminPage.ERRORS -> loadEvents(api, page, onEvents)
+        AdminPage.USERS -> loadUsers(api, usersOffset, onUsers)
+        AdminPage.AUDIT, AdminPage.ERRORS -> loadEvents(api, page, eventsOffset, onEvents)
     }
 } catch (failure: IOException) {
     failure.message ?: "Network error while loading admin data."
@@ -134,9 +154,10 @@ private suspend fun loadDashboard(
 
 private suspend fun loadUsers(
     api: LifeLinkApi,
+    offset: Int,
     onUsers: (List<AdminUser>) -> Unit,
 ): String? {
-    val response = api.adminUsers()
+    val response = api.adminUsers(limit = ADMIN_PAGE_SIZE, offset = offset)
     if (!response.isSuccessful) return "User list request failed (${response.code()})."
     onUsers(response.body()?.items ?: emptyList())
     return null
@@ -145,9 +166,14 @@ private suspend fun loadUsers(
 private suspend fun loadEvents(
     api: LifeLinkApi,
     page: AdminPage,
+    offset: Int,
     onEvents: (List<AdminAuditEvent>) -> Unit,
 ): String? {
-    val response = if (page == AdminPage.AUDIT) api.adminAudit() else api.adminErrors()
+    val response = if (page == AdminPage.AUDIT) {
+        api.adminAudit(limit = ADMIN_PAGE_SIZE, offset = offset)
+    } else {
+        api.adminErrors(limit = ADMIN_PAGE_SIZE, offset = offset)
+    }
     if (!response.isSuccessful) return "Log request failed (${response.code()})."
     onEvents(response.body()?.items ?: emptyList())
     return null
@@ -166,7 +192,7 @@ private fun AdminHeader(onSignOut: () -> Unit) {
 
 @Composable
 private fun AdminNavigation(page: AdminPage, onSelect: (AdminPage) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         AdminPage.entries.forEach { item ->
             if (page == item) {
                 Button(onClick = { onSelect(item) }) { Text(item.title) }
@@ -199,6 +225,9 @@ private fun AdminOverview(data: AdminDashboardResponse?) {
 private fun AdminUsers(
     users: List<AdminUser>,
     loading: Boolean,
+    offset: Int,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
     onSetRole: (AdminUser, String) -> Unit,
 ) {
     if (users.isEmpty() && !loading) Text("No user profiles found.")
@@ -228,13 +257,17 @@ private fun AdminUsers(
             }
         }
     }
+    AdminPager(offset, users.size, loading, onPrevious, onNext)
 }
 
 @Composable
 private fun AdminEvents(
     events: List<AdminAuditEvent>,
     loading: Boolean,
+    offset: Int,
     emptyLabel: String,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
 ) {
     if (events.isEmpty() && !loading) Text(emptyLabel)
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -260,6 +293,29 @@ private fun AdminEvents(
                 }
             }
         }
+    }
+    AdminPager(offset, events.size, loading, onPrevious, onNext)
+}
+
+@Composable
+private fun AdminPager(
+    offset: Int,
+    itemCount: Int,
+    loading: Boolean,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedButton(onClick = onPrevious, enabled = !loading && offset > 0) { Text("Previous") }
+        OutlinedButton(onClick = onNext, enabled = !loading && itemCount >= ADMIN_PAGE_SIZE) { Text("Next") }
+        Text(
+            if (itemCount == 0) "No records on this page" else "Showing ${offset + 1}–${offset + itemCount}",
+            modifier = Modifier.padding(top = 12.dp),
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
