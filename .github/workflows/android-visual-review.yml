@@ -44,7 +44,9 @@ env:
 jobs:
   visual-review:
     name: Capture Android visual evidence
-    runs-on: ubuntu-latest
+    # Pin to the KVM-capable Ubuntu 24.04 image: the current ubuntu-latest
+    # runner (Ubuntu 26.04) did not expose /dev/kvm, so instrumentation could not run.
+    runs-on: ubuntu-24.04
     # Visual review is required evidence, not a best-effort check. If the runner
     # cannot provide KVM, fail explicitly rather than reporting a green workflow
     # with the instrumentation tests silently skipped.
