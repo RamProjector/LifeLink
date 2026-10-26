@@ -73,16 +73,19 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 
 class MainActivity : ComponentActivity() {
+    private fun notificationDestination(intent: Intent?): String? {
+        val conversationId = intent?.getStringExtra("conversation_id")?.takeIf { it.isNotBlank() }
+        return conversationId?.let { "conversation:$it" } ?: intent?.getStringExtra("request_id")
+    }
+
     private var recoveryUri by mutableStateOf<Uri?>(null)
     private var notificationRequestId by mutableStateOf<String?>(null)
-    private var notificationConversationId by mutableStateOf<String?>(null)
     private var notificationOpenUpdates by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         recoveryUri = intent?.data
-        notificationRequestId = intent?.getStringExtra("request_id")
-        notificationConversationId = intent?.getStringExtra("conversation_id")
+        notificationRequestId = notificationDestination(intent)
         notificationOpenUpdates = intent?.getBooleanExtra("open_updates", false) == true
         enableEdgeToEdge()
         val app = application as LifeLinkApplication
@@ -429,7 +432,6 @@ class MainActivity : ComponentActivity() {
                     onMarkAllUpdatesRead = updatesViewModel::markAllRead,
                     notificationOpenUpdates = notificationOpenUpdates,
                     notificationRequestId = notificationRequestId,
-                    notificationConversationId = notificationConversationId,
                 )
             }
         }
@@ -439,8 +441,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         recoveryUri = intent.data
-        notificationRequestId = intent.getStringExtra("request_id")
-        notificationConversationId = intent.getStringExtra("conversation_id")
+        notificationRequestId = notificationDestination(intent)
         notificationOpenUpdates = intent.getBooleanExtra("open_updates", false)
     }
 }
