@@ -32,6 +32,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -130,11 +131,15 @@ fun MapLibreLocationPicker(
                     getMapAsync { map ->
                         mapLoading = true
                         mapError = null
+                        styleReady = false
+                        mapRendered = false
                         onLoadingChanged(true)
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            mapLoading = false
+                            // Keep the loading state until MapLibre confirms a fully rendered map,
+                            // not merely that the style JSON has loaded. This avoids blank-map screenshots.
+                            styleReady = true
+                            mapRendered = false
                             mapError = null
-                            onLoadingChanged(false)
                             val currentPosition = latestLatitude?.let { lat -> latestLongitude?.let { lon -> LatLng(lat, lon) } }
                             currentPosition?.let { position ->
                                 map.cameraPosition = CameraPosition.Builder()
@@ -181,13 +186,35 @@ fun MapLibreLocationPicker(
                     if (retryRequest > 0) {
                         mapLoading = true
                         mapError = null
-                        map.setStyle(OPEN_FREE_MAP_STYLE) { mapLoading = false }
+                        styleReady = false
+                        mapRendered = false
+                        onLoadingChanged(true)
+                        map.setStyle(OPEN_FREE_MAP_STYLE) {
+                            styleReady = true
+                            mapRendered = false
+                            mapError = null
+                            target?.let { position ->
+                                map.cameraPosition = CameraPosition.Builder().target(position).zoom(15.0).build()
+                            }
+                            appliedLatitude = latitude
+                            appliedLongitude = longitude
+                            appliedRecenterRequest = effectiveRecenterRequest
+                            marker?.let { map.removeMarker(it) }
+                            marker = target?.let { position ->
+                                map.addMarker(MarkerOptions().position(position).title("Selected approximate location"))
+                            }
+                        }
                         retryRequest = 0
+                        return@getMapAsync
                     }
+                    if (!styleReady) return@getMapAsync
                     if (target != null) {
                         val targetChanged = appliedLatitude != latitude || appliedLongitude != longitude
                         val recenterChanged = appliedRecenterRequest != effectiveRecenterRequest
                         if (targetChanged || recenterChanged) {
+                            mapLoading = true
+                            mapRendered = false
+                            onLoadingChanged(true)
                             appliedLatitude = latitude
                             appliedLongitude = longitude
                             appliedRecenterRequest = effectiveRecenterRequest
@@ -268,6 +295,8 @@ fun MapLibrePrivacySafeDonorMap(
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf(false) }
+    var styleReady by remember { mutableStateOf(false) }
+    var mapRendered by remember { mutableStateOf(false) }
     var retryRequest by remember { mutableStateOf(0) }
     var recenterRequest by remember { mutableStateOf(0) }
     var appliedRecenterRequest by remember { mutableStateOf(-1) }
@@ -301,14 +330,32 @@ fun MapLibrePrivacySafeDonorMap(
         }
     }
     val mapModifier = if (fullScreen) modifier.fillMaxSize() else modifier.fillMaxWidth().height(280.dp)
-    Box(mapModifier) {
+    val renderStateTag = when {
+        mapError -> "maplibre-map-error"
+        mapRendered -> "maplibre-map-rendered"
+        mapLoading -> "maplibre-map-loading"
+        else -> "maplibre-map-not-rendered"
+    }
+    Box(mapModifier.testTag(renderStateTag)) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = {
                 mapView.apply {
                     addOnDidFailLoadingMapListener {
+                        styleReady = false
+                        mapRendered = false
                         mapLoading = false
                         mapError = true
+                        onLoadingChanged(false)
+                        onMapError("Map tiles could not be loaded. You can enter coordinates manually or retry the map.")
+                    }
+                    addOnDidFinishRenderingMapListener { fully ->
+                        if (fully && styleReady) {
+                            mapRendered = true
+                            mapLoading = false
+                            mapError = false
+                            onLoadingChanged(false)
+                        }
                     }
                     getMapAsync { map ->
                         mapLoading = true
