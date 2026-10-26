@@ -60,7 +60,6 @@ private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/li
 // so the picker does not spin forever.
 private const val MAP_LOAD_TIMEOUT_MS = 30_000L
 
-
 // Draw donor-area markers locally rather than depending on the SDK's default marker asset.
 // The concentric, high-contrast symbol denotes an approximate area, not a person's exact GPS point.
 private fun createDonorAreaMarkerIcon(context: Context) =
