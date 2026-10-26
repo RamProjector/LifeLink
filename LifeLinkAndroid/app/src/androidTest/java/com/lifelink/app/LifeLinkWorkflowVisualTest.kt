@@ -1,5 +1,6 @@
 package com.lifelink.app
 
+import android.graphics.Bitmap
 import android.graphics.Color
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -284,22 +285,26 @@ class LifeLinkWorkflowVisualTest {
             val startY = screenshot.height / 12
             val endY = screenshot.height * 3 / 4
             for (y in startY until endY) {
-                for (x in startX until endX) {
-                    val pixel = screenshot.getPixel(x, y)
-                    if (
-                        Color.red(pixel) <= 25 &&
-                        Color.green(pixel) in 85..115 &&
-                        Color.blue(pixel) in 105..140
-                    ) {
-                        matchingPixels++
-                    }
-                }
+                matchingPixels += countDonorPinPixelsInRow(screenshot, y, startX, endX)
             }
             return matchingPixels
         } finally {
             screenshot.recycle()
         }
     }
+
+    private fun countDonorPinPixelsInRow(screenshot: Bitmap, y: Int, startX: Int, endX: Int): Int {
+        var matchingPixels = 0
+        for (x in startX until endX) {
+            if (isDonorPinPixel(screenshot.getPixel(x, y))) matchingPixels++
+        }
+        return matchingPixels
+    }
+
+    private fun isDonorPinPixel(pixel: Int): Boolean =
+        Color.red(pixel) <= 25 &&
+            Color.green(pixel) in 85..115 &&
+            Color.blue(pixel) in 105..140
 
     /** Fake coarsened locations for emulator-only UI tests; never loaded or persisted to a backend. */
     private fun syntheticMapState() =
