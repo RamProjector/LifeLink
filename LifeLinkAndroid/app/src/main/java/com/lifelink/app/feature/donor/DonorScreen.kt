@@ -88,10 +88,15 @@ fun DonorScreen(
     onAction: (DonorAction) -> Unit,
     onBack: () -> Unit,
     onOpenConversation: (String, String) -> Unit = { _, _ -> },
+    selectedTabKey: String? = null,
+    onSelectedTabKeyChange: ((String) -> Unit)? = null,
 ) {
     var profileExpanded by rememberSaveable { mutableStateOf(false) }
     var fullScreenProfile by rememberSaveable { mutableStateOf(false) }
-    var selectedTab by rememberSaveable { mutableStateOf(DonorTab.HOME) }
+    var internalSelectedTab by rememberSaveable { mutableStateOf(DonorTab.HOME) }
+    val selectedTab = selectedTabKey
+        ?.let { key -> DonorTab.values().firstOrNull { it.name == key } }
+        ?: internalSelectedTab
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var locationCaptureRequest by remember { mutableStateOf(0) }
@@ -255,7 +260,10 @@ fun DonorScreen(
                 DonorTab.values().forEach { tab ->
                     Tab(
                         selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
+                        onClick = {
+                            internalSelectedTab = tab
+                            onSelectedTabKeyChange?.invoke(tab.name)
+                        },
                         text = { Text(tab.label) },
                         modifier = Modifier.testTag("donor-tab-${tab.name}"),
                     )
