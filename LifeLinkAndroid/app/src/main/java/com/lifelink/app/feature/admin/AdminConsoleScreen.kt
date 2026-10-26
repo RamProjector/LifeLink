@@ -45,16 +45,9 @@ private enum class AdminPage(val title: String) {
     ERRORS("Errors"),
 }
 
-private data class AdminOffsets(
-    val users: Int = 0,
-    val audit: Int = 0,
-    val errors: Int = 0,
-)
+private data class AdminOffsets(val users: Int = 0, val audit: Int = 0, val errors: Int = 0)
 
-private data class AdminPageActions(
-    val onSetRole: (AdminUser, String) -> Unit,
-    val onPage: (AdminPage, Int) -> Unit,
-)
+private data class AdminPageActions(val onSetRole: (AdminUser, String) -> Unit, val onPage: (AdminPage, Int) -> Unit)
 
 @Composable
 fun AdminConsoleScreen(
@@ -104,11 +97,11 @@ fun AdminConsoleScreen(
             offsets = offsets,
             actions = AdminPageActions(
                 onSetRole = { user, role ->
-                scope.launch {
-                    val result = updateUser(api, user, role)
-                    refresh(AdminPage.USERS, result)
-                }
-            },
+                    scope.launch {
+                        val result = updateUser(api, user, role)
+                        refresh(AdminPage.USERS, result)
+                    }
+                },
                 onPage = { target, direction ->
                     offsets = when (target) {
                         AdminPage.USERS -> offsets.copy(users = (offsets.users + direction * ADMIN_PAGE_SIZE).coerceAtLeast(0))
