@@ -19,7 +19,7 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
  <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
  <button id="signin" style="width:100%;margin-top:20px">Sign in</button>
  <div id="login-message" class="notice hidden" role="status" aria-live="polite"></div>
- <p class="foot">Configuration is held in this browser tab. Never enter a service-role key. Admin rights must be provisioned server-side.</p>
+ <p class="foot">Your session token stays in memory for this tab and is cleared when you sign out or close it. Admin rights are verified server-side.</p>
 </main>
 <main id="app-view" class="wrap hidden">
  <div class="headrow"><div><div class="eyebrow">Operations overview</div><h1>Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary">Refresh data</button></div></div>
@@ -39,7 +39,7 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
  const $ = id => document.getElementById(id);
  const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
  const message = (id, text, error=false) => { const el=$(id); el.textContent=text; el.classList.toggle("hidden",!text); el.classList.toggle("error",error); };
- const url = path => apiBase.replace(/\/$/,"") + path;
+ const url = path => API_BASE_URL + path;
  async function api(path, options={}) {
    const response = await fetch(url(path), { ...options, headers: { "Authorization":"Bearer "+accessToken, "Content-Type":"application/json", "X-Correlation-ID": crypto.randomUUID(), ...(options.headers||{}) }});
    const body = await response.text(); let data={}; try { data=body?JSON.parse(body):{}; } catch {}
