@@ -51,6 +51,11 @@ private data class AdminOffsets(
     val errors: Int = 0,
 )
 
+private data class AdminPageActions(
+    val onSetRole: (AdminUser, String) -> Unit,
+    val onPage: (AdminPage, Int) -> Unit,
+)
+
 @Composable
 fun AdminConsoleScreen(
     api: LifeLinkApi,
@@ -97,21 +102,24 @@ fun AdminConsoleScreen(
             events = events,
             loading = loading,
             offsets = offsets,
-            onSetRole = { user, role ->
+            actions = AdminPageActions(
+                onSetRole = { user, role ->
                 scope.launch {
                     val result = updateUser(api, user, role)
                     refresh(AdminPage.USERS, result)
                 }
             },
-        ) { target, direction ->
-            offsets = when (target) {
-                AdminPage.USERS -> offsets.copy(users = (offsets.users + direction * ADMIN_PAGE_SIZE).coerceAtLeast(0))
-                AdminPage.AUDIT -> offsets.copy(audit = (offsets.audit + direction * ADMIN_PAGE_SIZE).coerceAtLeast(0))
-                AdminPage.ERRORS -> offsets.copy(errors = (offsets.errors + direction * ADMIN_PAGE_SIZE).coerceAtLeast(0))
-                AdminPage.OVERVIEW -> offsets
-            }
-            refresh(target)
-        }
+                onPage = { target, direction ->
+                    offsets = when (target) {
+                        AdminPage.USERS -> offsets.copy(users = (offsets.users + direction * ADMIN_PAGE_SIZE).coerceAtLeast(0))
+                        AdminPage.AUDIT -> offsets.copy(audit = (offsets.audit + direction * ADMIN_PAGE_SIZE).coerceAtLeast(0))
+                        AdminPage.ERRORS -> offsets.copy(errors = (offsets.errors + direction * ADMIN_PAGE_SIZE).coerceAtLeast(0))
+                        AdminPage.OVERVIEW -> offsets
+                    }
+                    refresh(target)
+                },
+            ),
+        )
         Spacer(modifier = Modifier.height(4.dp))
         OutlinedButton(onClick = { refresh(page) }, enabled = !loading) { Text("Refresh") }
     }
@@ -125,8 +133,7 @@ private fun AdminPageContent(
     events: List<AdminAuditEvent>,
     loading: Boolean,
     offsets: AdminOffsets,
-    onSetRole: (AdminUser, String) -> Unit,
-    onPage: (AdminPage, Int) -> Unit,
+    actions: AdminPageActions,
 ) {
     when (page) {
         AdminPage.OVERVIEW -> AdminOverview(dashboard)
@@ -134,25 +141,25 @@ private fun AdminPageContent(
             users = users,
             loading = loading,
             offset = offsets.users,
-            onPrevious = { onPage(AdminPage.USERS, -1) },
-            onNext = { onPage(AdminPage.USERS, 1) },
-            onSetRole = onSetRole,
+            onPrevious = { actions.onPage(AdminPage.USERS, -1) },
+            onNext = { actions.onPage(AdminPage.USERS, 1) },
+            onSetRole = actions.onSetRole,
         )
         AdminPage.AUDIT -> AdminEvents(
             events = events,
             loading = loading,
             offset = offsets.audit,
             emptyLabel = "No audit events recorded.",
-            onPrevious = { onPage(AdminPage.AUDIT, -1) },
-            onNext = { onPage(AdminPage.AUDIT, 1) },
+            onPrevious = { actions.onPage(AdminPage.AUDIT, -1) },
+            onNext = { actions.onPage(AdminPage.AUDIT, 1) },
         )
         AdminPage.ERRORS -> AdminEvents(
             events = events,
             loading = loading,
             offset = offsets.errors,
             emptyLabel = "No errors recorded.",
-            onPrevious = { onPage(AdminPage.ERRORS, -1) },
-            onNext = { onPage(AdminPage.ERRORS, 1) },
+            onPrevious = { actions.onPage(AdminPage.ERRORS, -1) },
+            onNext = { actions.onPage(AdminPage.ERRORS, 1) },
         )
     }
 }
