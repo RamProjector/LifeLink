@@ -102,3 +102,50 @@ def test_admin_audit_metadata_is_bounded():
     assert len(safe["items"]) == 51
     assert safe["items"][-1] == "[TRUNCATED]"
     assert len(safe["details"]) == 1000
+
+@pytest.mark.parametrize(
+    ("method", "path", "payload"),
+    [
+        ("GET", "/v1/admin/me", None),
+        ("GET", "/v1/admin/dashboard", None),
+        ("GET", "/v1/admin/users", None),
+        ("GET", "/v1/admin/audit", None),
+        ("GET", "/v1/admin/errors", None),
+        ("PATCH", "/v1/admin/users/another-user", {
+            "role": "donor",
+            "can_request": True,
+            "can_donate": True,
+        }),
+    ],
+)
+def test_non_admin_is_denied_by_every_admin_endpoint(monkeypatch, method, path, payload):
+    """Exercise the HTTP boundary, not just the authorization helper."""
+    import httpx
+
+    from app.db import get_db_session
+    from app.main_postgres import app
+    from app.security import get_postgres_principal
+
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+
+    async def fake_session():
+        yield object()
+
+    app.dependency_overrides[get_db_session] = fake_session
+    app.dependency_overrides[get_postgres_principal] = lambda: Principal(
+        subject="regular-user", email="regular@example.test", email_verified=True
+    )
+
+    async def make_request():
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            if method == "PATCH":
+                return await client.patch(path, json=payload)
+            return await client.get(path)
+
+    try:
+        response = asyncio.run(make_request())
+        assert response.status_code == 403, f"{method} {path}: {response.text}"
+    finally:
+        app.dependency_overrides.clear()
+
