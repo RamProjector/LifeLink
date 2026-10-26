@@ -97,7 +97,6 @@ fun AdminConsoleScreen(
             events = events,
             loading = loading,
             offsets = offsets,
-            onRefresh = { target -> refresh(target) },
             onSetRole = { user, role ->
                 scope.launch {
                     val result = updateUser(api, user, role)
@@ -126,7 +125,6 @@ private fun AdminPageContent(
     events: List<AdminAuditEvent>,
     loading: Boolean,
     offsets: AdminOffsets,
-    onRefresh: (AdminPage) -> Unit,
     onSetRole: (AdminUser, String) -> Unit,
     onPage: (AdminPage, Int) -> Unit,
 ) {
