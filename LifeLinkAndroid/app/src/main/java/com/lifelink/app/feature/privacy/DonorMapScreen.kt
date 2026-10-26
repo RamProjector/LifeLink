@@ -3,8 +3,8 @@ package com.lifelink.app.feature.privacy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -131,8 +131,11 @@ fun DonorMapScreen(
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                                 Text(
-                                    if (area.isStale) "Location may be out of date" else
-                                        "Approximate area · updated ${area.freshnessAgeMinutes} min ago",
+                                    if (area.isStale) {
+                                        "Location may be out of date"
+                                    } else {
+                                        "Approximate area · updated ${area.freshnessAgeMinutes} min ago"
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
