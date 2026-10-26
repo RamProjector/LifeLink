@@ -1,0 +1,91 @@
+name: Android emulator regression
+
+on:
+  pull_request:
+    paths:
+      - 'LifeLinkAndroid/app/src/**'
+      - 'LifeLinkAndroid/app/build.gradle.kts'
+      - 'LifeLinkAndroid/build.gradle.kts'
+      - 'LifeLinkAndroid/settings.gradle.kts'
+      - 'LifeLinkAndroid/gradle/**'
+      - 'LifeLinkAndroid/gradle.properties'
+      - '.github/workflows/android-emulator-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-emulator-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  connected-tests:
+    name: Android instrumentation and map rendering
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle executable
+        working-directory: LifeLinkAndroid
+        run: chmod +x ./gradlew
+
+      - name: Enable KVM hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules || true
+          sudo udevadm trigger --name-match=kvm || true
+          test -r /dev/kvm && test -w /dev/kvm
+
+      - name: Run instrumentation tests and collect diagnostics
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 4
+          ram-size: 4096M
+          heap-size: 512M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          working-directory: LifeLinkAndroid
+          script: |
+            set +e
+            ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+            test_exit=$?
+            mkdir -p "$GITHUB_WORKSPACE/visual-artifacts"
+            adb devices -l > "$GITHUB_WORKSPACE/visual-artifacts/adb-devices.txt" 2>&1 || true
+            adb logcat -d -t 5000 > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" 2>&1 || true
+            for remote_file in $(adb shell ls /sdcard/Android/data/com.lifelink.app/files/lifelink-*.png 2>/dev/null | tr -d '\r'); do
+              adb pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
+            done
+            for evidence_file in $(adb shell run-as com.lifelink.app ls files/lifelink-evidence 2>/dev/null | tr -d '\r' | grep -E '^lifelink-.*\.png$'); do
+              adb exec-out run-as com.lifelink.app cat "files/lifelink-evidence/$evidence_file" > "$GITHUB_WORKSPACE/visual-artifacts/$evidence_file" || true
+            done
+            echo "$test_exit" > "$GITHUB_WORKSPACE/visual-artifacts/instrumentation-exit-code.txt"
+            exit "$test_exit"
+
+      - name: Upload emulator screenshots, test reports, and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lifelink-emulator-evidence-${{ github.sha }}
+          path: |
+            visual-artifacts/**
+            LifeLinkAndroid/app/build/outputs/androidTest-results/**
+            LifeLinkAndroid/app/build/reports/androidTests/connected/**
+            LifeLinkAndroid/app/build/test-results/**
+          if-no-files-found: ignore
+          retention-days: 14
