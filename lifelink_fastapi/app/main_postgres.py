@@ -1470,7 +1470,11 @@ async def report_conversation_participant(
         "conversation_reported",
         conversation.request_id,
         conversation.donor_id,
-        {"conversation_id": conversation.id, "reported_id": other, "reason_provided": bool(payload and payload.reason and payload.reason.strip())},
+        {
+            "conversation_id": conversation.id,
+            "reported_id": other,
+            "reason_provided": bool(payload and payload.reason and payload.reason.strip()),
+        },
     )
     return ConversationModerationOut(conversation_id=conversation.id, action="reported")
 
