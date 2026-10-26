@@ -2,6 +2,7 @@ package com.lifelink.app
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
@@ -147,7 +148,7 @@ class LifeLinkWorkflowVisualTest {
         if (widthDp >= 600) {
             composeRule.onNodeWithTag("navigation-rail").assertIsDisplayed()
         } else {
-            org.junit.Assert.assertTrue(composeRule.onAllNodesWithText("navigation-rail").fetchSemanticsNodes().isEmpty())
+            org.junit.Assert.assertTrue(composeRule.onAllNodesWithTag("navigation-rail").fetchSemanticsNodes().isEmpty())
         }
         assertVisible("Your requests")
         capture("home-adaptive")
