@@ -63,6 +63,7 @@ class LifeLinkWorkflowVisualTest {
             ),
         ),
     )
+
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
