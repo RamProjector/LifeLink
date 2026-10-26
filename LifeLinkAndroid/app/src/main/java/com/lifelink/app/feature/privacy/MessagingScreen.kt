@@ -46,8 +46,16 @@ fun MessagingScreen(
     state: PrivacyUiState,
     onAction: (PrivacyAction) -> Unit,
     onOpenConversation: (String, String) -> Unit,
+    targetConversationId: String? = null,
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadConversations) }
+    LaunchedEffect(targetConversationId, state.conversations, state.conversationsLoading) {
+        if (!targetConversationId.isNullOrBlank() && !state.conversationsLoading) {
+            state.conversations.firstOrNull { it.conversationId == targetConversationId }?.let { conversation ->
+                onOpenConversation(conversation.requestId, conversation.donorId)
+            }
+        }
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),

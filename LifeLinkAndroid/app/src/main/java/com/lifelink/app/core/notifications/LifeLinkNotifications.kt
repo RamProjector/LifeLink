@@ -10,8 +10,8 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.RemoteMessage
-import com.lifelink.app.MainActivity
 import com.lifelink.app.LifeLinkApplication
+import com.lifelink.app.MainActivity
 import com.lifelink.app.data.local.LifeLinkDatabase
 import com.lifelink.app.data.repository.UpdatesRepository
 import com.lifelink.app.domain.UpdateType
@@ -26,11 +26,11 @@ object LifeLinkNotifications {
             NotificationChannel(
                 EMERGENCY_CHANNEL_ID,
                 "Emergency blood requests",
-                NotificationManager.IMPORTANCE_HIGH
+                NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 description = "Time-sensitive requests relevant to the donor or coordinator"
                 enableVibration(true)
-            }
+            },
         )
     }
 
@@ -42,7 +42,12 @@ object LifeLinkNotifications {
         val title = message.notification?.title ?: data["title"] ?: "LifeLink update"
         val body = message.notification?.body ?: data["body"] ?: "You have a new LifeLink notification."
         val requestId = data["request_id"]
-        val eventId = data["event_id"] ?: listOf(data["type"], requestId, title, body).joinToString(":").hashCode().toString()
+        val eventId = data["event_id"]
+            ?: message.messageId
+            ?: listOf(data["type"], requestId, data["conversation_id"], title, body, message.sentTime)
+                .joinToString(":")
+                .hashCode()
+                .toString()
         val updateType = when (data["type"]?.lowercase()) {
             "donor_response" -> UpdateType.DONOR_RESPONSE
             "contact_status" -> UpdateType.CONTACT_STATUS
@@ -64,20 +69,46 @@ object LifeLinkNotifications {
                 title = title,
                 body = body,
                 requestId = requestId,
-                actionKey = if (requestId != null) "request" else "updates"
+                actionKey = if (requestId != null) "request" else "updates",
             )
         }
         if (!canPostNotification) return
+        val pendingIntent = buildNotificationIntent(context, data, requestId, eventId)
+        postNotification(context, title, body, eventId, pendingIntent)
+    }
+
+    private fun buildNotificationIntent(
+        context: Context,
+        data: Map<String, String>,
+        requestId: String?,
+        eventId: String,
+    ): PendingIntent {
+        val conversationId = data["conversation_id"]?.takeIf { it.isNotBlank() }
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            if (requestId != null) putExtra("request_id", requestId) else putExtra("open_updates", true)
+            putExtra("notification_event_id", eventId)
+            when {
+                conversationId != null -> putExtra("conversation_id", conversationId)
+                requestId != null -> putExtra("request_id", requestId)
+                else -> putExtra("open_updates", true)
+            }
         }
-        val pendingIntent = PendingIntent.getActivity(
+        // Each event gets its own PendingIntent, even when titles match.
+        return PendingIntent.getActivity(
             context,
-            title.hashCode(),
+            eventId.hashCode(),
             intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+    }
+
+    private fun postNotification(
+        context: Context,
+        title: String,
+        body: String,
+        eventId: String,
+        pendingIntent: PendingIntent,
+    ) {
         val notification = NotificationCompat.Builder(context, EMERGENCY_CHANNEL_ID)
             .setSmallIcon(com.lifelink.app.R.drawable.lifelink_icon)
             .setContentTitle(title)
@@ -88,6 +119,6 @@ object LifeLinkNotifications {
             .setContentIntent(pendingIntent)
             .build()
         ContextCompat.getSystemService(context, NotificationManager::class.java)
-            ?.notify(title.hashCode(), notification)
+            ?.notify(eventId.hashCode(), notification)
     }
 }
