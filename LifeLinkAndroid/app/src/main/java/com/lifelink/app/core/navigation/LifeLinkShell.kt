@@ -430,6 +430,9 @@ fun LifeLinkShell(
                                         ?.takeIf { it.startsWith("conversation:") }
                                         ?.substringAfter("conversation:")
                                         ?.substringBefore("|"),
+                                    targetConversationEventId = notificationRequestId
+                                        ?.takeIf { it.startsWith("conversation:") }
+                                        ?.substringAfter("|"),
                                 )
                             ShellTab.PROFILE ->
                                 SettingsContent(
