@@ -101,7 +101,13 @@ object LifeLinkNotifications {
         )
     }
 
-    private fun postNotification(context: Context, title: String, body: String, eventId: String, pendingIntent: PendingIntent) {
+    private fun postNotification(
+        context: Context,
+        title: String,
+        body: String,
+        eventId: String,
+        pendingIntent: PendingIntent,
+    ) {
         val notification = NotificationCompat.Builder(context, EMERGENCY_CHANNEL_ID)
             .setSmallIcon(com.lifelink.app.R.drawable.lifelink_icon)
             .setContentTitle(title)
