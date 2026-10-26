@@ -637,7 +637,13 @@ async def report_requester_contact(
     if not any(contact["donor_id"] == donor_id for contact in contacts):
         raise HTTPException(status_code=404, detail="Contact not found")
     await enforce_rate_limit(f"contact-report:{principal.subject}", 10, 300)
-    await store.record_audit_async(principal.subject, "contact_reported", request_id, donor_id, {"reason": payload.reason})
+    await store.record_audit_async(
+        principal.subject,
+        "contact_reported",
+        request_id,
+        donor_id,
+        {"reason_provided": bool(payload.reason.strip())},
+    )
     return ContactModerationOut(request_id=request_id, donor_id=donor_id, action="reported")
 
 
@@ -1464,7 +1470,7 @@ async def report_conversation_participant(
         "conversation_reported",
         conversation.request_id,
         conversation.donor_id,
-        {"conversation_id": conversation.id, "reported_id": other, "reason": (payload.reason if payload else "")},
+        {"conversation_id": conversation.id, "reported_id": other, "reason_provided": bool(payload and payload.reason and payload.reason.strip())},
     )
     return ConversationModerationOut(conversation_id=conversation.id, action="reported")
 
