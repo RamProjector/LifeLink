@@ -48,9 +48,33 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.domain.ChatMessage
 import com.lifelink.app.domain.ContactShare
+import kotlinx.coroutines.delay
+
+/**
+ * Polls while the conversation is resumed and stops automatically in the background.
+ */
+@Composable
+private fun ConversationRefreshEffect(
+    conversationId: String?,
+    onAction: (PrivacyAction) -> Unit,
+) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(conversationId, lifecycleOwner) {
+        if (conversationId.isNullOrBlank()) return@LaunchedEffect
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                delay(8_000)
+                onAction(PrivacyAction.RefreshConversation)
+            }
+        }
+    }
+}
 
 /**
  * In-app conversation between the requester and donor of one request. Messages
@@ -67,6 +91,7 @@ fun ConversationScreen(
     onBack: () -> Unit,
 ) {
     LaunchedEffect(requestId, donorId) { onAction(PrivacyAction.OpenConversation(requestId, donorId)) }
+    ConversationRefreshEffect(state.conversationId, onAction)
     var draft by remember { mutableStateOf("") }
     var contactField by remember { mutableStateOf("phone") }
     var contactValue by remember { mutableStateOf("") }
