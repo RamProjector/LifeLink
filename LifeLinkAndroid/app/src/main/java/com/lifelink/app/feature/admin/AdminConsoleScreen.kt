@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -91,8 +92,14 @@ fun AdminConsoleScreen(
                 users = users,
                 loading = loading,
                 offset = usersOffset,
-                onPrevious = { usersOffset = (usersOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0); refresh(AdminPage.USERS) },
-                onNext = { usersOffset += ADMIN_PAGE_SIZE; refresh(AdminPage.USERS) },
+                onPrevious = {
+                    usersOffset = (usersOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0)
+                    refresh(AdminPage.USERS)
+                },
+                onNext = {
+                    usersOffset += ADMIN_PAGE_SIZE
+                    refresh(AdminPage.USERS)
+                },
                 onSetRole = { user, role ->
                     scope.launch {
                         val result = updateUser(api, user, role)
@@ -102,13 +109,25 @@ fun AdminConsoleScreen(
             )
             AdminPage.AUDIT -> AdminEvents(
                 events, loading, eventsOffset, "No audit events recorded.",
-                onPrevious = { eventsOffset = (eventsOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0); refresh(AdminPage.AUDIT) },
-                onNext = { eventsOffset += ADMIN_PAGE_SIZE; refresh(AdminPage.AUDIT) },
+                onPrevious = {
+                    eventsOffset = (eventsOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0)
+                    refresh(AdminPage.AUDIT)
+                },
+                onNext = {
+                    eventsOffset += ADMIN_PAGE_SIZE
+                    refresh(AdminPage.AUDIT)
+                },
             )
             AdminPage.ERRORS -> AdminEvents(
                 events, loading, eventsOffset, "No errors recorded.",
-                onPrevious = { eventsOffset = (eventsOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0); refresh(AdminPage.ERRORS) },
-                onNext = { eventsOffset += ADMIN_PAGE_SIZE; refresh(AdminPage.ERRORS) },
+                onPrevious = {
+                    eventsOffset = (eventsOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0)
+                    refresh(AdminPage.ERRORS)
+                },
+                onNext = {
+                    eventsOffset += ADMIN_PAGE_SIZE
+                    refresh(AdminPage.ERRORS)
+                },
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
@@ -192,7 +211,10 @@ private fun AdminHeader(onSignOut: () -> Unit) {
 
 @Composable
 private fun AdminNavigation(page: AdminPage, onSelect: (AdminPage) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         AdminPage.entries.forEach { item ->
             if (page == item) {
                 Button(onClick = { onSelect(item) }) { Text(item.title) }
@@ -231,7 +253,10 @@ private fun AdminUsers(
     onSetRole: (AdminUser, String) -> Unit,
 ) {
     if (users.isEmpty() && !loading) Text("No user profiles found.")
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         items(users, key = { it.userId }) { user ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
@@ -270,7 +295,10 @@ private fun AdminEvents(
     onNext: () -> Unit,
 ) {
     if (events.isEmpty() && !loading) Text(emptyLabel)
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         items(events, key = { it.id }) { event ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
