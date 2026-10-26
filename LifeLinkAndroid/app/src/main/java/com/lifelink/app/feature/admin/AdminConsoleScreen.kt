@@ -45,6 +45,12 @@ private enum class AdminPage(val title: String) {
     ERRORS("Errors"),
 }
 
+private data class AdminOffsets(
+    val users: Int = 0,
+    val audit: Int = 0,
+    val errors: Int = 0,
+)
+
 @Composable
 fun AdminConsoleScreen(
     api: LifeLinkApi,
@@ -56,9 +62,7 @@ fun AdminConsoleScreen(
     var events by remember { mutableStateOf<List<AdminAuditEvent>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    var usersOffset by remember { mutableStateOf(0) }
-    var auditOffset by remember { mutableStateOf(0) }
-    var errorsOffset by remember { mutableStateOf(0) }
+    var offsets by remember { mutableStateOf(AdminOffsets()) }
     val scope = rememberCoroutineScope()
 
     fun refresh(target: AdminPage, statusMessage: String? = null) {
@@ -67,9 +71,7 @@ fun AdminConsoleScreen(
             message = statusMessage ?: loadAdminPage(
                 api = api,
                 page = target,
-                usersOffset = usersOffset,
-                auditOffset = auditOffset,
-                errorsOffset = errorsOffset,
+                offsets = offsets,
                 onDashboard = { dashboard = it },
                 onUsers = { users = it },
                 onEvents = { events = it },
@@ -88,70 +90,88 @@ fun AdminConsoleScreen(
         AdminNavigation(page = page, onSelect = { page = it })
         if (loading) CircularProgressIndicator()
         message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        when (page) {
-            AdminPage.OVERVIEW -> AdminOverview(dashboard)
-            AdminPage.USERS -> AdminUsers(
-                users = users,
-                loading = loading,
-                offset = usersOffset,
-                onPrevious = {
-                    usersOffset = (usersOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0)
-                    refresh(AdminPage.USERS)
-                },
-                onNext = {
-                    usersOffset += ADMIN_PAGE_SIZE
-                    refresh(AdminPage.USERS)
-                },
-                onSetRole = { user, role ->
-                    scope.launch {
-                        val result = updateUser(api, user, role)
-                        refresh(AdminPage.USERS, result)
-                    }
-                },
-            )
-            AdminPage.AUDIT -> AdminEvents(
-                events, loading, auditOffset, "No audit events recorded.",
-                onPrevious = {
-                    auditOffset = (auditOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0)
-                    refresh(AdminPage.AUDIT)
-                },
-                onNext = {
-                    auditOffset += ADMIN_PAGE_SIZE
-                    refresh(AdminPage.AUDIT)
-                },
-            )
-            AdminPage.ERRORS -> AdminEvents(
-                events, loading, errorsOffset, "No errors recorded.",
-                onPrevious = {
-                    errorsOffset = (errorsOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0)
-                    refresh(AdminPage.ERRORS)
-                },
-                onNext = {
-                    errorsOffset += ADMIN_PAGE_SIZE
-                    refresh(AdminPage.ERRORS)
-                },
-            )
+        AdminPageContent(
+            page = page,
+            dashboard = dashboard,
+            users = users,
+            events = events,
+            loading = loading,
+            offsets = offsets,
+            onRefresh = { target -> refresh(target) },
+            onSetRole = { user, role ->
+                scope.launch {
+                    val result = updateUser(api, user, role)
+                    refresh(AdminPage.USERS, result)
+                }
+            },
+        ) { target, direction ->
+            offsets = when (target) {
+                AdminPage.USERS -> offsets.copy(users = (offsets.users + direction * ADMIN_PAGE_SIZE).coerceAtLeast(0))
+                AdminPage.AUDIT -> offsets.copy(audit = (offsets.audit + direction * ADMIN_PAGE_SIZE).coerceAtLeast(0))
+                AdminPage.ERRORS -> offsets.copy(errors = (offsets.errors + direction * ADMIN_PAGE_SIZE).coerceAtLeast(0))
+                AdminPage.OVERVIEW -> offsets
+            }
+            refresh(target)
         }
         Spacer(modifier = Modifier.height(4.dp))
         OutlinedButton(onClick = { refresh(page) }, enabled = !loading) { Text("Refresh") }
     }
 }
 
+@Composable
+private fun AdminPageContent(
+    page: AdminPage,
+    dashboard: AdminDashboardResponse?,
+    users: List<AdminUser>,
+    events: List<AdminAuditEvent>,
+    loading: Boolean,
+    offsets: AdminOffsets,
+    onRefresh: (AdminPage) -> Unit,
+    onSetRole: (AdminUser, String) -> Unit,
+    onPage: (AdminPage, Int) -> Unit,
+) {
+    when (page) {
+        AdminPage.OVERVIEW -> AdminOverview(dashboard)
+        AdminPage.USERS -> AdminUsers(
+            users = users,
+            loading = loading,
+            offset = offsets.users,
+            onPrevious = { onPage(AdminPage.USERS, -1) },
+            onNext = { onPage(AdminPage.USERS, 1) },
+            onSetRole = onSetRole,
+        )
+        AdminPage.AUDIT -> AdminEvents(
+            events = events,
+            loading = loading,
+            offset = offsets.audit,
+            emptyLabel = "No audit events recorded.",
+            onPrevious = { onPage(AdminPage.AUDIT, -1) },
+            onNext = { onPage(AdminPage.AUDIT, 1) },
+        )
+        AdminPage.ERRORS -> AdminEvents(
+            events = events,
+            loading = loading,
+            offset = offsets.errors,
+            emptyLabel = "No errors recorded.",
+            onPrevious = { onPage(AdminPage.ERRORS, -1) },
+            onNext = { onPage(AdminPage.ERRORS, 1) },
+        )
+    }
+}
+
 private suspend fun loadAdminPage(
     api: LifeLinkApi,
     page: AdminPage,
-    usersOffset: Int,
-    auditOffset: Int,
-    errorsOffset: Int,
+    offsets: AdminOffsets,
     onDashboard: (AdminDashboardResponse) -> Unit,
     onUsers: (List<AdminUser>) -> Unit,
     onEvents: (List<AdminAuditEvent>) -> Unit,
 ): String? = try {
     when (page) {
         AdminPage.OVERVIEW -> loadDashboard(api, onDashboard)
-        AdminPage.USERS -> loadUsers(api, usersOffset, onUsers)
-        AdminPage.AUDIT -> loadEvents(api, page, auditOffset, onEvents)
-        AdminPage.ERRORS -> loadEvents(api, page, errorsOffset, onEvents)
+        AdminPage.USERS -> loadUsers(api, offsets.users, onUsers)
+        AdminPage.AUDIT -> loadEvents(api, page, offsets.audit, onEvents)
+        AdminPage.ERRORS -> loadEvents(api, page, offsets.errors, onEvents)
     }
 } catch (failure: IOException) {
     failure.message ?: "Network error while loading admin data."
