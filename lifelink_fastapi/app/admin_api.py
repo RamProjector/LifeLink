@@ -70,6 +70,39 @@ async def _write_audit(
     )
 
 
+_SENSITIVE_AUDIT_KEY = re.compile(
+    r"(?:email|phone|address|location|latitude|longitude|blood|token|password|secret|"
+    r"authorization|credential|request.?body|payload|contact.?info|birth.?date)",
+    re.IGNORECASE,
+)
+
+
+def _safe_audit_metadata(value, *, depth: int = 0):
+    """Bound and redact untrusted metadata before showing it in the admin UI."""
+    if depth >= 5:
+        return "[TRUNCATED]"
+    if isinstance(value, dict):
+        safe = {}
+        for key, item in list(value.items())[:50]:
+            name = str(key)[:100]
+            safe[name] = "[REDACTED]" if _SENSITIVE_AUDIT_KEY.search(name) else _safe_audit_metadata(
+                item, depth=depth + 1
+            )
+        if len(value) > 50:
+            safe["_truncated"] = True
+        return safe
+    if isinstance(value, (list, tuple)):
+        safe = [_safe_audit_metadata(item, depth=depth + 1) for item in value[:50]]
+        if len(value) > 50:
+            safe.append("[TRUNCATED]")
+        return safe
+    if isinstance(value, str):
+        return value[:1000]
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return str(value)[:1000]
+
+
 def _correlation_id(value: str | None) -> str:
     # Client-provided IDs are untrusted and bounded; generate one if invalid.
     if value and re.fullmatch(r"[A-Za-z0-9._:-]{1,80}", value):
@@ -205,7 +238,7 @@ async def admin_audit_logs(
     await session.commit()
     return {
         "items": [
-            {**dict(row), "created_at": row["created_at"].isoformat() if row["created_at"] else None}
+            {**dict(row), "metadata": _safe_audit_metadata(row["metadata"]), "created_at": row["created_at"].isoformat() if row["created_at"] else None}
             for row in rows
         ],
         "limit": limit,
@@ -232,5 +265,5 @@ async def admin_errors(
     await _write_audit(session, principal.subject, "admin.errors.read", target_type="error_log",
                        metadata={"limit": limit, "offset": offset})
     await session.commit()
-    return {"items": [{**dict(row), "created_at": row["created_at"].isoformat() if row["created_at"] else None}
+    return {"items": [{**dict(row), "metadata": _safe_audit_metadata(row["metadata"]), "created_at": row["created_at"].isoformat() if row["created_at"] else None}
                       for row in rows], "limit": limit, "offset": offset}
