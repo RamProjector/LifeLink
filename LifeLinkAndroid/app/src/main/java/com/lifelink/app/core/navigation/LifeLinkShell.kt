@@ -209,6 +209,8 @@ fun LifeLinkShell(
         )
     }
     var tab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
+    // Keep donor tab selection at shell level so it survives replacing the donor workspace with chat.
+    var donorSelectedTab by rememberSaveable(accountUserId) { mutableStateOf("HOME") }
     val markWelcomeSeen = {
         if (accountUserId.isNotBlank()) welcomePrefs.edit().putBoolean("seen_$accountUserId", true).apply()
         showStart = false
@@ -327,6 +329,8 @@ fun LifeLinkShell(
                 onAction = onDonorAction,
                 onBack = { showDonor = false },
                 onOpenConversation = openDonorConversation,
+                selectedTabKey = donorSelectedTab,
+                onSelectedTabKeyChange = { donorSelectedTab = it },
             )
         }
         return
