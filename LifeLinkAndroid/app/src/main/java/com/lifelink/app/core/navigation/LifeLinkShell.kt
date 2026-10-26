@@ -72,6 +72,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -166,6 +167,7 @@ fun LifeLinkShell(
 ) {
     val context = LocalContext.current
     val welcomePrefs = context.getSharedPreferences("lifelink_welcome", 0)
+    val screenStateHolder = rememberSaveableStateHolder()
     var showRequest by rememberSaveable { mutableStateOf(false) }
     var showActive by rememberSaveable { mutableStateOf(false) }
     var showDonor by rememberSaveable { mutableStateOf(false) }
@@ -319,12 +321,14 @@ fun LifeLinkShell(
     }
     if (showDonor) {
         BackHandler { showDonor = false }
-        DonorScreen(
-            state = donorState,
-            onAction = onDonorAction,
-            onBack = { showDonor = false },
-            onOpenConversation = openDonorConversation,
-        )
+        screenStateHolder.SaveableStateProvider("donor-workspace") {
+            DonorScreen(
+                state = donorState,
+                onAction = onDonorAction,
+                onBack = { showDonor = false },
+                onOpenConversation = openDonorConversation,
+            )
+        }
         return
     }
     BackHandler(enabled = tab != ShellTab.HOME) { tab = ShellTab.HOME }
