@@ -90,7 +90,8 @@ class ConversationNavigationTest {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
         composeRule.onNodeWithContentDescription("Profile").performClick()
         composeRule.onNodeWithText("Open donor workspace", substring = false).performClick()
-        composeRule.onNodeWithText("Donor workspace", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-workspace-screen").assertIsDisplayed()
+        composeRule.onNodeWithText("Donor workspace", substring = false, useUnmergedTree = true).assertIsDisplayed()
         composeRule.onNodeWithTag("donor-tab-REQUESTS").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Message requester").performScrollTo().performClick()
 
@@ -99,7 +100,8 @@ class ConversationNavigationTest {
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
 
         composeRule.onNodeWithText("Conversation").assertDoesNotExist()
-        composeRule.onNodeWithText("Donor workspace").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-workspace-screen").assertIsDisplayed()
+        composeRule.onNodeWithText("Donor workspace", useUnmergedTree = true).assertIsDisplayed()
         assertOpenedTimes(1)
     }
 
