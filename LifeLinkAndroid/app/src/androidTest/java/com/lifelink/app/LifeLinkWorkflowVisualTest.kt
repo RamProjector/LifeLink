@@ -93,38 +93,7 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Your requests")
         capture("workflow-home")
 
-        composeRule.onNodeWithTag("nav-MAP").performClick()
-        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
-        composeRule.onNodeWithTag("toggle-donor-map-view").assertIsDisplayed()
-        awaitMapRender()
-        capture("workflow-donor-map-synthetic")
-
-        // Synthetic fixture data exercises both filter dimensions without touching a backend.
-        composeRule.onNodeWithContentDescription("Show map filters").performClick()
-        composeRule.onNodeWithText("Available now", substring = false).performClick()
-        composeRule.onNodeWithText("A-", substring = false).performClick()
-        composeRule.onNodeWithContentDescription("Hide map filters").performClick()
-        composeRule.onNodeWithText("No areas match these filters", substring = false).assertIsDisplayed()
-        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
-
-        composeRule.onNodeWithContentDescription("Show map filters").performClick()
-        composeRule.onNodeWithText("Available now", substring = false).performClick()
-        composeRule.onNodeWithText("O+", substring = false).performClick()
-        composeRule.onNodeWithContentDescription("Hide map filters").performClick()
-        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
-        composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
-        composeRule.onNodeWithText("Synthetic O+ area", substring = false).assertIsDisplayed()
-        composeRule.onNodeWithText("O+ · Available", substring = false).assertIsDisplayed()
-        composeRule.onNodeWithText("Synthetic A- area", substring = false).assertDoesNotExist()
-        capture("workflow-donor-map-filtered-list")
-
-        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
-        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
-        awaitMapRender()
-        capture("workflow-donor-map-filtered")
-        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
-        composeRule.waitForIdle()
+        exerciseSyntheticMap()
 
         tapTab("Requests")
         assertVisible("No active request")
@@ -236,6 +205,41 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("request-history").performScrollToNode(hasText("Request history-29"))
         assertVisible("Request history-29")
         capture("request-history")
+    }
+
+    /** Exercises real map rendering and filter recovery with only local synthetic donor areas. */
+    private fun exerciseSyntheticMap() {
+        composeRule.onNodeWithTag("nav-MAP").performClick()
+        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
+        composeRule.onNodeWithTag("toggle-donor-map-view").assertIsDisplayed()
+        awaitMapRender()
+        capture("workflow-donor-map-synthetic")
+
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("Available now", substring = false).performClick()
+        composeRule.onNodeWithText("A-", substring = false).performClick()
+        composeRule.onNodeWithContentDescription("Hide map filters").performClick()
+        composeRule.onNodeWithText("No areas match these filters", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("Available now", substring = false).performClick()
+        composeRule.onNodeWithText("O+", substring = false).performClick()
+        composeRule.onNodeWithContentDescription("Hide map filters").performClick()
+        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
+        composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic O+ area", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("O+ · Available", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic A- area", substring = false).assertDoesNotExist()
+        capture("workflow-donor-map-filtered-list")
+
+        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
+        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+        awaitMapRender()
+        capture("workflow-donor-map-filtered")
+        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitForIdle()
     }
 
     /** Waits for MapLibre's loaded-map callback; Compose idleness alone does not mean tiles rendered. */
