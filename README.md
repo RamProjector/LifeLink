@@ -52,16 +52,18 @@ The cloud-configured debug APK is produced by the **Build Android APKs** workflo
 |---|---|
 | `LifeLinkAndroid/` | Native Kotlin/Compose Android application |
 | `lifelink_fastapi/` | PostgreSQL-backed FastAPI service, schema, and tests |
-| `docs/` | Cloud startup, Render guide, changelog, history, and quality audit |
+| `docs/` | Cloud startup, deployment, implementation status, system documentation, and quality guidance |
 | `artifacts/` | App icon (APKs are built in CI, not committed) |
 
 ## Documentation
 
-Start with [`docs/START_CLOUD.md`](docs/START_CLOUD.md). For the confirmed live migration and implementation state, read [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md). The concise milestone record is [`docs/CHANGELOG_CLOUD.md`](docs/CHANGELOG_CLOUD.md), and the student-oriented explanation is [`docs/HISTORY_CLOUD.md`](docs/HISTORY_CLOUD.md).
+For an overview of the entire repository, workflows, architecture, privacy boundaries, development, testing, and contribution process, start with the [Repository Guide](docs/REPOSITORY_GUIDE.md).
 
-The complete academic-style system integration report is [`docs/LifeLink_System_Functional_Integration_Documentation.pdf`](docs/LifeLink_System_Functional_Integration_Documentation.pdf), with editable Markdown source in [`docs/LifeLink_System_Functional_Integration_Documentation.md`](docs/LifeLink_System_Functional_Integration_Documentation.md).
+For setup, start with [Cloud startup](docs/START_CLOUD.md). For the current deployment and migration state, read [Implementation Status](docs/IMPLEMENTATION_STATUS.md). The concise milestone record is [Cloud changelog](docs/CHANGELOG_CLOUD.md), and the student-oriented explanation is [project history](docs/HISTORY_CLOUD.md).
 
-The plain-language project assessment is [`docs/LifeLink_Project_Review_Laymans_Terms.pdf`](docs/LifeLink_Project_Review_Laymans_Terms.pdf), with editable Markdown source in [`docs/LifeLink_Project_Review_Laymans_Terms.md`](docs/LifeLink_Project_Review_Laymans_Terms.md).
+The complete academic-style system integration report is [available as PDF](docs/LifeLink_System_Functional_Integration_Documentation.pdf), with editable [Markdown source](docs/LifeLink_System_Functional_Integration_Documentation.md).
+
+The plain-language project assessment is [available as PDF](docs/LifeLink_Project_Review_Laymans_Terms.pdf), with editable [Markdown source](docs/LifeLink_Project_Review_Laymans_Terms.md).
 
 ## Status / known limitations
 
