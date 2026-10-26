@@ -68,13 +68,22 @@ object LifeLinkNotifications {
             )
         }
         if (!canPostNotification) return
+        val conversationId = data["conversation_id"]?.takeIf { it.isNotBlank() }
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            if (requestId != null) putExtra("request_id", requestId) else putExtra("open_updates", true)
+            when {
+                conversationId != null -> putExtra("conversation_id", conversationId)
+                requestId != null -> putExtra("request_id", requestId)
+                else -> putExtra("open_updates", true)
+            }
         }
+        // Each event gets its own notification/PendingIntent. Using the title alone
+        // caused separate requests with identical titles to overwrite each other's
+        // tap destination.
+        val notificationId = eventId.hashCode()
         val pendingIntent = PendingIntent.getActivity(
             context,
-            title.hashCode(),
+            notificationId,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -88,6 +97,6 @@ object LifeLinkNotifications {
             .setContentIntent(pendingIntent)
             .build()
         ContextCompat.getSystemService(context, NotificationManager::class.java)
-            ?.notify(title.hashCode(), notification)
+            ?.notify(notificationId, notification)
     }
 }
