@@ -131,15 +131,11 @@ fun MapLibreLocationPicker(
                     getMapAsync { map ->
                         mapLoading = true
                         mapError = null
-                        styleReady = false
-                        mapRendered = false
                         onLoadingChanged(true)
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            // Keep the loading state until MapLibre confirms a fully rendered map,
-                            // not merely that the style JSON has loaded. This avoids blank-map screenshots.
-                            styleReady = true
-                            mapRendered = false
+                            mapLoading = false
                             mapError = null
+                            onLoadingChanged(false)
                             val currentPosition = latestLatitude?.let { lat -> latestLongitude?.let { lon -> LatLng(lat, lon) } }
                             currentPosition?.let { position ->
                                 map.cameraPosition = CameraPosition.Builder()
@@ -186,35 +182,13 @@ fun MapLibreLocationPicker(
                     if (retryRequest > 0) {
                         mapLoading = true
                         mapError = null
-                        styleReady = false
-                        mapRendered = false
-                        onLoadingChanged(true)
-                        map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            styleReady = true
-                            mapRendered = false
-                            mapError = null
-                            target?.let { position ->
-                                map.cameraPosition = CameraPosition.Builder().target(position).zoom(15.0).build()
-                            }
-                            appliedLatitude = latitude
-                            appliedLongitude = longitude
-                            appliedRecenterRequest = effectiveRecenterRequest
-                            marker?.let { map.removeMarker(it) }
-                            marker = target?.let { position ->
-                                map.addMarker(MarkerOptions().position(position).title("Selected approximate location"))
-                            }
-                        }
+                        map.setStyle(OPEN_FREE_MAP_STYLE) { mapLoading = false }
                         retryRequest = 0
-                        return@getMapAsync
                     }
-                    if (!styleReady) return@getMapAsync
                     if (target != null) {
                         val targetChanged = appliedLatitude != latitude || appliedLongitude != longitude
                         val recenterChanged = appliedRecenterRequest != effectiveRecenterRequest
                         if (targetChanged || recenterChanged) {
-                            mapLoading = true
-                            mapRendered = false
-                            onLoadingChanged(true)
                             appliedLatitude = latitude
                             appliedLongitude = longitude
                             appliedRecenterRequest = effectiveRecenterRequest
@@ -346,21 +320,24 @@ fun MapLibrePrivacySafeDonorMap(
                         mapRendered = false
                         mapLoading = false
                         mapError = true
-                        onLoadingChanged(false)
-                        onMapError("Map tiles could not be loaded. You can enter coordinates manually or retry the map.")
                     }
                     addOnDidFinishRenderingMapListener { fully ->
                         if (fully && styleReady) {
                             mapRendered = true
                             mapLoading = false
                             mapError = false
-                            onLoadingChanged(false)
                         }
                     }
                     getMapAsync { map ->
                         mapLoading = true
+                        mapError = false
+                        styleReady = false
+                        mapRendered = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            mapLoading = false
+                            // Wait for a fully rendered frame, not only a parsed style, before
+                            // reporting the native map as ready to the UI or visual tests.
+                            styleReady = true
+                            mapRendered = false
                             mapError = false
                             map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
                             appliedCenter = center
@@ -384,9 +361,15 @@ fun MapLibrePrivacySafeDonorMap(
                     if (retryRequest > 0) {
                         mapLoading = true
                         mapError = false
+                        styleReady = false
+                        mapRendered = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            mapLoading = false
+                            styleReady = true
+                            mapRendered = false
                             mapError = false
+                            map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
+                            appliedCenter = center
+                            appliedRecenterRequest = recenterRequest
                             map.clear()
                             areas.forEach { area ->
                                 map.addMarker(
@@ -399,7 +382,9 @@ fun MapLibrePrivacySafeDonorMap(
                             appliedAreasSignature = areasSignature
                         }
                         retryRequest = 0
+                        return@getMapAsync
                     }
+                    if (!styleReady) return@getMapAsync
                     if (appliedAreasSignature != areasSignature) {
                         // Update annotations in place. Reloading the whole style for a
                         // blood-type/availability filter needlessly reloads map tiles.
@@ -418,6 +403,8 @@ fun MapLibrePrivacySafeDonorMap(
                     // Unnecessary camera moves cancel vector-tile requests and make the map
                     // feel broken while filters, loading state, or visibility controls change.
                     if (appliedCenter != center) {
+                        mapLoading = true
+                        mapRendered = false
                         map.cameraPosition = CameraPosition.Builder()
                             .target(center)
                             .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
@@ -425,6 +412,8 @@ fun MapLibrePrivacySafeDonorMap(
                         appliedCenter = center
                     }
                     if (appliedRecenterRequest != recenterRequest) {
+                        mapLoading = true
+                        mapRendered = false
                         map.cameraPosition = CameraPosition.Builder()
                             .target(center)
                             .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
