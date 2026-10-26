@@ -38,6 +38,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -67,6 +71,16 @@ fun ConversationScreen(
     onBack: () -> Unit,
 ) {
     LaunchedEffect(requestId, donorId) { onAction(PrivacyAction.OpenConversation(requestId, donorId)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(state.conversationId, lifecycleOwner) {
+        if (state.conversationId.isNullOrBlank()) return@LaunchedEffect
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                delay(8_000)
+                onAction(PrivacyAction.RefreshConversation)
+            }
+        }
+    }
     var draft by remember { mutableStateOf("") }
     var contactField by remember { mutableStateOf("phone") }
     var contactValue by remember { mutableStateOf("") }
