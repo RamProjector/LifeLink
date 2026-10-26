@@ -2,6 +2,11 @@
 
 package com.lifelink.app.core.location
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.view.MotionEvent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,6 +47,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.lifelink.app.domain.DonorMapArea
 import kotlinx.coroutines.delay
 import org.maplibre.android.MapLibre
+import org.maplibre.android.annotations.IconFactory
 import org.maplibre.android.annotations.Marker
 import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.camera.CameraPosition
@@ -53,6 +59,24 @@ private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/li
 // If MapLibre never reports success or failure, the loading state must still end
 // so the picker does not spin forever.
 private const val MAP_LOAD_TIMEOUT_MS = 30_000L
+
+
+// Draw donor-area markers locally rather than depending on the SDK's default marker asset.
+// The concentric, high-contrast symbol denotes an approximate area, not a person's exact GPS point.
+private fun createDonorAreaMarkerIcon(context: Context) =
+    IconFactory.getInstance(context.applicationContext).fromBitmap(
+        Bitmap.createBitmap(56, 56, Bitmap.Config.ARGB_8888).apply {
+            val canvas = Canvas(this)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            val center = width / 2f
+            paint.color = Color.WHITE
+            canvas.drawCircle(center, center, 25f, paint)
+            paint.color = Color.rgb(11, 99, 120)
+            canvas.drawCircle(center, center, 20f, paint)
+            paint.color = Color.WHITE
+            canvas.drawCircle(center, center, 6f, paint)
+        },
+    )
 
 /**
  * Real native MapLibre map. No WebView or JavaScript is used. OpenFreeMap
@@ -284,6 +308,7 @@ fun MapLibrePrivacySafeDonorMap(
         MapLibre.getInstance(context.applicationContext)
         MapView(context).also { it.onCreate(null) }
     }
+    val donorAreaMarkerIcon = remember(mapView) { createDonorAreaMarkerIcon(context) }
     DisposableEffect(mapView) {
         mapView.onStart()
         mapView.onResume()
@@ -341,7 +366,8 @@ fun MapLibrePrivacySafeDonorMap(
                                     MarkerOptions()
                                         .position(LatLng(area.latitude, area.longitude))
                                         .title("Donor pin · ${area.bloodType}")
-                                        .snippet("${area.availability} · Approximate location only"),
+                                        .snippet("${area.availability} · Approximate location only")
+                                        .icon(donorAreaMarkerIcon),
                                 )
                             }
                             appliedAreasSignature = areasSignature
@@ -367,7 +393,8 @@ fun MapLibrePrivacySafeDonorMap(
                                     MarkerOptions()
                                         .position(LatLng(area.latitude, area.longitude))
                                         .title("Donor pin · ${area.bloodType}")
-                                        .snippet("${area.availability} · Approximate location only"),
+                                        .snippet("${area.availability} · Approximate location only")
+                                        .icon(donorAreaMarkerIcon),
                                 )
                             }
                             appliedAreasSignature = areasSignature
@@ -387,7 +414,8 @@ fun MapLibrePrivacySafeDonorMap(
                                 MarkerOptions()
                                     .position(LatLng(area.latitude, area.longitude))
                                     .title("Donor pin · ${area.bloodType}")
-                                    .snippet("${area.availability} · Approximate location only"),
+                                    .snippet("${area.availability} · Approximate location only")
+                                        .icon(donorAreaMarkerIcon),
                             )
                         }
                         appliedAreasSignature = areasSignature
