@@ -57,7 +57,8 @@ fun AdminConsoleScreen(
     var loading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var usersOffset by remember { mutableStateOf(0) }
-    var eventsOffset by remember { mutableStateOf(0) }
+    var auditOffset by remember { mutableStateOf(0) }
+    var errorsOffset by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
 
     fun refresh(target: AdminPage, statusMessage: String? = null) {
@@ -67,7 +68,8 @@ fun AdminConsoleScreen(
                 api = api,
                 page = target,
                 usersOffset = usersOffset,
-                eventsOffset = eventsOffset,
+                auditOffset = auditOffset,
+                errorsOffset = errorsOffset,
                 onDashboard = { dashboard = it },
                 onUsers = { users = it },
                 onEvents = { events = it },
@@ -108,24 +110,24 @@ fun AdminConsoleScreen(
                 },
             )
             AdminPage.AUDIT -> AdminEvents(
-                events, loading, eventsOffset, "No audit events recorded.",
+                events, loading, auditOffset, "No audit events recorded.",
                 onPrevious = {
-                    eventsOffset = (eventsOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0)
+                    auditOffset = (auditOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0)
                     refresh(AdminPage.AUDIT)
                 },
                 onNext = {
-                    eventsOffset += ADMIN_PAGE_SIZE
+                    auditOffset += ADMIN_PAGE_SIZE
                     refresh(AdminPage.AUDIT)
                 },
             )
             AdminPage.ERRORS -> AdminEvents(
-                events, loading, eventsOffset, "No errors recorded.",
+                events, loading, errorsOffset, "No errors recorded.",
                 onPrevious = {
-                    eventsOffset = (eventsOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0)
+                    errorsOffset = (errorsOffset - ADMIN_PAGE_SIZE).coerceAtLeast(0)
                     refresh(AdminPage.ERRORS)
                 },
                 onNext = {
-                    eventsOffset += ADMIN_PAGE_SIZE
+                    errorsOffset += ADMIN_PAGE_SIZE
                     refresh(AdminPage.ERRORS)
                 },
             )
@@ -139,7 +141,8 @@ private suspend fun loadAdminPage(
     api: LifeLinkApi,
     page: AdminPage,
     usersOffset: Int,
-    eventsOffset: Int,
+    auditOffset: Int,
+    errorsOffset: Int,
     onDashboard: (AdminDashboardResponse) -> Unit,
     onUsers: (List<AdminUser>) -> Unit,
     onEvents: (List<AdminAuditEvent>) -> Unit,
@@ -147,7 +150,8 @@ private suspend fun loadAdminPage(
     when (page) {
         AdminPage.OVERVIEW -> loadDashboard(api, onDashboard)
         AdminPage.USERS -> loadUsers(api, usersOffset, onUsers)
-        AdminPage.AUDIT, AdminPage.ERRORS -> loadEvents(api, page, eventsOffset, onEvents)
+        AdminPage.AUDIT -> loadEvents(api, page, auditOffset, onEvents)
+        AdminPage.ERRORS -> loadEvents(api, page, errorsOffset, onEvents)
     }
 } catch (failure: IOException) {
     failure.message ?: "Network error while loading admin data."
