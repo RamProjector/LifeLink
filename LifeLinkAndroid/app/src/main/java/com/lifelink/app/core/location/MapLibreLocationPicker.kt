@@ -59,21 +59,33 @@ private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/li
 // If MapLibre never reports success or failure, the loading state must still end
 // so the picker does not spin forever.
 private const val MAP_LOAD_TIMEOUT_MS = 30_000L
+private const val DONOR_AREA_MARKER_SIZE_PX = 56
+private const val DONOR_AREA_MARKER_CENTER_DIVISOR = 2f
+private const val DONOR_AREA_MARKER_OUTER_RADIUS_PX = 25f
+private const val DONOR_AREA_MARKER_FILL_RADIUS_PX = 20f
+private const val DONOR_AREA_MARKER_CENTER_RADIUS_PX = 6f
+private const val DONOR_AREA_MARKER_RED = 11
+private const val DONOR_AREA_MARKER_GREEN = 99
+private const val DONOR_AREA_MARKER_BLUE = 120
 
 // Draw donor-area markers locally rather than depending on the SDK's default marker asset.
 // The concentric, high-contrast symbol denotes an approximate area, not a person's exact GPS point.
 private fun createDonorAreaMarkerIcon(context: Context) =
     IconFactory.getInstance(context.applicationContext).fromBitmap(
-        Bitmap.createBitmap(56, 56, Bitmap.Config.ARGB_8888).apply {
+        Bitmap.createBitmap(
+            DONOR_AREA_MARKER_SIZE_PX,
+            DONOR_AREA_MARKER_SIZE_PX,
+            Bitmap.Config.ARGB_8888,
+        ).apply {
             val canvas = Canvas(this)
             val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-            val center = width / 2f
+            val center = width / DONOR_AREA_MARKER_CENTER_DIVISOR
             paint.color = Color.WHITE
-            canvas.drawCircle(center, center, 25f, paint)
-            paint.color = Color.rgb(11, 99, 120)
-            canvas.drawCircle(center, center, 20f, paint)
+            canvas.drawCircle(center, center, DONOR_AREA_MARKER_OUTER_RADIUS_PX, paint)
+            paint.color = Color.rgb(DONOR_AREA_MARKER_RED, DONOR_AREA_MARKER_GREEN, DONOR_AREA_MARKER_BLUE)
+            canvas.drawCircle(center, center, DONOR_AREA_MARKER_FILL_RADIUS_PX, paint)
             paint.color = Color.WHITE
-            canvas.drawCircle(center, center, 6f, paint)
+            canvas.drawCircle(center, center, DONOR_AREA_MARKER_CENTER_RADIUS_PX, paint)
         },
     )
 
@@ -414,7 +426,7 @@ fun MapLibrePrivacySafeDonorMap(
                                     .position(LatLng(area.latitude, area.longitude))
                                     .title("Donor pin · ${area.bloodType}")
                                     .snippet("${area.availability} · Approximate location only")
-                                        .icon(donorAreaMarkerIcon),
+                                    .icon(donorAreaMarkerIcon),
                             )
                         }
                         appliedAreasSignature = areasSignature
