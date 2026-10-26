@@ -42,7 +42,12 @@ object LifeLinkNotifications {
         val title = message.notification?.title ?: data["title"] ?: "LifeLink update"
         val body = message.notification?.body ?: data["body"] ?: "You have a new LifeLink notification."
         val requestId = data["request_id"]
-        val eventId = data["event_id"] ?: listOf(data["type"], requestId, title, body).joinToString(":").hashCode().toString()
+        val eventId = data["event_id"]
+            ?: message.messageId
+            ?: listOf(data["type"], requestId, data["conversation_id"], title, body, message.sentTime)
+                .joinToString(":")
+                .hashCode()
+                .toString()
         val updateType = when (data["type"]?.lowercase()) {
             "donor_response" -> UpdateType.DONOR_RESPONSE
             "contact_status" -> UpdateType.CONTACT_STATUS
