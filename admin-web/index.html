@@ -14,14 +14,12 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
 <header class="top"><div><div class="brand">Life<span>Link</span> / Admin</div><small>Restricted operations console</small></div><div id="session-tools" class="hidden"><button id="signout" class="secondary">Sign out</button></div></header>
 <main id="login-view" class="login">
  <div class="eyebrow">Administrator access</div><h1>Sign in securely.</h1><p class="muted">Use your existing LifeLink account. The server verifies administrator authorization after sign-in; creating an account does not grant admin access.</p>
- <label for="supabase-url">Supabase project URL</label><input id="supabase-url" type="url" placeholder="https://your-project.supabase.co" autocomplete="url">
- <label for="supabase-key">Supabase publishable / anon key</label><input id="supabase-key" type="password" autocomplete="off" placeholder="Public client key (not a service-role key)">
- <label for="api-url">LifeLink API URL</label><input id="api-url" type="url" placeholder="https://your-lifelink-api.example.com">
+ <p class="muted small">Connected to the LifeLink production services. Only your existing account can sign in; administrator access is checked by the server.</p>
  <label for="email">Email</label><input id="email" type="email" autocomplete="username" required>
  <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
  <button id="signin" style="width:100%;margin-top:20px">Sign in</button>
  <div id="login-message" class="notice hidden" role="status" aria-live="polite"></div>
- <p class="foot">Configuration is held in this browser tab. Never enter a service-role key. Admin rights must be provisioned server-side.</p>
+ <p class="foot">Your session token stays in memory for this tab and is cleared when you sign out or close it. Admin rights are verified server-side.</p>
 </main>
 <main id="app-view" class="wrap hidden">
  <div class="headrow"><div><div class="eyebrow">Operations overview</div><h1>Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary">Refresh data</button></div></div>
@@ -34,11 +32,14 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
 </main>
 <script>
 (() => {
- let accessToken = null, apiBase = "", activePage = "overview";
+ const SUPABASE_URL = "https://nphbhlxnujmylhubzmne.supabase.co";
+ const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_0BnXY2k96nRr0k0zaZvMgQ_IQYSlyQu";
+ const API_BASE_URL = "https://lifelink-api-uzje.onrender.com";
+ let accessToken = null, activePage = "overview";
  const $ = id => document.getElementById(id);
  const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
  const message = (id, text, error=false) => { const el=$(id); el.textContent=text; el.classList.toggle("hidden",!text); el.classList.toggle("error",error); };
- const url = path => apiBase.replace(/\/$/,"") + path;
+ const url = path => API_BASE_URL + path;
  async function api(path, options={}) {
    const response = await fetch(url(path), { ...options, headers: { "Authorization":"Bearer "+accessToken, "Content-Type":"application/json", "X-Correlation-ID": crypto.randomUUID(), ...(options.headers||{}) }});
    const body = await response.text(); let data={}; try { data=body?JSON.parse(body):{}; } catch {}
@@ -46,20 +47,8 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
    return data;
  }
  async function signIn() {
-   const supabase=$("supabase-url").value.trim().replace(/\/$/,""), key=$("supabase-key").value.trim();
-   apiBase=$("api-url").value.trim().replace(/\/$/,"");
-   const secureEndpoint = value => {
-     try {
-       const parsed = new URL(value);
-       return parsed.protocol === "https:" ||
-         (parsed.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname));
-     } catch { return false; }
-   };
-   if (!supabase || !key || !apiBase || !$("email").value.trim() || !$("password").value) { message("login-message","Complete all fields first.",true); return; }
-   if (!secureEndpoint(supabase) || !secureEndpoint(apiBase)) {
-     message("login-message","Use HTTPS for Supabase and the LifeLink API. HTTP is allowed only for localhost development.",true);
-     return;
-   }
+   const supabase=SUPABASE_URL, key=SUPABASE_PUBLISHABLE_KEY;
+   if (!$("email").value.trim() || !$("password").value) { message("login-message","Enter your email and password.",true); return; }
    $("signin").disabled=true; message("login-message","Signing in…");
    try {
      const response=await fetch(supabase+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":key,"Content-Type":"application/json"},body:JSON.stringify({email:$("email").value.trim(),password:$("password").value})});
@@ -103,7 +92,7 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
  $("password").addEventListener("keydown",e=>{if(e.key==="Enter")signIn()});
  document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>loadPage(b.dataset.page)));
  $("refresh").addEventListener("click",()=>loadPage(activePage));
- $("signout").addEventListener("click",()=>{accessToken=null;apiBase="";$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("supabase-key").value="";$("password").value="";message("login-message","Signed out.");});
+ $("signout").addEventListener("click",()=>{accessToken=null;$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("password").value="";message("login-message","Signed out.");});
 })();
 </script>
 </body></html>
