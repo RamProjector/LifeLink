@@ -181,11 +181,12 @@ fun LifeLinkShell(
     var conversationDonorId by rememberSaveable { mutableStateOf("") }
     var conversationOpenedFromDonor by rememberSaveable { mutableStateOf(false) }
     val closeConversation = {
-        // Restore the originating workspace before dismissing the conversation.
-        // Explicit origin is supplied by the caller; it must not depend on a captured
-        // value of showDonor from a previous composition.
-        if (conversationOpenedFromDonor) showDonor = true
+        // Restore the exact workspace that opened this conversation. Assign both
+        // states explicitly so a stale donor flag cannot leak into requester flows
+        // (or leave a donor returning to the shell after system Back).
+        showDonor = conversationOpenedFromDonor
         showConversation = false
+        conversationOpenedFromDonor = false
     }
     val openConversationFrom: (String, String, Boolean) -> Unit = { requestId, donorId, fromDonor ->
         conversationRequestId = requestId
