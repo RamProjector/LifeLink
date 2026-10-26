@@ -60,6 +60,11 @@ import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 private const val DEFAULT_MAP_LATITUDE = 14.5995
 private const val DEFAULT_MAP_LONGITUDE = 120.9842
 
+private fun donorAreaCountLabel(count: Int, qualifier: String? = null): String {
+    val noun = if (count == 1) "area" else "areas"
+    return if (qualifier == null) "$count $noun" else "$count $qualifier $noun"
+}
+
 /**
  * Donor map. Shows opt-in, coarsened donor pins and a freshness timestamp only \u2014 never
  * exact coordinates or donor identities. Donors control their own
@@ -286,7 +291,7 @@ fun DonorMapScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "${filteredAreas.size} matching areas",
+                                donorAreaCountLabel(filteredAreas.size, qualifier = "matching"),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -333,7 +338,7 @@ fun DonorMapScreen(
                         Modifier.padding(start = 8.dp).weight(1f),
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    Text("${filteredAreas.size} areas", style = MaterialTheme.typography.labelMedium)
+                    Text(donorAreaCountLabel(filteredAreas.size), style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
