@@ -38,10 +38,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -52,9 +48,33 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.domain.ChatMessage
 import com.lifelink.app.domain.ContactShare
+import kotlinx.coroutines.delay
+
+/**
+ * Polls while the conversation is resumed and stops automatically in the background.
+ */
+@Composable
+private fun ConversationRefreshEffect(
+    conversationId: String?,
+    onAction: (PrivacyAction) -> Unit,
+) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(conversationId, lifecycleOwner) {
+        if (conversationId.isNullOrBlank()) return@LaunchedEffect
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                delay(8_000)
+                onAction(PrivacyAction.RefreshConversation)
+            }
+        }
+    }
+}
 
 /**
  * In-app conversation between the requester and donor of one request. Messages
@@ -71,16 +91,7 @@ fun ConversationScreen(
     onBack: () -> Unit,
 ) {
     LaunchedEffect(requestId, donorId) { onAction(PrivacyAction.OpenConversation(requestId, donorId)) }
-    val lifecycleOwner = LocalLifecycleOwner.current
-    LaunchedEffect(state.conversationId, lifecycleOwner) {
-        if (state.conversationId.isNullOrBlank()) return@LaunchedEffect
-        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            while (true) {
-                delay(8_000)
-                onAction(PrivacyAction.RefreshConversation)
-            }
-        }
-    }
+    ConversationRefreshEffect(state.conversationId, onAction)
     var draft by remember { mutableStateOf("") }
     var contactField by remember { mutableStateOf("phone") }
     var contactValue by remember { mutableStateOf("") }
