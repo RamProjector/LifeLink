@@ -163,7 +163,6 @@ fun LifeLinkShell(
     onMarkAllUpdatesRead: () -> Unit,
     notificationOpenUpdates: Boolean = false,
     notificationRequestId: String? = null,
-    notificationConversationId: String? = null,
 ) {
     val context = LocalContext.current
     val welcomePrefs = context.getSharedPreferences("lifelink_welcome", 0)
@@ -212,10 +211,16 @@ fun LifeLinkShell(
         showStart = false
     }
     LaunchedEffect(notificationRequestId) {
-        notificationRequestId?.takeIf { it.isNotBlank() }?.let {
+        notificationRequestId?.takeIf { it.isNotBlank() }?.let { destination ->
             showStart = false
-            showActive = true
-            onAction(EmergencyRequestAction.OpenRequest(it))
+            if (destination.startsWith("conversation:")) {
+                showActive = false
+                showNotifications = false
+                tab = ShellTab.MESSAGING
+            } else {
+                showActive = true
+                onAction(EmergencyRequestAction.OpenRequest(destination))
+            }
         }
     }
     LaunchedEffect(notificationOpenUpdates) {
@@ -224,14 +229,7 @@ fun LifeLinkShell(
             showNotifications = true
         }
     }
-    LaunchedEffect(notificationConversationId) {
-        if (!notificationConversationId.isNullOrBlank()) {
-            showStart = false
-            showNotifications = false
-            showActive = false
-            tab = ShellTab.MESSAGING
-        }
-    }
+
 
     if (showStart) {
         StartContent(
@@ -422,7 +420,9 @@ fun LifeLinkShell(
                                     state = privacyState,
                                     onAction = onPrivacyAction,
                                     onOpenConversation = openConversation,
-                                    targetConversationId = notificationConversationId,
+                                    targetConversationId = notificationRequestId
+                                        ?.takeIf { it.startsWith("conversation:") }
+                                        ?.removePrefix("conversation:"),
                                 )
                             ShellTab.PROFILE ->
                                 SettingsContent(
