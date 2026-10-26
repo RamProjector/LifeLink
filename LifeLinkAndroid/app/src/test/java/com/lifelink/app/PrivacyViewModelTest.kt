@@ -272,6 +272,23 @@ class PrivacyViewModelTest {
         assertEquals(listOf("chat-old" to "Hello"), repository.sends)
     }
 
+    /** Refreshes a visible conversation so messages sent by the other participant appear without reopening chat. */
+    @Test
+    fun refresh_action_reloads_current_conversation_messages_and_contact_shares() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+        val incomingMessage = chatMessage("chat-old").copy(messageId = "incoming-2", body = "New message from the other participant")
+        repository.loadedMessages = listOf(chatMessage("chat-old"), incomingMessage)
+        repository.loadedShares = listOf(contactShare("chat-old"), contactShare("chat-old").copy(shareId = "share-2"))
+
+        viewModel.onAction(PrivacyAction.RefreshConversation)
+
+        assertEquals(repository.loadedMessages, viewModel.state.value.messages)
+        assertEquals(repository.loadedShares, viewModel.state.value.contactShares)
+        assertEquals(listOf("chat-old", "chat-old"), repository.messageReads)
+        assertEquals(listOf("chat-old", "chat-old"), repository.shareReads)
+        assertFalse(viewModel.state.value.chatLoading)
+    }
+
     /** Asserts that the conversation ID, messages, and contact shares have all been cleared. */
     private fun assertNoConversationContent() {
         assertNull(viewModel.state.value.conversationId)
