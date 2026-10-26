@@ -99,7 +99,9 @@ class ConversationNavigationTest {
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
 
         composeRule.onNodeWithText("Conversation").assertDoesNotExist()
-        composeRule.onNodeWithText("Donor workspace").assertIsDisplayed()
+        // Back should restore the donor workspace at its previous Requests tab, not reset it to the dashboard.
+        composeRule.onNodeWithTag("donor-tab-REQUESTS").assertIsDisplayed().assertIsSelected()
+        composeRule.onNodeWithText("Message requester").performScrollTo().assertIsDisplayed()
         assertOpenedTimes(1)
     }
 
