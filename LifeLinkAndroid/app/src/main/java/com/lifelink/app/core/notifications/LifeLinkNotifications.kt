@@ -86,6 +86,7 @@ object LifeLinkNotifications {
         val conversationId = data["conversation_id"]?.takeIf { it.isNotBlank() }
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("notification_event_id", eventId)
             when {
                 conversationId != null -> putExtra("conversation_id", conversationId)
                 requestId != null -> putExtra("request_id", requestId)
