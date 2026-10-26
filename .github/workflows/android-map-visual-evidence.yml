@@ -165,7 +165,7 @@ jobs:
           find "$evidence" -type f -print || true
 
       - name: Require expected screenshots in the evidence artifact
-        if: success()
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
