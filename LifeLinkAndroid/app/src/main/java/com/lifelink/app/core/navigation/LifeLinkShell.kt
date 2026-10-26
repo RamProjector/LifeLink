@@ -237,7 +237,6 @@ fun LifeLinkShell(
         }
     }
 
-
     if (showStart) {
         StartContent(
             role = role,
