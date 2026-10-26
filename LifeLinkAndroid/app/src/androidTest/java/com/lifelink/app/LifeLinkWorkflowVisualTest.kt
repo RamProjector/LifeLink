@@ -20,9 +20,12 @@ import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.domain.ActiveRequestStatus
+import com.lifelink.app.domain.DonorMap
+import com.lifelink.app.domain.DonorMapArea
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
+import com.lifelink.app.feature.privacy.PrivacyUiState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,6 +39,7 @@ class LifeLinkWorkflowVisualTest {
         state: EmergencyRequestUiState = EmergencyRequestUiState(),
         updates: List<com.lifelink.app.domain.UpdateItem> = emptyList(),
         role: UserRole = UserRole.REQUESTER,
+        privacyState: PrivacyUiState = PrivacyUiState(),
         onAction: (com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction) -> Unit = {},
     ) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -54,7 +58,7 @@ class LifeLinkWorkflowVisualTest {
                         onDonorAction = {},
                         becomeDonorState = com.lifelink.app.feature.donor.BecomeDonorUiState(loading = false),
                         onBecomeDonorAction = {},
-                        privacyState = com.lifelink.app.feature.privacy.PrivacyUiState(),
+                        privacyState = privacyState,
                         onPrivacyAction = {},
                         role = role,
                         onSwitchRole = {},
@@ -85,7 +89,7 @@ class LifeLinkWorkflowVisualTest {
     /** Verifies navigation through requests, notifications, settings, and donor setup, capturing each screen. */
     @Test
     fun navigatesCoreWorkflowsAndCapturesEvidence() {
-        render()
+        render(privacyState = syntheticMapState())
         assertVisible("Your requests")
         capture("workflow-home")
 
@@ -93,11 +97,32 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
         composeRule.onNodeWithTag("toggle-donor-map-view").assertIsDisplayed()
+        awaitMapRender()
+        capture("workflow-donor-map-synthetic")
+
+        // Synthetic fixture data exercises both filter dimensions without touching a backend.
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("Available now", substring = false).performClick()
+        composeRule.onNodeWithText("A-", substring = false).performClick()
+        composeRule.onNodeWithContentDescription("Hide map filters").performClick()
+        composeRule.onNodeWithText("No areas match these filters", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("Available now", substring = false).performClick()
+        composeRule.onNodeWithText("O+", substring = false).performClick()
+        composeRule.onNodeWithContentDescription("Hide map filters").performClick()
         composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
         composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic O+ area", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("O+ · Available", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic A- area", substring = false).assertDoesNotExist()
+        capture("workflow-donor-map-filtered-list")
+
         composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
-        capture("workflow-donor-map")
+        awaitMapRender()
+        capture("workflow-donor-map-filtered")
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
 
@@ -212,6 +237,48 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Request history-29")
         capture("request-history")
     }
+
+    /** Waits for MapLibre's loaded-map callback; Compose idleness alone does not mean tiles rendered. */
+    private fun awaitMapRender() {
+        composeRule.waitUntil(timeoutMillis = 35_000) {
+            composeRule.onAllNodesWithTag("donor-map-render-ready").fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithTag("donor-map-render-error").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("donor-map-render-ready").assertIsDisplayed()
+    }
+
+    /** Fake coarsened locations for emulator-only UI tests; never loaded or persisted to a backend. */
+    private fun syntheticMapState() =
+        PrivacyUiState(
+            map = DonorMap(
+                generatedAt = "2026-10-26T00:00:00Z",
+                approximateOnly = true,
+                areas = listOf(
+                    DonorMapArea(
+                        areaLabel = "Synthetic O+ area",
+                        latitude = 14.5998,
+                        longitude = 120.9846,
+                        radiusMeters = 1200,
+                        bloodType = "O+",
+                        availability = "Available",
+                        freshnessAt = "2026-10-26T00:00:00Z",
+                        freshnessAgeMinutes = 4,
+                        isStale = false,
+                    ),
+                    DonorMapArea(
+                        areaLabel = "Synthetic A- area",
+                        latitude = 14.6020,
+                        longitude = 120.9870,
+                        radiusMeters = 1600,
+                        bloodType = "A-",
+                        availability = "Unavailable",
+                        freshnessAt = "2026-10-26T00:00:00Z",
+                        freshnessAgeMinutes = 9,
+                        isStale = false,
+                    ),
+                ),
+            ),
+        )
 
     private fun tapTab(label: String) {
         composeRule.onNodeWithTag("nav-${label.uppercase()}").performClick()
