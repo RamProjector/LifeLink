@@ -26,11 +26,11 @@ object LifeLinkNotifications {
             NotificationChannel(
                 EMERGENCY_CHANNEL_ID,
                 "Emergency blood requests",
-                NotificationManager.IMPORTANCE_HIGH
+                NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 description = "Time-sensitive requests relevant to the donor or coordinator"
                 enableVibration(true)
-            }
+            },
         )
     }
 
@@ -69,7 +69,7 @@ object LifeLinkNotifications {
                 title = title,
                 body = body,
                 requestId = requestId,
-                actionKey = if (requestId != null) "request" else "updates"
+                actionKey = if (requestId != null) "request" else "updates",
             )
         }
         if (!canPostNotification) return
