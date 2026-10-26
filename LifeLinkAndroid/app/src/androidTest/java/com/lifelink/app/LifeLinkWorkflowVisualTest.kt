@@ -1,7 +1,9 @@
 package com.lifelink.app
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
@@ -17,6 +19,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
@@ -28,6 +31,7 @@ import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
 import com.lifelink.app.feature.privacy.PrivacyUiState
+import java.io.File
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -217,13 +221,16 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
         composeRule.onNodeWithTag("toggle-donor-map-view").assertIsDisplayed()
         awaitMapRender()
-        composeRule.waitUntil(timeoutMillis = 5_000) { countVisibleDonorPinPixels() >= 800 }
-        val unfilteredPinPixels = countVisibleDonorPinPixels()
+        // Capture through the same UiDevice path as uploaded evidence before asserting native pin pixels.
+        capture("workflow-donor-map-synthetic")
+        val unfilteredPinPixels = awaitDonorPinPixels(
+            minimumCount = 800,
+            failureMessage = "Expected two distinct synthetic donor pins to be visible.",
+        )
         assertTrue(
             "Expected two distinct synthetic donor pins to be visible; found $unfilteredPinPixels matching pixels.",
             unfilteredPinPixels >= 800,
         )
-        capture("workflow-donor-map-synthetic")
 
         composeRule.onNodeWithContentDescription("Show map filters").performClick()
         composeRule.onNodeWithText("Available now", substring = false).performClick()
@@ -246,11 +253,11 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         awaitMapRender()
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            val filteredPinPixels = countVisibleDonorPinPixels()
-            filteredPinPixels > 0 && filteredPinPixels < unfilteredPinPixels * 0.75
-        }
-        val filteredPinPixels = countVisibleDonorPinPixels()
+        val filteredPinPixels = awaitDonorPinPixels(
+            minimumCount = 1,
+            maximumCountExclusive = unfilteredPinPixels * 0.75,
+            failureMessage = "Filtering to available O+ areas should remove the unavailable synthetic pin.",
+        )
         assertTrue(
             "Filtering to available O+ areas should remove the unavailable synthetic pin; " +
                 "before=$unfilteredPinPixels pixels, after=$filteredPinPixels pixels.",
@@ -274,10 +281,31 @@ class LifeLinkWorkflowVisualTest {
      * Counts the custom donor-pin color in the map viewport, excluding the status and bottom-navigation bars.
      * This verifies native marker pixels, not merely the Compose loading state or map-style callback.
      */
+    private fun awaitDonorPinPixels(
+        minimumCount: Int,
+        maximumCountExclusive: Double = Double.POSITIVE_INFINITY,
+        failureMessage: String,
+    ): Int {
+        val deadline = SystemClock.uptimeMillis() + 5_000L
+        var lastCount = 0
+        do {
+            lastCount = countVisibleDonorPinPixels()
+            if (lastCount >= minimumCount && lastCount < maximumCountExclusive) return lastCount
+            SystemClock.sleep(100L)
+        } while (SystemClock.uptimeMillis() < deadline)
+        throw AssertionError("$failureMessage Last observed matching pixels: $lastCount.")
+    }
+
     private fun countVisibleDonorPinPixels(): Int {
-        val screenshot = requireNotNull(
-            InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot(),
-        ) { "Could not capture the emulator screen to verify donor pins." }
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val screenshotFile = File(instrumentation.targetContext.cacheDir, "lifelink-donor-pin-pixel-check.png")
+        screenshotFile.delete()
+        check(UiDevice.getInstance(instrumentation).takeScreenshot(screenshotFile)) {
+            "Could not capture the emulator screen to verify donor pins."
+        }
+        val screenshot = requireNotNull(BitmapFactory.decodeFile(screenshotFile.absolutePath)) {
+            "Could not decode the emulator screenshot to verify donor pins."
+        }
         try {
             var matchingPixels = 0
             val startX = screenshot.width / 8
@@ -290,6 +318,7 @@ class LifeLinkWorkflowVisualTest {
             return matchingPixels
         } finally {
             screenshot.recycle()
+            screenshotFile.delete()
         }
     }
 
