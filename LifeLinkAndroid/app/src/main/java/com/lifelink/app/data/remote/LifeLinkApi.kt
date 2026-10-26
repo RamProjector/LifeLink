@@ -25,7 +25,10 @@ interface LifeLinkApi {
     suspend fun adminDashboard(): Response<AdminDashboardResponse>
 
     @GET("v1/admin/users")
-    suspend fun adminUsers(@retrofit2.http.Query("limit") limit: Int = 100): Response<AdminUsersResponse>
+    suspend fun adminUsers(
+        @retrofit2.http.Query("limit") limit: Int = 50,
+        @retrofit2.http.Query("offset") offset: Int = 0,
+    ): Response<AdminUsersResponse>
 
     @PATCH("v1/admin/users/{userId}")
     suspend fun adminUpdateUser(
@@ -34,10 +37,16 @@ interface LifeLinkApi {
     ): Response<AdminUserUpdateResponse>
 
     @GET("v1/admin/audit")
-    suspend fun adminAudit(@retrofit2.http.Query("limit") limit: Int = 100): Response<AdminAuditResponse>
+    suspend fun adminAudit(
+        @retrofit2.http.Query("limit") limit: Int = 50,
+        @retrofit2.http.Query("offset") offset: Int = 0,
+    ): Response<AdminAuditResponse>
 
     @GET("v1/admin/errors")
-    suspend fun adminErrors(@retrofit2.http.Query("limit") limit: Int = 100): Response<AdminAuditResponse>
+    suspend fun adminErrors(
+        @retrofit2.http.Query("limit") limit: Int = 50,
+        @retrofit2.http.Query("offset") offset: Int = 0,
+    ): Response<AdminAuditResponse>
 
     @GET("health")
     suspend fun health(): Response<Map<String, String>>

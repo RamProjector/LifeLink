@@ -30,7 +30,7 @@ No administrator UUID or credentials are configured by this change. Do not add t
 
 ## Web console
 
-Serve admin-web/index.html over HTTPS using an existing static host. Enter the Supabase project URL, the publishable/anon key, and the LifeLink API base URL at sign-in. Values are not written to local storage; the access token remains in page memory and is cleared on sign-out. Configure LIFELINK_CORS_ORIGINS on the API host with only the exact deployed admin-web origin (comma-separated for multiple known origins) before deployment. The API rejects wildcard entries and does not enable credentialed CORS. Do not add broad origins.
+Serve admin-web/index.html over HTTPS using the configured static host. The deployed console uses preconfigured public client settings and exposes only email/password fields. These public settings are not secrets; never include a service-role key. The API origin is fixed in the console, and the access token remains in page memory and is cleared on sign-out. Configure LIFELINK_CORS_ORIGINS on the API host with only exact trusted web origins. The API rejects wildcard entries and does not enable credentialed CORS. Do not add broad origins.
 
 ## Android console
 
@@ -54,6 +54,7 @@ All admin endpoints require a valid Supabase access token and an allowlisted use
 - [ ] Confirm unauthenticated requests return 401 and ordinary users return 403.
 - [ ] Confirm a profile's editable role/user metadata cannot grant admin access.
 - [ ] Confirm dashboard, user-list, update, audit-read and error-read events are persisted.
+- [ ] Verify user, audit, and error views can navigate through records beyond the first page without duplicating or skipping entries.
 - [ ] Confirm a denied admin request and a simulated unhandled API error appear in the error view.
 - [ ] Confirm no access tokens, passwords, exact locations, or request bodies are present in audit metadata.
 - [ ] Configure exact-origin CORS and HTTPS before exposing the web console.
