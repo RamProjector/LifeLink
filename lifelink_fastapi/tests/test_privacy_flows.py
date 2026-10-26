@@ -69,7 +69,8 @@ def run_scenario(pg_url: str, scenario):
 
                 async def run_sql(statement: str):
                     async with engine.begin() as conn:
-                        await conn.execute(text(statement))
+                        result = await conn.execute(text(statement))
+                        return result.fetchall() if result.returns_rows else None
 
                 await scenario(client, current, run_sql)
         finally:
@@ -708,6 +709,15 @@ def test_conversation_moderation_is_available_to_either_participant(pg_url):
         )
         assert reported.status_code == 200, reported.text
         assert reported.json()["action"] == "reported"
+
+        # Audit records the moderation action without duplicating user-written
+        # report text, which may contain personal or sensitive information.
+        audit_rows = await run_sql(
+            "SELECT metadata::text FROM audit_events WHERE action = 'conversation_reported'"
+        )
+        assert audit_rows is not None and len(audit_rows) == 1
+        assert "spam" not in audit_rows[0][0]
+        assert '"reason_provided": true' in audit_rows[0][0]
 
         # The donor blocks the requester.
         blocked = await client.post(f"/v1/conversations/{conversation_id}/block", json={})
