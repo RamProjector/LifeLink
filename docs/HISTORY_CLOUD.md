@@ -191,3 +191,10 @@ The cloud audit compared every Android API declaration with the FastAPI route in
 ## Audit10 — Repository hygiene and CI security
 
 The live cloud repository was reviewed for tracked secrets, generated directories, and unnecessary build logs. The workflow now uses least-privilege read-only contents permission and cancels superseded runs, which is a practical CI hardening pattern for public or private repositories.
+
+
+## Documentation and client improvement plan — 2026-10-26
+
+The repository documentation was expanded with two practical references: a repository guide for navigating the Android, FastAPI, Supabase/PostGIS, Render, security, and CI components; and an Android client audit that turns the next UX and reliability improvements into prioritized requirements and acceptance checks.
+
+The client work should proceed from safety and correctness to completeness: first make donor-map empty/loading/error states truthful and preserve privacy-safe approximate areas; then make location permission, source, accuracy, and consent explicit; verify authentication/session and role transitions; complete request history and contact lifecycle; then harden chat, notifications, privacy controls, accessibility, and lifecycle/performance. Each implementation step should include automated tests and honest emulator/physical-device verification notes. No paid service or OpenAI API key is required for this plan.
