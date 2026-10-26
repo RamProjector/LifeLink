@@ -48,6 +48,8 @@ sealed interface PrivacyAction {
 
     data class OpenConversation(val requestId: String, val donorId: String) : PrivacyAction
 
+    data object RefreshConversation : PrivacyAction
+
     data object LoadConversations : PrivacyAction
 
     data class SendMessage(val body: String) : PrivacyAction
@@ -77,6 +79,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
      * active conversation's id, messages, or contact shares.
      */
     private var conversationGeneration = 0
+    private var conversationRefreshJob: kotlinx.coroutines.Job? = null
     private var mapLoadGeneration = 0
 
     fun onAction(action: PrivacyAction) {
@@ -87,6 +90,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
             is PrivacyAction.ActivateLocationShare -> activateShare(action.requestId, action.donorId)
             is PrivacyAction.RevokeLocationShare -> revokeShare(action.requestId, action.donorId)
             is PrivacyAction.OpenConversation -> openConversation(action.requestId, action.donorId)
+            PrivacyAction.RefreshConversation -> refreshCurrentConversation()
             PrivacyAction.LoadConversations -> loadConversations()
             is PrivacyAction.SendMessage -> sendMessage(action.body)
             is PrivacyAction.ShareContact -> shareContact(action.field, action.value)
@@ -252,8 +256,14 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
         }
     }
 
+    private fun refreshCurrentConversation() {
+        val conversationId = _state.value.conversationId ?: return
+        refreshConversation(conversationId, conversationGeneration)
+    }
+
     private fun refreshConversation(conversationId: String, generation: Int) {
-        viewModelScope.launch {
+        conversationRefreshJob?.cancel()
+        conversationRefreshJob = viewModelScope.launch {
             val messages = repository.messages(conversationId).getOrDefault(emptyList())
             val shares = repository.contactShares(conversationId).getOrDefault(emptyList())
             if (generation != conversationGeneration) return@launch
