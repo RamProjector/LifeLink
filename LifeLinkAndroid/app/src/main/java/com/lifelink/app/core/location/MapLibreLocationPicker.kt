@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -52,6 +53,7 @@ private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/li
 // If MapLibre never reports success or failure, the loading state must still end
 // so the picker does not spin forever.
 private const val MAP_LOAD_TIMEOUT_MS = 30_000L
+private const val MAP_RENDER_TIMEOUT_MS = 25_000L
 
 /**
  * Real native MapLibre map. No WebView or JavaScript is used. OpenFreeMap
@@ -268,6 +270,7 @@ fun MapLibrePrivacySafeDonorMap(
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf(false) }
+    var mapRendered by remember { mutableStateOf(false) }
     var retryRequest by remember { mutableStateOf(0) }
     var recenterRequest by remember { mutableStateOf(0) }
     var appliedRecenterRequest by remember { mutableStateOf(-1) }
@@ -300,18 +303,40 @@ fun MapLibrePrivacySafeDonorMap(
             mapError = true
         }
     }
+    // Style completion is not the same as visible tile rendering. Track MapLibre's
+    // fully-rendered callback so CI can detect a blank native map instead of passing
+    // after the style JSON alone has loaded.
+    LaunchedEffect(mapLoading, mapRendered, mapError, retryRequest) {
+        if (mapLoading || mapRendered || mapError) return@LaunchedEffect
+        delay(MAP_RENDER_TIMEOUT_MS)
+        if (!mapLoading && !mapRendered && !mapError) mapError = true
+    }
+    val mapRenderStatus = when {
+        mapError -> "Donor map unavailable"
+        mapLoading -> "Donor map loading"
+        mapRendered -> "Donor map rendered"
+        else -> "Donor map waiting for tiles"
+    }
     val mapModifier = if (fullScreen) modifier.fillMaxSize() else modifier.fillMaxWidth().height(280.dp)
     Box(mapModifier) {
         AndroidView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().testTag("donor-map-native-view").semantics {
+                contentDescription = listOf(mapRenderStatus)
+            },
             factory = {
                 mapView.apply {
                     addOnDidFailLoadingMapListener {
                         mapLoading = false
                         mapError = true
+                        mapRendered = false
+                    }
+                    addOnDidFinishRenderingMapListener { fully ->
+                        if (fully) mapRendered = true
                     }
                     getMapAsync { map ->
                         mapLoading = true
+                        mapError = false
+                        mapRendered = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
                             mapLoading = false
                             mapError = false
@@ -337,6 +362,7 @@ fun MapLibrePrivacySafeDonorMap(
                     if (retryRequest > 0) {
                         mapLoading = true
                         mapError = false
+                        mapRendered = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
                             mapLoading = false
                             mapError = false
@@ -393,6 +419,13 @@ fun MapLibrePrivacySafeDonorMap(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) { RowLoading() }
+            !mapRendered && !mapError -> Card(
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+            ) {
+                RowLoading()
+            }
             mapError -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Assertive },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
