@@ -7,7 +7,6 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -21,8 +20,6 @@ import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.domain.BloodType
-import com.lifelink.app.domain.DonorMap
-import com.lifelink.app.domain.DonorMapArea
 import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
