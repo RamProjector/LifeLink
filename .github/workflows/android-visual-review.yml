@@ -80,9 +80,9 @@ jobs:
       # runners do not expose /dev/kvm at all. Granting access lets the emulator
       # use hardware acceleration, which is the dominant cost of this job.
       #
-      # This step records whether the runner can execute the x86_64 emulator.
-      # The required guard below fails the job when KVM is unavailable, so
-      # skipped instrumentation cannot be mistaken for successful visual review.
+      # Prefer KVM for speed, but do not skip instrumentation when it is absent.
+      # The visual run below switches to the emulator's explicit software CPU
+      # mode when needed; the slower fallback still has to pass the same tests.
       - name: Enable KVM hardware acceleration (best effort)
         id: kvm
         run: |
@@ -100,15 +100,24 @@ jobs:
             echo "KVM is available: $(ls -l /dev/kvm)"
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::/dev/kvm is not accessible; the emulator cannot boot the x86_64 system image on this runner, so the emulator steps will be skipped."
+            echo "::warning::/dev/kvm is not accessible; selecting software CPU emulation instead of skipping instrumentation."
             echo "available=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Require KVM for visual instrumentation
-        if: steps.kvm.outputs.available != 'true'
+      - name: Select emulator acceleration mode
+        id: acceleration
+        env:
+          KVM_AVAILABLE: ${{ steps.kvm.outputs.available }}
         run: |
-          echo "::error::Visual review cannot run because /dev/kvm is unavailable or inaccessible. Instrumentation and screenshot evidence are required; this run must not be treated as a pass. Re-run on a GitHub-hosted runner with KVM enabled."
-          exit 1
+          if [[ "$KVM_AVAILABLE" == "true" ]]; then
+            echo "option=" >> "$GITHUB_OUTPUT"
+            echo "mode=KVM hardware acceleration" >> "$GITHUB_OUTPUT"
+            echo "Using KVM hardware acceleration."
+          else
+            echo "option=-accel off" >> "$GITHUB_OUTPUT"
+            echo "mode=software CPU emulation" >> "$GITHUB_OUTPUT"
+            echo "::warning::Using slower software CPU emulation. Instrumentation and screenshot evidence remain required."
+          fi
 
       - name: Build visual-test APKs
         # --no-daemon: the runner has 16 GB and the emulator below claims 4 GB
@@ -232,8 +241,9 @@ jobs:
           script: echo "Generated AVD snapshot for caching."
 
       - name: Run visual smoke test on emulator
-        if: steps.kvm.outputs.available == 'true'
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          ANDROID_I_WANT_MY_TCG: yes
         with:
           api-level: ${{ env.API_LEVEL }}
           target: ${{ env.AVD_TARGET }}
@@ -243,14 +253,18 @@ jobs:
           # -no-snapshot-save keeps the cached snapshot pristine; the emulator
           # still loads it, so boot is fast. -no-metrics / -camera-* none /
           # -netfast trim startup and runtime overhead; -gpu swiftshader_indirect
-          # keeps rendering deterministic on a headless runner. Hardware
-          # acceleration is provided by the KVM step above.
-          emulator-options: -no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics -camera-back none -camera-front none -netfast -gpu swiftshader_indirect
+          # keeps rendering deterministic on a headless runner. If KVM is
+          # missing, -accel off uses software CPU emulation; ANDROID_I_WANT_MY_TCG
+          # is set below because recent emulator builds require explicit opt-in.
+          emulator-options: >-
+            -no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics
+            -camera-back none -camera-front none -netfast -gpu swiftshader_indirect
+            ${{ steps.acceleration.outputs.option }}
           cores: 4
           ram-size: 4096M
           heap-size: 512M
           disk-size: 4096M
-          emulator-boot-timeout: 300
+          emulator-boot-timeout: 600
           disable-spellchecker: true
           disable-animations: true
           script: |
