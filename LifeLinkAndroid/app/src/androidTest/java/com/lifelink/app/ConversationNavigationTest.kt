@@ -8,7 +8,7 @@ import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
-import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -95,8 +95,7 @@ class ConversationNavigationTest {
         composeRule.onNodeWithContentDescription("Profile").performClick()
         composeRule.onNodeWithTag("open-donor-workspace").assertIsDisplayed().performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText("Donor workspace", substring = false)
-                .fetchSemanticsNodes().any { it.layoutInfo.isPlaced }
+            composeRule.onAllNodesWithTag("donor-workspace-screen").fetchSemanticsNodes().isNotEmpty()
         }
         // Capture the actual destination before asserting so a regression leaves a useful
         // screenshot in the CI artifact rather than only a line-number failure.
