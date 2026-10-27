@@ -183,8 +183,10 @@ fun LifeLinkShell(
     var conversationDonorId by rememberSaveable { mutableStateOf("") }
     var conversationOpenedFromDonor by rememberSaveable { mutableStateOf(false) }
     val closeConversation = {
-        // Restore the workspace that opened this conversation and clear any competing
-        // destination flags so a donor cannot land behind a stale request/updates screen.
+        // Conversation is a full-screen destination; explicitly leave its route and
+        // restore the originating workspace before clearing the conversation origin.
+        showStart = false
+        showConversation = false
         if (conversationOpenedFromDonor) {
             showActive = false
             showRequest = false
@@ -194,7 +196,6 @@ fun LifeLinkShell(
         } else {
             showDonor = false
         }
-        showConversation = false
         conversationOpenedFromDonor = false
     }
     val openConversationFrom: (String, String, Boolean) -> Unit = { requestId, donorId, fromDonor ->
