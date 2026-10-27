@@ -48,8 +48,16 @@ object VisualEvidence {
             "mkdir -p /sdcard/Pictures/LifeLinkEvidence && " +
                 "run-as com.lifelink.app cat files/$FALLBACK_DIR/$fileName " +
                 "> /sdcard/Pictures/LifeLinkEvidence/$fileName"
-        runCatching { device.executeShellCommand(command) }
-            .onFailure { Log.w(TAG, "Could not publish $fileName for CI collection", it) }
+        runCatching {
+            val output = device.executeShellCommand(
+                "$command && test -s /sdcard/Pictures/LifeLinkEvidence/$fileName && echo PUBLISHED || echo PUBLISH_FAILED",
+            ).bufferedReader().use { it.readText().trim() }
+            if (output.contains("PUBLISHED")) {
+                Log.i(TAG, "Published $fileName for CI collection")
+            } else {
+                Log.w(TAG, "Could not publish $fileName for CI collection: $output")
+            }
+        }.onFailure { Log.w(TAG, "Could not publish $fileName for CI collection", it) }
     }
 
     private fun evidenceDir(): File {
