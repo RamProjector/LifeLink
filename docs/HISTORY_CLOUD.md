@@ -191,3 +191,19 @@ The cloud audit compared every Android API declaration with the FastAPI route in
 ## Audit10 — Repository hygiene and CI security
 
 The live cloud repository was reviewed for tracked secrets, generated directories, and unnecessary build logs. The workflow now uses least-privilege read-only contents permission and cancels superseded runs, which is a practical CI hardening pattern for public or private repositories.
+
+
+## Documentation and client improvement plan — 2026-10-26
+
+The repository documentation was expanded with two practical references: a repository guide for navigating the Android, FastAPI, Supabase/PostGIS, Render, security, and CI components; and an Android client audit that turns the next UX and reliability improvements into prioritized requirements and acceptance checks.
+
+The client work should proceed from safety and correctness to completeness: first make donor-map empty/loading/error states truthful and preserve privacy-safe approximate areas; then make location permission, source, accuracy, and consent explicit; verify authentication/session and role transitions; complete request history and contact lifecycle; then harden chat, notifications, privacy controls, accessibility, and lifecycle/performance. Each implementation step should include automated tests and honest emulator/physical-device verification notes. No paid service or OpenAI API key is required for this plan.
+
+
+## 2026-10-28 — Why donor presence is tracked separately
+
+The donor workflow now distinguishes a donor's explicit availability preference from the freshness of the last location observation. Toggling a donor to “available” does not make an old coordinate fresh. The backend records `last_presence_at` from server-side presence updates, excludes stale coordinates from matching and location views, and expires the effective operational availability when presence becomes stale. The preference itself is preserved so a donor who returns to the foreground with precise location permission can refresh GPS and become eligible again; an explicit paused/offline choice is never overridden.
+
+The Android client requests precise location, removes manual donor coordinate entry in both donor screens, and sends presence only while the app is foregrounded for a verified donor who remains opted in. This reduces stale/fabricated-location opportunities but does not cryptographically attest GPS; a modified client can still attempt to submit fabricated coordinates. Public map results therefore remain approximate and anonymous, while exact-location access remains consent-based, request-scoped, time-limited, and server-authorized.
+
+These changes are consolidated in [PR #153](https://github.com/RamProjector/LifeLink/pull/153). Build/CI results are evidence of automated checks, not proof of live-device GPS behavior or live FCM delivery.

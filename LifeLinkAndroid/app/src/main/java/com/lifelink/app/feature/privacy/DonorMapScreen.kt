@@ -1,5 +1,6 @@
 package com.lifelink.app.feature.privacy
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,6 +57,61 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
+import com.lifelink.app.domain.DonorMapArea
+
+private fun donorAreaKey(area: DonorMapArea): String =
+    "${area.latitude}|${area.longitude}|${area.bloodType}|${area.freshnessAt}"
+
+@Composable
+private fun DonorAreaDetailsScreen(area: DonorMapArea, onBack: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        OutlinedButton(
+            onClick = onBack,
+            modifier = Modifier.testTag("donor-area-back"),
+        ) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+            Text("Back to map")
+        }
+        Text(
+            "Donor area details",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.semantics { heading() },
+        )
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(area.areaLabel, style = MaterialTheme.typography.titleMedium)
+                Text("Blood type: ${area.bloodType}")
+                Text("Availability: ${area.availability}")
+                Text("Approximate coverage: at least ${area.radiusMeters} m")
+                Text(
+                    if (area.isStale) {
+                        "Location may be out of date"
+                    } else {
+                        "Last updated about ${area.freshnessAgeMinutes} minutes ago"
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer,
+        ) {
+            Text(
+                "Privacy protected: this view shows an approximate area only. " +
+                    "Donor identity, contact details, and exact coordinates are not disclosed here.",
+                Modifier.fillMaxWidth().padding(16.dp),
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
 
 private const val DEFAULT_MAP_LATITUDE = 14.5995
 private const val DEFAULT_MAP_LONGITUDE = 120.9842
@@ -82,7 +138,13 @@ fun DonorMapScreen(
     var privacyOpen by rememberSaveable { mutableStateOf(false) }
     var selectedBloodType by rememberSaveable { mutableStateOf("All") }
     var availableOnly by rememberSaveable { mutableStateOf(false) }
+    var selectedAreaKey by rememberSaveable { mutableStateOf("") }
     val areas = state.map?.areas.orEmpty()
+    val selectedArea = areas.firstOrNull { donorAreaKey(it) == selectedAreaKey }
+    if (selectedArea != null) {
+        DonorAreaDetailsScreen(selectedArea) { selectedAreaKey = "" }
+        return
+    }
     val bloodTypes = listOf("All") + areas.map { it.bloodType }.distinct().sorted()
     val filteredAreas = areas.filter { area ->
         (selectedBloodType == "All" || area.bloodType == selectedBloodType) &&
@@ -112,7 +174,10 @@ fun DonorMapScreen(
                 ) {
                     items(filteredAreas) { area ->
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedAreaKey = donorAreaKey(area) }
+                                .testTag("donor-area-card"),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                             ),
@@ -151,6 +216,7 @@ fun DonorMapScreen(
                 areas = filteredAreas,
                 modifier = Modifier.fillMaxSize(),
                 fullScreen = true,
+                onAreaSelected = { area -> selectedAreaKey = donorAreaKey(area) },
             )
         }
 

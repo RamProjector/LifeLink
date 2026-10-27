@@ -80,6 +80,7 @@ class SqlAlchemyDonorStore:
                 longitude=Decimal(str(payload.longitude)),
                 available=False,
                 availability_updated_at=now,
+                last_presence_at=now,
                 verified=False,  # set by the server/admin, never by the client
                 service_radius_km=Decimal(str(payload.service_radius_km)),
                 estimated_response_probability=Decimal("0.50"),
@@ -95,6 +96,7 @@ class SqlAlchemyDonorStore:
             row.blood_type = payload.blood_type.value
             row.latitude = Decimal(str(payload.latitude))
             row.longitude = Decimal(str(payload.longitude))
+            row.last_presence_at = now
             row.service_radius_km = Decimal(str(payload.service_radius_km))
             # `verified` is intentionally left as stored: clients cannot verify themselves,
             # and re-saving a profile must not un-verify an already verified donor.

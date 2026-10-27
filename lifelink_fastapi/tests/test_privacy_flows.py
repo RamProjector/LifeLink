@@ -457,7 +457,7 @@ def test_stale_donor_is_hidden_from_the_map(pg_url):
         donor = new_user("donor")
         await setup_donor(client, current, donor, map_visible=True)
         await run_sql(
-            f"UPDATE donors SET availability_updated_at = now() - interval '10 days' WHERE id = '{donor}'"
+            f"UPDATE donors SET last_presence_at = now() - interval '10 days' WHERE id = '{donor}'"
         )
         current["id"] = new_user("viewer")
         body = (await client.get("/v1/donor-map")).json()
@@ -480,7 +480,7 @@ def test_exact_location_requires_a_fresh_donor_location(pg_url):
 
         # The donor's snapshot goes stale: the pin must stop being disclosed.
         await run_sql(
-            f"UPDATE donors SET availability_updated_at = now() - interval '10 days' WHERE id = '{donor}'"
+            f"UPDATE donors SET last_presence_at = now() - interval '10 days' WHERE id = '{donor}'"
         )
         after = await client.get(
             f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"

@@ -442,19 +442,18 @@ def require_verified_donors() -> bool:
 
 
 def donor_location_max_age_minutes() -> float:
-    """Return the maximum age of a donor's availability/location snapshot.
+    """Return the maximum age allowed for a donor's last location/presence observation.
 
-    ``availability_updated_at`` is the timestamp currently carried by both the
-    in-memory and PostgreSQL donor models. Treat it as the freshness of the
-    donor's location so old coordinates are not used indefinitely. Deployments
-    may tighten or relax the policy without a schema change.
+    The PostgreSQL path tracks location presence separately from availability
+    toggles. The in-memory path retains its single timestamp for compatibility.
+    Deployments may adjust this safety window without a schema change.
     """
-    raw = os.getenv("LIFELINK_DONOR_LOCATION_MAX_AGE_MINUTES", "1440")
+    raw = os.getenv("LIFELINK_DONOR_LOCATION_MAX_AGE_MINUTES", "15")
     try:
         value = float(raw)
     except (TypeError, ValueError):
-        return 1440.0
-    return value if value > 0 else 1440.0
+        return 15.0
+    return value if value > 0 else 15.0
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

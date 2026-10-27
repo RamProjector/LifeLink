@@ -13,6 +13,7 @@ data class DonorProfileMe(
     val bloodType: BloodType? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
+    val locationPrecisionMeters: Int = 1000,
     val area: String = "",
     val serviceRadiusKm: Int = 15,
     val availability: DonorAvailability = DonorAvailability.OFFLINE,

@@ -83,7 +83,7 @@ jobs:
         run: echo "$LIFELINK_DEBUG_KEYSTORE_BASE64" | base64 --decode > app/stable-debug.keystore
 
       - name: Validate and build debug APK
-        run: ./gradlew assembleDebug testDebugUnitTest lintDebug -PversionCode="${{ github.run_number }}" -PlifelinkApiBaseUrl="$API_BASE_URL" -PsupabaseUrl="$SUPABASE_URL_VALUE" -PsupabasePublishableKey="$SUPABASE_KEY_VALUE" --no-daemon --stacktrace
+        run: ./gradlew assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug -PversionCode="${{ github.run_number }}" -PlifelinkApiBaseUrl="$API_BASE_URL" -PsupabaseUrl="$SUPABASE_URL_VALUE" -PsupabasePublishableKey="$SUPABASE_KEY_VALUE" --no-daemon --stacktrace
 
       - name: Rename APKs
         run: |

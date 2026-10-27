@@ -1,25 +1,25 @@
 package com.lifelink.app.data.remote
 
 import com.lifelink.app.BuildConfig
+import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
 
 object RetrofitProvider {
     private const val DEFAULT_BASE_URL = "http://10.0.2.2:8000/"
 
     /**
-     * The token provider is deliberately injected so Firebase/Auth0/another
-     * identity provider can own refresh and secure storage in the production app.
+     * Account-scoped callers must inject the signed-in Supabase access token.
+     * Never bake a shared development identity or bearer token into the APK.
      */
     fun create(
         baseUrl: String = BuildConfig.LIFELINK_API_BASE_URL.ifBlank { DEFAULT_BASE_URL },
-        tokenProvider: () -> String? = { BuildConfig.LIFELINK_API_TOKEN.takeIf { it.isNotBlank() } },
-        onUnauthorized: (suspend () -> String?)? = null
+        tokenProvider: () -> String? = { null },
+        onUnauthorized: (suspend () -> String?)? = null,
     ): LifeLinkApi {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
@@ -37,7 +37,7 @@ object RetrofitProvider {
             chain.proceed(
                 chain.request().newBuilder()
                     .header("Authorization", "Bearer $refreshedToken")
-                    .build()
+                    .build(),
             )
         }
         val client = OkHttpClient.Builder()
