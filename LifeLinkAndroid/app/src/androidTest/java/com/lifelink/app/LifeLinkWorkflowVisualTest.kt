@@ -96,10 +96,8 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
         composeRule.onNodeWithTag("toggle-donor-map-view").assertIsDisplayed()
-        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
-        composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
-        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
-        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+        // Wait for the native map to finish rendering before switching views. Toggling
+        // to List disposes MapView, so doing it first would cancel the initial tile load.
         composeRule.waitUntil(timeoutMillis = 30_000) {
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
                 .fetchSemanticsNodes().isNotEmpty()
@@ -107,6 +105,13 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithContentDescription("Donor map rendered").assertIsDisplayed()
         composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
         capture("workflow-donor-map")
+
+        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
+        composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area B").assertIsDisplayed()
+        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
+        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
 
