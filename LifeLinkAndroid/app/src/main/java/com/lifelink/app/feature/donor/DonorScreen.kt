@@ -178,26 +178,27 @@ fun DonorScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize().testTag("donor-workspace-screen"),
         topBar = {
-        TopAppBar(
-            title = { Text("Donor workspace") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-            actions = {
-                IconButton(
-                    onClick = { fullScreenProfile = !fullScreenProfile },
-                    enabled = profileExpanded || fullScreenProfile,
-                ) {
-                    Icon(
-                        if (fullScreenProfile) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                        if (fullScreenProfile) "Exit full screen profile" else "Open profile in full screen",
-                    )
-                }
-                IconButton(
-                    onClick = { onAction(DonorAction.RefreshRequests) },
-                    enabled = !state.requestsRefreshing && state.profile.isSetupComplete,
-                ) { Icon(Icons.Default.Refresh, "Refresh requests") }
-            },
-        )
-    }) { padding ->
+            TopAppBar(
+                title = { Text("Donor workspace") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                actions = {
+                    IconButton(
+                        onClick = { fullScreenProfile = !fullScreenProfile },
+                        enabled = profileExpanded || fullScreenProfile,
+                    ) {
+                        Icon(
+                            if (fullScreenProfile) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                            if (fullScreenProfile) "Exit full screen profile" else "Open profile in full screen",
+                        )
+                    }
+                    IconButton(
+                        onClick = { onAction(DonorAction.RefreshRequests) },
+                        enabled = !state.requestsRefreshing && state.profile.isSetupComplete,
+                    ) { Icon(Icons.Default.Refresh, "Refresh requests") }
+                },
+            )
+        },
+    ) { padding ->
         if (fullScreenProfile) {
             // Full-screen profile editor: the whole surface is the form, so a long
             // donor profile is not cramped inside the tabbed workspace.
