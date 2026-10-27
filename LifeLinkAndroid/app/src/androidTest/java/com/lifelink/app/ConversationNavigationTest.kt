@@ -7,6 +7,8 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -19,6 +21,8 @@ import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.domain.BloodType
+import com.lifelink.app.domain.DonorMap
+import com.lifelink.app.domain.DonorMapArea
 import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
@@ -89,7 +93,15 @@ class ConversationNavigationTest {
     fun donor_can_open_chat_and_system_back_returns_to_the_donor_workspace() {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
         composeRule.onNodeWithContentDescription("Profile").performClick()
-        composeRule.onNodeWithText("Open donor workspace", substring = false).performClick()
+        composeRule.onNodeWithTag("open-donor-workspace").assertIsDisplayed().performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Donor workspace", substring = false)
+                .fetchSemanticsNodes().any { it.layoutInfo.isPlaced }
+        }
+        // Capture the actual destination before asserting so a regression leaves a useful
+        // screenshot in the CI artifact rather than only a line-number failure.
+        VisualEvidence.capture("lifelink-donor-workspace-after-open.png")
+        composeRule.onNodeWithTag("donor-workspace-screen").assertIsDisplayed()
         composeRule.onNodeWithText("Donor workspace", substring = false).assertIsDisplayed()
         composeRule.onNodeWithTag("donor-tab-REQUESTS").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Message requester").performScrollTo().performClick()
@@ -260,6 +272,38 @@ class ConversationNavigationTest {
 
         composeRule.runOnIdle { state.value = PrivacyUiState() }
         composeRule.onNodeWithText("No donor areas available").assertIsDisplayed()
+    }
+
+    /** Uses only a local synthetic fixture to verify list rendering and both donor-map filters. */
+    @Test
+    fun donor_map_synthetic_fixture_filters_areas_without_live_data() {
+        composeRule.setContent {
+            LifeLinkTheme {
+                DonorMapScreen(
+                    state = SyntheticDonorMapFixture.state,
+                    onAction = {},
+                    onBack = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
+        composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area B").assertIsDisplayed()
+
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("O+", substring = false).performClick()
+        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area B").assertDoesNotExist()
+
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+        composeRule.onNodeWithText("Synthetic Test Area B").assertIsDisplayed()
+        composeRule.onNodeWithText("Available now", substring = false).performClick()
+        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area B").assertDoesNotExist()
     }
 
     /** Renders a restorable shell for the supplied role, skips welcome, and records privacy actions. */
