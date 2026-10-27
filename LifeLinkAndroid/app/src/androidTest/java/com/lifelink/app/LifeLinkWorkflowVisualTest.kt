@@ -5,8 +5,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -23,8 +23,8 @@ import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.domain.ActiveRequestStatus
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.feature.donor.DonorUiState
-import com.lifelink.app.feature.privacy.PrivacyUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
+import com.lifelink.app.feature.privacy.PrivacyUiState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
