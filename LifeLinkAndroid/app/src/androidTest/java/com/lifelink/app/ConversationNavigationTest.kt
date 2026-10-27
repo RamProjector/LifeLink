@@ -89,8 +89,14 @@ class ConversationNavigationTest {
     fun donor_can_open_chat_and_system_back_returns_to_the_donor_workspace() {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
         composeRule.onNodeWithContentDescription("Profile").performClick()
-        composeRule.onNodeWithText("Open donor workspace", substring = false).performClick()
-        // Verify the donor workspace through its stable navigation semantics, not a screen-title assumption.
+        // The profile destination can scroll on smaller devices; bring its primary action into view
+        // before clicking so this regression test exercises navigation rather than viewport position.
+        composeRule.onNodeWithText("Open donor workspace", substring = false)
+            .performScrollTo()
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Donor workspace", substring = false).assertIsDisplayed()
         composeRule.onNodeWithTag("donor-tab-REQUESTS").assertIsDisplayed()
         composeRule.onNodeWithTag("donor-tab-REQUESTS").performClick()
         composeRule.onNodeWithText("Message requester").performScrollTo().performClick()
