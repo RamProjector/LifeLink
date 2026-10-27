@@ -51,7 +51,7 @@ object VisualEvidence {
         runCatching {
             val output = device.executeShellCommand(
                 "$command && test -s /sdcard/Pictures/LifeLinkEvidence/$fileName && echo PUBLISHED || echo PUBLISH_FAILED",
-            ).bufferedReader().use { it.readText().trim() }
+            ).trim()
             if (output.contains("PUBLISHED")) {
                 Log.i(TAG, "Published $fileName for CI collection")
             } else {
