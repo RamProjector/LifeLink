@@ -185,7 +185,6 @@ fun LifeLinkShell(
     val closeConversation = {
         // Conversation is a full-screen destination; explicitly leave its route and
         // restore the originating workspace before clearing the conversation origin.
-        showStart = false
         showConversation = false
         if (conversationOpenedFromDonor) {
             showActive = false
