@@ -183,10 +183,17 @@ fun LifeLinkShell(
     var conversationDonorId by rememberSaveable { mutableStateOf("") }
     var conversationOpenedFromDonor by rememberSaveable { mutableStateOf(false) }
     val closeConversation = {
-        // Restore the exact workspace that opened this conversation. Assign both
-        // states explicitly so a stale donor flag cannot leak into requester flows
-        // (or leave a donor returning to the shell after system Back).
-        showDonor = conversationOpenedFromDonor
+        // Restore the workspace that opened this conversation and clear any competing
+        // destination flags so a donor cannot land behind a stale request/updates screen.
+        if (conversationOpenedFromDonor) {
+            showActive = false
+            showRequest = false
+            showNotifications = false
+            showBecomeDonor = false
+            showDonor = true
+        } else {
+            showDonor = false
+        }
         showConversation = false
         conversationOpenedFromDonor = false
     }
