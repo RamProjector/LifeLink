@@ -429,7 +429,13 @@ def test_donor_presence_updates_location_and_server_freshness(pg_url):
         donor = new_user("donor")
         await create_account(client, current, donor)
         await opt_in_donor(client, current, donor, availability="available")
+        await run_sql(f"UPDATE donor_profiles SET verified = TRUE WHERE user_id = '{donor}'")
         current["id"] = donor
+        enabled = await client.patch(
+            "/v1/donor-profile/availability",
+            json={"availability_status": "available"},
+        )
+        assert enabled.status_code == 200, enabled.text
 
         response = await client.post(
             "/v1/donor-profile/presence",
@@ -443,6 +449,13 @@ def test_donor_presence_updates_location_and_server_freshness(pg_url):
         assert response.json()["latitude"] == pytest.approx(11.2501)
         assert response.json()["longitude"] == pytest.approx(125.0102)
 
+        # Prove a fresh, verified, explicitly available donor is matchable first.
+        current["id"] = new_user("requester")
+        fresh = await submit_request(client, current, new_user("requester"))
+        assert [match["donor_id"] for match in fresh["matches"]] == [donor]
+
+        # Then make the server-owned presence timestamp stale and ensure matching
+        # rejects the same donor even though their explicit preference is available.
         await run_sql(
             f"UPDATE donors SET last_presence_at = now() - interval '2 days' "
             f"WHERE id = '{donor}'"
