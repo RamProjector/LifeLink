@@ -143,21 +143,11 @@ jobs:
           mkdir -p "$evidence"
           timeout 15s adb logcat -d -v threadtime > "$evidence/logcat.txt" 2>&1 || true
           timeout 15s adb exec-out screencap -p > "$evidence/emulator-final-screen.png" 2>/dev/null || true
-          # Pull external app files, then explicitly copy private fallback screenshots.
-          timeout 20s adb pull /sdcard/Android/data/com.lifelink.app/files "$evidence/external-files" >/dev/null 2>&1 || true
-          private_pngs="$(timeout 10s adb shell run-as com.lifelink.app find files -type f -name '*.png' -print 2>/dev/null | tr -d '\\r' || true)"
-          if [[ -n "$private_pngs" ]]; then
-            while IFS= read -r relative_path; do
-              [[ -n "$relative_path" ]] || continue
-              filename="$(basename "$relative_path")"
-              timeout 10s adb exec-out run-as com.lifelink.app cat "$relative_path" > "$evidence/$filename" 2>/dev/null || true
-              [[ -s "$evidence/$filename" ]] || rm -f "$evidence/$filename"
-            done <<< "$private_pngs"
-          fi
-          echo "External app files:"
-          timeout 10s adb shell find /sdcard/Android/data/com.lifelink.app/files -type f -name '*.png' -print 2>&1 || true
-          echo "Private app PNG files:"
-          timeout 10s adb shell run-as com.lifelink.app find files -type f -name '*.png' -print 2>&1 || true
+          # Screenshots are copied to shared Pictures storage during instrumentation, before the
+          # Gradle test task can uninstall the target APK and make run-as unavailable.
+          timeout 20s adb pull /sdcard/Pictures/LifeLinkEvidence "$evidence/screenshots" >/dev/null 2>&1 || true
+          echo "Published workflow screenshots:"
+          find "$evidence/screenshots" -type f -name '*.png' -print 2>&1 || true
           cp -R LifeLinkAndroid/app/build/reports/androidTests "$evidence/" 2>/dev/null
           cp -R LifeLinkAndroid/app/build/outputs/androidTest-results "$evidence/" 2>/dev/null
           cp -R LifeLinkAndroid/app/build/reports/tests "$evidence/" 2>/dev/null
