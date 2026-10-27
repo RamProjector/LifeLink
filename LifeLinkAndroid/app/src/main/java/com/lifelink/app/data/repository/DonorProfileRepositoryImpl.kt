@@ -1,6 +1,7 @@
 package com.lifelink.app.data.repository
 
 import com.lifelink.app.data.remote.DonorAvailabilityToggleRequest
+import com.lifelink.app.data.remote.DonorPresenceRequest
 import com.lifelink.app.data.remote.DonorProfileMeRequest
 import com.lifelink.app.data.remote.DonorProfileMeResponse
 import com.lifelink.app.data.remote.LifeLinkApi
@@ -18,6 +19,8 @@ import kotlinx.coroutines.withContext
  * never sends a user id: the server resolves it from the verified JWT subject.
  */
 private const val HTTP_NOT_FOUND = 404
+private const val MIN_LOCATION_PRECISION_METERS = 1
+private const val MAX_LOCATION_PRECISION_METERS = 10_000
 
 class DonorProfileRepositoryImpl(private val api: LifeLinkApi) : DonorProfileRepository {
     override suspend fun load(): DonorProfileMe? = withContext(Dispatchers.IO) {
@@ -33,7 +36,20 @@ class DonorProfileRepositoryImpl(private val api: LifeLinkApi) : DonorProfileRep
             val detail = response.errorBody()?.string()?.takeIf { it.isNotBlank() }
             "Donor profile could not be saved (${response.code()})${detail?.let { ": $it" } ?: "."}"
         }
-        checkNotNull(response.body()) { "The server returned an empty donor profile." }.toDomain()
+        val saved = checkNotNull(response.body()) { "The server returned an empty donor profile." }.toDomain()
+        val latitude = checkNotNull(profile.latitude) { "Capture your current GPS location before saving." }
+        val longitude = checkNotNull(profile.longitude) { "Capture your current GPS location before saving." }
+        val presence = api.recordDonorPresence(
+            DonorPresenceRequest(
+                latitude = latitude,
+                longitude = longitude,
+                precisionMeters = profile.locationPrecisionMeters.coerceIn(MIN_LOCATION_PRECISION_METERS, MAX_LOCATION_PRECISION_METERS),
+            ),
+        )
+        check(presence.isSuccessful) {
+            "The server could not confirm your current location (${presence.code()}). Please retry."
+        }
+        saved.copy(locationPrecisionMeters = profile.locationPrecisionMeters)
     }
 
     override suspend fun setAvailability(availability: DonorAvailability): DonorProfileMe = withContext(Dispatchers.IO) {

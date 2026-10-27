@@ -163,6 +163,11 @@ interface LifeLinkApi {
     @GET("v1/donor-profile")
     suspend fun getDonorProfileMe(): Response<DonorProfileMeResponse>
 
+    @POST("v1/donor-profile/presence")
+    suspend fun recordDonorPresence(
+        @Body request: DonorPresenceRequest,
+    ): Response<DonorProfileMeResponse>
+
     @PATCH("v1/donor-profile/availability")
     suspend fun toggleDonorProfileAvailability(
         @Body request: DonorAvailabilityToggleRequest,
@@ -467,6 +472,8 @@ data class DonorProfileMeRequest(
     @SerializedName("preferred_contact_method") val preferredContactMethod: String = "in_app",
     @SerializedName("profile_visible") val profileVisible: Boolean = true,
 )
+
+data class DonorPresenceRequest(val latitude: Double, val longitude: Double, @SerializedName("precision_meters") val precisionMeters: Int)
 
 data class DonorAvailabilityToggleRequest(@SerializedName("availability_status") val availabilityStatus: String)
 

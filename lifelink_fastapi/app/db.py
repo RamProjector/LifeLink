@@ -100,7 +100,17 @@ async def create_all_tables() -> None:
             "ADD COLUMN IF NOT EXISTS profile_visible BOOLEAN NOT NULL DEFAULT TRUE, "
             "ADD COLUMN IF NOT EXISTS map_visible BOOLEAN NOT NULL DEFAULT FALSE, "
             "ADD COLUMN IF NOT EXISTS map_visibility_updated_at TIMESTAMPTZ, "
-            "ADD COLUMN IF NOT EXISTS exact_location_sharing_enabled BOOLEAN NOT NULL DEFAULT FALSE"
+            "ADD COLUMN IF NOT EXISTS exact_location_sharing_enabled BOOLEAN NOT NULL DEFAULT FALSE, "
+            "ADD COLUMN IF NOT EXISTS last_presence_at TIMESTAMPTZ"
+        ))
+        # Legacy rows inherit their last availability timestamp once. Future
+        # availability toggles no longer refresh location freshness.
+        await connection.execute(text(
+            "UPDATE donors SET last_presence_at = availability_updated_at "
+            "WHERE last_presence_at IS NULL"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_donors_last_presence_at ON donors (last_presence_at)"
         ))
         await connection.execute(text(
             "ALTER TABLE lifelink_profiles "

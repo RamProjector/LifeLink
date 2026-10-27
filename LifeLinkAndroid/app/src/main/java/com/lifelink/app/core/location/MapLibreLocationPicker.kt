@@ -32,7 +32,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -52,6 +54,7 @@ private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/li
 // If MapLibre never reports success or failure, the loading state must still end
 // so the picker does not spin forever.
 private const val MAP_LOAD_TIMEOUT_MS = 30_000L
+private const val MAP_RENDER_TIMEOUT_MS = 25_000L
 
 /**
  * Real native MapLibre map. No WebView or JavaScript is used. OpenFreeMap
@@ -263,11 +266,25 @@ fun MapLibrePrivacySafeDonorMap(
     areas: List<DonorMapArea> = emptyList(),
     modifier: Modifier = Modifier,
     fullScreen: Boolean = false,
+    onAreaSelected: (DonorMapArea) -> Unit = {},
 ) {
     val context = LocalContext.current
+    val latestAreas by rememberUpdatedState(areas)
+    val latestOnAreaSelected by rememberUpdatedState(onAreaSelected)
+    val onMarkerClick: (Marker) -> Boolean = { marker ->
+        val selected = latestAreas.minByOrNull { area ->
+            val latitudeDelta = area.latitude - marker.position.latitude
+            val longitudeDelta = area.longitude - marker.position.longitude
+            latitudeDelta * latitudeDelta + longitudeDelta * longitudeDelta
+        }
+        selected?.let(latestOnAreaSelected)
+        true
+    }
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf(false) }
+    var mapRendered by remember { mutableStateOf(false) }
+    var styleReady by remember { mutableStateOf(false) }
     var retryRequest by remember { mutableStateOf(0) }
     var recenterRequest by remember { mutableStateOf(0) }
     var appliedRecenterRequest by remember { mutableStateOf(-1) }
@@ -300,19 +317,54 @@ fun MapLibrePrivacySafeDonorMap(
             mapError = true
         }
     }
+    // Style completion is not the same as visible tile rendering. Track MapLibre's
+    // fully-rendered callback so CI can detect a blank native map instead of passing
+    // after the style JSON alone has loaded.
+    LaunchedEffect(mapLoading, mapRendered, mapError, retryRequest) {
+        if (mapLoading || mapRendered || mapError) return@LaunchedEffect
+        delay(MAP_RENDER_TIMEOUT_MS)
+        if (!mapLoading && !mapRendered && !mapError) mapError = true
+    }
+    val mapRenderStatus = when {
+        mapError -> "Donor map unavailable"
+        mapLoading -> "Donor map loading"
+        mapRendered -> "Donor map rendered"
+        else -> "Donor map waiting for tiles"
+    }
+    val renderStateTag = when {
+        mapError -> "maplibre-map-error"
+        mapLoading -> "maplibre-map-loading"
+        mapRendered -> "maplibre-map-rendered"
+        else -> "maplibre-map-not-rendered"
+    }
     val mapModifier = if (fullScreen) modifier.fillMaxSize() else modifier.fillMaxWidth().height(280.dp)
-    Box(mapModifier) {
+    Box(mapModifier.testTag(renderStateTag)) {
         AndroidView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().testTag("donor-map-native-view").semantics {
+                contentDescription = mapRenderStatus
+            },
             factory = {
                 mapView.apply {
                     addOnDidFailLoadingMapListener {
+                        styleReady = false
                         mapLoading = false
                         mapError = true
+                        mapRendered = false
+                    }
+                    addOnDidFinishRenderingMapListener { fully ->
+                        if (fully && styleReady) {
+                            mapRendered = true
+                            mapLoading = false
+                            mapError = false
+                        }
                     }
                     getMapAsync { map ->
+                        styleReady = false
                         mapLoading = true
+                        mapError = false
+                        mapRendered = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
+                            styleReady = true
                             mapLoading = false
                             mapError = false
                             map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
@@ -328,6 +380,7 @@ fun MapLibrePrivacySafeDonorMap(
                                 )
                             }
                             appliedAreasSignature = areasSignature
+                            map.setOnMarkerClickListener { marker -> onMarkerClick(marker) }
                         }
                     }
                 }
@@ -335,9 +388,12 @@ fun MapLibrePrivacySafeDonorMap(
             update = { view ->
                 view.getMapAsync { map ->
                     if (retryRequest > 0) {
+                        styleReady = false
                         mapLoading = true
                         mapError = false
+                        mapRendered = false
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
+                            styleReady = true
                             mapLoading = false
                             mapError = false
                             map.clear()
@@ -350,9 +406,13 @@ fun MapLibrePrivacySafeDonorMap(
                                 )
                             }
                             appliedAreasSignature = areasSignature
+                            appliedCenter = center
+                            appliedRecenterRequest = recenterRequest
+                            map.setOnMarkerClickListener { marker -> onMarkerClick(marker) }
                         }
                         retryRequest = 0
                     }
+                    if (!styleReady) return@getMapAsync
                     if (appliedAreasSignature != areasSignature) {
                         // Update annotations in place. Reloading the whole style for a
                         // blood-type/availability filter needlessly reloads map tiles.
@@ -366,11 +426,14 @@ fun MapLibrePrivacySafeDonorMap(
                             )
                         }
                         appliedAreasSignature = areasSignature
+                        map.setOnMarkerClickListener { marker -> onMarkerClick(marker) }
                     }
                     // Repeated Compose updates must not keep resetting the camera.
                     // Unnecessary camera moves cancel vector-tile requests and make the map
                     // feel broken while filters, loading state, or visibility controls change.
                     if (appliedCenter != center) {
+                        mapRendered = false
+                        mapError = false
                         map.cameraPosition = CameraPosition.Builder()
                             .target(center)
                             .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
@@ -378,6 +441,8 @@ fun MapLibrePrivacySafeDonorMap(
                         appliedCenter = center
                     }
                     if (appliedRecenterRequest != recenterRequest) {
+                        mapRendered = false
+                        mapError = false
                         map.cameraPosition = CameraPosition.Builder()
                             .target(center)
                             .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
@@ -393,6 +458,13 @@ fun MapLibrePrivacySafeDonorMap(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) { RowLoading() }
+            !mapRendered && !mapError -> Card(
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+            ) {
+                RowLoading()
+            }
             mapError -> Card(
                 Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Assertive },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),

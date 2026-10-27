@@ -1,5 +1,9 @@
 package com.lifelink.app.feature.donor
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,10 +36,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -45,10 +52,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfileMe
+import kotlinx.coroutines.launch
 
 /**
  * Separate donor-profile flow: opt in to donating after account creation.
@@ -87,7 +96,11 @@ private fun LoadingContent(padding: PaddingValues) {
 }
 
 @Composable
-private fun BecomeDonorContent(state: BecomeDonorUiState, onAction: (BecomeDonorAction) -> Unit, padding: PaddingValues) {
+private fun BecomeDonorContent(
+    state: BecomeDonorUiState,
+    onAction: (BecomeDonorAction) -> Unit,
+    padding: PaddingValues,
+) {
     Column(
         Modifier
             .fillMaxSize()
@@ -143,7 +156,8 @@ private fun VerificationCard(profile: DonorProfileMe) {
             Text(
                 when {
                     profile.isMatchable -> "You are verified and available. You can appear in matching results."
-                    !profile.verified -> "Waiting for verification. You will not appear in matching results until an admin verifies you."
+                    !profile.verified ->
+                        "Waiting for verification. You will not appear in matching results until an admin verifies you."
                     else -> "You are verified but not available. Set availability to Available to be matched."
                 },
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -188,25 +202,7 @@ private fun AvailabilityCard(profile: DonorProfileMe, saving: Boolean, onAction:
 private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAction) -> Unit) {
     val profile = state.draft
     var radius by rememberSaveable(profile.donorId) { mutableStateOf(profile.serviceRadiusKm.toString()) }
-    var latitude by rememberSaveable(profile.donorId) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
-    var longitude by rememberSaveable(profile.donorId) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
-    var coordinateError by rememberSaveable(profile.donorId) { mutableStateOf<String?>(null) }
-    val applyCoordinates: () -> Unit = {
-        val lat = latitude.toDoubleOrNull()
-        val lng = longitude.toDoubleOrNull()
-        when {
-            latitude.isBlank() || longitude.isBlank() ->
-                coordinateError = "Enter both a latitude and a longitude before applying."
-            lat == null || lng == null ->
-                coordinateError = "Use decimal numbers, for example 14.5995 and 120.9842."
-            !isInRange(lat, lng) ->
-                coordinateError = "Latitude must be between -90 and 90, and longitude between -180 and 180."
-            else -> {
-                coordinateError = null
-                onAction(BecomeDonorAction.UpdateDraft { it.copy(latitude = lat, longitude = lng) })
-            }
-        }
-    }
+    var gpsCapturedThisSession by remember(profile.donorId) { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
@@ -232,15 +228,30 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
             BloodTypePicker(profile.bloodType) { option ->
                 onAction(BecomeDonorAction.UpdateDraft { it.copy(bloodType = option) })
             }
-            LocationFields(
-                latitude = latitude,
-                longitude = longitude,
-                error = coordinateError,
-                onLatitudeChange = { latitude = it },
-                onLongitudeChange = { longitude = it },
-                onApply = applyCoordinates,
+            GpsLocationCapture(
+                latitude = profile.latitude,
+                longitude = profile.longitude,
+                capturedThisSession = gpsCapturedThisSession,
+                onCaptureStateChanged = { gpsCapturedThisSession = it },
+                onLocationCaptured = { latitude, longitude, precisionMeters ->
+                    onAction(
+                        BecomeDonorAction.UpdateDraft {
+                            it.copy(
+                                latitude = latitude,
+                                longitude = longitude,
+                                locationPrecisionMeters = precisionMeters,
+                            )
+                        },
+                    )
+                },
             )
-            RadiusAndSave(state, radius, onRadiusChange = { radius = it }, onAction = onAction)
+            RadiusAndSave(
+                state,
+                radius,
+                locationCaptured = gpsCapturedThisSession,
+                onRadiusChange = { radius = it },
+                onAction = onAction,
+            )
         }
     }
 }
@@ -250,6 +261,7 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
 private fun RadiusAndSave(
     state: BecomeDonorUiState,
     radius: String,
+    locationCaptured: Boolean,
     onRadiusChange: (String) -> Unit,
     onAction: (BecomeDonorAction) -> Unit,
 ) {
@@ -264,20 +276,26 @@ private fun RadiusAndSave(
     NotificationToggle(state.draft.notificationsEnabled) { value ->
         onAction(BecomeDonorAction.UpdateDraft { it.copy(notificationsEnabled = value) })
     }
-    SaveButton(state, radius, onAction) { value ->
+    SaveButton(state, radius, locationCaptured, onAction) { value ->
         onAction(BecomeDonorAction.UpdateDraft { it.copy(serviceRadiusKm = value) })
     }
 }
 
 /** Save / become-a-donor action, applying the typed radius first. */
 @Composable
-private fun SaveButton(state: BecomeDonorUiState, radius: String, onAction: (BecomeDonorAction) -> Unit, onRadiusCommit: (Int) -> Unit) {
+private fun SaveButton(
+    state: BecomeDonorUiState,
+    radius: String,
+    locationCaptured: Boolean,
+    onAction: (BecomeDonorAction) -> Unit,
+    onRadiusCommit: (Int) -> Unit,
+) {
     Button(
         onClick = {
             radius.toIntOrNull()?.let(onRadiusCommit)
             onAction(BecomeDonorAction.Save)
         },
-        enabled = !state.saving,
+        enabled = !state.saving && locationCaptured,
         modifier = Modifier.fillMaxWidth().testTag("donor-save"),
     ) {
         Text(
@@ -310,44 +328,126 @@ private fun BloodTypePicker(selected: BloodType?, onSelect: (BloodType) -> Unit)
     }
 }
 
-/** Manual latitude/longitude entry with an apply action. */
+/** Requires a fresh device GPS fix; users cannot type or pin arbitrary coordinates. */
 @Composable
-private fun LocationFields(
-    latitude: String,
-    longitude: String,
-    error: String?,
-    onLatitudeChange: (String) -> Unit,
-    onLongitudeChange: (String) -> Unit,
-    onApply: () -> Unit,
+private fun GpsLocationCapture(
+    latitude: Double?,
+    longitude: Double?,
+    capturedThisSession: Boolean,
+    onCaptureStateChanged: (Boolean) -> Unit,
+    onLocationCaptured: (Double, Double, Int) -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedTextField(
-            value = latitude,
-            onValueChange = onLatitudeChange,
-            modifier = Modifier.weight(1f),
-            label = { Text("Latitude") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        )
-        OutlinedTextField(
-            value = longitude,
-            onValueChange = onLongitudeChange,
-            modifier = Modifier.weight(1f),
-            label = { Text("Longitude") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        )
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var loading by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    val captureCurrentGps: () -> Unit = {
+        scope.launch {
+            loading = true
+            onCaptureStateChanged(false)
+            message = null
+            val location = runCatching { LocationProvider(context).currentLocation() }.getOrNull()
+            if (location == null) {
+                message = "Could not get a current GPS fix. Turn on device location and try again."
+            } else {
+                onLocationCaptured(location.latitude, location.longitude, location.precisionMeters)
+                onCaptureStateChanged(true)
+                message = "Current GPS captured (about ±${location.precisionMeters} m accuracy)."
+            }
+            loading = false
+        }
     }
-    error?.let {
-        Text(
-            it,
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-        )
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        if (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
+            captureCurrentGps()
+        } else {
+            onCaptureStateChanged(false)
+            message =
+                "Precise location permission is required to register as a donor. " +
+                "Enable it in app settings to continue."
+        }
     }
-    OutlinedButton(onClick = onApply, modifier = Modifier.fillMaxWidth()) {
-        Text("Use this approximate location")
+    val requestCurrentGps: () -> Unit = {
+        val fineGranted = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        if (fineGranted) {
+            captureCurrentGps()
+        } else {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                ),
+            )
+        }
+    }
+
+    GpsLocationCard(
+        latitude = latitude,
+        longitude = longitude,
+        capturedThisSession = capturedThisSession,
+        loading = loading,
+        message = message,
+        onRequestCurrentGps = requestCurrentGps,
+    )
+}
+
+@Composable
+private fun GpsLocationCard(
+    latitude: Double?,
+    longitude: Double?,
+    capturedThisSession: Boolean,
+    loading: Boolean,
+    message: String?,
+    onRequestCurrentGps: () -> Unit,
+) {
+    Card(
+        Modifier.fillMaxWidth().testTag("donor-gps-location"),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Required GPS location", fontWeight = FontWeight.SemiBold)
+            Text(
+                when {
+                    capturedThisSession -> "A current device location has been captured for this session."
+                    latitude != null && longitude != null ->
+                        "A saved location exists, but it must be refreshed from device GPS before saving."
+                    else -> "Capture your device's current GPS location before saving your donor profile."
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Button(
+                onClick = onRequestCurrentGps,
+                enabled = !loading,
+                modifier = Modifier.fillMaxWidth().testTag("capture-donor-gps"),
+            ) {
+                Text(
+                    when {
+                        loading -> "Getting GPS location…"
+                        capturedThisSession -> "Refresh current GPS location"
+                        else -> "Use current GPS location"
+                    },
+                )
+            }
+            message?.let {
+                Text(
+                    it,
+                    color = if (capturedThisSession) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .testTag("donor-gps-message")
+                        .semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
+        }
     }
 }
 
@@ -375,11 +475,3 @@ private fun NotificationToggle(enabled: Boolean, onChange: (Boolean) -> Unit) {
         )
     }
 }
-
-private const val MIN_LATITUDE = -90.0
-private const val MAX_LATITUDE = 90.0
-private const val MIN_LONGITUDE = -180.0
-private const val MAX_LONGITUDE = 180.0
-
-private fun isInRange(latitude: Double, longitude: Double): Boolean =
-    latitude in MIN_LATITUDE..MAX_LATITUDE && longitude in MIN_LONGITUDE..MAX_LONGITUDE

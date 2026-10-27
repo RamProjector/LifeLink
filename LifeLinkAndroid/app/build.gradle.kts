@@ -56,12 +56,6 @@ android {
             .orElse(providers.environmentVariable("LIFELINK_API_BASE_URL"))
             .orElse("https://lifelink-api-uzje.onrender.com/")
             .get()
-    val apiToken =
-        providers
-            .gradleProperty("lifelinkApiToken")
-            .orElse(providers.environmentVariable("LIFELINK_API_TOKEN"))
-            .orElse("development-user")
-            .get()
     val supabaseUrl =
         providers
             .gradleProperty("supabaseUrl")
@@ -112,7 +106,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "LIFELINK_API_BASE_URL", "\"${apiBaseUrl.replace("\\\"", "\\\\\"")}\"")
-        buildConfigField("String", "LIFELINK_API_TOKEN", "\"${apiToken.replace("\\\"", "\\\\\"")}\"")
         buildConfigField("String", "SUPABASE_URL", "\"${supabaseUrl.replace("\\\"", "\\\\\"")}\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${supabasePublishableKey.replace("\\\"", "\\\\\"")}\"")
     }

@@ -57,8 +57,15 @@ class DonorProfileRepositoryTest {
                     """"display_name":"Alice","donor_note":"","preferred_contact_method":"in_app","profile_visible":true}""",
             ),
         )
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
         val saved = repository.save(
-            DonorProfileMe(bloodType = BloodType.O_POS, latitude = 11.24, longitude = 125.0, area = "Tacloban"),
+            DonorProfileMe(
+                bloodType = BloodType.O_POS,
+                latitude = 11.24,
+                longitude = 125.0,
+                locationPrecisionMeters = 35,
+                area = "Tacloban",
+            ),
         )
         val request = server.takeRequest()
         assertEquals("PUT", request.method)
@@ -66,6 +73,12 @@ class DonorProfileRepositoryTest {
         assertEquals(BloodType.O_POS, saved.bloodType)
         assertTrue(saved.verified)
         assertTrue(saved.isMatchable)
+        assertEquals(35, saved.locationPrecisionMeters)
+
+        val presence = server.takeRequest()
+        assertEquals("POST", presence.method)
+        assertEquals("/v1/donor-profile/presence", presence.path)
+        assertTrue(presence.body.readUtf8().contains("\"precision_meters\":35"))
     }
 
     @Test

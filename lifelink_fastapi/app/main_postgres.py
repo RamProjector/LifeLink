@@ -48,6 +48,7 @@ from .donor_api import (
 from .donor_repositories import SqlAlchemyDonorStore
 from .donor_profile_api import (
     DonorAvailabilityToggleIn,
+    DonorPresenceIn,
     DonorProfileMeOut,
     DonorProfileUpsertIn,
 )
@@ -84,6 +85,7 @@ async def lifespan(_: FastAPI):
     await create_all_tables()
     sweepers = [
         asyncio.create_task(_expire_stale_location_shares_forever()),
+        asyncio.create_task(_expire_stale_donor_presence_forever()),
         asyncio.create_task(_expire_timed_out_requests_forever()),
     ]
     try:
@@ -94,6 +96,22 @@ async def lifespan(_: FastAPI):
         for sweeper in sweepers:
             with contextlib.suppress(asyncio.CancelledError):
                 await sweeper
+
+
+async def _expire_stale_donor_presence_forever() -> None:
+    """Automatically set stale, previously available donor profiles to offline."""
+    from .db import AsyncSessionLocal
+
+    interval = float(os.getenv("LIFELINK_DONOR_PRESENCE_SWEEP_SECONDS", "300"))
+    while True:
+        try:
+            async with AsyncSessionLocal() as session:
+                await SqlAlchemyDonorProfileStore(session).expire_stale_presence()
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # pragma: no cover - defensive; never kill the loop
+            logger.exception("Donor-presence sweep failed")
+        await asyncio.sleep(max(30.0, interval))
 
 
 async def _expire_stale_location_shares_forever() -> None:
@@ -856,6 +874,27 @@ async def get_donor_profile(
     return SqlAlchemyDonorProfileStore(session).to_out(row, display_name, None)
 
 
+@app.post("/v1/donor-profile/presence", response_model=DonorProfileMeOut)
+async def record_donor_presence(
+    payload: DonorPresenceIn,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Accept a fresh GPS observation from the authenticated donor.
+
+    The server stamps the observation time and preserves explicit donor
+    availability choices. This is freshness tracking, not GPS attestation.
+    """
+    if principal.subject == "development-user":
+        raise HTTPException(status_code=401, detail="An authenticated user is required")
+    require_verified_email(principal)
+    await enforce_rate_limit(f"donor-profile-presence:{principal.subject}", 60, 300)
+    try:
+        return await SqlAlchemyDonorProfileStore(session).record_presence(principal.subject, payload)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Donor profile not found") from None
+
+
 @app.patch("/v1/donor-profile/availability", response_model=DonorProfileMeOut)
 async def toggle_donor_profile_availability(
     payload: DonorAvailabilityToggleIn,
@@ -1114,7 +1153,7 @@ async def set_donor_map_visibility(
         map_visible=row.map_visible,
         exact_location_sharing_enabled=row.exact_location_sharing_enabled,
         map_visibility_updated_at=row.map_visibility_updated_at,
-        freshness_at=row.availability_updated_at,
+        freshness_at=row.last_presence_at or row.availability_updated_at,
     )
 
 

@@ -14,19 +14,20 @@ matched, even if the user toggles availability on.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db_models import Donor as DonorRow
 from .db_models import DonorProfile as DonorProfileRow
 from .db_models import LifeLinkProfile
 from .donor_api import DonorAvailability, DonorProfileIn
-from .donor_profile_api import DonorProfileMeOut, DonorProfileUpsertIn
+from .donor_profile_api import DonorPresenceIn, DonorProfileMeOut, DonorProfileUpsertIn
 from .donor_repositories import SqlAlchemyDonorStore
+from .main import donor_location_max_age_minutes
 
 logger = logging.getLogger("lifelink.donor_profile_repositories")
 
@@ -106,7 +107,9 @@ class SqlAlchemyDonorProfileStore:
         # so mirror it onto the operational row here.
         row.verified = bool(verified)
         row.available = effective_available(availability_status, verified)
-        row.availability_updated_at = datetime.now(UTC)
+        now = datetime.now(UTC)
+        row.availability_updated_at = now
+        row.last_presence_at = now
         await self.session.commit()
         return row
 
@@ -159,6 +162,64 @@ class SqlAlchemyDonorProfileStore:
         )
         await self._recompute(user_id)
         return self.to_out(row, display_name, payload)
+
+    async def record_presence(self, user_id: str, payload: DonorPresenceIn) -> DonorProfileMeOut:
+        """Refresh a donor's coordinates and server-side freshness timestamp.
+
+        The server timestamp is authoritative for freshness; a client-provided
+        clock is never accepted. This records presence but does not override a
+        donor's explicit paused/offline preference or server verification.
+        """
+        row = await self.session.get(DonorProfileRow, user_id)
+        if row is None:
+            raise KeyError(user_id)
+        now = datetime.now(UTC)
+        row.latitude = Decimal(str(payload.latitude))
+        row.longitude = Decimal(str(payload.longitude))
+        row.updated_at = now
+
+        donor_row = await SqlAlchemyDonorStore(self.session).get_by_identity(user_id)
+        if donor_row is None:
+            raise KeyError(user_id)
+        donor_row.latitude = Decimal(str(payload.latitude))
+        donor_row.longitude = Decimal(str(payload.longitude))
+        donor_row.last_location_precision_meters = payload.precision_meters
+        donor_row.availability_updated_at = now
+        donor_row.last_presence_at = now
+        donor_row.available = effective_available(row.availability_status, row.verified)
+        await self.session.commit()
+        await self._recompute(user_id)
+        return self.to_out(row, donor_row.display_name, None)
+
+    async def expire_stale_presence(self, limit: int = 500) -> int:
+        """Mark available donors offline when their last server-recorded presence is stale."""
+        now = datetime.now(UTC)
+        cutoff = now - timedelta(minutes=donor_location_max_age_minutes())
+        rows = await self.session.scalars(
+            select(DonorRow)
+            .where(
+                DonorRow.available.is_(True),
+                func.coalesce(DonorRow.last_presence_at, DonorRow.availability_updated_at) < cutoff,
+            )
+            .limit(max(1, min(limit, 500)))
+        )
+        stale_donors = list(rows.all())
+        if not stale_donors:
+            return 0
+
+        owner_ids: list[str] = []
+        for donor in stale_donors:
+            # Expire effective presence without erasing the donor's explicit choice.
+            # If they reopen the app while still opted in, a fresh GPS heartbeat can
+            # reactivate matching. Explicit paused/offline choices remain untouched.
+            donor.available = False
+            donor.availability_updated_at = now
+            if donor.user_id:
+                owner_ids.append(donor.user_id)
+        await self.session.commit()
+        for owner_id in owner_ids:
+            await self._recompute(owner_id)
+        return len(stale_donors)
 
     async def set_availability(self, user_id: str, availability: DonorAvailability) -> DonorProfileMeOut:
         """Persist availability, mirror it onto the operational row, and re-match."""

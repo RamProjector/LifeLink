@@ -147,3 +147,21 @@ Additional follow-up areas are donor profile completeness, password reset and co
 A protected, read-only GitHub Actions diagnostic inspected the live Supabase database after a donor profile save continued to display HTTP 500. The diagnostic confirmed that all required donor tables and operational columns exist, the blood-type enum contains the migration values (`A+`, `A-`, `B+`, `B-`, `AB+`, `AB-`, `O+`, `O-`, and `UNKNOWN`), the donor row has valid aggregate data, donor `user_id` values are not duplicated, and the donor location triggers are present. One non-donor-capable profile has no donor row; this is unrelated to donor setup. The evidence does not support reapplying a SQL migration as the fix.
 
 Commit `e021b92` hardened the PostgreSQL donor profile save route. It rolls back failed transactions, logs the operation-specific server exception, and returns a sanitized diagnostic code instead of an opaque generic 500. The next required operational step is to allow Render to redeploy the commit and retry donor setup. The diagnostic workflow intentionally excludes private records and credentials.
+
+
+## Documentation and Android client audit — 2026-10-26
+
+Added `docs/REPOSITORY_GUIDE.md` as a navigation hub and `docs/APP_CLIENT_IMPROVEMENT_AUDIT.md` as a prioritized, testable Android-client backlog. The audit organizes work around map-state correctness, location consent and source feedback, server-authoritative role/session handling, request creation and history, accepted-donor contact/chat, notification account isolation, privacy controls, accessibility, and lifecycle/performance. It explicitly separates repository-informed recommendations from implementation or device-verification claims.
+
+The documentation changes are proposed in [PR #139](https://github.com/RamProjector/LifeLink/pull/139). They should not be treated as merged until the pull request and checks confirm that state.
+
+
+## 2026-10-28 — Consolidated donor GPS, privacy, and presence work (PR #153)
+
+- Removed manual donor latitude/longitude entry and map-pin editing from both donor setup and the legacy donor workspace. Saving donor coordinates requires a fresh precise device-GPS capture.
+- Added the separate `donors.last_presence_at` timestamp, an additive startup migration/backfill, and a periodic stale-presence sweep. Availability toggles no longer refresh location freshness.
+- Added a foreground-only Android presence heartbeat for verified donors who have explicitly opted into availability. Stale presence is excluded from matching, the public map, and exact-location sharing; a donor's explicit availability preference is retained so a fresh foreground update can reactivate matching.
+- Added marker/list-to-details navigation for privacy-safe approximate donor areas; the public map does not expose donor identity, contact details, or exact coordinates.
+- Consolidated MapLibre style/render readiness, donor workspace tab restoration through chat, emulator visual evidence, and the regression tests into one integration PR.
+- Removed the embedded development API-token default and added tests ensuring a default Retrofit client sends no authorization header.
+- **Validation boundary:** CI must pass on the final PR head. Real-device GPS and live FCM delivery are not certified by emulator/build checks alone.

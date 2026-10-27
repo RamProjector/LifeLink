@@ -1,7 +1,12 @@
 package com.lifelink.app
 
+import android.Manifest
+import android.app.Activity
 import android.app.Application
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
+import android.os.Bundle
+import android.util.Log
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
@@ -10,12 +15,16 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.await
 import androidx.work.workDataOf
+import com.google.android.gms.common.api.ApiException
 import com.lifelink.app.core.auth.AccountDataCoordinator
 import com.lifelink.app.core.auth.AuthSessionStore
 import com.lifelink.app.core.auth.SupabaseAuthRepository
+import com.lifelink.app.core.location.LocationProvider
+import com.lifelink.app.core.location.shouldRefreshDonorPresence
 import com.lifelink.app.core.notifications.LifeLinkNotifications
 import com.lifelink.app.core.notifications.PushTokenRegistrationWorker
 import com.lifelink.app.data.local.LifeLinkDatabase
+import com.lifelink.app.data.remote.DonorPresenceRequest
 import com.lifelink.app.data.remote.RetrofitProvider
 import com.lifelink.app.data.repository.DonorProfileRepositoryImpl
 import com.lifelink.app.data.repository.DonorRepositoryImpl
@@ -23,12 +32,21 @@ import com.lifelink.app.data.repository.EmergencyRequestRepositoryImpl
 import com.lifelink.app.data.repository.LifeLinkAccountContainer
 import com.lifelink.app.data.repository.PrivacyRepositoryImpl
 import com.lifelink.app.data.repository.UpdatesRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+
+private const val DONOR_PRESENCE_INTERVAL_MILLIS = 5 * 60 * 1000L
+private const val MIN_DONOR_LOCATION_PRECISION_METERS = 1
+private const val MAX_DONOR_LOCATION_PRECISION_METERS = 10_000
 
 class LifeLinkApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -36,6 +54,8 @@ class LifeLinkApplication : Application() {
         private set
 
     private val accountData = AccountDataCoordinator { authRepository.session.value?.userId }
+    private var startedActivityCount = 0
+    private var donorPresenceJob: Job? = null
 
     internal fun launchAccountWrite(ownerId: String, block: suspend () -> Unit) =
         applicationScope.launch { accountData.runForOwner(ownerId, block) }
@@ -67,6 +87,68 @@ class LifeLinkApplication : Application() {
         }
     }
 
+    private fun startDonorPresenceHeartbeat() {
+        if (donorPresenceJob?.isActive == true) return
+        donorPresenceJob = applicationScope.launch {
+            while (isActive) {
+                try {
+                    refreshDonorPresenceIfEligible()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: IOException) {
+                    Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
+                } catch (error: HttpException) {
+                    Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
+                } catch (error: SecurityException) {
+                    Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
+                } catch (error: IllegalStateException) {
+                    Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
+                } catch (error: ApiException) {
+                    Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
+                }
+                delay(DONOR_PRESENCE_INTERVAL_MILLIS)
+            }
+        }
+    }
+
+    private fun stopDonorPresenceHeartbeat() {
+        donorPresenceJob?.cancel()
+        donorPresenceJob = null
+    }
+
+    private suspend fun refreshDonorPresenceIfEligible() {
+        val session = authRepository.session.value
+        if (
+            session == null ||
+            checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        val api = accountContainer(session.userId).api
+        val profileResponse = api.getDonorProfileMe()
+        val profile = profileResponse.body()
+        if (
+            !profileResponse.isSuccessful ||
+            profile == null ||
+            !shouldRefreshDonorPresence(profile.verified, profile.availabilityStatus)
+        ) {
+            return
+        }
+
+        val location = LocationProvider(this).currentLocation() ?: return
+        api.recordDonorPresence(
+            DonorPresenceRequest(
+                latitude = location.latitude,
+                longitude = location.longitude,
+                precisionMeters = location.precisionMeters.coerceIn(
+                    MIN_DONOR_LOCATION_PRECISION_METERS,
+                    MAX_DONOR_LOCATION_PRECISION_METERS,
+                ),
+            ),
+        )
+    }
+
     private suspend fun clearLocalAccountData(ownerId: String) = accountData.cleanup {
         WorkManager.getInstance(this).cancelAllWorkByTag("lifelink-account-$ownerId").await()
         LifeLinkDatabase.getInstance(this).clearLocalAccountData(ownerId)
@@ -81,6 +163,23 @@ class LifeLinkApplication : Application() {
                 applicationScope.launch { clearLocalAccountData(ownerId) }
             },
         )
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityStarted(activity: Activity) {
+                startedActivityCount += 1
+                if (startedActivityCount == 1) startDonorPresenceHeartbeat()
+            }
+
+            override fun onActivityStopped(activity: Activity) {
+                startedActivityCount = (startedActivityCount - 1).coerceAtLeast(0)
+                if (startedActivityCount == 0) stopDonorPresenceHeartbeat()
+            }
+
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+            override fun onActivityResumed(activity: Activity) = Unit
+            override fun onActivityPaused(activity: Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+            override fun onActivityDestroyed(activity: Activity) = Unit
+        })
         applicationScope.launch {
             // Warm the public health endpoint without binding startup work to an account.
             runCatching { RetrofitProvider.create(tokenProvider = { null }).health() }

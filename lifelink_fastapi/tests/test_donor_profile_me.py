@@ -398,3 +398,56 @@ def test_unknown_blood_type_is_rejected(pg_url):
         assert response.status_code == 400
 
     run_scenario(pg_url, scenario)
+
+
+def test_stale_donor_presence_is_excluded_from_matching(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await create_account(client, current, donor)
+        await opt_in_donor(client, current, donor, availability="available")
+        await run_sql(f"UPDATE donor_profiles SET verified = TRUE WHERE user_id = '{donor}'")
+        current["id"] = donor
+        changed = await client.patch(
+            "/v1/donor-profile/availability",
+            json={"availability_status": "available"},
+        )
+        assert changed.status_code == 200, changed.text
+
+        # A stale availability flag must not keep an old location matchable.
+        await run_sql(
+            f"UPDATE donors SET last_presence_at = now() - interval '2 days' "
+            f"WHERE id = '{donor}'"
+        )
+        created = await submit_request(client, current, requester)
+        assert created["matches"] == [], "stale donor presence must be excluded"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_presence_updates_location_and_server_freshness(pg_url):
+    async def scenario(client, current, run_sql):
+        donor = new_user("donor")
+        await create_account(client, current, donor)
+        await opt_in_donor(client, current, donor, availability="available")
+        current["id"] = donor
+
+        response = await client.post(
+            "/v1/donor-profile/presence",
+            json={
+                "latitude": 11.2501,
+                "longitude": 125.0102,
+                "precision_meters": 35,
+            },
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["latitude"] == pytest.approx(11.2501)
+        assert response.json()["longitude"] == pytest.approx(125.0102)
+
+        await run_sql(
+            f"UPDATE donors SET last_presence_at = now() - interval '2 days' "
+            f"WHERE id = '{donor}'"
+        )
+        stale = await submit_request(client, current, new_user("requester"))
+        assert stale["matches"] == [], "server-side stale presence must be excluded"
+
+    run_scenario(pg_url, scenario)
