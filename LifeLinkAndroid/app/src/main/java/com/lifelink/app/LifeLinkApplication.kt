@@ -148,16 +148,6 @@ class LifeLinkApplication : Application() {
     private suspend fun refreshDonorPresenceForAccount(ownerId: String) {
         val api = accountContainer(ownerId).api
         val profileResponse = api.getDonorProfileMe()
-        val location = LocationProvider(this).currentLocation() ?: return
-        val presenceRequest = DonorPresenceRequest(
-            latitude = location.latitude,
-            longitude = location.longitude,
-            precisionMeters = location.precisionMeters.coerceIn(
-                MIN_DONOR_LOCATION_PRECISION_METERS,
-                MAX_DONOR_LOCATION_PRECISION_METERS,
-            ),
-        )
-
         if (profileResponse.code() == 404) {
             // Older donor-workspace accounts may have only the legacy donor row.
             // Keep their presence fresh without weakening verification/availability gates.
@@ -176,6 +166,15 @@ class LifeLinkApplication : Application() {
                 return
             }
             if (!shouldRefreshDonorPresence(legacyProfile.verified, legacyProfile.availability)) return
+            val location = LocationProvider(this).currentLocation() ?: return
+            val presenceRequest = DonorPresenceRequest(
+                latitude = location.latitude,
+                longitude = location.longitude,
+                precisionMeters = location.precisionMeters.coerceIn(
+                    MIN_DONOR_LOCATION_PRECISION_METERS,
+                    MAX_DONOR_LOCATION_PRECISION_METERS,
+                ),
+            )
             val legacyPresence = api.recordLegacyDonorPresence(ownerId, presenceRequest)
             if (!legacyPresence.isSuccessful) {
                 val message = "Legacy donor presence update returned HTTP ${legacyPresence.code()}."
@@ -199,6 +198,15 @@ class LifeLinkApplication : Application() {
         }
         if (!shouldRefreshDonorPresence(profile.verified, profile.availabilityStatus)) return
 
+        val location = LocationProvider(this).currentLocation() ?: return
+        val presenceRequest = DonorPresenceRequest(
+            latitude = location.latitude,
+            longitude = location.longitude,
+            precisionMeters = location.precisionMeters.coerceIn(
+                MIN_DONOR_LOCATION_PRECISION_METERS,
+                MAX_DONOR_LOCATION_PRECISION_METERS,
+            ),
+        )
         val presenceResponse = api.recordDonorPresence(presenceRequest)
         if (!presenceResponse.isSuccessful) {
             // Record only the HTTP status; never log the response body or coordinates.
