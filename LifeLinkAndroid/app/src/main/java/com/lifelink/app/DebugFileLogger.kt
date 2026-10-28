@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
+import java.io.IOException
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.time.Instant
@@ -22,36 +23,37 @@ internal object DebugFileLogger {
     private const val MAX_LOG_BYTES = 1_000_000L
     private val lock = Any()
     @Volatile private var appContext: Context? = null
-    @Volatile private var previousHandler: Thread.UncaughtExceptionHandler? = null
+    @Volatile private var installed = false
+    private var previousHandler: Thread.UncaughtExceptionHandler? = null
 
     fun install(context: Context) {
         if (!BuildConfig.DEBUG) return
         appContext = context.applicationContext
         synchronized(lock) {
-            if (previousHandler != null) return
-            previousHandler = Thread.getDefaultUncaughtExceptionHandler()
-            Thread.setDefaultUncaughtExceptionHandler { thread, error ->
-                write("FATAL", "Uncaught exception on thread ${thread.name}", error)
-                previousHandler?.uncaughtException(thread, error)
+            if (!installed) {
+                previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+                Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+                    write("FATAL", "Uncaught exception on thread ${thread.name}", throwable)
+                    previousHandler?.uncaughtException(thread, throwable)
+                }
+                installed = true
             }
         }
         write("INFO", "Debug file logger initialized; Android ${Build.VERSION.SDK_INT}")
     }
 
-    fun error(area: String, message: String, error: Throwable? = null) {
-        if (!BuildConfig.DEBUG) return
-        write("ERROR", "[$area] $message", error)
+    fun error(area: String, message: String, throwable: Throwable? = null) {
+        if (BuildConfig.DEBUG) write("ERROR", "[$area] $message", throwable)
     }
 
-    fun warning(area: String, message: String, error: Throwable? = null) {
-        if (!BuildConfig.DEBUG) return
-        write("WARN", "[$area] $message", error)
+    fun warning(area: String, message: String, throwable: Throwable? = null) {
+        if (BuildConfig.DEBUG) write("WARN", "[$area] $message", throwable)
     }
 
-    private fun write(level: String, message: String, error: Throwable? = null) {
+    private fun write(level: String, message: String, throwable: Throwable? = null) {
         val context = appContext ?: return
         if (!BuildConfig.DEBUG) return
-        val stack = error?.let {
+        val stack = throwable?.let {
             StringWriter().also { writer -> it.printStackTrace(PrintWriter(writer)) }.toString()
         }.orEmpty()
         val entry = "${Instant.now()} [$level] $message" +
@@ -61,10 +63,10 @@ internal object DebugFileLogger {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     appendToDownloads(context, entry)
                 } else {
-                    // Android versions before scoped storage keep a fallback in app-specific files.
-                    context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
+                    val fallback = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
                         ?.resolve(FILE_NAME)
-                        ?.appendText(entry)
+                    fallback?.parentFile?.mkdirs()
+                    fallback?.appendText(entry)
                 }
             } catch (failure: Exception) {
                 // Logging must never crash or disrupt the app.
@@ -77,15 +79,17 @@ internal object DebugFileLogger {
         val resolver = context.contentResolver
         val collection: Uri = MediaStore.Downloads.EXTERNAL_CONTENT_URI
         val projection = arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.SIZE)
-        val selection = "${MediaStore.Downloads.DISPLAY_NAME}=? AND ${MediaStore.Downloads.RELATIVE_PATH}=?"
+        val selection =
+            "${MediaStore.Downloads.DISPLAY_NAME}=? AND ${MediaStore.Downloads.RELATIVE_PATH}=?"
         var fileUri: Uri? = null
         var fileSize = 0L
-        resolver.query(collection, projection, selection, arrayOf(FILE_NAME, RELATIVE_PATH), null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                fileUri = Uri.withAppendedPath(collection, cursor.getLong(0).toString())
-                fileSize = cursor.getLong(1)
+        resolver.query(collection, projection, selection, arrayOf(FILE_NAME, RELATIVE_PATH), null)
+            ?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    fileUri = Uri.withAppendedPath(collection, cursor.getLong(0).toString())
+                    fileSize = cursor.getLong(1)
+                }
             }
-        }
 
         if (fileUri != null && fileSize >= MAX_LOG_BYTES) {
             resolver.delete(fileUri!!, null, null)
@@ -101,9 +105,9 @@ internal object DebugFileLogger {
             fileUri = resolver.insert(collection, values)
         }
 
-        val uri = fileUri ?: error("Unable to create debug log in Downloads")
+        val uri = fileUri ?: throw IOException("Unable to create debug log in Downloads")
         resolver.openOutputStream(uri, "wa")?.bufferedWriter(Charsets.UTF_8)?.use { writer ->
             writer.write(entry)
-        } ?: error("Unable to open debug log in Downloads")
+        } ?: throw IOException("Unable to open debug log in Downloads")
     }
 }
