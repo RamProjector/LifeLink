@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import tempfile
 import uuid
+from typing import Any
 from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
@@ -26,10 +27,11 @@ import pytest
 pgserver = pytest.importorskip("pgserver")
 
 import httpx
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app import db_models
+from app.donor_profile_repositories import SqlAlchemyDonorProfileStore
 from app.db import get_db_session
 from app.main_postgres import app
 from app.security import Principal, get_postgres_principal
@@ -53,7 +55,7 @@ def run_scenario(pg_url: str, scenario):
             await conn.execute(text("CREATE SCHEMA public"))
             await conn.run_sync(db_models.Base.metadata.create_all)
         sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
-        current = {"id": "nobody"}
+        current: dict[str, Any] = {"id": "nobody", "_session_factory": sessions}
 
         async def session_dependency():
             async with sessions() as session:
@@ -460,6 +462,40 @@ def test_stale_donor_presence_is_excluded_from_matching(pg_url):
         )
         created = await submit_request(client, current, requester)
         assert created["matches"] == [], "stale donor presence must be excluded"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_presence_sweeper_expires_stale_donor_but_keeps_fresh_donor(pg_url):
+    async def scenario(client, current, run_sql):
+        stale_donor, fresh_donor = new_user("stale"), new_user("fresh")
+        for donor in (stale_donor, fresh_donor):
+            await create_account(client, current, donor)
+            await opt_in_donor(client, current, donor, availability="offline")
+            await run_sql(f"UPDATE donor_profiles SET verified = TRUE WHERE user_id = '{donor}'")
+            current["id"] = donor
+            enabled = await client.patch(
+                "/v1/donor-profile/availability",
+                json={"availability_status": "available"},
+            )
+            assert enabled.status_code == 200, enabled.text
+
+        await run_sql(
+            f"UPDATE donors SET last_presence_at = now() - interval '2 days' "
+            f"WHERE user_id = '{stale_donor}'"
+        )
+        async with current["_session_factory"]() as session:
+            expired_count = await SqlAlchemyDonorProfileStore(session).expire_stale_presence()
+            stale_row = await session.scalar(
+                select(db_models.Donor).where(db_models.Donor.user_id == stale_donor)
+            )
+            fresh_row = await session.scalar(
+                select(db_models.Donor).where(db_models.Donor.user_id == fresh_donor)
+            )
+
+        assert expired_count == 1
+        assert stale_row is not None and stale_row.available is False
+        assert fresh_row is not None and fresh_row.available is True
 
     run_scenario(pg_url, scenario)
 
