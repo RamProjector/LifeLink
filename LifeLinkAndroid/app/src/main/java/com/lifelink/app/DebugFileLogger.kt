@@ -22,7 +22,9 @@ internal object DebugFileLogger {
     private const val RELATIVE_PATH = "Download/LifeLink/"
     private const val MAX_LOG_BYTES = 1_000_000L
     private val lock = Any()
+
     @Volatile private var appContext: Context? = null
+
     @Volatile private var installed = false
     private var previousHandler: Thread.UncaughtExceptionHandler? = null
 
@@ -50,6 +52,8 @@ internal object DebugFileLogger {
         if (BuildConfig.DEBUG) write("WARN", "[$area] $message", throwable)
     }
 
+    // A logger must not destabilize the app when storage providers throw unexpected exceptions.
+    @Suppress("TooGenericExceptionCaught")
     private fun write(level: String, message: String, throwable: Throwable? = null) {
         val context = appContext ?: return
         if (!BuildConfig.DEBUG) return
