@@ -19,6 +19,7 @@ class DebugFileLoggerTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val marker = "debug-file-regression-${System.nanoTime()}"
 
+        DebugFileLogger.install(context)
         DebugFileLogger.warning("instrumentation-test", marker)
 
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
