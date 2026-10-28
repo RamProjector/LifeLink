@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -79,7 +79,7 @@ class SqlAlchemyDonorRepository(DonorRepository):
         conditions = [
             DonorRow.available.is_(True),
             DonorRow.profile_visible.is_(True),
-            func.coalesce(DonorRow.last_presence_at, DonorRow.availability_updated_at) >= freshness_cutoff,
+            DonorRow.last_presence_at >= freshness_cutoff,
         ]
         if require_verified_donors():
             conditions.append(DonorRow.verified.is_(True))
