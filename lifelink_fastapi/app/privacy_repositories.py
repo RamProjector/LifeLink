@@ -100,7 +100,11 @@ class SqlAlchemyPrivacyStore:
         )
         entries: list[DonorMapEntry] = []
         for row in rows.all():
-            freshness_at = _as_utc(row.last_presence_at or row.created_at)
+            # Keep the invariant explicit even if the query changes later:
+            # creation/profile timestamps are never substitutes for GPS presence.
+            if row.last_presence_at is None:
+                continue
+            freshness_at = _as_utc(row.last_presence_at)
             age_minutes = max(0, int((now - freshness_at).total_seconds() // 60))
             entries.append(
                 DonorMapEntry(
