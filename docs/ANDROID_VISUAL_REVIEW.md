@@ -18,7 +18,7 @@ The donor-map walkthrough captures `lifelink-phone-light-workflow-donor-map.png`
 
 ## Failure behavior
 
-A failed visual test fails the workflow after the reports are collected. The Critical bug bot watches this workflow on the default branch and opens a deduplicated critical issue containing the workflow link and failed job information.
+A failed visual test fails the workflow after the reports are collected. Screenshot capture is also a required assertion: a missing or unwritable PNG fails the test instead of being logged as a non-fatal warning. The workflow separately verifies that home, fully rendered donor-map, and requests screenshots exist and are non-empty; artifact upload uses `if-no-files-found: error`. The Critical bug bot watches this workflow on the default branch and opens a deduplicated critical issue containing the workflow link and failed job information.
 
 ## Why the first scope is intentionally small
 
@@ -32,4 +32,4 @@ The workflow prefers KVM because it is much faster. If a runner does not expose 
 
 ## Screenshot reliability
 
-Hosted emulators are slow, and two things were seen failing transiently right after boot: `Context.getExternalFilesDir()` returned `null` while the emulated shared-storage volume was still mounting (the screenshot then targeted a relative path on a read-only filesystem), and the first `UiAutomation` screenshot returned `null`. `VisualEvidence.capture()` therefore retries, prefers the app's external files directory, falls back to app-private storage (which the workflow reads with `run-as`), and logs a warning instead of failing a test whose UI assertions passed.
+Hosted emulators are slow, and two things were seen failing transiently right after boot: `Context.getExternalFilesDir()` returned `null` while the emulated shared-storage volume was still mounting (the screenshot then targeted a relative path on a read-only filesystem), and the first `UiAutomation` screenshot returned `null`. `VisualEvidence.capture()` retries and writes into app-private storage. The workflow extracts those PNGs with `adb exec-out run-as` before the emulator is torn down. If a required screenshot cannot be saved, the instrumentation test fails.
