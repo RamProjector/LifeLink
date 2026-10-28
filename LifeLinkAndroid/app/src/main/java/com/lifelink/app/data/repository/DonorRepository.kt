@@ -5,24 +5,24 @@ package com.lifelink.app.data.repository
 import com.lifelink.app.data.local.DonorDao
 import com.lifelink.app.data.local.DonorProfileEntity
 import com.lifelink.app.data.local.DonorRequestEntity
+import com.lifelink.app.data.remote.DonorAvailabilityRequest
+import com.lifelink.app.data.remote.DonorPresenceRequest
+import com.lifelink.app.data.remote.DonorProfileRequest
+import com.lifelink.app.data.remote.DonorResponseRequest
+import com.lifelink.app.data.remote.LifeLinkApi
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfile
-import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorRepository
+import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
-import com.lifelink.app.data.remote.DonorAvailabilityRequest
-import com.lifelink.app.data.remote.DonorProfileRequest
-import com.lifelink.app.data.remote.DonorPresenceRequest
-import com.lifelink.app.data.remote.DonorResponseRequest
-import com.lifelink.app.data.remote.LifeLinkApi
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
-import java.util.Locale
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import java.util.Locale
 
 private const val MIN_DONOR_LOCATION_PRECISION_METERS = 1
 private const val MAX_DONOR_LOCATION_PRECISION_METERS = 10_000
@@ -30,7 +30,7 @@ private const val MAX_DONOR_LOCATION_PRECISION_METERS = 10_000
 class DonorRepositoryImpl(
     private val dao: DonorDao,
     private val api: LifeLinkApi? = null,
-    private val donorIdProvider: () -> String? = { null }
+    private val donorIdProvider: () -> String? = { null },
 ) : DonorRepository {
     private fun donorId(): String = donorIdProvider()?.takeIf { it.isNotBlank() } ?: error("Sign in before using donor mode.")
 
@@ -51,15 +51,22 @@ class DonorRepositoryImpl(
             ) { "Capture your approximate location before saving your donor profile." }
             require(effectiveProfile.serviceRadiusKm in 1..100) { "Service radius must be between 1 and 100 km." }
             api?.let { remote ->
-                val response = remote.registerDonor(ownerId, DonorProfileRequest(
-                    ownerId, effectiveProfile.displayName.trim(), effectiveProfile.bloodType.label.replace('−', '-'),
-                    effectiveProfile.latitude,
-                    effectiveProfile.longitude,
-                    effectiveProfile.serviceRadiusKm.toDouble(),
-                    effectiveProfile.verified,
-                    effectiveProfile.donorNote.trim(), effectiveProfile.preferredContactMethod,
-                    effectiveProfile.pauseReason?.trim()?.takeIf { it.isNotEmpty() }, effectiveProfile.profileVisible
-                ))
+                val response = remote.registerDonor(
+                    ownerId,
+                    DonorProfileRequest(
+                        ownerId,
+                        effectiveProfile.displayName.trim(),
+                        effectiveProfile.bloodType.label.replace('−', '-'),
+                        effectiveProfile.latitude,
+                        effectiveProfile.longitude,
+                        effectiveProfile.serviceRadiusKm.toDouble(),
+                        effectiveProfile.verified,
+                        effectiveProfile.donorNote.trim(),
+                        effectiveProfile.preferredContactMethod,
+                        effectiveProfile.pauseReason?.trim()?.takeIf { it.isNotEmpty() },
+                        effectiveProfile.profileVisible,
+                    ),
+                )
                 check(response.isSuccessful) {
                     val detail = response.errorBody()?.string()?.takeIf { it.isNotBlank() }
                     "Profile could not be saved on the server (${response.code()})${detail?.let { ": $it" } ?: "."}"
