@@ -473,7 +473,6 @@ fun MapLibrePrivacySafeDonorMap(
                     // Unnecessary camera moves cancel vector-tile requests and make the map
                     // feel broken while filters, loading state, or visibility controls change.
                     if (appliedCenter != center) {
-                        mapRendered = false
                         mapError = false
                         map.cameraPosition = CameraPosition.Builder()
                             .target(center)
@@ -482,7 +481,6 @@ fun MapLibrePrivacySafeDonorMap(
                         appliedCenter = center
                     }
                     if (appliedRecenterRequest != recenterRequest) {
-                        mapRendered = false
                         mapError = false
                         map.cameraPosition = CameraPosition.Builder()
                             .target(center)
