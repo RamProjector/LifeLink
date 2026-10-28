@@ -87,19 +87,20 @@ class SqlAlchemyPrivacyStore:
         """
         now = datetime.now(UTC)
         max_age = donor_location_max_age_minutes()
-        freshness = func.coalesce(DonorRow.last_presence_at, DonorRow.availability_updated_at, DonorRow.created_at)
+        freshness = DonorRow.last_presence_at
         rows = await self.session.scalars(
             select(DonorRow).where(
                 DonorRow.map_visible.is_(True),
                 DonorRow.available.is_(True),
                 DonorRow.profile_visible.is_(True),
                 # A stale snapshot is not a current location: never show it.
+                freshness.is_not(None),
                 freshness >= now - timedelta(minutes=max_age),
             )
         )
         entries: list[DonorMapEntry] = []
         for row in rows.all():
-            freshness_at = _as_utc(row.last_presence_at or row.availability_updated_at or row.created_at)
+            freshness_at = _as_utc(row.last_presence_at or row.created_at)
             age_minutes = max(0, int((now - freshness_at).total_seconds() // 60))
             entries.append(
                 DonorMapEntry(
