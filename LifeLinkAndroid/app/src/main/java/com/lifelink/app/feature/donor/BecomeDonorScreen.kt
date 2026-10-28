@@ -193,7 +193,8 @@ private fun AvailabilityCard(profile: DonorProfileMe, saving: Boolean, onAction:
                 }
             }
             Text(
-                "Only verified, available donors with a recent location are matched. Keep LifeLink open to refresh your location; backgrounded donors may stop appearing after 15 minutes.",
+                "Only verified, available donors with a recent location are matched. " +
+                    "Keep LifeLink open to refresh your location; backgrounded donors may stop appearing after 15 minutes.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
