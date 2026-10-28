@@ -81,6 +81,8 @@ fun MapLibreLocationPicker(
     var appliedRecenterRequest by remember { mutableStateOf(-1) }
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf<String?>(null) }
+    var styleReady by remember { mutableStateOf(false) }
+    var mapRendered by remember { mutableStateOf(false) }
     var retryRequest by remember { mutableStateOf(0) }
     var recenterBump by remember { mutableStateOf(0) }
     val effectiveRecenterRequest = recenterRequest + recenterBump
@@ -99,16 +101,26 @@ fun MapLibreLocationPicker(
         }
     }
 
-    // A stalled style load (no success and no failure callback) would otherwise
-    // leave the loading UI visible indefinitely. End it with a retryable error.
-    LaunchedEffect(mapLoading) {
-        if (!mapLoading) return@LaunchedEffect
+    // Style JSON loading and visible tile rendering are separate milestones.
+    // Keep the loading state until MapLibre reports a fully rendered frame.
+    LaunchedEffect(mapLoading, styleReady, retryRequest) {
+        if (!mapLoading || styleReady) return@LaunchedEffect
         delay(MAP_LOAD_TIMEOUT_MS)
-        if (mapLoading) {
+        if (mapLoading && !styleReady) {
             mapLoading = false
             mapError = "The map is taking too long to load. You can enter coordinates manually or retry the map."
             onLoadingChanged(false)
-            onMapError("Map tiles could not be loaded. You can enter coordinates manually or retry the map.")
+            onMapError("Map style could not be loaded. You can enter coordinates manually or retry the map.")
+        }
+    }
+    LaunchedEffect(styleReady, mapRendered, mapError, retryRequest) {
+        if (!styleReady || mapRendered || mapError != null) return@LaunchedEffect
+        delay(MAP_RENDER_TIMEOUT_MS)
+        if (styleReady && !mapRendered && mapError == null) {
+            mapLoading = false
+            mapError = "The map tiles are taking too long to render. You can retry the map."
+            onLoadingChanged(false)
+            onMapError("Map tiles could not be rendered. You can retry the map.")
         }
     }
 
@@ -118,10 +130,20 @@ fun MapLibreLocationPicker(
             factory = {
                 mapView.apply {
                     addOnDidFailLoadingMapListener {
+                        styleReady = false
+                        mapRendered = false
                         mapLoading = false
                         mapError = "Map preview unavailable. You can enter coordinates manually or retry the map."
                         onLoadingChanged(false)
                         onMapError("Map tiles could not be loaded. You can enter coordinates manually or retry the map.")
+                    }
+                    addOnDidFinishRenderingMapListener { fully ->
+                        if (fully && styleReady) {
+                            mapRendered = true
+                            mapLoading = false
+                            mapError = null
+                            onLoadingChanged(false)
+                        }
                     }
                     setOnTouchListener { view, event ->
                         when (event.actionMasked) {
@@ -132,12 +154,13 @@ fun MapLibreLocationPicker(
                     }
                     getMapAsync { map ->
                         mapLoading = true
+                        styleReady = false
+                        mapRendered = false
                         mapError = null
                         onLoadingChanged(true)
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            mapLoading = false
+                            styleReady = true
                             mapError = null
-                            onLoadingChanged(false)
                             val currentPosition = latestLatitude?.let { lat -> latestLongitude?.let { lon -> LatLng(lat, lon) } }
                             currentPosition?.let { position ->
                                 map.cameraPosition = CameraPosition.Builder()
@@ -183,9 +206,30 @@ fun MapLibreLocationPicker(
                     val target = latitude?.let { lat -> longitude?.let { lon -> LatLng(lat, lon) } }
                     if (retryRequest > 0) {
                         mapLoading = true
+                        styleReady = false
+                        mapRendered = false
                         mapError = null
-                        map.setStyle(OPEN_FREE_MAP_STYLE) { mapLoading = false }
+                        onLoadingChanged(true)
+                        map.setStyle(OPEN_FREE_MAP_STYLE) {
+                            styleReady = true
+                            mapError = null
+                            val currentPosition = latestLatitude?.let { lat ->
+                                latestLongitude?.let { lon -> LatLng(lat, lon) }
+                            }
+                            marker = currentPosition?.let { position ->
+                                map.addMarker(
+                                    MarkerOptions().position(position).title("Selected approximate location"),
+                                )
+                            }
+                            appliedLatitude = latestLatitude
+                            appliedLongitude = latestLongitude
+                            appliedRecenterRequest = effectiveRecenterRequest
+                            currentPosition?.let { position ->
+                                map.cameraPosition = CameraPosition.Builder().target(position).zoom(15.0).build()
+                            }
+                        }
                         retryRequest = 0
+                        return@getMapAsync
                     }
                     if (target != null) {
                         val targetChanged = appliedLatitude != latitude || appliedLongitude != longitude
