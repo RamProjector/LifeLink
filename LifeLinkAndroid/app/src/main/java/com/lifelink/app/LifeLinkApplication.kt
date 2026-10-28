@@ -87,6 +87,9 @@ class LifeLinkApplication : Application() {
         }
     }
 
+    // Catch unexpected JSON/provider runtime failures at this background boundary.
+    // Cancellation is rethrown below; other failures must not terminate the app process.
+    @Suppress("TooGenericExceptionCaught")
     private fun startDonorPresenceHeartbeat() {
         if (donorPresenceJob?.isActive == true) return
         donorPresenceJob = applicationScope.launch {
