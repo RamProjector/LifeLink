@@ -136,15 +136,17 @@ class LifeLinkApplication : Application() {
     }
 
     private suspend fun refreshDonorPresenceIfEligible() {
-        val session = authRepository.session.value
+        val session = authRepository.session.value ?: return
         if (
-            session == null ||
             checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
         ) {
             return
         }
+        refreshDonorPresenceForAccount(session.userId)
+    }
 
-        val api = accountContainer(session.userId).api
+    private suspend fun refreshDonorPresenceForAccount(ownerId: String) {
+        val api = accountContainer(ownerId).api
         val profileResponse = api.getDonorProfileMe()
         if (!profileResponse.isSuccessful) {
             val message = "Donor profile refresh returned HTTP ${profileResponse.code()}."
