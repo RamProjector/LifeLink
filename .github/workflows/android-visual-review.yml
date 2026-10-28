@@ -7,7 +7,8 @@ on:
       # Functional/build/unit-test validation still runs on every Android change in validate.yml.
       - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/navigation/**'
       - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/ui/**'
-      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/**/Screen.kt'
+      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/**/*.kt'
+      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/location/**'
       - 'LifeLinkAndroid/app/src/main/res/**'
       - 'LifeLinkAndroid/app/src/main/AndroidManifest.xml'
       - 'LifeLinkAndroid/app/src/androidTest/**'
@@ -289,11 +290,31 @@ jobs:
             cp -R app/build/outputs/androidTest-results ../visual-artifacts/test-results
           fi
 
+      - name: Require rendered UI screenshots
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_dir="../visual-artifacts"
+          required=(
+            "lifelink-phone-light-workflow-home.png"
+            "lifelink-phone-light-workflow-donor-map.png"
+            "lifelink-phone-light-workflow-requests.png"
+          )
+          for file in "${required[@]}"; do
+            if [[ ! -s "$evidence_dir/$file" ]]; then
+              echo "::error::Required visual evidence is missing or empty: $file"
+              find "$evidence_dir" -maxdepth 2 -type f -print | sort || true
+              exit 1
+            fi
+          done
+          echo "Required home, fully rendered donor map, and requests screenshots are present."
+
       - name: Upload visual evidence and reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: lifelink-android-visual-review-${{ github.sha }}
           path: visual-artifacts/**
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
