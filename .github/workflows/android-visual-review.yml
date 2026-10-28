@@ -262,6 +262,7 @@ jobs:
             -no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics
             -camera-back none -camera-front none -netfast -gpu swiftshader_indirect
             ${{ steps.acceleration.outputs.option }}
+            ${{ steps.kvm.outputs.available != 'true' && '-no-snapshot-load' || '' }}
           cores: 4
           ram-size: 4096M
           heap-size: 512M
