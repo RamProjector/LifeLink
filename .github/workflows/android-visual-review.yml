@@ -45,7 +45,7 @@ env:
 jobs:
   visual-review:
     name: Capture Android visual evidence
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     # Visual review is required evidence, not a best-effort check. If the runner
     # cannot provide KVM, fail explicitly rather than reporting a green workflow
     # with the instrumentation tests silently skipped.
@@ -84,24 +84,18 @@ jobs:
       # Prefer KVM for speed, but do not skip instrumentation when it is absent.
       # The visual run below switches to the emulator's explicit software CPU
       # mode when needed; the slower fallback still has to pass the same tests.
-      - name: Enable KVM hardware acceleration (best effort)
+      - name: Enable native emulator virtualization
         id: kvm
         run: |
-          # The udev setup is best-effort: on a runner without a udev daemon these
-          # commands fail, and the default fail-fast shell would then abort the
-          # step BEFORE `available` is written. Guard each one so the /dev/kvm
-          # check below always runs and always publishes an output.
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null || \
-            echo "::warning::could not write the udev rule; continuing."
-          sudo udevadm control --reload-rules || \
-            echo "::warning::udevadm control --reload-rules failed; continuing."
-          sudo udevadm trigger --name-match=kvm || \
-            echo "::warning::udevadm trigger failed; continuing."
-          if [[ -r /dev/kvm && -w /dev/kvm ]]; then
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            # Android Emulator uses Apple's Hypervisor.framework on macOS.
+            echo "Native Apple virtualization is available."
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          elif [[ -r /dev/kvm && -w /dev/kvm ]]; then
             echo "KVM is available: $(ls -l /dev/kvm)"
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::/dev/kvm is not accessible; selecting software CPU emulation instead of skipping instrumentation."
+            echo "::warning::/dev/kvm is unavailable; software emulation may not boot reliably."
             echo "available=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -110,7 +104,11 @@ jobs:
         env:
           KVM_AVAILABLE: ${{ steps.kvm.outputs.available }}
         run: |
-          if [[ "$KVM_AVAILABLE" == "true" ]]; then
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            echo "option=" >> "$GITHUB_OUTPUT"
+            echo "mode=Apple Hypervisor.framework" >> "$GITHUB_OUTPUT"
+            echo "Using native macOS emulator virtualization."
+          elif [[ "$KVM_AVAILABLE" == "true" ]]; then
             echo "option=" >> "$GITHUB_OUTPUT"
             echo "mode=KVM hardware acceleration" >> "$GITHUB_OUTPUT"
             echo "Using KVM hardware acceleration."
