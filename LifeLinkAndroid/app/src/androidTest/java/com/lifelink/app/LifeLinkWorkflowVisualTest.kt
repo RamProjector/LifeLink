@@ -185,10 +185,17 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("toggle-donor-map-view").assertIsDisplayed()
         // Wait for the native map to finish rendering before switching views. Toggling
         // to List disposes MapView, so doing it first would cancel the initial tile load.
-        composeRule.waitUntil(timeoutMillis = 30_000) {
+        composeRule.waitUntil(timeoutMillis = 70_000) {
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
-                .fetchSemanticsNodes().isNotEmpty()
+                .fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithContentDescription("Donor map unavailable")
+                    .fetchSemanticsNodes().isNotEmpty()
         }
+        org.junit.Assert.assertTrue(
+            "MapLibre entered its error state before reporting a fully rendered map",
+            composeRule.onAllNodesWithContentDescription("Donor map unavailable")
+                .fetchSemanticsNodes().isEmpty(),
+        )
         composeRule.onNodeWithContentDescription("Donor map rendered").assertIsDisplayed()
         composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
         capture("workflow-donor-map")
@@ -330,6 +337,9 @@ class LifeLinkWorkflowVisualTest {
 
     private fun capture(name: String) {
         val scenario = InstrumentationRegistry.getArguments().getString("scenario", "phone")
-        VisualEvidence.capture("lifelink-$scenario-${testTheme.name.lowercase()}-$name.png")
+        org.junit.Assert.assertTrue(
+            "Required screenshot capture failed: $name",
+            VisualEvidence.capture("lifelink-$scenario-${testTheme.name.lowercase()}-$name.png"),
+        )
     }
 }
