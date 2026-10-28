@@ -224,8 +224,14 @@ class SqlAlchemyPrivacyStore:
             )
         )
         now = datetime.now(UTC)
-        freshness_at = _as_utc(donor.last_presence_at or donor.availability_updated_at or donor.created_at)
-        freshness_age_minutes = max(0.0, (now - freshness_at).total_seconds() / 60)
+        # Profile edits and account creation are not evidence of a fresh GPS observation.
+        # A missing server-recorded presence timestamp must never authorize exact coordinates.
+        freshness_at = _as_utc(donor.last_presence_at) if donor.last_presence_at else None
+        freshness_age_minutes = (
+            float("inf")
+            if freshness_at is None
+            else max(0.0, (now - freshness_at).total_seconds() / 60)
+        )
         reason = None
         live = False
         if share is None:
