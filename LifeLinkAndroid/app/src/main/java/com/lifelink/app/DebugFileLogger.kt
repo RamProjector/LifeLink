@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
+import androidx.annotation.RequiresApi
 import java.io.IOException
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -78,6 +79,7 @@ internal object DebugFileLogger {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun appendToDownloads(context: Context, entry: String) {
         val resolver = context.contentResolver
         val collection: Uri = MediaStore.Downloads.EXTERNAL_CONTENT_URI
