@@ -51,7 +51,10 @@ class DonorRepositoryImpl(
             api?.let { remote ->
                 val response = remote.registerDonor(ownerId, DonorProfileRequest(
                     ownerId, effectiveProfile.displayName.trim(), effectiveProfile.bloodType.label.replace('−', '-'),
-                    effectiveProfile.latitude, effectiveProfile.longitude, effectiveProfile.serviceRadiusKm.toDouble(), effectiveProfile.verified,
+                    effectiveProfile.latitude,
+                    effectiveProfile.longitude,
+                    effectiveProfile.serviceRadiusKm.toDouble(),
+                    effectiveProfile.verified,
                     effectiveProfile.donorNote.trim(), effectiveProfile.preferredContactMethod,
                     effectiveProfile.pauseReason?.trim()?.takeIf { it.isNotEmpty() }, effectiveProfile.profileVisible
                 ))
