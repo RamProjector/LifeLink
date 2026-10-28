@@ -35,6 +35,7 @@ import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -96,7 +97,7 @@ class ConversationNavigationTest {
         }
         // Capture the actual destination before asserting so a regression leaves a useful
         // screenshot in the CI artifact rather than only a line-number failure.
-        VisualEvidence.capture("lifelink-donor-workspace-after-open.png")
+        assertTrue(VisualEvidence.capture("lifelink-donor-workspace-after-open.png"))
         composeRule.onNodeWithTag("donor-workspace-screen").assertIsDisplayed()
         composeRule.onNodeWithText("Donor workspace", substring = false).assertIsDisplayed()
         composeRule.onNodeWithTag("donor-tab-REQUESTS").assertIsDisplayed().performClick()
