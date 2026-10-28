@@ -187,9 +187,9 @@ class ConversationNavigationTest {
         composeRule.runOnIdle { assertEquals("saved-request" to "donor-42", opened.last()) }
     }
 
-    /** Verifies unsaved coordinates and service radius survive entering and leaving the full-screen editor. */
+    /** Verifies unsaved radius and GPS-only controls survive full-screen editor transitions. */
     @Test
-    fun unsaved_profile_coordinates_and_radius_survive_full_screen_transitions() {
+    fun unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions() {
         composeRule.setContent {
             LifeLinkTheme {
                 DonorScreen(DonorUiState(profile = profile), onAction = {}, onBack = {})
@@ -197,8 +197,7 @@ class ConversationNavigationTest {
         }
         composeRule.onNodeWithText("Edit donor profile").performScrollTo().performClick()
         replaceField("Service radius (km)", "27")
-        replaceField("Latitude", "14.75")
-        replaceField("Longitude", "121.25")
+        composeRule.onNodeWithText("Update current location").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Open profile in full screen").performClick()
 
         assertEditorValues()
@@ -211,11 +210,10 @@ class ConversationNavigationTest {
         composeRule.onNodeWithText(label).performScrollTo().performTextReplacement(value)
     }
 
-    /** Asserts that the editor still displays the unsaved radius and coordinates entered by the test. */
+    /** Asserts the unsaved radius and GPS-only location control remain available. */
     private fun assertEditorValues() {
         composeRule.onNodeWithText("Service radius (km)").performScrollTo().assertTextContains("27")
-        composeRule.onNodeWithText("Latitude").performScrollTo().assertTextContains("14.75")
-        composeRule.onNodeWithText("Longitude").performScrollTo().assertTextContains("121.25")
+        composeRule.onNodeWithText("Update current location").performScrollTo().assertIsDisplayed()
     }
 
     /** Checks on the idle UI thread that every recorded action opens the expected request and donor pair. */
