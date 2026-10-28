@@ -446,6 +446,10 @@ def donor_location_max_age_minutes() -> float:
 
     The PostgreSQL path tracks location presence separately from availability
     toggles. The in-memory path retains its single timestamp for compatibility.
+    Android refreshes location only while LifeLink is foregrounded (every five
+    minutes by default). The default 15-minute window intentionally lets a
+    backgrounded donor expire from matching rather than imply live location.
+    The client communicates this behavior before donors choose availability.
     Deployments may adjust this safety window without a schema change.
     """
     raw = os.getenv("LIFELINK_DONOR_LOCATION_MAX_AGE_MINUTES", "15")
