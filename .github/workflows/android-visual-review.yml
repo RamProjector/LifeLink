@@ -37,7 +37,7 @@ env:
   # API level boots faster and keeps the AVD snapshot cache key stable.
   API_LEVEL: 34
   AVD_TARGET: google_apis
-  AVD_ARCH: arm64-v8a
+  AVD_ARCH: x86_64
   AVD_PROFILE: pixel_2
   # Bump after changing the guest architecture or emulator options to invalidate stale snapshots.
   AVD_CACHE_VERSION: v2
@@ -45,10 +45,10 @@ env:
 jobs:
   visual-review:
     name: Capture Android visual evidence
-    runs-on: macos-latest
-    # Visual review is required evidence, not a best-effort check. If the runner
-    # cannot provide KVM, fail explicitly rather than reporting a green workflow
-    # with the instrumentation tests silently skipped.
+    runs-on: ubuntu-latest
+    # Visual review is required evidence, not a best-effort check. Prefer the
+    # standard Linux x86_64 runner with KVM; software emulation remains a fallback
+    # but instrumentation and screenshots must still pass.
     timeout-minutes: 45
     defaults:
       run:
@@ -76,22 +76,12 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
-      # GitHub's ubuntu-latest runners usually expose /dev/kvm, but the runner
-      # user is not always in the kvm group, and some hosted/containerised
-      # runners do not expose /dev/kvm at all. Granting access lets the emulator
-      # use hardware acceleration, which is the dominant cost of this job.
-      #
-      # Prefer KVM for speed, but do not skip instrumentation when it is absent.
-      # The visual run below switches to the emulator's explicit software CPU
-      # mode when needed; the slower fallback still has to pass the same tests.
+      # GitHub's Ubuntu runners usually expose /dev/kvm. If unavailable, use
+      # software CPU emulation without skipping instrumentation or screenshots.
       - name: Enable native emulator virtualization
         id: kvm
         run: |
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            # Android Emulator uses Apple's Hypervisor.framework on macOS.
-            echo "Native Apple virtualization is available."
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          elif [[ -r /dev/kvm && -w /dev/kvm ]]; then
+          if [[ -r /dev/kvm && -w /dev/kvm ]]; then
             echo "KVM is available: $(ls -l /dev/kvm)"
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
@@ -104,11 +94,7 @@ jobs:
         env:
           KVM_AVAILABLE: ${{ steps.kvm.outputs.available }}
         run: |
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            echo "option=" >> "$GITHUB_OUTPUT"
-            echo "mode=Apple Hypervisor.framework" >> "$GITHUB_OUTPUT"
-            echo "Using native macOS emulator virtualization."
-          elif [[ "$KVM_AVAILABLE" == "true" ]]; then
+          if [[ "$KVM_AVAILABLE" == "true" ]]; then
             echo "option=" >> "$GITHUB_OUTPUT"
             echo "mode=KVM hardware acceleration" >> "$GITHUB_OUTPUT"
             echo "Using KVM hardware acceleration."
