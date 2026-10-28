@@ -1,8 +1,5 @@
 package com.lifelink.app.data.repository
 
-private const val MIN_DONOR_LOCATION_PRECISION_METERS = 1
-private const val MAX_DONOR_LOCATION_PRECISION_METERS = 10_000
-
 import com.lifelink.app.data.local.DonorDao
 import com.lifelink.app.data.local.DonorProfileEntity
 import com.lifelink.app.data.local.DonorRequestEntity
@@ -24,6 +21,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+
+private const val MIN_DONOR_LOCATION_PRECISION_METERS = 1
+private const val MAX_DONOR_LOCATION_PRECISION_METERS = 10_000
 
 class DonorRepositoryImpl(
     private val dao: DonorDao,
