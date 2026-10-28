@@ -218,7 +218,7 @@ class SqlAlchemyDonorProfileStore:
             .where(
                 DonorRow.user_id.in_(candidate_owner_ids),
                 DonorRow.available.is_(True),
-                func.coalesce(DonorRow.last_presence_at, DonorRow.availability_updated_at) < cutoff,
+                or_(DonorRow.last_presence_at.is_(None), DonorRow.last_presence_at < cutoff),
             )
             .values(available=False, availability_updated_at=now)
             .returning(DonorRow.user_id)
