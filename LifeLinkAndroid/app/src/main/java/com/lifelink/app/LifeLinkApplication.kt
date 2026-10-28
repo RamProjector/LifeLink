@@ -148,6 +148,42 @@ class LifeLinkApplication : Application() {
     private suspend fun refreshDonorPresenceForAccount(ownerId: String) {
         val api = accountContainer(ownerId).api
         val profileResponse = api.getDonorProfileMe()
+        val location = LocationProvider(this).currentLocation() ?: return
+        val presenceRequest = DonorPresenceRequest(
+            latitude = location.latitude,
+            longitude = location.longitude,
+            precisionMeters = location.precisionMeters.coerceIn(
+                MIN_DONOR_LOCATION_PRECISION_METERS,
+                MAX_DONOR_LOCATION_PRECISION_METERS,
+            ),
+        )
+
+        if (profileResponse.code() == 404) {
+            // Older donor-workspace accounts may have only the legacy donor row.
+            // Keep their presence fresh without weakening verification/availability gates.
+            val legacyResponse = api.getDonorProfile(ownerId)
+            if (!legacyResponse.isSuccessful) {
+                val message = "Legacy donor profile refresh returned HTTP ${legacyResponse.code()}."
+                Log.w("LifeLinkPresence", message)
+                DebugFileLogger.warning("donor-presence", message)
+                return
+            }
+            val legacyProfile = legacyResponse.body()
+            if (legacyProfile == null) {
+                val message = "Legacy donor profile refresh returned an empty response."
+                Log.w("LifeLinkPresence", message)
+                DebugFileLogger.warning("donor-presence", message)
+                return
+            }
+            if (!shouldRefreshDonorPresence(legacyProfile.verified, legacyProfile.availability)) return
+            val legacyPresence = api.recordLegacyDonorPresence(ownerId, presenceRequest)
+            if (!legacyPresence.isSuccessful) {
+                val message = "Legacy donor presence update returned HTTP ${legacyPresence.code()}."
+                Log.w("LifeLinkPresence", message)
+                DebugFileLogger.warning("donor-presence", message)
+            }
+            return
+        }
         if (!profileResponse.isSuccessful) {
             val message = "Donor profile refresh returned HTTP ${profileResponse.code()}."
             Log.w("LifeLinkPresence", message)
@@ -163,17 +199,7 @@ class LifeLinkApplication : Application() {
         }
         if (!shouldRefreshDonorPresence(profile.verified, profile.availabilityStatus)) return
 
-        val location = LocationProvider(this).currentLocation() ?: return
-        val presenceResponse = api.recordDonorPresence(
-            DonorPresenceRequest(
-                latitude = location.latitude,
-                longitude = location.longitude,
-                precisionMeters = location.precisionMeters.coerceIn(
-                    MIN_DONOR_LOCATION_PRECISION_METERS,
-                    MAX_DONOR_LOCATION_PRECISION_METERS,
-                ),
-            ),
-        )
+        val presenceResponse = api.recordDonorPresence(presenceRequest)
         if (!presenceResponse.isSuccessful) {
             // Record only the HTTP status; never log the response body or coordinates.
             val message = "Donor presence update returned HTTP ${presenceResponse.code()}."
