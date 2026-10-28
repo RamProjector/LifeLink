@@ -33,6 +33,7 @@ import com.lifelink.app.data.repository.LifeLinkAccountContainer
 import com.lifelink.app.data.repository.PrivacyRepositoryImpl
 import com.lifelink.app.data.repository.UpdatesRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -49,7 +50,11 @@ private const val MIN_DONOR_LOCATION_PRECISION_METERS = 1
 private const val MAX_DONOR_LOCATION_PRECISION_METERS = 10_000
 
 class LifeLinkApplication : Application() {
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val applicationScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, throwable ->
+            DebugFileLogger.error("application-coroutine", "Unhandled application coroutine exception", throwable)
+        },
+    )
     lateinit var authRepository: SupabaseAuthRepository
         private set
 
@@ -100,21 +105,25 @@ class LifeLinkApplication : Application() {
                     throw cancelled
                 } catch (error: IOException) {
                     Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
+                    DebugFileLogger.warning("donor-presence", "Donor presence refresh failed; it will retry.", error)
                 } catch (error: HttpException) {
                     Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
+                    DebugFileLogger.warning("donor-presence", "Donor presence refresh failed; it will retry.", error)
                 } catch (error: SecurityException) {
                     Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
+                    DebugFileLogger.warning("donor-presence", "Donor presence refresh failed; it will retry.", error)
                 } catch (error: IllegalStateException) {
                     Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
+                    DebugFileLogger.warning("donor-presence", "Donor presence refresh failed; it will retry.", error)
                 } catch (error: ApiException) {
                     Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
+                    DebugFileLogger.warning("donor-presence", "Donor presence refresh failed; it will retry.", error)
                 } catch (error: Exception) {
                     // Malformed API responses and unexpected provider exceptions must not crash the app.
                     // Log the exception type only; never include donor coordinates or response payloads.
-                    Log.w(
-                        "LifeLinkPresence",
-                        "Donor presence refresh failed (${error.javaClass.simpleName}); it will retry.",
-                    )
+                    val message = "Donor presence refresh failed (${error.javaClass.simpleName}); it will retry."
+                    Log.w("LifeLinkPresence", message)
+                    DebugFileLogger.warning("donor-presence", message, error)
                 }
                 delay(DONOR_PRESENCE_INTERVAL_MILLIS)
             }
@@ -166,6 +175,7 @@ class LifeLinkApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        DebugFileLogger.install(this)
         LifeLinkNotifications.createChannels(this)
         authRepository = SupabaseAuthRepository(
             AuthSessionStore(this) { ownerId ->
