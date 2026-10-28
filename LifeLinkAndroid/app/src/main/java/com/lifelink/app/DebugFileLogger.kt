@@ -10,7 +10,6 @@ import android.util.Log
 import java.io.IOException
 import java.io.PrintWriter
 import java.io.StringWriter
-import java.time.Instant
 
 /**
  * Debug-only diagnostics written to Downloads/LifeLink/lifelink-debug.log.
@@ -60,7 +59,7 @@ internal object DebugFileLogger {
         val stack = throwable?.let {
             StringWriter().also { writer -> it.printStackTrace(PrintWriter(writer)) }.toString()
         }.orEmpty()
-        val entry = "${Instant.now()} [$level] $message" +
+        val entry = "${System.currentTimeMillis()} [$level] $message" +
             if (stack.isEmpty()) "\n" else "\n$stack\n"
         synchronized(lock) {
             try {
