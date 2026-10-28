@@ -105,6 +105,13 @@ class LifeLinkApplication : Application() {
                     Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
                 } catch (error: ApiException) {
                     Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
+                } catch (error: Exception) {
+                    // Malformed API responses and unexpected provider exceptions must not crash the app.
+                    // Log the exception type only; never include donor coordinates or response payloads.
+                    Log.w(
+                        "LifeLinkPresence",
+                        "Donor presence refresh failed (${error.javaClass.simpleName}); it will retry.",
+                    )
                 }
                 delay(DONOR_PRESENCE_INTERVAL_MILLIS)
             }
