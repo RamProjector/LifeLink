@@ -153,7 +153,8 @@ jobs:
           trap collect_diagnostics EXIT
           device_ready=0
           boot_wait_started=$(date +%s)
-          for attempt in $(seq 1 24); do
+          # Software CPU emulation can take several minutes on runners without KVM.
+          for attempt in $(seq 1 120); do
             adb reconnect offline >/dev/null 2>&1 || true
             device_state="$(adb -s "$device_serial" get-state 2>/dev/null || true)"
             boot_completed="$(adb -s "$device_serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
@@ -166,7 +167,7 @@ jobs:
           done
           if [[ "$device_ready" != "1" ]]; then
             adb devices -l || true
-            echo "::error::Emulator did not become ready within 120 seconds after the emulator action returned."
+            echo "::error::Emulator did not become ready within 600 seconds after the emulator action returned."
             exit 2
           fi
           # The cached AVD snapshot may already contain the app installed by a
