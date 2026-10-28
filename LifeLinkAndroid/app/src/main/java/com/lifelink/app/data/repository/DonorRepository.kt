@@ -85,9 +85,9 @@ class DonorRepositoryImpl(
                         latitude = effectiveProfile.latitude,
                         longitude = effectiveProfile.longitude,
                         precisionMeters = effectiveProfile.locationPrecisionMeters.coerceIn(
-                        MIN_DONOR_LOCATION_PRECISION_METERS,
-                        MAX_DONOR_LOCATION_PRECISION_METERS,
-                    ),
+                            MIN_DONOR_LOCATION_PRECISION_METERS,
+                            MAX_DONOR_LOCATION_PRECISION_METERS,
+                        ),
                     ),
                 )
                 check(presence.isSuccessful) {
@@ -105,7 +105,10 @@ class DonorRepositoryImpl(
             val current = local?.toDomain() ?: DonorProfile(donorId = ownerId)
             require(current.isSetupComplete) { "Complete your donor profile before choosing availability." }
             api?.let { remote ->
-                val response = remote.updateDonorAvailability(ownerId, DonorAvailabilityRequest(availability.name.lowercase()))
+                val response = remote.updateDonorAvailability(
+                    ownerId,
+                    DonorAvailabilityRequest(availability.name.lowercase()),
+                )
                 check(response.isSuccessful) { "Availability could not be updated (${response.code()})." }
             }
             dao.upsertProfile(current.copy(availability = availability).toEntity())
@@ -124,58 +127,74 @@ class DonorRepositoryImpl(
         val restored = checkNotNull(profileResponse.body()) { "The server returned an empty donor profile." }
         restored.let { response ->
             val bloodType = BloodType.values().firstOrNull { it.label.replace('−', '-') == response.bloodType }
-            dao.upsertProfile(DonorProfile(
-                donorId = ownerId,
-                displayName = response.displayName,
-                bloodType = bloodType,
-                serviceRadiusKm = response.serviceRadiusKm.toInt(),
-                availability = runCatching {
-                    DonorAvailability.valueOf(response.availability.uppercase())
-                }.getOrDefault(DonorAvailability.OFFLINE),
-                verified = response.verified,
-                latitude = response.latitude,
-                longitude = response.longitude,
-                donorNote = response.donorNote,
-                preferredContactMethod = response.preferredContactMethod,
-                pauseReason = response.pauseReason,
-                profileVisible = response.profileVisible
-            ).toEntity())
+            dao.upsertProfile(
+                DonorProfile(
+                    donorId = ownerId,
+                    displayName = response.displayName,
+                    bloodType = bloodType,
+                    serviceRadiusKm = response.serviceRadiusKm.toInt(),
+                    availability = runCatching {
+                        DonorAvailability.valueOf(response.availability.uppercase())
+                    }.getOrDefault(DonorAvailability.OFFLINE),
+                    verified = response.verified,
+                    latitude = response.latitude,
+                    longitude = response.longitude,
+                    donorNote = response.donorNote,
+                    preferredContactMethod = response.preferredContactMethod,
+                    pauseReason = response.pauseReason,
+                    profileVisible = response.profileVisible,
+                ).toEntity(),
+            )
         }
         val profile = dao.observeProfile(ownerId).first()
         if (profile != null && profile.toDomain().isSetupComplete) {
             val response = remote.donorRequests(ownerId)
             check(response.isSuccessful) { "Donor requests could not be loaded (${response.code()})." }
             val requests = checkNotNull(response.body()) { "The server returned an empty donor inbox response." }
-            dao.replaceRequests(ownerId, requests.map { request ->
-                DonorRequestEntity(
-                    ownerId,
-                    request.requestId,
-                    request.bloodType,
-                    request.units,
-                    request.urgency,
-                    request.facilityName,
-                    request.area,
-                    request.distanceKm,
-                    request.status.takeUnless { it.equals("not_responded", ignoreCase = true) },
-                )
-            })
+            dao.replaceRequests(
+                ownerId,
+                requests.map { request ->
+                    DonorRequestEntity(
+                        ownerId,
+                        request.requestId,
+                        request.bloodType,
+                        request.units,
+                        request.urgency,
+                        request.facilityName,
+                        request.area,
+                        request.distanceKm,
+                        request.status.takeUnless { it.equals("not_responded", ignoreCase = true) },
+                    )
+                },
+            )
         } else {
             dao.clearRequests(ownerId)
         }
     }
 
-    override suspend fun respond(requestId: String, response: DonorResponse): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun respond(
+        requestId: String,
+        response: DonorResponse,
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val ownerId = donorId()
             val local = dao.observeProfile(ownerId).first()
             val remote = api
-            check(local?.toDomain()?.isSetupComplete == true) { "Complete your donor profile before responding." }
+            check(local?.toDomain()?.isSetupComplete == true) {
+                "Complete your donor profile before responding."
+            }
             if (remote != null) {
-                val result = remote.respondToDonorRequest(ownerId, requestId, DonorResponseRequest(response.name.lowercase()))
+                val result = remote.respondToDonorRequest(
+                    ownerId,
+                    requestId,
+                    DonorResponseRequest(response.name.lowercase()),
+                )
                 check(result.isSuccessful) { "The server rejected the response" }
             }
             dao.updateResponse(ownerId, requestId, response.name)
-        }.onFailure { if (it is CancellationException) throw it }
+        }.onFailure {
+            if (it is CancellationException) throw it
+        }
     }
 
     suspend fun seedDemoRequests() {
@@ -196,9 +215,20 @@ class DonorRepositoryImpl(
 }
 
 private fun DonorProfile.toEntity() = DonorProfileEntity(
-    donorId, displayName, bloodType?.name, area, serviceRadiusKm, availability.name,
-    verified, latitude, longitude, locationPrecisionMeters, donorNote,
-    preferredContactMethod, pauseReason, profileVisible,
+    donorId = donorId,
+    displayName = displayName,
+    bloodType = bloodType?.name,
+    area = area,
+    serviceRadiusKm = serviceRadiusKm,
+    availability = availability.name,
+    verified = verified,
+    latitude = latitude,
+    longitude = longitude,
+    locationPrecisionMeters = locationPrecisionMeters,
+    donorNote = donorNote,
+    preferredContactMethod = preferredContactMethod,
+    pauseReason = pauseReason,
+    profileVisible = profileVisible,
 )
 private fun DonorProfileEntity.toDomain() = DonorProfile(
     donorId,
@@ -206,7 +236,9 @@ private fun DonorProfileEntity.toDomain() = DonorProfile(
     bloodType?.let { runCatching { BloodType.valueOf(it) }.getOrNull() },
     area,
     serviceRadiusKm,
-    runCatching { DonorAvailability.valueOf(availability) }.getOrDefault(DonorAvailability.OFFLINE),
+    runCatching {
+        DonorAvailability.valueOf(availability)
+    }.getOrDefault(DonorAvailability.OFFLINE),
     verified,
     latitude,
     longitude,
@@ -224,5 +256,7 @@ private fun DonorRequestEntity.toDomain() = DonorRequest(
     facilityName,
     area,
     distanceKm,
-    response?.let { runCatching { DonorResponse.valueOf(it.uppercase(Locale.ROOT)) }.getOrNull() },
+    response?.let {
+        runCatching { DonorResponse.valueOf(it.uppercase(Locale.ROOT)) }.getOrNull()
+    },
 )
