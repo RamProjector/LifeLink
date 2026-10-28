@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db_models import Donor as DonorRow
@@ -207,19 +207,28 @@ class SqlAlchemyDonorProfileStore:
         if not stale_donors:
             return 0
 
-        owner_ids: list[str] = []
-        for donor in stale_donors:
-            # Expire effective presence without erasing the donor's explicit choice.
-            # If they reopen the app while still opted in, a fresh GPS heartbeat can
-            # reactivate matching. Explicit paused/offline choices remain untouched.
-            donor.available = False
-            donor.availability_updated_at = now
-            if donor.user_id:
-                owner_ids.append(donor.user_id)
+        candidate_owner_ids = [donor.user_id for donor in stale_donors if donor.user_id]
+        if not candidate_owner_ids:
+            return 0
+
+        # Re-check freshness in the UPDATE itself. A heartbeat can arrive after the
+        # candidate SELECT; the conditional predicate prevents this sweeper from
+        # overwriting that fresh presence with an offline state.
+        expired = await self.session.execute(
+            update(DonorRow)
+            .where(
+                DonorRow.user_id.in_(candidate_owner_ids),
+                DonorRow.available.is_(True),
+                func.coalesce(DonorRow.last_presence_at, DonorRow.availability_updated_at) < cutoff,
+            )
+            .values(available=False, availability_updated_at=now)
+            .returning(DonorRow.user_id)
+        )
+        expired_owner_ids = list(expired.scalars().all())
         await self.session.commit()
-        for owner_id in owner_ids:
+        for owner_id in expired_owner_ids:
             await self._recompute(owner_id)
-        return len(stale_donors)
+        return len(expired_owner_ids)
 
     async def set_availability(self, user_id: str, availability: DonorAvailability) -> DonorProfileMeOut:
         """Persist availability, mirror it onto the operational row, and re-match."""
