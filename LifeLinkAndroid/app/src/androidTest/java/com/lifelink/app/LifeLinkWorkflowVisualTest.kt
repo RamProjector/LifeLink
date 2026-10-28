@@ -18,6 +18,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lifelink.app.core.auth.UserRole
+import com.lifelink.app.core.location.MapLibreLocationPicker
 import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
@@ -91,6 +92,33 @@ class LifeLinkWorkflowVisualTest {
 
     private val testTheme: ThemeMode
         get() = if (InstrumentationRegistry.getArguments().getString("theme") == "dark") ThemeMode.DARK else ThemeMode.LIGHT
+
+    @Test
+    fun locationPickerReportsReadyOnlyAfterFullyRenderedMap() {
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    MapLibreLocationPicker(
+                        latitude = null,
+                        longitude = null,
+                        onLocationSelected = { _, _ -> },
+                    )
+                }
+            }
+        }
+        composeRule.waitUntil(timeoutMillis = 70_000) {
+            composeRule.onAllNodesWithContentDescription("Location map rendered")
+                .fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithContentDescription("Location map unavailable")
+                    .fetchSemanticsNodes().isNotEmpty()
+        }
+        org.junit.Assert.assertTrue(
+            "Location picker reported a map error instead of a fully rendered map",
+            composeRule.onAllNodesWithContentDescription("Location map unavailable")
+                .fetchSemanticsNodes().isEmpty(),
+        )
+        composeRule.onNodeWithContentDescription("Location map rendered").assertIsDisplayed()
+    }
 
     @Test
     fun donorProfileRequiresFreshGpsAndDoesNotOfferManualCoordinates() {
