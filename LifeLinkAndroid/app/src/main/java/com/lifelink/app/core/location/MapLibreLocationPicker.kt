@@ -126,7 +126,14 @@ fun MapLibreLocationPicker(
 
     Box(modifier.fillMaxWidth().heightIn(min = 260.dp)) {
         AndroidView(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp).semantics {
+                contentDescription = when {
+                    mapError != null -> "Location map unavailable"
+                    mapRendered -> "Location map rendered"
+                    mapLoading -> "Location map loading"
+                    else -> "Location map waiting for tiles"
+                }
+            },
             factory = {
                 mapView.apply {
                     addOnDidFailLoadingMapListener {
