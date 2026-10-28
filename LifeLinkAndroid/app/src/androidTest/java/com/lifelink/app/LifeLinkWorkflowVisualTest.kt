@@ -207,13 +207,17 @@ class LifeLinkWorkflowVisualTest {
         render(privacyState = SyntheticDonorMapFixture.state)
         assertVisible("Your requests")
         capture("workflow-home")
+        verifyDonorMapWorkflow()
+        verifyRequestsAndNotifications()
+        verifyProfileSettings()
+    }
 
+    private fun verifyDonorMapWorkflow() {
         composeRule.onNodeWithTag("nav-MAP").performClick()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
         composeRule.onNodeWithTag("toggle-donor-map-view").assertIsDisplayed()
-        // Wait for the native map to finish rendering before switching views. Toggling
-        // to List disposes MapView, so doing it first would cancel the initial tile load.
+        // Switching to List disposes MapView, so wait for actual tile rendering first.
         composeRule.waitUntil(timeoutMillis = 70_000) {
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
                 .fetchSemanticsNodes().isNotEmpty() ||
@@ -237,7 +241,9 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
+    }
 
+    private fun verifyRequestsAndNotifications() {
         tapTab("Requests")
         assertVisible("No active request")
         capture("workflow-requests")
@@ -247,11 +253,12 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Nothing needs your attention")
         capture("workflow-updates")
 
-        // The notifications overlay replaces the shell (and its bottom navigation),
-        // so dismiss it before navigating to another tab.
+        // Dismiss the overlay before navigating because it replaces bottom navigation.
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
+    }
 
+    private fun verifyProfileSettings() {
         composeRule.onNodeWithTag("open-profile").performClick()
         composeRule.waitForIdle()
         assertVisible("Account, privacy, and LifeLink information.")
