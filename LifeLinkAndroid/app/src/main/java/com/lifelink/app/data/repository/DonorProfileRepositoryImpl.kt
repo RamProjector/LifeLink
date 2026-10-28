@@ -31,14 +31,14 @@ class DonorProfileRepositoryImpl(private val api: LifeLinkApi) : DonorProfileRep
     }
 
     override suspend fun save(profile: DonorProfileMe): DonorProfileMe = withContext(Dispatchers.IO) {
+        val latitude = checkNotNull(profile.latitude) { "Capture your current GPS location before saving." }
+        val longitude = checkNotNull(profile.longitude) { "Capture your current GPS location before saving." }
         val response = api.upsertDonorProfile(profile.toRequest())
         check(response.isSuccessful) {
             val detail = response.errorBody()?.string()?.takeIf { it.isNotBlank() }
             "Donor profile could not be saved (${response.code()})${detail?.let { ": $it" } ?: "."}"
         }
         val saved = checkNotNull(response.body()) { "The server returned an empty donor profile." }.toDomain()
-        val latitude = checkNotNull(profile.latitude) { "Capture your current GPS location before saving." }
-        val longitude = checkNotNull(profile.longitude) { "Capture your current GPS location before saving." }
         val presence = api.recordDonorPresence(
             DonorPresenceRequest(
                 latitude = latitude,
