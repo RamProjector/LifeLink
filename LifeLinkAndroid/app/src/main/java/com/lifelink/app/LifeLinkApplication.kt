@@ -43,6 +43,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
+import java.net.HttpURLConnection
 import java.util.concurrent.TimeUnit
 
 private const val DONOR_PRESENCE_INTERVAL_MILLIS = 5 * 60 * 1000L
@@ -123,7 +124,7 @@ class LifeLinkApplication : Application() {
                     // Log the exception type only; never include donor coordinates or response payloads.
                     val message = "Donor presence refresh failed (${error.javaClass.simpleName}); it will retry."
                     Log.w("LifeLinkPresence", message)
-                    DebugFileLogger.warning("donor-presence", message, error)
+                    DebugFileLogger.warning("donor-presence", message)
                 }
                 delay(DONOR_PRESENCE_INTERVAL_MILLIS)
             }
@@ -148,58 +149,48 @@ class LifeLinkApplication : Application() {
     private suspend fun refreshDonorPresenceForAccount(ownerId: String) {
         val api = accountContainer(ownerId).api
         val profileResponse = api.getDonorProfileMe()
-        if (profileResponse.code() == 404) {
-            // Older donor-workspace accounts may have only the legacy donor row.
-            // Keep their presence fresh without weakening verification/availability gates.
-            val legacyResponse = api.getDonorProfile(ownerId)
-            if (!legacyResponse.isSuccessful) {
-                val message = "Legacy donor profile refresh returned HTTP ${legacyResponse.code()}."
-                Log.w("LifeLinkPresence", message)
-                DebugFileLogger.warning("donor-presence", message)
-                return
+        when {
+            profileResponse.code() == HttpURLConnection.HTTP_NOT_FOUND ->
+                refreshLegacyDonorPresence(ownerId)
+            !profileResponse.isSuccessful ->
+                logPresenceFailure("Donor profile refresh returned HTTP ${profileResponse.code()}.")
+            profileResponse.body() == null ->
+                logPresenceFailure("Donor profile refresh returned an empty response.")
+            shouldRefreshDonorPresence(
+                profileResponse.body()!!.verified,
+                profileResponse.body()!!.availabilityStatus,
+            ) -> capturePresenceRequest()?.let { request ->
+                val presenceResponse = api.recordDonorPresence(request)
+                if (!presenceResponse.isSuccessful) {
+                    logPresenceFailure("Donor presence update returned HTTP ${presenceResponse.code()}.")
+                }
             }
-            val legacyProfile = legacyResponse.body()
-            if (legacyProfile == null) {
-                val message = "Legacy donor profile refresh returned an empty response."
-                Log.w("LifeLinkPresence", message)
-                DebugFileLogger.warning("donor-presence", message)
-                return
-            }
-            if (!shouldRefreshDonorPresence(legacyProfile.verified, legacyProfile.availability)) return
-            val location = LocationProvider(this).currentLocation() ?: return
-            val presenceRequest = DonorPresenceRequest(
-                latitude = location.latitude,
-                longitude = location.longitude,
-                precisionMeters = location.precisionMeters.coerceIn(
-                    MIN_DONOR_LOCATION_PRECISION_METERS,
-                    MAX_DONOR_LOCATION_PRECISION_METERS,
-                ),
-            )
-            val legacyPresence = api.recordLegacyDonorPresence(ownerId, presenceRequest)
-            if (!legacyPresence.isSuccessful) {
-                val message = "Legacy donor presence update returned HTTP ${legacyPresence.code()}."
-                Log.w("LifeLinkPresence", message)
-                DebugFileLogger.warning("donor-presence", message)
-            }
-            return
         }
-        if (!profileResponse.isSuccessful) {
-            val message = "Donor profile refresh returned HTTP ${profileResponse.code()}."
-            Log.w("LifeLinkPresence", message)
-            DebugFileLogger.warning("donor-presence", message)
-            return
-        }
-        val profile = profileResponse.body()
-        if (profile == null) {
-            val message = "Donor profile refresh returned an empty response."
-            Log.w("LifeLinkPresence", message)
-            DebugFileLogger.warning("donor-presence", message)
-            return
-        }
-        if (!shouldRefreshDonorPresence(profile.verified, profile.availabilityStatus)) return
+    }
 
-        val location = LocationProvider(this).currentLocation() ?: return
-        val presenceRequest = DonorPresenceRequest(
+    private suspend fun refreshLegacyDonorPresence(ownerId: String) {
+        val api = accountContainer(ownerId).api
+        val profileResponse = api.getDonorProfile(ownerId)
+        when {
+            !profileResponse.isSuccessful ->
+                logPresenceFailure("Legacy donor profile refresh returned HTTP ${profileResponse.code()}.")
+            profileResponse.body() == null ->
+                logPresenceFailure("Legacy donor profile refresh returned an empty response.")
+            shouldRefreshDonorPresence(
+                profileResponse.body()!!.verified,
+                profileResponse.body()!!.availability,
+            ) -> capturePresenceRequest()?.let { request ->
+                val presenceResponse = api.recordLegacyDonorPresence(ownerId, request)
+                if (!presenceResponse.isSuccessful) {
+                    logPresenceFailure("Legacy donor presence update returned HTTP ${presenceResponse.code()}.")
+                }
+            }
+        }
+    }
+
+    private suspend fun capturePresenceRequest(): DonorPresenceRequest? {
+        val location = LocationProvider(this).currentLocation() ?: return null
+        return DonorPresenceRequest(
             latitude = location.latitude,
             longitude = location.longitude,
             precisionMeters = location.precisionMeters.coerceIn(
@@ -207,13 +198,11 @@ class LifeLinkApplication : Application() {
                 MAX_DONOR_LOCATION_PRECISION_METERS,
             ),
         )
-        val presenceResponse = api.recordDonorPresence(presenceRequest)
-        if (!presenceResponse.isSuccessful) {
-            // Record only the HTTP status; never log the response body or coordinates.
-            val message = "Donor presence update returned HTTP ${presenceResponse.code()}."
-            Log.w("LifeLinkPresence", message)
-            DebugFileLogger.warning("donor-presence", message)
-        }
+    }
+
+    private fun logPresenceFailure(message: String) {
+        Log.w("LifeLinkPresence", message)
+        DebugFileLogger.warning("donor-presence", message)
     }
 
     private suspend fun clearLocalAccountData(ownerId: String) = accountData.cleanup {
