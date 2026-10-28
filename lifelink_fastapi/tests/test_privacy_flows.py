@@ -112,7 +112,6 @@ def request_payload(requester_id: str, *, blood_type: str = "O+", hours: float =
 async def setup_donor(
     client,
     current,
-    run_sql,
     donor_id: str,
     *,
     blood_type: str = "O+",
@@ -147,9 +146,13 @@ async def setup_donor(
         json={"map_visible": map_visible, "exact_location_sharing_enabled": exact_sharing},
     )
     assert visibility.status_code == 200, visibility.text
-    # This legacy-route fixture represents a donor whose device has just
-    # reported GPS; profile/availability edits alone no longer refresh presence.
-    await run_sql(f"UPDATE donors SET last_presence_at = now() WHERE id = '{donor_id}'")
+    # Profile and availability writes do not refresh GPS presence; the
+    # fixture models the separate location observation sent by the Android app.
+    presence = await client.post(
+        f"/v1/donors/{donor_id}/presence",
+        json={"latitude": latitude, "longitude": longitude, "precision_meters": 35},
+    )
+    assert presence.status_code == 200, presence.text
 
 
 async def submit_request(client, current, requester_id: str, **kwargs) -> dict:
@@ -162,8 +165,8 @@ async def submit_request(client, current, requester_id: str, **kwargs) -> dict:
 def test_donor_map_shows_approximate_areas_only(pg_url):
     async def scenario(client, current, run_sql):
         hidden, shown = new_user("donor"), new_user("donor")
-        await setup_donor(client, current, run_sql, hidden, map_visible=False)
-        await setup_donor(client, current, run_sql, shown, map_visible=True)
+        await setup_donor(client, current, hidden, map_visible=False)
+        await setup_donor(client, current, shown, map_visible=True)
 
         current["id"] = new_user("viewer")
         response = await client.get("/v1/donor-map")
@@ -198,7 +201,7 @@ def test_donor_map_requires_authentication(pg_url):
 def test_hiding_from_map_revokes_live_location_share(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor, map_visible=True, exact_sharing=True)
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -234,9 +237,9 @@ def test_exact_location_requires_a_match_and_donor_opt_in(pg_url):
     async def scenario(client, current, run_sql):
         matched, unmatched = new_user("donor"), new_user("donor")
         requester = new_user("requester")
-        await setup_donor(client, current, run_sql, matched, blood_type="O+", exact_sharing=True)
+        await setup_donor(client, current, matched, blood_type="O+", exact_sharing=True)
         # A+ donor is not compatible with an O+ request, so it never matches.
-        await setup_donor(client, current, run_sql, unmatched, blood_type="A+", exact_sharing=True)
+        await setup_donor(client, current, unmatched, blood_type="A+", exact_sharing=True)
         created = await submit_request(client, current, requester)
         assert [m["donor_id"] for m in created["matches"]] == [matched]
 
@@ -248,7 +251,7 @@ def test_exact_location_requires_a_match_and_donor_opt_in(pg_url):
 
         # A matched donor that has not enabled exact sharing cannot be shared.
         no_optin = new_user("donor")
-        await setup_donor(client, current, run_sql, no_optin, blood_type="O+", exact_sharing=False)
+        await setup_donor(client, current, no_optin, blood_type="O+", exact_sharing=False)
         created2 = await submit_request(client, current, requester)
         assert no_optin in [m["donor_id"] for m in created2["matches"]]
         blocked = await client.post(
@@ -262,7 +265,7 @@ def test_exact_location_requires_a_match_and_donor_opt_in(pg_url):
 def test_exact_location_expires_when_request_is_cancelled(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -289,7 +292,7 @@ def test_exact_location_expires_when_request_is_cancelled(pg_url):
 def test_donor_can_revoke_exact_location_share(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -314,7 +317,7 @@ def test_donor_can_revoke_exact_location_share(pg_url):
 def test_conversation_is_scoped_to_the_two_participants(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester, outsider = new_user("donor"), new_user("requester"), new_user("outsider")
-        await setup_donor(client, current, run_sql, donor)
+        await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -361,7 +364,7 @@ def test_conversation_is_scoped_to_the_two_participants(pg_url):
 def test_contact_details_are_hidden_until_explicitly_shared_and_audited(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor)
+        await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -399,7 +402,7 @@ def test_contact_details_are_hidden_until_explicitly_shared_and_audited(pg_url):
 def test_contact_share_audit_row_exists(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor)
+        await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -426,7 +429,7 @@ def test_contact_share_audit_row_exists(pg_url):
 def test_map_visibility_off_revokes_live_share(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor, map_visible=True, exact_sharing=True)
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -459,7 +462,7 @@ def test_map_visibility_off_revokes_live_share(pg_url):
 def test_legacy_donor_gps_presence_refreshes_stale_location(pg_url):
     async def scenario(client, current, run_sql):
         donor = new_user("donor")
-        await setup_donor(client, current, run_sql, donor, map_visible=True)
+        await setup_donor(client, current, donor, map_visible=True)
         await run_sql(
             f"UPDATE donors SET last_presence_at = now() - interval '10 days' WHERE id = '{donor}'"
         )
@@ -482,8 +485,8 @@ def test_legacy_donor_gps_presence_refreshes_stale_location(pg_url):
 def test_donors_without_fresh_gps_presence_are_hidden_from_the_map(pg_url):
     async def scenario(client, current, run_sql):
         stale_donor, never_present = new_user("donor"), new_user("donor")
-        await setup_donor(client, current, run_sql, stale_donor, map_visible=True)
-        await setup_donor(client, current, run_sql, never_present, map_visible=True)
+        await setup_donor(client, current, stale_donor, map_visible=True)
+        await setup_donor(client, current, never_present, map_visible=True)
         await run_sql(
             f"UPDATE donors SET last_presence_at = now() - interval '10 days' "
             f"WHERE id = '{stale_donor}'"
@@ -499,7 +502,7 @@ def test_donors_without_fresh_gps_presence_are_hidden_from_the_map(pg_url):
 def test_exact_location_requires_a_fresh_donor_location(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -524,8 +527,8 @@ def test_exact_location_requires_a_fresh_donor_location(pg_url):
 def test_map_coarsening_uses_a_consistent_grid(pg_url):
     async def scenario(client, current, run_sql):
         a, b = new_user("donor"), new_user("donor")
-        await setup_donor(client, current, run_sql, a, latitude=11.2401, longitude=125.0001, map_visible=True)
-        await setup_donor(client, current, run_sql, b, latitude=11.2499, longitude=125.0099, map_visible=True)
+        await setup_donor(client, current, a, latitude=11.2401, longitude=125.0001, map_visible=True)
+        await setup_donor(client, current, b, latitude=11.2499, longitude=125.0099, map_visible=True)
         current["id"] = new_user("viewer")
         entries = (await client.get("/v1/donor-map")).json()["entries"]
         assert len(entries) == 2
@@ -539,7 +542,7 @@ def test_map_coarsening_uses_a_consistent_grid(pg_url):
 def test_contact_share_rejects_invalid_values(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor)
+        await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
         current["id"] = requester
         opened = await client.post(
@@ -566,7 +569,7 @@ def test_contact_share_rejects_invalid_values(pg_url):
 def test_blank_message_is_rejected(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor)
+        await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
         current["id"] = requester
         opened = await client.post(
@@ -584,7 +587,7 @@ def test_blank_message_is_rejected(pg_url):
 def test_location_share_cannot_be_activated_on_an_inactive_request(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, exact_sharing=True)
         created = await submit_request(client, current, requester)
         current["id"] = requester
         cancelled = await client.post(f"/v1/emergency-requests/{created['request_id']}/cancel")
@@ -600,7 +603,7 @@ def test_location_share_cannot_be_activated_on_an_inactive_request(pg_url):
 def test_sweeper_expires_shares_for_timed_out_requests(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, exact_sharing=True)
         created = await submit_request(client, current, requester)
         current["id"] = requester
         await client.post(f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share")
@@ -674,7 +677,7 @@ def test_block_is_enforced_and_suppresses_push(pg_url, monkeypatch):
 
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor)
+        await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
         current["id"] = requester
         opened = await client.post(
@@ -724,7 +727,7 @@ def test_conversation_moderation_is_available_to_either_participant(pg_url):
     (the requester-only contact endpoints would return 403 for a donor)."""
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor)
+        await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
         current["id"] = requester
         opened = await client.post(
@@ -782,7 +785,7 @@ def test_donor_message_notifies_the_requester(pg_url, monkeypatch):
 
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor)
+        await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
         current["id"] = requester
         opened = await client.post(
@@ -850,7 +853,7 @@ def test_block_is_one_way_and_does_not_silence_the_blocker(pg_url):
     """
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor)
+        await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
         current["id"] = requester
         opened = await client.post(
@@ -893,7 +896,7 @@ def test_donor_with_distinct_user_id_can_use_the_conversation(pg_url):
     """
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, run_sql, donor)
+        await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
         current["id"] = requester
         opened = await client.post(
