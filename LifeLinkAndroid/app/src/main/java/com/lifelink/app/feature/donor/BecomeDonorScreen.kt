@@ -2,6 +2,7 @@ package com.lifelink.app.feature.donor
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +35,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +60,8 @@ import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfileMe
 import kotlinx.coroutines.launch
+
+private const val GPS_CAPTURE_MAX_AGE_MILLIS = 5 * 60 * 1000L
 
 /**
  * Separate donor-profile flow: opt in to donating after account creation.
@@ -202,7 +206,14 @@ private fun AvailabilityCard(profile: DonorProfileMe, saving: Boolean, onAction:
 private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAction) -> Unit) {
     val profile = state.draft
     var radius by rememberSaveable(profile.donorId) { mutableStateOf(profile.serviceRadiusKm.toString()) }
-    var gpsCapturedThisSession by remember(profile.donorId) { mutableStateOf(false) }
+    var gpsCapturedAtElapsedMillis by remember(profile.donorId) { mutableStateOf<Long?>(null) }
+    LaunchedEffect(gpsCapturedAtElapsedMillis) {
+        val capturedAt = gpsCapturedAtElapsedMillis ?: return@LaunchedEffect
+        val remainingMillis = (GPS_CAPTURE_MAX_AGE_MILLIS - (SystemClock.elapsedRealtime() - capturedAt))
+            .coerceAtLeast(0L)
+        kotlinx.coroutines.delay(remainingMillis)
+        if (gpsCapturedAtElapsedMillis == capturedAt) gpsCapturedAtElapsedMillis = null
+    }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
@@ -231,8 +242,10 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
             GpsLocationCapture(
                 latitude = profile.latitude,
                 longitude = profile.longitude,
-                capturedThisSession = gpsCapturedThisSession,
-                onCaptureStateChanged = { gpsCapturedThisSession = it },
+                capturedThisSession = gpsCapturedAtElapsedMillis != null,
+                onCaptureStateChanged = { captured ->
+                    gpsCapturedAtElapsedMillis = if (captured) SystemClock.elapsedRealtime() else null
+                },
                 onLocationCaptured = { latitude, longitude, precisionMeters ->
                     onAction(
                         BecomeDonorAction.UpdateDraft {
@@ -248,7 +261,9 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
             RadiusAndSave(
                 state,
                 radius,
-                locationCaptured = gpsCapturedThisSession,
+                locationCaptured = gpsCapturedAtElapsedMillis?.let { capturedAt ->
+                    SystemClock.elapsedRealtime() - capturedAt < GPS_CAPTURE_MAX_AGE_MILLIS
+                } == true,
                 onRadiusChange = { radius = it },
                 onAction = onAction,
             )
