@@ -47,6 +47,7 @@ import org.maplibre.android.annotations.Marker
 import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 
 private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
@@ -309,6 +310,24 @@ private fun RowLoading() {
     }
 }
 
+private fun addAreaMarkers(
+    map: MapLibreMap,
+    areas: List<DonorMapArea>,
+    markerAreas: MutableMap<Long, DonorMapArea>,
+) {
+    map.clear()
+    markerAreas.clear()
+    areas.forEach { area ->
+        val marker = map.addMarker(
+            MarkerOptions()
+                .position(LatLng(area.latitude, area.longitude))
+                .title("Donor pin · ${area.bloodType}")
+                .snippet("${area.availability} · Approximate location only"),
+        )
+        markerAreas[marker.id] = area
+    }
+}
+
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun MapLibrePrivacySafeDonorMap(
@@ -320,15 +339,10 @@ fun MapLibrePrivacySafeDonorMap(
     onAreaSelected: (DonorMapArea) -> Unit = {},
 ) {
     val context = LocalContext.current
-    val latestAreas by rememberUpdatedState(areas)
     val latestOnAreaSelected by rememberUpdatedState(onAreaSelected)
+    val markerAreas = remember { mutableMapOf<Long, DonorMapArea>() }
     val onMarkerClick: (Marker) -> Boolean = { marker ->
-        val selected = latestAreas.minByOrNull { area ->
-            val latitudeDelta = area.latitude - marker.position.latitude
-            val longitudeDelta = area.longitude - marker.position.longitude
-            latitudeDelta * latitudeDelta + longitudeDelta * longitudeDelta
-        }
-        selected?.let(latestOnAreaSelected)
+        markerAreas[marker.id]?.let(latestOnAreaSelected)
         true
     }
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
@@ -421,15 +435,7 @@ fun MapLibrePrivacySafeDonorMap(
                             map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
                             appliedCenter = center
                             appliedRecenterRequest = recenterRequest
-                            map.clear()
-                            areas.forEach { area ->
-                                map.addMarker(
-                                    MarkerOptions()
-                                        .position(LatLng(area.latitude, area.longitude))
-                                        .title("Donor pin · ${area.bloodType}")
-                                        .snippet("${area.availability} · Approximate location only"),
-                                )
-                            }
+                            addAreaMarkers(map, areas, markerAreas)
                             appliedAreasSignature = areasSignature
                             map.setOnMarkerClickListener { marker -> onMarkerClick(marker) }
                         }
@@ -447,15 +453,7 @@ fun MapLibrePrivacySafeDonorMap(
                             styleReady = true
                             mapLoading = false
                             mapError = false
-                            map.clear()
-                            areas.forEach { area ->
-                                map.addMarker(
-                                    MarkerOptions()
-                                        .position(LatLng(area.latitude, area.longitude))
-                                        .title("Donor pin · ${area.bloodType}")
-                                        .snippet("${area.availability} · Approximate location only"),
-                                )
-                            }
+                            addAreaMarkers(map, areas, markerAreas)
                             appliedAreasSignature = areasSignature
                             appliedCenter = center
                             appliedRecenterRequest = recenterRequest
@@ -467,15 +465,7 @@ fun MapLibrePrivacySafeDonorMap(
                     if (appliedAreasSignature != areasSignature) {
                         // Update annotations in place. Reloading the whole style for a
                         // blood-type/availability filter needlessly reloads map tiles.
-                        map.clear()
-                        areas.forEach { area ->
-                            map.addMarker(
-                                MarkerOptions()
-                                    .position(LatLng(area.latitude, area.longitude))
-                                    .title("Donor pin · ${area.bloodType}")
-                                    .snippet("${area.availability} · Approximate location only"),
-                            )
-                        }
+                        addAreaMarkers(map, areas, markerAreas)
                         appliedAreasSignature = areasSignature
                         map.setOnMarkerClickListener { marker -> onMarkerClick(marker) }
                     }
