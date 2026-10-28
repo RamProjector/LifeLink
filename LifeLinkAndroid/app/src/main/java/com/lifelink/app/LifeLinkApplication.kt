@@ -23,6 +23,7 @@ import com.lifelink.app.data.repository.EmergencyRequestRepositoryImpl
 import com.lifelink.app.data.repository.LifeLinkAccountContainer
 import com.lifelink.app.data.repository.PrivacyRepositoryImpl
 import com.lifelink.app.data.repository.UpdatesRepository
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,7 +32,11 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 class LifeLinkApplication : Application() {
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val applicationScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, throwable ->
+            DebugFileLogger.error("application-coroutine", "Unhandled application coroutine exception", throwable)
+        },
+    )
     lateinit var authRepository: SupabaseAuthRepository
         private set
 
@@ -74,6 +79,7 @@ class LifeLinkApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        DebugFileLogger.install(this)
         LifeLinkNotifications.createChannels(this)
         authRepository = SupabaseAuthRepository(
             AuthSessionStore(this) { ownerId ->
