@@ -67,7 +67,12 @@ private fun donorAreaKey(area: DonorMapArea): String =
 @Composable
 private fun DonorAreaDetailsScreen(area: DonorMapArea, onBack: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp),
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         OutlinedButton(
