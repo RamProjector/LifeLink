@@ -90,6 +90,13 @@ async def create_all_tables() -> None:
         await connection.execute(text(
             "ALTER TABLE lifelink_profiles ADD COLUMN IF NOT EXISTS fcm_token VARCHAR(4096)"
         ))
+        presence_column_exists = await connection.scalar(text(
+            "SELECT EXISTS ("
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema = current_schema() "
+            "AND table_name = 'donors' AND column_name = 'last_presence_at'"
+            ")"
+        ))
         await connection.execute(text(
             "ALTER TABLE donors "
             "ADD COLUMN IF NOT EXISTS user_id VARCHAR(128), "
@@ -103,12 +110,14 @@ async def create_all_tables() -> None:
             "ADD COLUMN IF NOT EXISTS exact_location_sharing_enabled BOOLEAN NOT NULL DEFAULT FALSE, "
             "ADD COLUMN IF NOT EXISTS last_presence_at TIMESTAMPTZ"
         ))
-        # Legacy rows inherit their last availability timestamp once. Future
-        # availability toggles no longer refresh location freshness.
-        await connection.execute(text(
-            "UPDATE donors SET last_presence_at = availability_updated_at "
-            "WHERE last_presence_at IS NULL"
-        ))
+        # Backfill only when this startup adds the column. Re-running startup
+        # must not turn an intentionally missing/stale GPS observation into a fresh
+        # location merely because availability was toggled recently.
+        if not presence_column_exists:
+            await connection.execute(text(
+                "UPDATE donors SET last_presence_at = availability_updated_at "
+                "WHERE last_presence_at IS NULL"
+            ))
         await connection.execute(text(
             "CREATE INDEX IF NOT EXISTS ix_donors_last_presence_at ON donors (last_presence_at)"
         ))
