@@ -46,7 +46,9 @@ class DonorRepositoryImpl(
             val effectiveProfile = profile.copy(donorId = ownerId)
             require(effectiveProfile.displayName.trim().length >= 2) { "Add a display name before saving your donor profile." }
             require(effectiveProfile.bloodType != null) { "Select your blood type before saving your donor profile." }
-            require(effectiveProfile.latitude != null && effectiveProfile.longitude != null) { "Capture your approximate location before saving your donor profile." }
+            require(
+                effectiveProfile.latitude != null && effectiveProfile.longitude != null,
+            ) { "Capture your approximate location before saving your donor profile." }
             require(effectiveProfile.serviceRadiusKm in 1..100) { "Service radius must be between 1 and 100 km." }
             api?.let { remote ->
                 val response = remote.registerDonor(ownerId, DonorProfileRequest(
@@ -62,7 +64,10 @@ class DonorRepositoryImpl(
                     val detail = response.errorBody()?.string()?.takeIf { it.isNotBlank() }
                     "Profile could not be saved on the server (${response.code()})${detail?.let { ": $it" } ?: "."}"
                 }
-                val availability = remote.updateDonorAvailability(ownerId, DonorAvailabilityRequest(effectiveProfile.availability.name.lowercase()))
+                val availability = remote.updateDonorAvailability(
+                    ownerId,
+                    DonorAvailabilityRequest(effectiveProfile.availability.name.lowercase()),
+                )
                 check(availability.isSuccessful) {
                     val detail = availability.errorBody()?.string()?.takeIf { it.isNotBlank() }
                     "Availability could not be updated (${availability.code()})${detail?.let { ": $it" } ?: "."}"
@@ -117,7 +122,9 @@ class DonorRepositoryImpl(
                 displayName = response.displayName,
                 bloodType = bloodType,
                 serviceRadiusKm = response.serviceRadiusKm.toInt(),
-                availability = runCatching { DonorAvailability.valueOf(response.availability.uppercase()) }.getOrDefault(DonorAvailability.OFFLINE),
+                availability = runCatching {
+                    DonorAvailability.valueOf(response.availability.uppercase())
+                }.getOrDefault(DonorAvailability.OFFLINE),
                 verified = response.verified,
                 latitude = response.latitude,
                 longitude = response.longitude,
@@ -133,7 +140,17 @@ class DonorRepositoryImpl(
             check(response.isSuccessful) { "Donor requests could not be loaded (${response.code()})." }
             val requests = checkNotNull(response.body()) { "The server returned an empty donor inbox response." }
             dao.replaceRequests(ownerId, requests.map { request ->
-                DonorRequestEntity(ownerId, request.requestId, request.bloodType, request.units, request.urgency, request.facilityName, request.area, request.distanceKm, request.status.takeUnless { it.equals("not_responded", ignoreCase = true) })
+                DonorRequestEntity(
+                    ownerId,
+                    request.requestId,
+                    request.bloodType,
+                    request.units,
+                    request.urgency,
+                    request.facilityName,
+                    request.area,
+                    request.distanceKm,
+                    request.status.takeUnless { it.equals("not_responded", ignoreCase = true) },
+                )
             })
         } else {
             dao.clearRequests(ownerId)
@@ -156,11 +173,49 @@ class DonorRepositoryImpl(
 
     suspend fun seedDemoRequests() {
         val ownerId = donorId()
-        dao.upsertRequest(DonorRequestEntity(ownerId, "req-demo-001", "O−", 1, "critical", "St. Luke’s Medical Center", "Quezon City", 4.2, null))
-        dao.upsertRequest(DonorRequestEntity(ownerId, "req-demo-002", "A+", 2, "urgent", "Philippine General Hospital", "Manila", 8.7, null))
+        dao.upsertRequest(
+            DonorRequestEntity(
+                ownerId, "req-demo-001", "O−", 1, "critical",
+                "St. Luke’s Medical Center", "Quezon City", 4.2, null,
+            ),
+        )
+        dao.upsertRequest(
+            DonorRequestEntity(
+                ownerId, "req-demo-002", "A+", 2, "urgent",
+                "Philippine General Hospital", "Manila", 8.7, null,
+            ),
+        )
     }
 }
 
-private fun DonorProfile.toEntity() = DonorProfileEntity(donorId, displayName, bloodType?.name, area, serviceRadiusKm, availability.name, verified, latitude, longitude, locationPrecisionMeters, donorNote, preferredContactMethod, pauseReason, profileVisible)
-private fun DonorProfileEntity.toDomain() = DonorProfile(donorId, displayName, bloodType?.let { runCatching { BloodType.valueOf(it) }.getOrNull() }, area, serviceRadiusKm, runCatching { DonorAvailability.valueOf(availability) }.getOrDefault(DonorAvailability.OFFLINE), verified, latitude, longitude, locationPrecisionMeters, donorNote, preferredContactMethod, pauseReason, profileVisible)
-private fun DonorRequestEntity.toDomain() = DonorRequest(requestId, bloodType, units, urgency, facilityName, area, distanceKm, response?.let { runCatching { DonorResponse.valueOf(it.uppercase(Locale.ROOT)) }.getOrNull() })
+private fun DonorProfile.toEntity() = DonorProfileEntity(
+    donorId, displayName, bloodType?.name, area, serviceRadiusKm, availability.name,
+    verified, latitude, longitude, locationPrecisionMeters, donorNote,
+    preferredContactMethod, pauseReason, profileVisible,
+)
+private fun DonorProfileEntity.toDomain() = DonorProfile(
+    donorId,
+    displayName,
+    bloodType?.let { runCatching { BloodType.valueOf(it) }.getOrNull() },
+    area,
+    serviceRadiusKm,
+    runCatching { DonorAvailability.valueOf(availability) }.getOrDefault(DonorAvailability.OFFLINE),
+    verified,
+    latitude,
+    longitude,
+    locationPrecisionMeters,
+    donorNote,
+    preferredContactMethod,
+    pauseReason,
+    profileVisible,
+)
+private fun DonorRequestEntity.toDomain() = DonorRequest(
+    requestId,
+    bloodType,
+    units,
+    urgency,
+    facilityName,
+    area,
+    distanceKm,
+    response?.let { runCatching { DonorResponse.valueOf(it.uppercase(Locale.ROOT)) }.getOrNull() },
+)
