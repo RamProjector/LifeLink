@@ -1,5 +1,6 @@
 package com.lifelink.app.feature.privacy
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -142,6 +143,7 @@ fun DonorMapScreen(
     val areas = state.map?.areas.orEmpty()
     val selectedArea = areas.firstOrNull { donorAreaKey(it) == selectedAreaKey }
     if (selectedArea != null) {
+        BackHandler { selectedAreaKey = "" }
         DonorAreaDetailsScreen(selectedArea) { selectedAreaKey = "" }
         return
     }
