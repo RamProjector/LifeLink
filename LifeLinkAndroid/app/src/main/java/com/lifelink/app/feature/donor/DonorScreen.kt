@@ -51,6 +51,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.os.SystemClock
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -70,6 +71,7 @@ import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -99,7 +101,27 @@ fun DonorScreen(
     var locationCaptureRequest by remember { mutableStateOf(0) }
     var locationMessage by remember { mutableStateOf<String?>(null) }
     var locationSource by rememberSaveable(state.profile.donorId) { mutableStateOf<String?>(null) }
-    var locationCapturedThisSession by remember(state.profile.donorId) { mutableStateOf(false) }
+    var locationCapturedAtElapsedRealtime by remember(state.profile.donorId) { mutableStateOf<Long?>(null) }
+    var wasSaving by remember(state.profile.donorId) { mutableStateOf(false) }
+    val locationCapturedThisSession = locationCapturedAtElapsedRealtime != null
+    LaunchedEffect(locationCapturedAtElapsedRealtime) {
+        val capturedAt = locationCapturedAtElapsedRealtime ?: return@LaunchedEffect
+        val remaining = GPS_CAPTURE_MAX_AGE_MILLIS - (SystemClock.elapsedRealtime() - capturedAt)
+        if (remaining <= 0L) {
+            locationCapturedAtElapsedRealtime = null
+            locationMessage = "GPS capture expired. Capture your current location again before saving."
+        } else {
+            delay(remaining)
+            locationCapturedAtElapsedRealtime = null
+            locationMessage = "GPS capture expired. Capture your current location again before saving."
+        }
+    }
+    LaunchedEffect(state.saving) {
+        if (wasSaving && !state.saving) {
+            locationCapturedAtElapsedRealtime = null
+        }
+        wasSaving = state.saving
+    }
     val settingsResolutionLauncher =
         rememberLauncherForActivityResult(
             ActivityResultContracts.StartIntentSenderForResult(),
@@ -136,7 +158,7 @@ fun DonorScreen(
                                 location.precisionMeters,
                             ),
                         )
-                        locationCapturedThisSession = true
+                        locationCapturedAtElapsedRealtime = SystemClock.elapsedRealtime()
                         locationSource = "GPS"
                         locationMessage = "GPS location captured. Save your profile to update matching."
                     } ?: run { locationMessage = "Could not get a current GPS fix. Try again." }
@@ -289,6 +311,8 @@ fun DonorScreen(
         }
     }
 }
+
+private const val GPS_CAPTURE_MAX_AGE_MILLIS = 2 * 60 * 1000L
 
 private enum class DonorTab(val label: String) {
     HOME("Home"),
