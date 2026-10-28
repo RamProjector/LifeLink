@@ -153,7 +153,7 @@ Commit `e021b92` hardened the PostgreSQL donor profile save route. It rolls back
 
 Added `docs/REPOSITORY_GUIDE.md` as a navigation hub and `docs/APP_CLIENT_IMPROVEMENT_AUDIT.md` as a prioritized, testable Android-client backlog. The audit organizes work around map-state correctness, location consent and source feedback, server-authoritative role/session handling, request creation and history, accepted-donor contact/chat, notification account isolation, privacy controls, accessibility, and lifecycle/performance. It explicitly separates repository-informed recommendations from implementation or device-verification claims.
 
-The documentation changes are proposed in [PR #139](https://github.com/RamProjector/LifeLink/pull/139). They should not be treated as merged until the pull request and checks confirm that state.
+These documentation changes were consolidated into [PR #153](https://github.com/RamProjector/LifeLink/pull/153); use that integration PR and its latest checks for the current implementation and validation status. PR #139 is historical context, not the active integration target.
 
 
 ## 2026-10-28 — Consolidated donor GPS, privacy, and presence work (PR #153)
@@ -164,4 +164,4 @@ The documentation changes are proposed in [PR #139](https://github.com/RamProjec
 - Added marker/list-to-details navigation for privacy-safe approximate donor areas; the public map does not expose donor identity, contact details, or exact coordinates.
 - Consolidated MapLibre style/render readiness, donor workspace tab restoration through chat, emulator visual evidence, and the regression tests into one integration PR.
 - Removed the embedded development API-token default and added tests ensuring a default Retrofit client sends no authorization header.
-- **Validation boundary:** CI must pass on the final PR head. Real-device GPS and live FCM delivery are not certified by emulator/build checks alone.
+- **Validation boundary:** CI must pass on the final PR head, including chat send/receive/reconnect/unread/error states, notification-tap routing, backend end-to-end checks, and actual screenshot evidence. Real-device GPS and live FCM delivery are not certified by emulator/build checks alone.
