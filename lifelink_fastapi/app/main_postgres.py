@@ -1023,6 +1023,7 @@ async def record_legacy_donor_presence_postgres(
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
     require_verified_email(principal)
+    await enforce_rate_limit(f"legacy-donor-presence:{principal.subject}", 60, 300)
     store = SqlAlchemyDonorStore(session)
     row = await store.get_by_identity(donor_id)
     if row is None or not donor_setup_complete(row):
