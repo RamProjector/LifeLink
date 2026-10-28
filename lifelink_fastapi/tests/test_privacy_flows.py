@@ -456,16 +456,19 @@ def test_map_visibility_off_revokes_live_share(pg_url):
     run_scenario(pg_url, scenario)
 
 
-def test_stale_donor_is_hidden_from_the_map(pg_url):
+def test_donors_without_fresh_gps_presence_are_hidden_from_the_map(pg_url):
     async def scenario(client, current, run_sql):
-        donor = new_user("donor")
-        await setup_donor(client, current, run_sql, donor, map_visible=True)
+        stale_donor, never_present = new_user("donor"), new_user("donor")
+        await setup_donor(client, current, run_sql, stale_donor, map_visible=True)
+        await setup_donor(client, current, run_sql, never_present, map_visible=True)
         await run_sql(
-            f"UPDATE donors SET last_presence_at = now() - interval '10 days' WHERE id = '{donor}'"
+            f"UPDATE donors SET last_presence_at = now() - interval '10 days' "
+            f"WHERE id = '{stale_donor}'"
         )
+        await run_sql(f"UPDATE donors SET last_presence_at = NULL WHERE id = '{never_present}'")
         current["id"] = new_user("viewer")
         body = (await client.get("/v1/donor-map")).json()
-        assert body["entries"] == []
+        assert body["entries"] == [], "stale and never-refreshed donors must both be hidden"
 
     run_scenario(pg_url, scenario)
 
