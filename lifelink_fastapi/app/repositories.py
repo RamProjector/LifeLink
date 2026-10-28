@@ -97,7 +97,7 @@ class SqlAlchemyDonorRepository(DonorRepository):
                 latitude=float(row.latitude),
                 longitude=float(row.longitude),
                 available=row.available,
-                availability_updated_at=row.last_presence_at or row.availability_updated_at,
+                availability_updated_at=row.last_presence_at or datetime.min.replace(tzinfo=UTC),
                 verified=row.verified,
                 service_radius_km=float(row.service_radius_km),
                 estimated_response_probability=float(row.estimated_response_probability),
