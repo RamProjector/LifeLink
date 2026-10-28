@@ -521,6 +521,17 @@ def test_exact_location_requires_a_fresh_donor_location(pg_url):
         assert after.json()["shared"] is False
         assert "fresh" in (after.json()["reason"] or "").lower()
 
+        # A missing GPS timestamp must also deny disclosure; profile edits or
+        # account timestamps must never be treated as a substitute GPS fix.
+        await run_sql(f"UPDATE donors SET last_presence_at = NULL WHERE id = '{donor}'")
+        never_present = await client.get(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
+        )
+        assert never_present.json()["shared"] is False
+        assert "fresh" in (never_present.json()["reason"] or "").lower()
+        assert never_present.json().get("latitude") is None
+        assert never_present.json().get("longitude") is None
+
     run_scenario(pg_url, scenario)
 
 
