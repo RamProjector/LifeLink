@@ -6,7 +6,7 @@ LifeLink has an emulator-based visual-review workflow for the signed-out authent
 
 The workflow builds the debug app and instrumentation APK, launches an API 34 Pixel 2 emulator with animations disabled, runs Compose instrumentation tests, and uploads screenshots, Android test reports, and emulator logs as a GitHub Actions artifact.
 
-The auth test captures `auth-screen.png` and asserts that the current auth screen visibly contains:
+The auth test captures `lifelink-auth-screen.png` and asserts that the current auth screen visibly contains:
 
 - `Welcome back. Sign in to continue.`
 - `Email address`
