@@ -133,6 +133,14 @@ async def opt_in_donor(client, current, user_id: str, *, availability: str = "av
         },
     )
     assert response.status_code == 200, response.text
+    # The normal app follows profile save with a dedicated GPS presence write.
+    # Keeping this in the helper makes matching tests model the real client flow.
+    current["id"] = user_id
+    presence = await client.post(
+        "/v1/donor-profile/presence",
+        json={"latitude": 11.2440, "longitude": 125.0010, "precision_meters": 35},
+    )
+    assert presence.status_code == 200, presence.text
     return response.json()
 
 
@@ -396,6 +404,38 @@ def test_unknown_blood_type_is_rejected(pg_url):
             },
         )
         assert response.status_code == 400
+
+    run_scenario(pg_url, scenario)
+
+
+def test_profile_save_without_gps_presence_is_not_matchable(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await create_account(client, current, donor)
+        current["id"] = donor
+        created = await client.put(
+            "/v1/donor-profile",
+            json={
+                "blood_type": "O+",
+                "latitude": 11.2440,
+                "longitude": 125.0010,
+                "area": "Tacloban",
+                "service_radius_km": 15,
+                "availability_status": "available",
+                "notifications_enabled": True,
+            },
+        )
+        assert created.status_code == 200, created.text
+        await run_sql(f"UPDATE donor_profiles SET verified = TRUE WHERE user_id = '{donor}'")
+        enabled = await client.patch(
+            "/v1/donor-profile/availability",
+            json={"availability_status": "available"},
+        )
+        assert enabled.status_code == 200, enabled.text
+
+        # Profile saves and availability toggles must not impersonate a GPS fix.
+        created_request = await submit_request(client, current, requester)
+        assert created_request["matches"] == [], "a donor without GPS presence must not be matchable"
 
     run_scenario(pg_url, scenario)
 
