@@ -146,17 +146,23 @@ class LifeLinkApplication : Application() {
 
         val api = accountContainer(session.userId).api
         val profileResponse = api.getDonorProfileMe()
-        val profile = profileResponse.body()
-        if (
-            !profileResponse.isSuccessful ||
-            profile == null ||
-            !shouldRefreshDonorPresence(profile.verified, profile.availabilityStatus)
-        ) {
+        if (!profileResponse.isSuccessful) {
+            val message = "Donor profile refresh returned HTTP ${profileResponse.code()}."
+            Log.w("LifeLinkPresence", message)
+            DebugFileLogger.warning("donor-presence", message)
             return
         }
+        val profile = profileResponse.body()
+        if (profile == null) {
+            val message = "Donor profile refresh returned an empty response."
+            Log.w("LifeLinkPresence", message)
+            DebugFileLogger.warning("donor-presence", message)
+            return
+        }
+        if (!shouldRefreshDonorPresence(profile.verified, profile.availabilityStatus)) return
 
         val location = LocationProvider(this).currentLocation() ?: return
-        api.recordDonorPresence(
+        val presenceResponse = api.recordDonorPresence(
             DonorPresenceRequest(
                 latitude = location.latitude,
                 longitude = location.longitude,
@@ -166,6 +172,12 @@ class LifeLinkApplication : Application() {
                 ),
             ),
         )
+        if (!presenceResponse.isSuccessful) {
+            // Record only the HTTP status; never log the response body or coordinates.
+            val message = "Donor presence update returned HTTP ${presenceResponse.code()}."
+            Log.w("LifeLinkPresence", message)
+            DebugFileLogger.warning("donor-presence", message)
+        }
     }
 
     private suspend fun clearLocalAccountData(ownerId: String) = accountData.cleanup {
