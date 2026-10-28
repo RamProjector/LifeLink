@@ -37,10 +37,10 @@ env:
   # API level boots faster and keeps the AVD snapshot cache key stable.
   API_LEVEL: 34
   AVD_TARGET: google_apis
-  AVD_ARCH: x86_64
+  AVD_ARCH: arm64-v8a
   AVD_PROFILE: pixel_2
-  # Bump to invalidate the cached AVD snapshot after changing emulator options.
-  AVD_CACHE_VERSION: v1
+  # Bump after changing the guest architecture or emulator options to invalidate stale snapshots.
+  AVD_CACHE_VERSION: v2
 
 jobs:
   visual-review:
@@ -214,7 +214,7 @@ jobs:
         with:
           path: |
             ~/.android/avd/*
-            /usr/local/lib/android/sdk/system-images
+            ~/Library/Android/sdk/system-images
           key: avd-${{ env.API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_PROFILE }}-${{ env.AVD_CACHE_VERSION }}
 
       # On a cache miss, boot the emulator once and let it save a snapshot that
