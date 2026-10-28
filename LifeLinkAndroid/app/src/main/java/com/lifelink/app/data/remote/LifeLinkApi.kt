@@ -130,6 +130,12 @@ interface LifeLinkApi {
         @Body profile: DonorProfileRequest,
     ): Response<DonorProfileResponse>
 
+    @POST("v1/donors/{donorId}/presence")
+    suspend fun recordLegacyDonorPresence(
+        @Path("donorId") donorId: String,
+        @Body request: DonorPresenceRequest,
+    ): Response<DonorProfileResponse>
+
     @GET("v1/donors/{donorId}")
     suspend fun getDonorProfile(
         @Path("donorId") donorId: String,
