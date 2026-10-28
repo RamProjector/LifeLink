@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import os
 import logging
+from decimal import Decimal
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Annotated
@@ -1009,6 +1010,54 @@ async def register_donor_postgres(
         await session.rollback()
         logger.exception("Donor profile save application failure for operation donor_profile_save")
         raise HTTPException(status_code=500, detail="Donor profile could not be saved because of a temporary server problem.") from exc
+
+
+@app.post("/v1/donors/{donor_id}/presence", response_model=DonorProfileOut)
+async def record_legacy_donor_presence_postgres(
+    donor_id: str,
+    payload: DonorPresenceIn,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Record a fresh GPS observation for the authenticated legacy donor workspace."""
+    if principal.subject != "development-user" and principal.subject != donor_id:
+        raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
+    require_verified_email(principal)
+    store = SqlAlchemyDonorStore(session)
+    row = await store.get_by_identity(donor_id)
+    if row is None or not donor_setup_complete(row):
+        raise HTTPException(status_code=409, detail="Complete donor setup before refreshing GPS presence")
+    now = datetime.now(timezone.utc)
+    row.latitude = Decimal(str(payload.latitude))
+    row.longitude = Decimal(str(payload.longitude))
+    row.last_location_precision_meters = payload.precision_meters
+    row.last_presence_at = now
+    row.availability_updated_at = now
+    row.updated_at = now
+    try:
+        await session.commit()
+        await store.recompute_matches_for_donor(donor_id)
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        logger.exception("Legacy donor GPS presence update failed for operation donor_presence")
+        raise HTTPException(status_code=503, detail="GPS presence could not be updated right now. Please try again.") from exc
+    donor = Donor(
+        donor_id=row.id,
+        display_name=row.display_name,
+        blood_type=enum_value(row.blood_type),
+        latitude=float(row.latitude),
+        longitude=float(row.longitude),
+        available=row.available,
+        availability_updated_at=row.last_presence_at,
+        verified=row.verified,
+        service_radius_km=float(row.service_radius_km),
+        estimated_response_probability=float(row.estimated_response_probability),
+        donor_note=row.donor_note,
+        preferred_contact_method=row.preferred_contact_method,
+        pause_reason=row.pause_reason,
+        profile_visible=row.profile_visible,
+    )
+    return profile_to_out(donor, DonorAvailability.AVAILABLE if row.available else DonorAvailability.OFFLINE)
 
 
 @app.patch("/v1/donors/{donor_id}/availability", response_model=DonorProfileOut)
