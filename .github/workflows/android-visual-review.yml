@@ -297,6 +297,7 @@ jobs:
           set -euo pipefail
           evidence_dir="../visual-artifacts"
           required=(
+            "lifelink-auth-screen.png"
             "lifelink-phone-light-workflow-home.png"
             "lifelink-phone-light-workflow-donor-map.png"
             "lifelink-phone-light-workflow-requests.png"
