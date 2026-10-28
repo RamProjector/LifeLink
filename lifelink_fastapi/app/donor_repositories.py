@@ -128,7 +128,7 @@ class SqlAlchemyDonorStore:
             latitude=float(row.latitude),
             longitude=float(row.longitude),
             available=row.available,
-            availability_updated_at=row.availability_updated_at,
+            availability_updated_at=row.last_presence_at or row.availability_updated_at,
             verified=row.verified,
             service_radius_km=float(row.service_radius_km),
             estimated_response_probability=float(row.estimated_response_probability),
