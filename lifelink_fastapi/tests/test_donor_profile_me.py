@@ -30,7 +30,7 @@ import httpx
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app import db_models
+from app import db, db_models
 from app.donor_profile_repositories import SqlAlchemyDonorProfileStore
 from app.db import get_db_session
 from app.main_postgres import app
@@ -151,6 +151,51 @@ async def submit_request(client, current, requester_id: str, **kwargs) -> dict:
     response = await client.post("/v1/emergency-requests", json=request_payload(requester_id, **kwargs))
     assert response.status_code == 201, response.text
     return response.json()
+
+
+def test_presence_backfill_only_runs_when_column_is_added(pg_url, monkeypatch):
+    async def scenario():
+        engine = create_async_engine(pg_url)
+        monkeypatch.setattr(db, "engine", engine)
+        try:
+            async with engine.begin() as connection:
+                await connection.execute(text("DROP SCHEMA public CASCADE"))
+                await connection.execute(text("CREATE SCHEMA public"))
+                await connection.run_sync(db_models.Base.metadata.create_all)
+                # Simulate a database from before last_presence_at was introduced.
+                await connection.execute(text("ALTER TABLE donors DROP COLUMN last_presence_at CASCADE"))
+                await connection.execute(text(
+                    "INSERT INTO donors (id, user_id, display_name, blood_type, latitude, longitude, "
+                    "available, availability_updated_at, verified, service_radius_km, "
+                    "last_location_precision_meters, estimated_response_probability, donor_note, "
+                    "preferred_contact_method, profile_visible, map_visible, exact_location_sharing_enabled) "
+                    "VALUES ('legacy-backfill-test', 'legacy-backfill-test', 'Legacy donor', 'O+', "
+                    "11.244, 125.001, TRUE, now(), FALSE, 15, 500, 0.5, '', 'in_app', TRUE, FALSE, FALSE)"
+                ))
+
+            await db.create_all_tables()
+            async with engine.begin() as connection:
+                backfilled = await connection.scalar(text(
+                    "SELECT last_presence_at = availability_updated_at "
+                    "FROM donors WHERE id = 'legacy-backfill-test'"
+                ))
+                await connection.execute(text(
+                    "UPDATE donors SET last_presence_at = NULL, availability_updated_at = now() "
+                    "WHERE id = 'legacy-backfill-test'"
+                ))
+
+            # A later startup must not reinterpret a recent availability change as a GPS fix.
+            await db.create_all_tables()
+            async with engine.begin() as connection:
+                remains_null = await connection.scalar(text(
+                    "SELECT last_presence_at IS NULL FROM donors WHERE id = 'legacy-backfill-test'"
+                ))
+            assert backfilled is True
+            assert remains_null is True
+        finally:
+            await engine.dispose()
+
+    asyncio.run(scenario())
 
 
 def test_account_creation_does_not_require_donor_credentials(pg_url):
