@@ -456,6 +456,29 @@ def test_map_visibility_off_revokes_live_share(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_legacy_donor_gps_presence_refreshes_stale_location(pg_url):
+    async def scenario(client, current, run_sql):
+        donor = new_user("donor")
+        await setup_donor(client, current, run_sql, donor, map_visible=True)
+        await run_sql(
+            f"UPDATE donors SET last_presence_at = now() - interval '10 days' WHERE id = '{donor}'"
+        )
+        current["id"] = donor
+        refreshed = await client.post(
+            f"/v1/donors/{donor}/presence",
+            json={"latitude": 11.2540, "longitude": 125.0110, "precision_meters": 35},
+        )
+        assert refreshed.status_code == 200, refreshed.text
+
+        current["id"] = new_user("viewer")
+        body = (await client.get("/v1/donor-map")).json()
+        assert len(body["entries"]) == 1
+        assert body["entries"][0]["latitude"] == 11.25
+        assert body["entries"][0]["longitude"] == 125.01
+
+    run_scenario(pg_url, scenario)
+
+
 def test_donors_without_fresh_gps_presence_are_hidden_from_the_map(pg_url):
     async def scenario(client, current, run_sql):
         stale_donor, never_present = new_user("donor"), new_user("donor")
