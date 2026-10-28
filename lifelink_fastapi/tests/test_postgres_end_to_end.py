@@ -131,6 +131,11 @@ async def setup_donor(
     if available:
         availability = await client.patch(f"/v1/donors/{donor_id}/availability", json={"availability": "available"})
         assert availability.status_code == 200, availability.text
+    presence = await client.post(
+        f"/v1/donors/{donor_id}/presence",
+        json={"latitude": 11.2440, "longitude": 125.0010, "precision_meters": 35},
+    )
+    assert presence.status_code == 200, presence.text
 
 
 async def submit_request(client, current, requester_id: str, **kwargs) -> dict:
