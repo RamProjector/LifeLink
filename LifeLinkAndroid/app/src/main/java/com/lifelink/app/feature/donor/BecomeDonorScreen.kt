@@ -209,8 +209,8 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
     var gpsCapturedAtElapsedMillis by remember(profile.donorId) { mutableStateOf<Long?>(null) }
     LaunchedEffect(gpsCapturedAtElapsedMillis) {
         val capturedAt = gpsCapturedAtElapsedMillis ?: return@LaunchedEffect
-        val remainingMillis = (GPS_CAPTURE_MAX_AGE_MILLIS - (SystemClock.elapsedRealtime() - capturedAt))
-            .coerceAtLeast(0L)
+        val elapsedSinceCapture = SystemClock.elapsedRealtime() - capturedAt
+        val remainingMillis = (GPS_CAPTURE_MAX_AGE_MILLIS - elapsedSinceCapture).coerceAtLeast(0L)
         kotlinx.coroutines.delay(remainingMillis)
         if (gpsCapturedAtElapsedMillis == capturedAt) gpsCapturedAtElapsedMillis = null
     }
@@ -222,20 +222,7 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.semantics { heading() },
             )
-            OutlinedTextField(
-                value = profile.displayName,
-                onValueChange = { value -> onAction(BecomeDonorAction.UpdateDraft { it.copy(displayName = value) }) },
-                modifier = Modifier.fillMaxWidth().testTag("donor-display-name"),
-                label = { Text("Display name") },
-                singleLine = true,
-            )
-            OutlinedTextField(
-                value = profile.area,
-                onValueChange = { value -> onAction(BecomeDonorAction.UpdateDraft { it.copy(area = value) }) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Area") },
-                singleLine = true,
-            )
+            DonorIdentityFields(profile, onAction)
             BloodTypePicker(profile.bloodType) { option ->
                 onAction(BecomeDonorAction.UpdateDraft { it.copy(bloodType = option) })
             }
@@ -341,6 +328,29 @@ private fun BloodTypePicker(selected: BloodType?, onSelect: (BloodType) -> Unit)
             }
         }
     }
+}
+
+/** Editable identity fields separated from the location and save controls. */
+@Composable
+private fun DonorIdentityFields(profile: DonorProfileMe, onAction: (BecomeDonorAction) -> Unit) {
+    OutlinedTextField(
+        value = profile.displayName,
+        onValueChange = { value ->
+            onAction(BecomeDonorAction.UpdateDraft { it.copy(displayName = value) })
+        },
+        modifier = Modifier.fillMaxWidth().testTag("donor-display-name"),
+        label = { Text("Display name") },
+        singleLine = true,
+    )
+    OutlinedTextField(
+        value = profile.area,
+        onValueChange = { value ->
+            onAction(BecomeDonorAction.UpdateDraft { it.copy(area = value) })
+        },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Area") },
+        singleLine = true,
+    )
 }
 
 /** Requires a fresh device GPS fix; users cannot type or pin arbitrary coordinates. */
