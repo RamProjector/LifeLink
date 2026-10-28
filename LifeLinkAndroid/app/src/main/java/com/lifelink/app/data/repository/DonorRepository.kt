@@ -11,6 +11,7 @@ import com.lifelink.app.domain.DonorRepository
 import com.lifelink.app.domain.DonorResponse
 import com.lifelink.app.data.remote.DonorAvailabilityRequest
 import com.lifelink.app.data.remote.DonorProfileRequest
+import com.lifelink.app.data.remote.DonorPresenceRequest
 import com.lifelink.app.data.remote.DonorResponseRequest
 import com.lifelink.app.data.remote.LifeLinkApi
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +58,17 @@ class DonorRepositoryImpl(
                 check(availability.isSuccessful) {
                     val detail = availability.errorBody()?.string()?.takeIf { it.isNotBlank() }
                     "Availability could not be updated (${availability.code()})${detail?.let { ": $it" } ?: "."}"
+                }
+                val presence = remote.recordLegacyDonorPresence(
+                    ownerId,
+                    DonorPresenceRequest(
+                        latitude = effectiveProfile.latitude,
+                        longitude = effectiveProfile.longitude,
+                        precisionMeters = effectiveProfile.locationPrecisionMeters.coerceIn(1, 10_000),
+                    ),
+                )
+                check(presence.isSuccessful) {
+                    "GPS presence could not be updated (${presence.code()}). Capture your current location and try again."
                 }
             }
             dao.upsertProfile(effectiveProfile.toEntity())
