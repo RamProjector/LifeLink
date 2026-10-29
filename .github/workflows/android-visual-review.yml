@@ -242,7 +242,7 @@ jobs:
         with:
           path: |
             ~/.android/avd/*
-            ${{ env.ANDROID_HOME }}/system-images
+            /usr/local/lib/android/sdk/system-images
           key: avd-${{ env.API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_PROFILE }}-${{ env.AVD_CACHE_VERSION }}
 
       # On a cache miss, boot the emulator once and let it save a snapshot that
