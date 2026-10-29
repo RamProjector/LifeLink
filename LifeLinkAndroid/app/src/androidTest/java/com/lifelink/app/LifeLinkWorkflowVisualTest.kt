@@ -201,6 +201,36 @@ class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
     }
 
+    @Test
+    fun emptyDonorMapKeepsMapVisibleAndOffersRefresh() {
+        val actions = mutableListOf<com.lifelink.app.feature.privacy.PrivacyAction>()
+        val emptyMapState = PrivacyUiState(
+            map = DonorMap(
+                generatedAt = "2026-10-30T00:00:00Z",
+                approximateOnly = true,
+                areas = emptyList(),
+            ),
+        )
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    DonorMapScreen(
+                        state = emptyMapState,
+                        onAction = { actions += it },
+                        onBack = {},
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-map-native-view").assertIsDisplayed()
+        composeRule.onNodeWithText("No donor areas available").assertIsDisplayed()
+        composeRule.onNodeWithText("Refresh areas").assertIsDisplayed()
+        capture("donor-map-empty")
+    }
+
     /** Verifies navigation through requests, notifications, settings, and donor setup, capturing each screen. */
     @Test
     fun navigatesCoreWorkflowsAndCapturesEvidence() {
