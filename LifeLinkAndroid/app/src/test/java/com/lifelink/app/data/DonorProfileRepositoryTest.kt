@@ -107,4 +107,31 @@ class DonorProfileRepositoryTest {
         assertEquals("DELETE", request.method)
         assertEquals("/v1/donor-profile", request.path)
     }
+    @Test
+    fun save_does_not_expose_raw_backend_error_details() = runBlocking {
+        val sensitiveDetail = "internal-secret-marker"
+        server.enqueue(
+            MockResponse().setResponseCode(500)
+                .setBody("""{"detail":"$sensitiveDetail"}"""),
+        )
+
+        val result = runCatching {
+            repository.save(
+                DonorProfileMe(
+                    bloodType = BloodType.O_POS,
+                    latitude = 11.24,
+                    longitude = 125.0,
+                    locationPrecisionMeters = 35,
+                    area = "Tacloban",
+                ),
+            )
+        }
+
+        assertTrue(result.isFailure)
+        val message = result.exceptionOrNull()?.message.orEmpty()
+        assertTrue(message.contains("500"))
+        assertFalse(message.contains(sensitiveDetail))
+        assertEquals("/v1/donor-profile", server.takeRequest().path)
+    }
+
 }
