@@ -38,7 +38,7 @@ object FakeBackendController {
                     path == "/v1/donor-profile" && method == "GET" ->
                         json(404, """{"detail":"No donor profile exists in this demo account yet."}""")
                     path == "/v1/donor-profile" && method == "PUT" -> json(200, donorProfileJson())
-                    path.startsWith("/v1/donor-profile/") -> json(200, donorProfileJson())
+                    path == "/v1/donor-profile" && method == "DELETE" -> MockResponse().setResponseCode(204)
                     path == "/v1/emergency-requests" && method == "GET" -> json(200, "[]")
                     path == "/v1/emergency-requests" && method == "POST" ->
                         json(
@@ -74,10 +74,10 @@ object FakeBackendController {
                     path.endsWith("/messages") && method == "POST" -> json(201, messageJson())
                     path.endsWith("/conversation") && method == "POST" -> json(200, conversationJson())
                     path.endsWith("/requests") && method == "GET" -> json(200, "[]")
+                    path.startsWith("/v1/donor-profile/") -> json(200, donorProfileJson())
                     path == "/v1/push-token" -> MockResponse().setResponseCode(204)
                     path == "/v1/updates" -> json(200, "[]")
                     path == "/v1/donor-profile/presence" -> json(200, donorProfileJson())
-                    path.startsWith("/v1/") -> json(200, "{}")
                     else -> json(404, """{"detail":"This route is not implemented by the UI-test fake backend."}""")
                 }
             }
