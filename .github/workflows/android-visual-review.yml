@@ -12,6 +12,7 @@ on:
       - 'LifeLinkAndroid/app/src/main/res/**'
       - 'LifeLinkAndroid/app/src/main/AndroidManifest.xml'
       - 'LifeLinkAndroid/app/src/androidTest/**'
+      - 'LifeLinkAndroid/app/src/uiTest/**'
       - 'LifeLinkAndroid/app/build.gradle.kts'
       - 'LifeLinkAndroid/build.gradle.kts'
       - 'LifeLinkAndroid/settings.gradle.kts'
