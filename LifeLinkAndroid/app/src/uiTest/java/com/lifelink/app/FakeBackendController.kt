@@ -54,20 +54,9 @@ object FakeBackendController {
                             """.trimIndent(),
                         )
                     path.matches(Regex("/v1/emergency-requests/[^/]+")) ->
-                        json(
-                            200,
-                            """
-                            {
-                                "request_id": "demo-request-1",
-                                "status": "matching",
-                                "notifications_created": 2,
-                                "matches_responded": 1,
-                                "matches": []
-                            }
-                            """.trimIndent(),
-                        )
-                    path.endsWith("/cancel") -> json(200, """{"request_id":"demo-request-1","status":"cancelled"}""")
-                    path.endsWith("/fulfill") -> json(200, """{"request_id":"demo-request-1","status":"fulfilled"}""")
+                        json(200, emergencyStatusJson(requestIdFromPath(path)))
+                    path.endsWith("/cancel") -> json(200, requestActionJson(path, "cancelled"))
+                    path.endsWith("/fulfill") -> json(200, requestActionJson(path, "fulfilled"))
                     path.endsWith("/contacts") -> json(200, "[]")
                     path == "/v1/conversations" -> json(200, conversationsJson())
                     path.endsWith("/messages") && method == "GET" -> json(200, messagesJson())
@@ -174,6 +163,23 @@ object FakeBackendController {
             }
         """.trimIndent()
     }
+
+    private fun requestIdFromPath(path: String): String =
+        path.substringAfter("/v1/emergency-requests/").substringBefore("/")
+
+    private fun emergencyStatusJson(requestId: String) =
+        """
+        {
+            "request_id": "$requestId",
+            "status": "matching",
+            "notifications_created": 2,
+            "matches_responded": 1,
+            "matches": []
+        }
+        """.trimIndent()
+
+    private fun requestActionJson(path: String, status: String) =
+        """{"request_id":"${requestIdFromPath(path)}","status":"$status"}"""
 
     private fun conversationsJson() = """[{
         "conversation_id":"demo-conversation-1","request_id":"demo-request-1",
