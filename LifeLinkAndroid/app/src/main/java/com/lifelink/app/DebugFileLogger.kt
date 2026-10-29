@@ -9,8 +9,8 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.annotation.RequiresApi
 import java.io.IOException
-import java.io.PrintWriter
-import java.io.StringWriter
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /**
  * Debug-only diagnostics written to Downloads/LifeLink/lifelink-debug.log.
@@ -57,9 +57,9 @@ internal object DebugFileLogger {
     private fun write(level: String, message: String, throwable: Throwable? = null) {
         val context = appContext ?: return
         if (!BuildConfig.DEBUG) return
-        val stack = throwable?.let {
-            StringWriter().also { writer -> it.printStackTrace(PrintWriter(writer)) }.toString()
-        }.orEmpty()
+        // Exception messages and suppressed details can contain response bodies, tokens, or
+        // precise coordinates. Keep useful class/stack-frame context but omit all messages.
+        val stack = throwable?.let(::safeStackTrace).orEmpty()
         val entry = "${System.currentTimeMillis()} [$level] $message" +
             if (stack.isEmpty()) "\n" else "\n$stack\n"
         synchronized(lock) {
@@ -74,8 +74,39 @@ internal object DebugFileLogger {
                 }
             } catch (failure: Exception) {
                 // Logging must never crash or disrupt the app.
-                Log.w(TAG, "Could not write debug log file", failure)
+                Log.w(TAG, "Could not write debug log file (${failure.javaClass.simpleName})")
             }
+        }
+    }
+
+    private fun safeStackTrace(throwable: Throwable): String {
+        val seen = Collections.newSetFromMap(IdentityHashMap<Throwable, Boolean>())
+        return buildString {
+            var current: Throwable? = throwable
+            var depth = 0
+            while (depth < 5) {
+                val failure = current ?: break
+                if (!seen.add(failure)) {
+                    append("Cause chain truncated\n")
+                    break
+                }
+                append(if (depth == 0) failure.javaClass.name else "Caused by: ${failure.javaClass.name}")
+                    .append('\n')
+                failure.stackTrace.take(40).forEach { frame ->
+                    append("\tat ").append(frame.className).append('.').append(frame.methodName).append('(')
+                    val fileName = frame.fileName
+                    if (fileName == null) {
+                        append("Unknown Source")
+                    } else {
+                        append(fileName)
+                        if (frame.lineNumber >= 0) append(':').append(frame.lineNumber)
+                    }
+                    append(")\n")
+                }
+                current = failure.cause
+                depth++
+            }
+            if (current != null && depth >= 5) append("Cause chain truncated\n")
         }
     }
 
