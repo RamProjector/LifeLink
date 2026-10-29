@@ -12,6 +12,7 @@ import com.lifelink.app.domain.SubmitResult
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestViewModel
 import com.lifelink.app.feature.emergencyrequest.SubmissionState
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -115,6 +116,37 @@ class EmergencyRequestViewModelTest {
         viewModel.onAction(EmergencyRequestAction.ConfirmCriticalSubmit)
         advanceUntilIdle()
         assertEquals(SubmissionState.Matching("req-1"), viewModel.uiState.value.submission)
+    }
+
+    @Test
+    fun rapid_duplicate_submit_actions_start_only_one_repository_request() = runTest {
+        val repository = FakeRepository()
+        val pendingResult = CompletableDeferred<SubmitResult>()
+        repository.submitGate = pendingResult
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(
+            EmergencyRequestAction.UpdateDraft {
+                it.copy(
+                    bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                    facility = facility,
+                    requesterLatitude = 14.6466,
+                    requesterLongitude = 121.0437,
+                    genuineRequestConfirmed = true,
+                    sharingConsentConfirmed = true,
+                )
+            },
+        )
+
+        viewModel.onAction(EmergencyRequestAction.Submit)
+        viewModel.onAction(EmergencyRequestAction.Submit)
+
+        assertEquals(1, repository.submitCalls)
+        assertEquals(SubmissionState.Submitting, viewModel.uiState.value.submission)
+
+        pendingResult.complete(SubmitResult.MatchingStarted("single-request"))
+        advanceUntilIdle()
+        assertEquals(SubmissionState.Matching("single-request"), viewModel.uiState.value.submission)
+        assertEquals(1, repository.submitCalls)
     }
 
     @Test
@@ -343,6 +375,8 @@ class EmergencyRequestViewModelTest {
 
 private class FakeRepository(private val submitResult: SubmitResult = SubmitResult.OfflineQueued("draft-1")) : EmergencyRequestRepository {
     var savedDrafts = 0
+    var submitCalls = 0
+    var submitGate: CompletableDeferred<SubmitResult>? = null
     var historyFailure: Exception? = null
     var history: List<RequestHistoryItem> = emptyList()
     var matches: List<DiscoveredDonor> = emptyList()
@@ -360,7 +394,10 @@ private class FakeRepository(private val submitResult: SubmitResult = SubmitResu
 
     override suspend fun loadDraft(id: String): EmergencyRequestDraft? = null
 
-    override suspend fun submit(draft: EmergencyRequestDraft): SubmitResult = submitResult
+    override suspend fun submit(draft: EmergencyRequestDraft): SubmitResult {
+        submitCalls++
+        return submitGate?.await() ?: submitResult
+    }
 
     override suspend fun contactSelectedDonors(requestId: String, donorIds: List<String>): SubmitResult {
         lastContactedDonors = donorIds
