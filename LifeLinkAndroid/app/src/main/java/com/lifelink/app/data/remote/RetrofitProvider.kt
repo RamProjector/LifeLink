@@ -1,6 +1,7 @@
 package com.lifelink.app.data.remote
 
 import com.lifelink.app.BuildConfig
+import com.lifelink.app.DemoBackendRuntime
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -17,7 +18,7 @@ object RetrofitProvider {
      * Never bake a shared development identity or bearer token into the APK.
      */
     fun create(
-        baseUrl: String = BuildConfig.LIFELINK_API_BASE_URL.ifBlank { DEFAULT_BASE_URL },
+        baseUrl: String = DemoBackendRuntime.resolveBaseUrl(BuildConfig.LIFELINK_API_BASE_URL.ifBlank { DEFAULT_BASE_URL }),
         tokenProvider: () -> String? = { null },
         onUnauthorized: (suspend () -> String?)? = null,
     ): LifeLinkApi {
