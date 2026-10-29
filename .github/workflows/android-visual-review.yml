@@ -41,7 +41,7 @@ env:
   AVD_ARCH: x86_64
   AVD_PROFILE: pixel_2
   # Bump after changing the guest architecture or emulator options to invalidate stale snapshots.
-  AVD_CACHE_VERSION: v2
+  AVD_CACHE_VERSION: v3
 
 jobs:
   visual-review:
@@ -278,17 +278,15 @@ jobs:
           arch: ${{ env.AVD_ARCH }}
           profile: ${{ env.AVD_PROFILE }}
           force-avd-creation: false
-          # -no-snapshot-save keeps the cached snapshot pristine; the emulator
-          # still loads it, so boot is fast. -no-metrics / -camera-* none /
-          # -netfast trim startup and runtime overhead; -gpu swiftshader_indirect
-          # keeps rendering deterministic on a headless runner. If KVM is
-          # missing, -accel off uses software CPU emulation; ANDROID_I_WANT_MY_TCG
-          # is set below because recent emulator builds require explicit opt-in.
+          # Avoid loading a cached guest snapshot for the visual run. A stale or
+          # partially saved Android snapshot can leave ADB connected while Android
+          # never completes boot. Rebuild the guest state each run; cache still
+          # accelerates SDK/system-image downloads, but screenshots must come from
+          # a clean boot. Keep rendering deterministic on headless Linux runners.
           emulator-options: >-
-            -no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics
+            -no-snapshot-load -no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics
             -camera-back none -camera-front none -netfast -gpu swiftshader_indirect
             ${{ steps.acceleration.outputs.option }}
-            ${{ steps.kvm.outputs.available != 'true' && '-no-snapshot-load' || '' }}
           cores: 4
           ram-size: 4096M
           heap-size: 512M
