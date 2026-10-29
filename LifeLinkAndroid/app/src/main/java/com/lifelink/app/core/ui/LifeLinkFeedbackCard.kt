@@ -18,14 +18,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/** Severity controls the feedback surface and how urgently assistive technology announces it. */
-enum class LifeLinkFeedbackLevel {
-    Success,
-    Info,
-    Warning,
-    Error,
-}
-
 /**
  * Consistent, non-modal feedback for an operation or content panel.
  *
