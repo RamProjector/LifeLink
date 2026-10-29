@@ -28,9 +28,13 @@ on:
 permissions:
   contents: read
 
+# Keep required screenshot/instrumentation evidence alive while a newer commit
+# arrives on the same PR. Otherwise rapid fix commits cancel the emulator before
+# it can finish, leaving only post-step diagnostics and guaranteed missing-image
+# failures. Non-PR/manual runs may still replace an older run on the same ref.
 concurrency:
-  group: android-visual-review-${{ github.ref }}
-  cancel-in-progress: true
+  group: android-visual-review-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
 
 env:
   # Single source of truth for the emulator image. Bump API_LEVEL only when the
