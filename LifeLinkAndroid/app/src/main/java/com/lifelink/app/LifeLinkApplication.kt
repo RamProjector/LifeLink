@@ -210,6 +210,7 @@ class LifeLinkApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        DemoBackendRuntime.startIfEnabled(this)
         DebugFileLogger.install(this)
         LifeLinkNotifications.createChannels(this)
         authRepository = SupabaseAuthRepository(
