@@ -13,12 +13,12 @@ import java.util.Collections
 import java.util.IdentityHashMap
 
 /**
- * Debug-only diagnostics written to Downloads/LifeLink/lifelink-debug.log.
+ * Debug-only diagnostics written to Downloads/LifeLink/lifelink-debug.txt.
  * Never pass tokens, request bodies, donor details, or precise coordinates to this logger.
  */
 internal object DebugFileLogger {
     private const val TAG = "LifeLinkDebugFile"
-    private const val FILE_NAME = "lifelink-debug.log"
+    private const val FILE_NAME = "lifelink-debug.txt"
     private const val RELATIVE_PATH = "Download/LifeLink/"
     private const val MAX_LOG_BYTES = 1_000_000L
     private const val MAX_CAUSE_DEPTH = 5
