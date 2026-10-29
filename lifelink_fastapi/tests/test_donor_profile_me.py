@@ -31,8 +31,8 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app import db, db_models
-from app.donor_profile_repositories import SqlAlchemyDonorProfileStore
 from app.db import get_db_session
+from app.donor_profile_repositories import SqlAlchemyDonorProfileStore
 from app.main_postgres import app
 from app.security import Principal, get_postgres_principal
 
