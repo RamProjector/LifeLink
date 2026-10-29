@@ -25,7 +25,7 @@ The **UI Test APK** is a separate, installable build intended for reviewing scre
 3. Open the completed workflow run and download the artifact named `lifelink-ui-test-fake-backend-<commit>`.
 4. Extract the artifact and install `app-uiTest.apk` on an Android device. If Android blocks installation, allow installation for the file manager/browser you used, then disable that permission afterward.
 
-The artifact is retained for 14 days. Trigger the workflow manually with **Run workflow** when you need a fresh APK.
+The artifact is retained for 14 days. It includes `app-uiTest.apk` and `SHA256SUMS.txt`; verify the APK with `sha256sum -c SHA256SUMS.txt` after extracting both files into the same directory. The workflow also checks the APK's application ID and demo label before uploading it. Trigger the workflow manually with **Run workflow** when you need a fresh APK.
 
 ## Build it locally
 
