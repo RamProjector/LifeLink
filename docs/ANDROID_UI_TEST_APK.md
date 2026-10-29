@@ -1,0 +1,45 @@
+# LifeLink Android UI Test APK (Fake Backend)
+
+The **UI Test APK** is a separate, installable build intended for reviewing screens and navigation without a configured production backend or Supabase account.
+
+## What it does
+
+- Uses a dedicated Android application ID: `com.lifelink.app.uitest`; it can be installed alongside the regular LifeLink app.
+- Starts a small fake HTTP API inside the app process. Retrofit requests from this build are routed to loopback and do not go to Render or Supabase.
+- Seeds a synthetic requester session so the app opens past the sign-in screen.
+- Returns synthetic profile, conversation, emergency-request, and approximate donor-map responses. Map entries are explicitly marked with `DEMO` labels.
+- Displays a warning dialog explaining that all accounts and data are fake.
+- Keeps the cleartext-network exception in the `uiTest` source set only. Normal debug and release builds do not enable the fake backend.
+
+## Important limitations
+
+- This is a **UI/navigation demo**, not an authentication, security, GPS, push-notification, matching, or backend acceptance test.
+- Changes are simulated and may not persist like production data. No real donor is represented by the map pins.
+- Do not use this APK for emergency requests or real blood-donation coordination.
+- The fake session/token is synthetic and must never be reused for a real service.
+
+## Get the APK from GitHub Actions
+
+1. Open the repository's **Actions** tab.
+2. Open **Android UI test APK (fake backend)** for the branch/commit you want to inspect.
+3. Open the completed workflow run and download the artifact named `lifelink-ui-test-fake-backend-<commit>`.
+4. Extract the artifact and install `app-uiTest.apk` on an Android device. If Android blocks installation, allow installation for the file manager/browser you used, then disable that permission afterward.
+
+The artifact is retained for 14 days. Trigger the workflow manually with **Run workflow** when you need a fresh APK.
+
+## Build it locally
+
+From the repository root:
+
+```bash
+cd LifeLinkAndroid
+./gradlew assembleUiTest
+```
+
+Output:
+
+```
+app/build/outputs/apk/uiTest/app-uiTest.apk
+```
+
+The UI test build type is deliberately separate from `debug` and `release`. Never change the fake-backend flag to true in a production build.
