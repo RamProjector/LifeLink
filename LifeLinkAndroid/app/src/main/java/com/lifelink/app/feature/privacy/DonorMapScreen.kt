@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
@@ -50,7 +49,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -58,6 +56,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
+import com.lifelink.app.core.ui.LifeLinkFeedbackCard
+import com.lifelink.app.core.ui.LifeLinkFeedbackLevel
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.domain.DonorMapArea
 
@@ -413,43 +413,17 @@ fun DonorMapScreen(
         }
 
         state.mapError?.let { error ->
-            DonorMapErrorCard(
-                error = error,
-                onRetry = { onAction(PrivacyAction.LoadMap) },
+            LifeLinkFeedbackCard(
+                title = "Couldn’t load donor areas",
+                message = error,
+                level = LifeLinkFeedbackLevel.Error,
+                actionLabel = "Retry",
+                onAction = { onAction(PrivacyAction.LoadMap) },
                 modifier = Modifier.align(Alignment.Center).padding(16.dp),
             )
         }
         if (state.mapLoading) {
             LifeLinkLoadingIndicator(Modifier.align(Alignment.Center), label = "Loading donor areas…")
-        }
-    }
-}
-
-/** Error surface with a retry action, announced assertively to screen readers. */
-@Composable
-private fun DonorMapErrorCard(error: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
-    Card(
-        modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-    ) {
-        Row(
-            Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                Icons.Default.Error,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                error,
-                modifier = Modifier.weight(1f),
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Button(onClick = onRetry) { Text("Retry") }
         }
     }
 }
