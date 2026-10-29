@@ -27,6 +27,19 @@ The **UI Test APK** is a separate, installable build intended for reviewing scre
 
 The artifact is retained for 14 days. It includes `app-uiTest.apk` and `SHA256SUMS.txt`; verify the APK with `sha256sum -c SHA256SUMS.txt` after extracting both files into the same directory. The workflow also checks the APK's application ID and demo label before uploading it. Trigger the workflow manually with **Run workflow** when you need a fresh APK.
 
+## Manual review checklist
+
+After installing the APK, use this checklist to inspect the client UI without touching live data:
+
+- [ ] Confirm the **UI test build / fake data** warning is visible before entering the demo.
+- [ ] Tap **Continue demo** and confirm the requester workspace appears.
+- [ ] Check home, emergency-request, conversation, profile, and navigation surfaces for clipped text, overlapping controls, empty states, and back-navigation problems.
+- [ ] Inspect donor-map entries only as synthetic examples; check that the map labels identify demo data and that no real person's identity or exact location is shown.
+- [ ] If the demo exposes profile and donor opt-in controls, change them and revisit the profile to confirm the fake backend reflects the change during the same app process.
+- [ ] Force-stop and reopen the demo to confirm its in-memory profile/donor state resets as documented.
+
+The CI smoke test currently verifies the warning dialog, entry into the requester workspace, and absence of a fatal app crash during that short path. The broader checklist above is **manual exploratory review**, not an automated pass claim. GPS permissions, real matching, real chat delivery, FCM push, and live server authorization must be tested separately in a configured test environment.
+
 ## Build it locally
 
 From the repository root:
