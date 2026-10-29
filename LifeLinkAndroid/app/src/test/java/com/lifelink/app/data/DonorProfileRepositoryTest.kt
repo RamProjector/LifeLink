@@ -107,6 +107,7 @@ class DonorProfileRepositoryTest {
         assertEquals("DELETE", request.method)
         assertEquals("/v1/donor-profile", request.path)
     }
+
     @Test
     fun save_does_not_expose_raw_backend_error_details() = runBlocking {
         val sensitiveDetail = "internal-secret-marker"
@@ -133,5 +134,4 @@ class DonorProfileRepositoryTest {
         assertFalse(message.contains(sensitiveDetail))
         assertEquals("/v1/donor-profile", server.takeRequest().path)
     }
-
 }
