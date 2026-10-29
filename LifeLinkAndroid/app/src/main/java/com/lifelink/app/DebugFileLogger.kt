@@ -21,6 +21,9 @@ internal object DebugFileLogger {
     private const val FILE_NAME = "lifelink-debug.log"
     private const val RELATIVE_PATH = "Download/LifeLink/"
     private const val MAX_LOG_BYTES = 1_000_000L
+    private const val MAX_CAUSE_DEPTH = 5
+    private const val MAX_FRAMES_PER_CAUSE = 40
+    private const val UNKNOWN_LINE_NUMBER = 0
     private val lock = Any()
 
     @Volatile private var appContext: Context? = null
@@ -84,29 +87,32 @@ internal object DebugFileLogger {
         return buildString {
             var current: Throwable? = throwable
             var depth = 0
-            while (depth < 5) {
-                val failure = current ?: break
+            while (current != null && depth < MAX_CAUSE_DEPTH) {
+                val failure = current
                 if (!seen.add(failure)) {
                     append("Cause chain truncated\n")
-                    break
-                }
-                append(if (depth == 0) failure.javaClass.name else "Caused by: ${failure.javaClass.name}")
-                    .append('\n')
-                failure.stackTrace.take(40).forEach { frame ->
-                    append("\tat ").append(frame.className).append('.').append(frame.methodName).append('(')
-                    val fileName = frame.fileName
-                    if (fileName == null) {
-                        append("Unknown Source")
-                    } else {
-                        append(fileName)
-                        if (frame.lineNumber >= 0) append(':').append(frame.lineNumber)
+                    current = null
+                } else {
+                    append(if (depth == 0) failure.javaClass.name else "Caused by: ${failure.javaClass.name}")
+                        .append('\n')
+                    failure.stackTrace.take(MAX_FRAMES_PER_CAUSE).forEach { frame ->
+                        append("\\tat ").append(frame.className).append('.').append(frame.methodName).append('(')
+                        val fileName = frame.fileName
+                        if (fileName == null) {
+                            append("Unknown Source")
+                        } else {
+                            append(fileName)
+                            if (frame.lineNumber >= UNKNOWN_LINE_NUMBER) {
+                                append(':').append(frame.lineNumber)
+                            }
+                        }
+                        append(")\n")
                     }
-                    append(")\n")
+                    current = failure.cause
+                    depth++
                 }
-                current = failure.cause
-                depth++
             }
-            if (current != null && depth >= 5) append("Cause chain truncated\n")
+            if (current != null && depth >= MAX_CAUSE_DEPTH) append("Cause chain truncated\n")
         }
     }
 
