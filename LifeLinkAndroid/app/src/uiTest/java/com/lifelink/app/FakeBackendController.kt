@@ -1,6 +1,9 @@
 package com.lifelink.app
 
 import android.content.Context
+import com.google.gson.Gson
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -14,6 +17,13 @@ import java.time.Instant
 object FakeBackendController {
     @Volatile
     private var server: MockWebServer? = null
+    private val profileLock = Any()
+    private var demoRole = "requester"
+    private var demoDisplayName = "Demo Requester"
+    private var demoCanRequest = true
+    private var demoCanDonate = false
+    @Volatile
+    private var demoDonorProfileExists = false
 
     @JvmStatic
     @Synchronized
@@ -22,6 +32,13 @@ object FakeBackendController {
             "The fake backend is restricted to the isolated UI-test application."
         }
         if (server != null) return
+        synchronized(profileLock) {
+            demoRole = "requester"
+            demoDisplayName = "Demo Requester"
+            demoCanRequest = true
+            demoCanDonate = false
+        }
+        demoDonorProfileExists = false
         val fakeServer = MockWebServer()
         fakeServer.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
@@ -30,12 +47,23 @@ object FakeBackendController {
                 return when {
                     path == "/health" -> json(200, """{"status":"ok","mode":"ui-test-fake-backend"}""")
                     path == "/v1/admin/me" -> json(200, """{"is_admin":false,"subject":"demo-user"}""")
-                    path == "/v1/profile" -> json(200, profileJson())
+                    path == "/v1/profile" && method == "GET" -> json(200, profileJson())
+                    path == "/v1/profile" && method == "PUT" -> updateProfile(request)
                     path == "/v1/donor-map" -> json(200, donorMapJson())
                     path == "/v1/donor-profile" && method == "GET" ->
-                        json(404, """{"detail":"No donor profile exists in this demo account yet."}""")
-                    path == "/v1/donor-profile" && method == "PUT" -> json(200, donorProfileJson())
-                    path == "/v1/donor-profile" && method == "DELETE" -> MockResponse().setResponseCode(204)
+                        if (demoDonorProfileExists) {
+                            json(200, donorProfileJson())
+                        } else {
+                            json(404, """{"detail":"No donor profile exists in this demo account yet."}""")
+                        }
+                    path == "/v1/donor-profile" && method == "PUT" -> {
+                        demoDonorProfileExists = true
+                        json(200, donorProfileJson())
+                    }
+                    path == "/v1/donor-profile" && method == "DELETE" -> {
+                        demoDonorProfileExists = false
+                        MockResponse().setResponseCode(204)
+                    }
                     path == "/v1/emergency-requests" && method == "GET" -> json(200, "[]")
                     path == "/v1/emergency-requests" && method == "POST" ->
                         json(
@@ -81,17 +109,30 @@ object FakeBackendController {
         .addHeader("X-LifeLink-Backend", "ui-test-fake")
         .setBody(body)
 
-    private fun profileJson() =
-        """
-        {
-            "user_id": "demo-user",
-            "email": "demo.requester@lifelink.test",
-            "role": "requester",
-            "display_name": "Demo Requester",
-            "can_request": true,
-            "can_donate": false
+    private fun updateProfile(request: RecordedRequest): MockResponse {
+        val body = runCatching { JsonParser.parseString(request.body.readUtf8()).asJsonObject }.getOrNull()
+            ?: return json(400, """{"detail":"Invalid demo profile payload."}""")
+        synchronized(profileLock) {
+            demoRole = body.get("role")?.asString?.takeIf { it == "requester" || it == "donor" } ?: demoRole
+            demoDisplayName = body.get("display_name")?.takeUnless { it.isJsonNull }?.asString ?: demoDisplayName
+            demoCanRequest = body.get("can_request")?.asBoolean ?: demoCanRequest
+            demoCanDonate = body.get("can_donate")?.asBoolean ?: demoCanDonate
+            return json(200, profileJson())
         }
-        """.trimIndent()
+    }
+
+    private fun profileJson(): String = synchronized(profileLock) {
+        Gson().toJson(
+            JsonObject().apply {
+                addProperty("user_id", "demo-user")
+                addProperty("email", "demo.requester@lifelink.test")
+                addProperty("role", demoRole)
+                addProperty("display_name", demoDisplayName)
+                addProperty("can_request", demoCanRequest)
+                addProperty("can_donate", demoCanDonate)
+            },
+        )
+    }
 
     private fun donorProfileJson() =
         """
