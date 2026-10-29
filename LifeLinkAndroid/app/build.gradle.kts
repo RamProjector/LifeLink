@@ -105,6 +105,7 @@ android {
         versionName = providers.gradleProperty("versionName").orElse("1.0.0").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
+        buildConfigField("boolean", "LIFELINK_FAKE_BACKEND", "false")
         buildConfigField("String", "LIFELINK_API_BASE_URL", "\"${apiBaseUrl.replace("\\\"", "\\\\\"")}\"")
         buildConfigField("String", "SUPABASE_URL", "\"${supabaseUrl.replace("\\\"", "\\\\\"")}\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${supabasePublishableKey.replace("\\\"", "\\\\\"")}\"")
@@ -125,6 +126,14 @@ android {
                         keyPassword = stableKeyPassword
                     }
             }
+        }
+        create("uiTest") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".uitest"
+            versionNameSuffix = "-ui-test"
+            isDebuggable = true
+            buildConfigField("boolean", "LIFELINK_FAKE_BACKEND", "true")
+            matchingFallbacks += listOf("debug")
         }
         release {
             // Sign with the configured production keystore when one is present;
@@ -281,6 +290,8 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.12.0")
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
     implementation("com.google.firebase:firebase-messaging")
+
+    uiTestImplementation("com.squareup.okhttp3:mockwebserver:5.5.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
