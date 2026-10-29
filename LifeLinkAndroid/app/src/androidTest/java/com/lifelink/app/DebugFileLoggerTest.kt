@@ -36,7 +36,7 @@ class DebugFileLoggerTest {
             collection,
             arrayOf(MediaStore.Downloads._ID),
             selection,
-            arrayOf("lifelink-debug.log", "Download/LifeLink/"),
+            arrayOf("lifelink-debug.txt", "Download/LifeLink/"),
             null,
         )
         assertNotNull("Debug log should exist in Downloads/LifeLink", cursor)
