@@ -289,7 +289,7 @@ jobs:
           # a clean boot. Keep rendering deterministic on headless Linux runners.
           emulator-options: >-
             -no-snapshot-load -no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics
-            -camera-back none -camera-front none -netfast -gpu swiftshader_indirect
+            -camera-back none -camera-front none -netfast -dns-server 8.8.8.8,1.1.1.1 -gpu swiftshader_indirect
             ${{ steps.acceleration.outputs.option }}
           cores: 4
           ram-size: 4096M
