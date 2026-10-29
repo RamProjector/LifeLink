@@ -35,8 +35,9 @@ class DonorProfileRepositoryImpl(private val api: LifeLinkApi) : DonorProfileRep
         val longitude = checkNotNull(profile.longitude) { "Capture your current GPS location before saving." }
         val response = api.upsertDonorProfile(profile.toRequest())
         check(response.isSuccessful) {
-            val detail = response.errorBody()?.string()?.takeIf { it.isNotBlank() }
-            "Donor profile could not be saved (${response.code()})${detail?.let { ": $it" } ?: "."}"
+            // Do not surface arbitrary backend detail text: it may contain implementation
+            // details or sensitive data. Keep the status code for diagnostics and safe UI mapping.
+            "Donor profile could not be saved (${response.code()})."
         }
         val saved = checkNotNull(response.body()) { "The server returned an empty donor profile." }.toDomain()
         val presence = api.recordDonorPresence(
