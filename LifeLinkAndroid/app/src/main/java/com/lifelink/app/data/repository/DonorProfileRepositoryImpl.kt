@@ -48,7 +48,10 @@ class DonorProfileRepositoryImpl(private val api: LifeLinkApi) : DonorProfileRep
             ),
         )
         check(presence.isSuccessful) {
-            "The server could not confirm your current location (${presence.code()}). Please retry."
+            // The profile upsert already succeeded; make this partial-success state explicit so
+            // users know a retry is for location confirmation, not a failed profile write.
+            "Your donor profile was saved, but your current location could not be confirmed " +
+                "(${presence.code()}). Please retry to confirm your location."
         }
         saved.copy(locationPrecisionMeters = profile.locationPrecisionMeters)
     }
