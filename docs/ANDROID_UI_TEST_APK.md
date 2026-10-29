@@ -14,7 +14,7 @@ The **UI Test APK** is a separate, installable build intended for reviewing scre
 ## Important limitations
 
 - This is a **UI/navigation demo**, not an authentication, security, GPS, push-notification, matching, or backend acceptance test.
-- Changes are simulated and may not persist like production data. No real donor is represented by the map pins.
+- Profile and donor-opt-in changes are simulated in memory for the current app process; they reset when the demo process restarts. No real donor is represented by the map pins.
 - Do not use this APK for emergency requests or real blood-donation coordination.
 - The fake session/token is synthetic and must never be reused for a real service.
 
