@@ -11,6 +11,7 @@ The following feedback-system slice has been added to PR #153:
 
 - [x] Added `LifeLinkFeedbackCard` with Material 3 success/info/warning/error treatments, optional action, and accessibility live-region/error semantics.
 - [x] Replaced the donor map's bespoke error card with the shared component and a retry action.
+- [x] Added an explicit “Refresh areas” alternative when the map has no returned donor areas; filtered-empty results continue to offer “Clear filters.”
 - [x] Added Compose instrumentation tests for visible error copy, retry callback behavior, and a success state without an action.
 - [ ] The broader message catalog and adoption across requester submission, donor availability, chat, session recovery, and web are still follow-up work within the same consolidated feature batch.
 - [ ] These new tests and the full emulator visual evidence must pass on the final head commit before the feature batch can be called validated.
