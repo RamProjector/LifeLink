@@ -155,14 +155,11 @@ class LifeLinkApplication : Application() {
             !profileResponse.isSuccessful ->
                 logPresenceFailure("Donor profile refresh returned HTTP ${profileResponse.code()}.")
             else -> profileResponse.body()?.let { profile ->
-                if (shouldRefreshDonorPresence(profile.verified, profile.availabilityStatus)) {
-                    capturePresenceRequest()?.let { request ->
-                        val presenceResponse = api.recordDonorPresence(request)
-                        if (!presenceResponse.isSuccessful) {
-                            logPresenceFailure("Donor presence update returned HTTP ${presenceResponse.code()}.")
-                        }
-                    }
-                }
+                refreshPresenceIfEligible(
+                    ownerId = ownerId,
+                    verified = profile.verified,
+                    availability = profile.availabilityStatus,
+                ) { request -> api.recordDonorPresence(request) }
             } ?: logPresenceFailure("Donor profile refresh returned an empty response.")
         }
     }
@@ -174,15 +171,26 @@ class LifeLinkApplication : Application() {
             !profileResponse.isSuccessful ->
                 logPresenceFailure("Legacy donor profile refresh returned HTTP ${profileResponse.code()}.")
             else -> profileResponse.body()?.let { profile ->
-                if (shouldRefreshDonorPresence(profile.verified, profile.availability)) {
-                    capturePresenceRequest()?.let { request ->
-                        val presenceResponse = api.recordLegacyDonorPresence(ownerId, request)
-                        if (!presenceResponse.isSuccessful) {
-                            logPresenceFailure("Legacy donor presence update returned HTTP ${presenceResponse.code()}.")
-                        }
-                    }
-                }
+                refreshPresenceIfEligible(
+                    ownerId = ownerId,
+                    verified = profile.verified,
+                    availability = profile.availability,
+                ) { request -> api.recordLegacyDonorPresence(ownerId, request) }
             } ?: logPresenceFailure("Legacy donor profile refresh returned an empty response.")
+        }
+    }
+
+    private suspend fun refreshPresenceIfEligible(
+        ownerId: String,
+        verified: Boolean,
+        availability: String,
+        recordPresence: suspend (DonorPresenceRequest) -> retrofit2.Response<*>,
+    ) {
+        if (!shouldRefreshDonorPresence(verified, availability)) return
+        val request = capturePresenceRequest() ?: return
+        val response = recordPresence(request)
+        if (!response.isSuccessful) {
+            logPresenceFailure("Donor presence update returned HTTP ${response.code()}.")
         }
     }
 
