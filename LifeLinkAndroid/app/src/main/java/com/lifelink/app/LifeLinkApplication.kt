@@ -171,7 +171,6 @@ class LifeLinkApplication : Application() {
                 logPresenceFailure("Legacy donor profile refresh returned HTTP ${profileResponse.code()}.")
             else -> profileResponse.body()?.let { profile ->
                 refreshPresenceIfEligible(
-                    ownerId = ownerId,
                     verified = profile.verified,
                     availability = profile.availability,
                 ) { request -> api.recordLegacyDonorPresence(ownerId, request) }
