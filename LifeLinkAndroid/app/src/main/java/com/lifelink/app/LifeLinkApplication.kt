@@ -156,7 +156,6 @@ class LifeLinkApplication : Application() {
                 logPresenceFailure("Donor profile refresh returned HTTP ${profileResponse.code()}.")
             else -> profileResponse.body()?.let { profile ->
                 refreshPresenceIfEligible(
-                    ownerId = ownerId,
                     verified = profile.verified,
                     availability = profile.availabilityStatus,
                 ) { request -> api.recordDonorPresence(request) }
@@ -181,7 +180,6 @@ class LifeLinkApplication : Application() {
     }
 
     private suspend fun refreshPresenceIfEligible(
-        ownerId: String,
         verified: Boolean,
         availability: String,
         recordPresence: suspend (DonorPresenceRequest) -> retrofit2.Response<*>,
