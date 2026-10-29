@@ -91,7 +91,7 @@ class ConversationNavigationTest {
     fun donor_can_open_chat_and_system_back_returns_to_the_donor_workspace() {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
         composeRule.onNodeWithContentDescription("Profile").performClick()
-        composeRule.onNodeWithTag("open-donor-workspace").assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("open-donor-workspace").performScrollTo().assertIsDisplayed().performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithTag("donor-workspace-screen").fetchSemanticsNodes().isNotEmpty()
         }
@@ -198,7 +198,7 @@ class ConversationNavigationTest {
         }
         composeRule.onNodeWithText("Edit donor profile").performScrollTo().performClick()
         replaceField("Service radius (km)", "27")
-        composeRule.onNodeWithText("Update current location").assertIsDisplayed()
+        composeRule.onNodeWithText("Update current location").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Open profile in full screen").performClick()
 
         assertEditorValues()
