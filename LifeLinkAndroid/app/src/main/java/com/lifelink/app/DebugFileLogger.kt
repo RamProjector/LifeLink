@@ -102,7 +102,7 @@ internal object DebugFileLogger {
                             append("Unknown Source")
                         } else {
                             append(fileName)
-                            if (frame.lineNumber >= UNKNOWN_LINE_NUMBER) {
+                            if (frame.lineNumber >= MIN_VALID_LINE_NUMBER) {
                                 append(':').append(frame.lineNumber)
                             }
                         }
