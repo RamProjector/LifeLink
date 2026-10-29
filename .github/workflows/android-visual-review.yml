@@ -46,7 +46,7 @@ env:
 jobs:
   visual-review:
     name: Capture Android visual evidence
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Visual review is required evidence, not a best-effort check. Prefer the
     # standard Linux x86_64 runner with KVM; software emulation remains a fallback
     # but instrumentation and screenshots must still pass.
@@ -242,7 +242,7 @@ jobs:
         with:
           path: |
             ~/.android/avd/*
-            ~/Library/Android/sdk/system-images
+            ${{ env.ANDROID_HOME }}/system-images
           key: avd-${{ env.API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_PROFILE }}-${{ env.AVD_CACHE_VERSION }}
 
       # On a cache miss, boot the emulator once and let it save a snapshot that
