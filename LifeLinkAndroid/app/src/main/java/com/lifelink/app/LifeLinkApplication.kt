@@ -222,7 +222,7 @@ class LifeLinkApplication : Application() {
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {
                 startedActivityCount += 1
-                if (startedActivityCount == 1) startDonorPresenceHeartbeat()
+                if (startedActivityCount == 1 && !BuildConfig.LIFELINK_FAKE_BACKEND) startDonorPresenceHeartbeat()
             }
 
             override fun onActivityStopped(activity: Activity) {
