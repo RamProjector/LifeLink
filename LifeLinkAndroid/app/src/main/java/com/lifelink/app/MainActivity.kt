@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -99,6 +101,24 @@ class MainActivity : ComponentActivity() {
             val themeStore = remember { ThemeStore(this@MainActivity) }
             var themeMode by remember { mutableStateOf(themeStore.get()) }
             LifeLinkTheme(themeMode = themeMode) {
+                var showFakeBackendNotice by remember { mutableStateOf(BuildConfig.LIFELINK_FAKE_BACKEND) }
+                if (showFakeBackendNotice) {
+                    AlertDialog(
+                        onDismissRequest = { showFakeBackendNotice = false },
+                        title = { Text("UI test build — fake backend") },
+                        text = {
+                            Text(
+                                "All accounts, requests, map pins, and messages are synthetic. " +
+                                    "Changes do not reach LifeLink's real backend or Supabase.",
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showFakeBackendNotice = false }) {
+                                Text("Continue demo")
+                            }
+                        },
+                    )
+                }
                 RequestNotificationPermissionIfNeeded()
                 val authViewModel: AuthViewModel =
                     viewModel(
