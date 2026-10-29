@@ -23,7 +23,7 @@ internal object DebugFileLogger {
     private const val MAX_LOG_BYTES = 1_000_000L
     private const val MAX_CAUSE_DEPTH = 5
     private const val MAX_FRAMES_PER_CAUSE = 40
-    private const val UNKNOWN_LINE_NUMBER = 0
+    private const val MIN_VALID_LINE_NUMBER = 0
     private val lock = Any()
 
     @Volatile private var appContext: Context? = null
