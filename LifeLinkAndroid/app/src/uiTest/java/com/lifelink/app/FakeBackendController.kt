@@ -18,6 +18,9 @@ object FakeBackendController {
     @JvmStatic
     @Synchronized
     fun start(context: Context) {
+        check(context.applicationContext.packageName == "com.lifelink.app.uitest") {
+            "The fake backend is restricted to the isolated UI-test application."
+        }
         if (server != null) return
         val fakeServer = MockWebServer()
         fakeServer.dispatcher = object : Dispatcher() {
