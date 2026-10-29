@@ -96,7 +96,7 @@ internal object DebugFileLogger {
                     append(if (depth == 0) failure.javaClass.name else "Caused by: ${failure.javaClass.name}")
                         .append('\n')
                     failure.stackTrace.take(MAX_FRAMES_PER_CAUSE).forEach { frame ->
-                        append("\\tat ").append(frame.className).append('.').append(frame.methodName).append('(')
+                        append("\tat ").append(frame.className).append('.').append(frame.methodName).append('(')
                         val fileName = frame.fileName
                         if (fileName == null) {
                             append("Unknown Source")
