@@ -22,6 +22,7 @@ object FakeBackendController {
     private var demoDisplayName = "Demo Requester"
     private var demoCanRequest = true
     private var demoCanDonate = false
+
     @Volatile
     private var demoDonorProfileExists = false
 
