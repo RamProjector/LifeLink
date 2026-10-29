@@ -109,7 +109,7 @@ jobs:
         # (plus a 512 MB heap). A lingering Gradle daemon (-Xmx4096m) alongside
         # the emulator can exhaust the runner, so run this build in a
         # single-use daemon that exits when the step ends.
-        run: ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon --stacktrace
+        run: ./gradlew assembleDebug assembleDebugAndroidTest assembleUiTest assembleUiTestAndroidTest --no-daemon --stacktrace
 
       - name: Prepare emulator test script
         shell: bash
@@ -178,6 +178,14 @@ jobs:
               "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results" \
               "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/reports/androidTests/connected" \
               2>/dev/null | head -240 || true
+          fi
+          if [[ "$test_exit" == "0" ]]; then
+            echo "Starting fake-backend UI APK smoke tests."
+            ./gradlew connectedUiTestAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --no-daemon --stacktrace
+            test_exit=$?
+            if [[ "$test_exit" != "0" ]]; then
+              echo "::error::Fake-backend UI smoke tests failed. Inspect the uploaded instrumentation reports and logcat."
+            fi
           fi
           exit "$test_exit"
           EOF
