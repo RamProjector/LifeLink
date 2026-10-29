@@ -51,13 +51,24 @@ jobs:
       - name: Build UI test APK with embedded local fake API
         run: ./gradlew assembleUiTest --no-daemon --stacktrace
 
-      - name: Verify APK exists and is non-empty
-        run: test -s app/build/outputs/apk/uiTest/app-uiTest.apk
+      - name: Verify APK package identity and demo label
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="app/build/outputs/apk/uiTest/app-uiTest.apk"
+          test -s "$apk"
+          aapt="$ANDROID_HOME/build-tools/37.0.0/aapt"
+          test -x "$aapt"
+          "$aapt" dump badging "$apk" | grep -F "package: name='com.lifelink.app.uitest'"
+          "$aapt" dump badging "$apk" | grep -F "application-label:'LifeLink UI Test (Fake Backend)'"
+          sha256sum "$apk" | tee app/build/outputs/apk/uiTest/SHA256SUMS.txt
 
-      - name: Upload UI test APK
+      - name: Upload UI test APK and checksum
         uses: actions/upload-artifact@v7
         with:
           name: lifelink-ui-test-fake-backend-${{ github.sha }}
-          path: LifeLinkAndroid/app/build/outputs/apk/uiTest/app-uiTest.apk
+          path: |
+            LifeLinkAndroid/app/build/outputs/apk/uiTest/app-uiTest.apk
+            LifeLinkAndroid/app/build/outputs/apk/uiTest/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
