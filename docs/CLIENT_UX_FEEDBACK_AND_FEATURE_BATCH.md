@@ -5,6 +5,16 @@
 **Plan status:** researched acceptance plan; items marked “planned” are not claims of implementation.  
 **Design rule:** deliver the related work as one coherent PR, not a chain of tiny PRs. Keep changes on the same integration branch until the feature batch is reviewable, then validate the final head commit.
 
+## Current branch implementation snapshot
+
+The following feedback-system slice has been added to PR #153:
+
+- [x] Added `LifeLinkFeedbackCard` with Material 3 success/info/warning/error treatments, optional action, and accessibility live-region/error semantics.
+- [x] Replaced the donor map's bespoke error card with the shared component and a retry action.
+- [x] Added Compose instrumentation tests for visible error copy, retry callback behavior, and a success state without an action.
+- [ ] The broader message catalog and adoption across requester submission, donor availability, chat, session recovery, and web are still follow-up work within the same consolidated feature batch.
+- [ ] These new tests and the full emulator visual evidence must pass on the final head commit before the feature batch can be called validated.
+
 ## Purpose
 
 LifeLink supports emergency blood-donor discovery. The interface must make the current state, next action, and any failure clear without implying that donor availability, GPS, matching, or notifications are guaranteed. The app should be calm, direct, accessible, privacy-preserving, and usable under time pressure.
