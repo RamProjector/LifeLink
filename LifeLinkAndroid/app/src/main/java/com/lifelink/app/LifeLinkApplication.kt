@@ -15,7 +15,6 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.await
 import androidx.work.workDataOf
-import com.google.android.gms.common.api.ApiException
 import com.lifelink.app.core.auth.AccountDataCoordinator
 import com.lifelink.app.core.auth.AuthSessionStore
 import com.lifelink.app.core.auth.SupabaseAuthRepository
@@ -41,7 +40,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.util.concurrent.TimeUnit
@@ -104,27 +102,12 @@ class LifeLinkApplication : Application() {
                     refreshDonorPresenceIfEligible()
                 } catch (cancelled: CancellationException) {
                     throw cancelled
-                } catch (error: IOException) {
-                    Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
-                    DebugFileLogger.warning("donor-presence", "Donor presence refresh failed; it will retry.", error)
-                } catch (error: HttpException) {
-                    Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
-                    DebugFileLogger.warning("donor-presence", "Donor presence refresh failed; it will retry.", error)
-                } catch (error: SecurityException) {
-                    Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
-                    DebugFileLogger.warning("donor-presence", "Donor presence refresh failed; it will retry.", error)
-                } catch (error: IllegalStateException) {
-                    Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
-                    DebugFileLogger.warning("donor-presence", "Donor presence refresh failed; it will retry.", error)
-                } catch (error: ApiException) {
-                    Log.w("LifeLinkPresence", "Donor presence refresh failed; it will retry.", error)
-                    DebugFileLogger.warning("donor-presence", "Donor presence refresh failed; it will retry.", error)
                 } catch (error: Exception) {
-                    // Malformed API responses and unexpected provider exceptions must not crash the app.
-                    // Log the exception type only; never include donor coordinates or response payloads.
+                    // Malformed API responses and provider failures must not crash the app or
+                    // leak exception messages into logcat/downloadable diagnostics.
                     val message = "Donor presence refresh failed (${error.javaClass.simpleName}); it will retry."
                     Log.w("LifeLinkPresence", message)
-                    DebugFileLogger.warning("donor-presence", message)
+                    DebugFileLogger.warning("donor-presence", message, error)
                 }
                 delay(DONOR_PRESENCE_INTERVAL_MILLIS)
             }
