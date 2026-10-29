@@ -346,3 +346,10 @@ tasks.register("buildRelease") {
 
 // Make sure the signing guard runs before the release APK is assembled.
 tasks.matching { it.name == "assembleRelease" }.configureEach { mustRunAfter(verifyReleaseSigning) }
+
+// The UI-test APK must not bind itself to the production Firebase project. The
+// demo disables Firebase token registration, so skip only its google-services
+// resource generation; normal debug/release variants retain their existing setup.
+tasks.matching { it.name == "processUiTestGoogleServices" }.configureEach {
+    enabled = false
+}
