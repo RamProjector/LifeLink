@@ -277,6 +277,10 @@ fun DonorMapScreen(
                         ) {
                             Text("Clear filters")
                         }
+                    } else {
+                        OutlinedButton(onClick = { onAction(PrivacyAction.LoadMap) }) {
+                            Text("Refresh areas")
+                        }
                     }
                 }
             }
