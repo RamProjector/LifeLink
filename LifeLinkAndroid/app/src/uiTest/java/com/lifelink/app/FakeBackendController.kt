@@ -38,9 +38,15 @@ object FakeBackendController {
                     path.startsWith("/v1/donor-profile/") -> json(200, donorProfileJson())
                     path == "/v1/emergency-requests" && method == "GET" -> json(200, "[]")
                     path == "/v1/emergency-requests" && method == "POST" ->
-                        json(201, """{"request_id":"demo-request-created","status":"matching","notifications_created":2,"matches_responded":0,"matches":[]}""")
+                        json(
+                            201,
+                            """{"request_id":"demo-request-created","status":"matching","notifications_created":2,"matches_responded":0,"matches":[]}""",
+                        )
                     path.matches(Regex("/v1/emergency-requests/[^/]+")) ->
-                        json(200, """{"request_id":"demo-request-1","status":"matching","notifications_created":2,"matches_responded":1,"matches":[]}""")
+                        json(
+                            200,
+                            """{"request_id":"demo-request-1","status":"matching","notifications_created":2,"matches_responded":1,"matches":[]}""",
+                        )
                     path.endsWith("/cancel") -> json(200, """{"request_id":"demo-request-1","status":"cancelled"}""")
                     path.endsWith("/fulfill") -> json(200, """{"request_id":"demo-request-1","status":"fulfilled"}""")
                     path.endsWith("/contacts") -> json(200, "[]")
@@ -71,18 +77,80 @@ object FakeBackendController {
         .setBody(body)
 
     private fun profileJson() =
-        """{"user_id":"demo-user","email":"demo.requester@lifelink.test","role":"requester","display_name":"Demo Requester","can_request":true,"can_donate":false}"""
+        """
+        {
+            "user_id": "demo-user",
+            "email": "demo.requester@lifelink.test",
+            "role": "requester",
+            "display_name": "Demo Requester",
+            "can_request": true,
+            "can_donate": false
+        }
+        """.trimIndent()
 
     private fun donorProfileJson() =
-        """{"user_id":"demo-user","donor_id":"demo-user","blood_type":"O+","latitude":11.244,"longitude":125.003,"area":"DEMO AREA — Tacloban","service_radius_km":15,"availability_status":"available","verified":true,"notifications_enabled":true,"display_name":"Demo Donor","donor_note":"Synthetic profile for UI review only","preferred_contact_method":"in_app","profile_visible":true}"""
+        """
+        {
+            "user_id": "demo-user",
+            "donor_id": "demo-user",
+            "blood_type": "O+",
+            "latitude": 11.244,
+            "longitude": 125.003,
+            "area": "DEMO AREA — Tacloban",
+            "service_radius_km": 15,
+            "availability_status": "available",
+            "verified": true,
+            "notifications_enabled": true,
+            "display_name": "Demo Donor",
+            "donor_note": "Synthetic profile for UI review only",
+            "preferred_contact_method": "in_app",
+            "profile_visible": true
+        }
+        """.trimIndent()
 
     private fun donorMapJson(): String {
         val now = Instant.now().toString()
-        return """{"generated_at":"$now","approximate_only":true,"entries":[
-            {"area_label":"DEMO • Downtown","latitude":11.244,"longitude":125.003,"radius_meters":500,"blood_type":"O+","availability":"available","freshness_at":"$now","freshness_age_minutes":1,"is_stale":false},
-            {"area_label":"DEMO • North District","latitude":11.255,"longitude":125.006,"radius_meters":700,"blood_type":"A+","availability":"available","freshness_at":"$now","freshness_age_minutes":1,"is_stale":false},
-            {"area_label":"DEMO • East District","latitude":11.238,"longitude":125.018,"radius_meters":600,"blood_type":"B+","availability":"available","freshness_at":"$now","freshness_age_minutes":1,"is_stale":false}
-        ]}"""
+        return """
+            {
+                "generated_at": "$now",
+                "approximate_only": true,
+                "entries": [
+                    {
+                        "area_label": "DEMO • Downtown",
+                        "latitude": 11.244,
+                        "longitude": 125.003,
+                        "radius_meters": 500,
+                        "blood_type": "O+",
+                        "availability": "available",
+                        "freshness_at": "$now",
+                        "freshness_age_minutes": 1,
+                        "is_stale": false
+                    },
+                    {
+                        "area_label": "DEMO • North District",
+                        "latitude": 11.255,
+                        "longitude": 125.006,
+                        "radius_meters": 700,
+                        "blood_type": "A+",
+                        "availability": "available",
+                        "freshness_at": "$now",
+                        "freshness_age_minutes": 1,
+                        "is_stale": false
+                    },
+                    {
+                        "area_label": "DEMO • East District",
+                        "latitude": 11.238,
+                        "longitude": 125.018,
+                        "radius_meters": 600,
+                        "blood_type": "B+",
+                        "availability": "available",
+                        "freshness_at": "$now",
+                        "freshness_age_minutes": 1,
+                        "is_stale": false
+                    }
+                ]
+            }
+        """.trimIndent()
     }
 
     private fun conversationsJson() = """[{
