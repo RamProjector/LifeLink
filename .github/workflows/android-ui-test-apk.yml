@@ -61,7 +61,7 @@ jobs:
           test -x "$aapt"
           "$aapt" dump badging "$apk" | grep -F "package: name='com.lifelink.app.uitest'"
           "$aapt" dump badging "$apk" | grep -F "application-label:'LifeLink UI Test (Fake Backend)'"
-          sha256sum "$apk" | tee app/build/outputs/apk/uiTest/SHA256SUMS.txt
+          (cd app/build/outputs/apk/uiTest && sha256sum app-uiTest.apk > SHA256SUMS.txt)
 
       - name: Upload UI test APK and checksum
         uses: actions/upload-artifact@v7
