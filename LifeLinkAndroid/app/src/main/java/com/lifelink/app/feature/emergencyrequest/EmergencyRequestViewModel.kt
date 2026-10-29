@@ -284,11 +284,24 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
     }
 
     private fun submit() {
+        // Atomically claim the submission before launching the coroutine. A fast
+        // double tap (or repeated UI action in the same frame) must not start two
+        // network requests for the same emergency draft.
+        val current = _uiState.value
+        if (current.submission is SubmissionState.Submitting) return
+        if (!_uiState.compareAndSet(current, current.copy(submission = SubmissionState.Submitting))) return
+
         draftSaveJob?.cancel()
-        val draft = _uiState.value.draft
+        val draft = current.draft
         viewModelScope.launch {
-            _uiState.update { it.copy(submission = SubmissionState.Submitting) }
-            when (val result = repository.submit(draft)) {
+            val result = try {
+                repository.submit(draft)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                SubmitResult.Error("Couldn’t submit your emergency request. Check your connection and try again.")
+            }
+            when (result) {
                 is SubmitResult.MatchingStarted -> {
                     // Do not keep the submit button spinning while the optional contacts refresh waits on the API.
                     _uiState.update {
