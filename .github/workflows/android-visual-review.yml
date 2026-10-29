@@ -118,6 +118,7 @@ jobs:
           cat > "$RUNNER_TEMP/lifelink-visual-test.sh" <<'EOF'
           #!/usr/bin/env bash
           set +e
+          mkdir -p "$GITHUB_WORKSPACE/visual-artifacts"
           device_serial="${ANDROID_SERIAL:-emulator-5554}"
           collect_diagnostics() {
             local script_exit=$?
