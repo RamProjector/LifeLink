@@ -1,0 +1,63 @@
+name: Android UI test APK (fake backend)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'LifeLinkAndroid/**'
+      - 'docs/ANDROID_UI_TEST_APK.md'
+      - '.github/workflows/android-ui-test-apk.yml'
+  pull_request:
+    paths:
+      - 'LifeLinkAndroid/**'
+      - 'docs/ANDROID_UI_TEST_APK.md'
+      - '.github/workflows/android-ui-test-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-ui-test-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build isolated fake-backend UI APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: LifeLinkAndroid
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platforms;android-37.2 build-tools;37.0.0'
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Build UI test APK with embedded local fake API
+        run: ./gradlew assembleUiTest --no-daemon --stacktrace
+
+      - name: Verify APK exists and is non-empty
+        run: test -s app/build/outputs/apk/uiTest/app-uiTest.apk
+
+      - name: Upload UI test APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: lifelink-ui-test-fake-backend-${{ github.sha }}
+          path: LifeLinkAndroid/app/build/outputs/apk/uiTest/app-uiTest.apk
+          if-no-files-found: error
+          retention-days: 14
