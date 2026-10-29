@@ -6,6 +6,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Local-only fake API for the separately signed uiTest APK.
@@ -14,6 +15,7 @@ import java.time.Instant
 object FakeBackendController {
     @Volatile
     private var server: MockWebServer? = null
+    private val servedRequests = AtomicInteger()
 
     @JvmStatic
     @Synchronized
@@ -25,6 +27,7 @@ object FakeBackendController {
         val fakeServer = MockWebServer()
         fakeServer.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
+                servedRequests.incrementAndGet()
                 val path = request.requestUrl?.encodedPath.orEmpty()
                 val method = request.method.orEmpty()
                 return when {
@@ -85,6 +88,9 @@ object FakeBackendController {
 
     @JvmStatic
     fun baseUrl(): String = "http://127.0.0.1:${checkNotNull(server) { "Fake backend has not started." }.port}/"
+
+    @JvmStatic
+    fun requestCount(): Int = servedRequests.get()
 
     private fun json(status: Int, body: String) = MockResponse()
         .setResponseCode(status)
