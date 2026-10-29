@@ -232,7 +232,9 @@ fun DonorMapScreen(
         // Those states need their own truthful feedback and recovery action.
         if (!state.mapLoading && state.mapError == null && filteredAreas.isEmpty()) {
             Surface(
-                Modifier.align(Alignment.Center).padding(24.dp).widthIn(max = 360.dp),
+                Modifier.align(Alignment.BottomCenter)
+                    .padding(start = 24.dp, end = 24.dp, bottom = 88.dp)
+                    .widthIn(max = 360.dp),
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
                 shadowElevation = 4.dp,
