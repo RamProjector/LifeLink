@@ -40,12 +40,28 @@ object FakeBackendController {
                     path == "/v1/emergency-requests" && method == "POST" ->
                         json(
                             201,
-                            """{"request_id":"demo-request-created","status":"matching","notifications_created":2,"matches_responded":0,"matches":[]}""",
+                            """
+                            {
+                                "request_id": "demo-request-created",
+                                "status": "matching",
+                                "notifications_created": 2,
+                                "matches_responded": 0,
+                                "matches": []
+                            }
+                            """.trimIndent(),
                         )
                     path.matches(Regex("/v1/emergency-requests/[^/]+")) ->
                         json(
                             200,
-                            """{"request_id":"demo-request-1","status":"matching","notifications_created":2,"matches_responded":1,"matches":[]}""",
+                            """
+                            {
+                                "request_id": "demo-request-1",
+                                "status": "matching",
+                                "notifications_created": 2,
+                                "matches_responded": 1,
+                                "matches": []
+                            }
+                            """.trimIndent(),
                         )
                     path.endsWith("/cancel") -> json(200, """{"request_id":"demo-request-1","status":"cancelled"}""")
                     path.endsWith("/fulfill") -> json(200, """{"request_id":"demo-request-1","status":"fulfilled"}""")
