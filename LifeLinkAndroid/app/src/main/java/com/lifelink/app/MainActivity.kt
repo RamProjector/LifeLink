@@ -119,7 +119,7 @@ class MainActivity : ComponentActivity() {
                         },
                     )
                 }
-                RequestNotificationPermissionIfNeeded()
+                if (!BuildConfig.LIFELINK_FAKE_BACKEND) RequestNotificationPermissionIfNeeded()
                 val authViewModel: AuthViewModel =
                     viewModel(
                         factory = AuthViewModelFactory(app.authRepository),
@@ -220,8 +220,10 @@ class MainActivity : ComponentActivity() {
                                 if (error is CancellationException) throw error
                                 roleLoadError = "Your profile could not be loaded. Check your connection and retry."
                             }
-                        runCatching { fetchFirebaseToken() }
-                            .onSuccess { token -> app.enqueuePushTokenRegistration(accountUserId, token) }
+                        if (!BuildConfig.LIFELINK_FAKE_BACKEND) {
+                            runCatching { fetchFirebaseToken() }
+                                .onSuccess { token -> app.enqueuePushTokenRegistration(accountUserId, token) }
+                        }
                     }
                 }
                 if (role == null) {
