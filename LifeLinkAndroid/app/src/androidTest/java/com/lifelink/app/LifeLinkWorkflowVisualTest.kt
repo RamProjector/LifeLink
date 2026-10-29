@@ -153,7 +153,7 @@ class LifeLinkWorkflowVisualTest {
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithText("Edit donor profile").performClick()
-        composeRule.onNodeWithText("Use my current location").assertIsDisplayed()
+        composeRule.onNodeWithText("Use my current location").performScrollTo().assertIsDisplayed()
         org.junit.Assert.assertTrue(composeRule.onAllNodesWithText("Latitude").fetchSemanticsNodes().isEmpty())
         org.junit.Assert.assertTrue(composeRule.onAllNodesWithText("Longitude").fetchSemanticsNodes().isEmpty())
         composeRule.onNodeWithTag("donor-profile-save").assertIsNotEnabled()
