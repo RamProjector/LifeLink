@@ -152,6 +152,17 @@ class SqlAlchemyPrivacyStore:
         return row
 
     # -------------------------------------------------------- location share
+    async def location_share_for_pair(
+        self, request_id: str, donor_id: str
+    ) -> DonorLocationShare | None:
+        """Return the existing request-scoped share, if one exists."""
+        return await self.session.scalar(
+            select(DonorLocationShare).where(
+                DonorLocationShare.request_id == request_id,
+                DonorLocationShare.donor_id == donor_id,
+            )
+        )
+
     async def ensure_location_share(
         self, request_id: str, donor_id: str, requester_id: str, expires_at: datetime
     ) -> DonorLocationShare:
