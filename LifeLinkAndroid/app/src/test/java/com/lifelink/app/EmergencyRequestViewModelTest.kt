@@ -554,7 +554,7 @@ private class FakeRepository(private val submitResult: SubmitResult = SubmitResu
                         .toList()
                 SubmitResult.ContactRequested(requestId, donorIds)
             }
-            else -> contactResult
+            else -> result
         }
     }
 
