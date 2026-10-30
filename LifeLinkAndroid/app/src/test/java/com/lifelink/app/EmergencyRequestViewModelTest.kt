@@ -151,6 +151,141 @@ class EmergencyRequestViewModelTest {
 
     @Test
     fun save_draft_calls_repository() = runTest {
+    @Test
+    fun submission_persists_the_exact_draft_before_network_request() = runTest {
+        val repository = FakeRepository(SubmitResult.MatchingStarted("persisted-request"))
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(
+            EmergencyRequestAction.UpdateDraft {
+                it.copy(
+                    bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                    facility = facility,
+                    requesterLatitude = 14.6466,
+                    requesterLongitude = 121.0437,
+                    genuineRequestConfirmed = true,
+                    sharingConsentConfirmed = true,
+                )
+            },
+        )
+
+        viewModel.onAction(EmergencyRequestAction.Submit)
+        advanceUntilIdle()
+
+        assertEquals(listOf("save", "submit"), repository.submissionEvents)
+        assertEquals(SubmissionState.Matching("persisted-request"), viewModel.uiState.value.submission)
+    }
+
+    @Test
+    fun local_draft_persistence_failure_prevents_network_submission() = runTest {
+        val repository = FakeRepository().apply { draftSaveFailure = java.io.IOException("disk unavailable") }
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(
+            EmergencyRequestAction.UpdateDraft {
+                it.copy(
+                    bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                    facility = facility,
+                    requesterLatitude = 14.6466,
+                    requesterLongitude = 121.0437,
+                    genuineRequestConfirmed = true,
+                    sharingConsentConfirmed = true,
+                )
+            },
+        )
+
+        viewModel.onAction(EmergencyRequestAction.Submit)
+        advanceUntilIdle()
+
+        assertEquals(0, repository.submitCalls)
+        val error = viewModel.uiState.value.submission as SubmissionState.Error
+        assertTrue(!error.retryable)
+    }
+
+    @Test
+    fun editing_draft_during_submission_is_ignored() = runTest {
+        val repository = FakeRepository()
+        val pendingResult = CompletableDeferred<SubmitResult>()
+        repository.submitGate = pendingResult
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(
+            EmergencyRequestAction.UpdateDraft {
+                it.copy(
+                    bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                    facility = facility,
+                    requesterLatitude = 14.6466,
+                    requesterLongitude = 121.0437,
+                    genuineRequestConfirmed = true,
+                    sharingConsentConfirmed = true,
+                )
+            },
+        )
+        val submittedDraft = viewModel.uiState.value.draft
+
+        viewModel.onAction(EmergencyRequestAction.Submit)
+        viewModel.onAction(EmergencyRequestAction.UpdateDraft { it.copy(units = 7) })
+
+        assertEquals(submittedDraft, viewModel.uiState.value.draft)
+        pendingResult.complete(SubmitResult.MatchingStarted("locked-request"))
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun non_retryable_submission_error_does_not_repeat_network_request() = runTest {
+        val repository = FakeRepository(SubmitResult.Error("Request is not authorized.", retryable = false))
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(
+            EmergencyRequestAction.UpdateDraft {
+                it.copy(
+                    bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                    facility = facility,
+                    requesterLatitude = 14.6466,
+                    requesterLongitude = 121.0437,
+                    genuineRequestConfirmed = true,
+                    sharingConsentConfirmed = true,
+                )
+            },
+        )
+
+        viewModel.onAction(EmergencyRequestAction.Submit)
+        advanceUntilIdle()
+        viewModel.onAction(EmergencyRequestAction.Retry)
+        advanceUntilIdle()
+
+        assertEquals(1, repository.submitCalls)
+    }
+
+    @Test
+    fun repeated_contact_submit_actions_start_only_one_contact_request() = runTest {
+        val repository = FakeRepository(SubmitResult.MatchingStarted("contact-request"))
+        val contactGate = CompletableDeferred<SubmitResult>()
+        repository.contactGate = contactGate
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(
+            EmergencyRequestAction.UpdateDraft {
+                it.copy(
+                    bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                    facility = facility,
+                    requesterLatitude = 14.6466,
+                    requesterLongitude = 121.0437,
+                    genuineRequestConfirmed = true,
+                    sharingConsentConfirmed = true,
+                )
+            },
+        )
+        viewModel.onAction(EmergencyRequestAction.Submit)
+        advanceUntilIdle()
+        viewModel.onAction(EmergencyRequestAction.ToggleDonorSelection("donor-1"))
+
+        viewModel.onAction(EmergencyRequestAction.ContactSelectedDonors)
+        viewModel.onAction(EmergencyRequestAction.ContactSelectedDonors)
+
+        assertEquals(1, repository.contactCalls)
+        assertTrue(viewModel.uiState.value.contactSubmissionInFlight)
+        contactGate.complete(SubmitResult.ContactRequested("contact-request", listOf("donor-1")))
+        advanceUntilIdle()
+        assertTrue(!viewModel.uiState.value.contactSubmissionInFlight)
+    }
+
+
         val repository = FakeRepository()
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
         viewModel.onAction(EmergencyRequestAction.SaveDraft)
@@ -375,8 +510,12 @@ class EmergencyRequestViewModelTest {
 
 private class FakeRepository(private val submitResult: SubmitResult = SubmitResult.OfflineQueued("draft-1")) : EmergencyRequestRepository {
     var savedDrafts = 0
+    var draftSaveFailure: Exception? = null
+    val submissionEvents = mutableListOf<String>()
     var submitCalls = 0
     var submitGate: CompletableDeferred<SubmitResult>? = null
+    var contactCalls = 0
+    var contactGate: CompletableDeferred<SubmitResult>? = null
     var historyFailure: Exception? = null
     var history: List<RequestHistoryItem> = emptyList()
     var matches: List<DiscoveredDonor> = emptyList()
@@ -390,18 +529,23 @@ private class FakeRepository(private val submitResult: SubmitResult = SubmitResu
 
     override suspend fun saveDraft(draft: EmergencyRequestDraft) {
         savedDrafts++
+        submissionEvents += "save"
+        draftSaveFailure?.let { throw it }
     }
 
     override suspend fun loadDraft(id: String): EmergencyRequestDraft? = null
 
     override suspend fun submit(draft: EmergencyRequestDraft): SubmitResult {
         submitCalls++
+        submissionEvents += "submit"
         return submitGate?.await() ?: submitResult
     }
 
     override suspend fun contactSelectedDonors(requestId: String, donorIds: List<String>): SubmitResult {
+        contactCalls++
         lastContactedDonors = donorIds
-        return when (contactResult) {
+        val result = contactGate?.await() ?: contactResult
+        return when (result) {
             is SubmitResult.ContactRequested -> {
                 contacts =
                     (contacts.map { it.donorId to it } + donorIds.map { it to RequesterContact(it, it, "pending") })
