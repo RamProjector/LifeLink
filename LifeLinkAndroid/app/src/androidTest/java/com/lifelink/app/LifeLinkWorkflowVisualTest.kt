@@ -2,6 +2,7 @@ package com.lifelink.app
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
@@ -17,6 +18,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.location.MapLibreLocationPicker
 import com.lifelink.app.core.navigation.LifeLinkShell
@@ -199,6 +201,27 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+    }
+
+    @Test
+    fun donorMapVisibilitySwitchRowsMeetMinimumTouchTarget() {
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    DonorMapScreen(
+                        state = PrivacyUiState(),
+                        onAction = {},
+                        onBack = {},
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription("Map privacy controls").performClick()
+        composeRule.onNodeWithText("Show me on the donor map")
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("Show me on the donor map")
+            .assertHeightIsAtLeast(48.dp)
     }
 
     @Test
