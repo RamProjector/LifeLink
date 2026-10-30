@@ -47,6 +47,8 @@ class SelectedMethodsRunner(testClass: Class<*>) : Runner() {
 @SelectedTestMethods(
     "navigatesCoreWorkflowsAndCapturesEvidence",
     "donorMapErrorKeepsMapVisibleAndRetryable",
+    "emptyDonorMapKeepsMapVisibleAndOffersRefresh",
+    "selectingDonorAreaOpensPrivacySafeDetailsAndReturnsToMap",
 )
 class LifeLinkVisualSmokeTest : LifeLinkWorkflowVisualTest()
 
@@ -54,5 +56,7 @@ class LifeLinkVisualSmokeTest : LifeLinkWorkflowVisualTest()
 @SelectedTestMethods(
     "donor_can_open_chat_and_system_back_returns_to_the_donor_workspace",
     "unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions",
+    "donor_map_is_a_labeled_top_level_destination_and_navigation_remains_available",
+    "donor_map_shows_the_correct_loading_error_and_empty_state",
 )
 class ConversationNavigationSmokeTest : ConversationNavigationTest()
