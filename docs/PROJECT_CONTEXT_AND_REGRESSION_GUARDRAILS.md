@@ -57,3 +57,8 @@ python3 -m pytest -q
 ```
 
 Run `git diff --check`. Review every Room DAO call for owner scoping. Conceptually verify both a new account and an existing donor account, and verify that signing out then signing in as a different account cannot show the prior account’s active request or donor inbox. When no Android SDK exists in the sandbox, use the repository’s hosted GitHub Actions Android build instead of claiming a local APK build succeeded.
+
+
+## Idempotent create replay (2026-10-30)
+
+The PostgreSQL request-create endpoint uses a unique database idempotency key so an Android retry after a lost response returns the original request instead of inserting another. The replay response must report `notifications_created: 0`: stored donor matches are candidates for requester review, not notifications, and replay creates no new notification side effect. Keep `tests/test_postgres_end_to_end.py::test_replaying_request_creation_is_idempotent_and_reports_no_notifications` passing; it verifies the same request ID is returned, the notification count remains zero, and exactly one request row exists for the key.
