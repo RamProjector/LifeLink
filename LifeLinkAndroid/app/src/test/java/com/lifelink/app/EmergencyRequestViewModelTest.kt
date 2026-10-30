@@ -283,7 +283,6 @@ class EmergencyRequestViewModelTest {
         assertTrue(!viewModel.uiState.value.contactSubmissionInFlight)
     }
 
-
     @Test
     fun save_draft_calls_repository() = runTest {
         val repository = FakeRepository()
