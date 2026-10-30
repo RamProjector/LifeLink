@@ -87,6 +87,20 @@ class EmergencyRequestViewModelTest {
     }
 
     @Test
+    fun terminal_request_does_not_block_restoring_a_saved_draft() = runTest {
+        val savedDraft = EmergencyRequestDraft(note = "unfinished after cancellation")
+        val repository = FakeRepository().apply {
+            latestDraft = savedDraft
+            activeRequest = ActiveRequestSnapshot("old-request", com.lifelink.app.domain.ActiveRequestStatus.CANCELLED)
+        }
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        advanceUntilIdle()
+
+        assertEquals(savedDraft.id, viewModel.uiState.value.draft.id)
+        assertEquals("unfinished after cancellation", viewModel.uiState.value.draft.note)
+    }
+
+    @Test
     fun successful_submission_removes_the_local_unsent_draft() = runTest {
         val repository = FakeRepository(SubmitResult.MatchingStarted("request-accepted"))
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
