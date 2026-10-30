@@ -1,6 +1,8 @@
 package com.lifelink.app
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 
 /**
  * Keeps the fake backend out of normal debug/release builds. The uiTest build type
@@ -13,7 +15,11 @@ internal object DemoBackendRuntime {
     fun startIfEnabled(context: Context) {
         if (!BuildConfig.LIFELINK_FAKE_BACKEND) return
         val controller = Class.forName(CONTROLLER_CLASS)
-        controller.getMethod("start", Context::class.java).invoke(null, context.applicationContext)
+        // MockWebServer performs socket/DNS setup; keep that work off Android's main thread.
+        // This is a test-only build and startup waits for the local server before repositories resolve its URL.
+        runBlocking(Dispatchers.IO) {
+            controller.getMethod("start", Context::class.java).invoke(null, context.applicationContext)
+        }
 
         // The UI-test application ID is separate, so this synthetic session cannot
         // overwrite the real app's saved session.
