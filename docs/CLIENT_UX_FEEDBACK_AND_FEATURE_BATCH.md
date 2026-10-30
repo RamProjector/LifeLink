@@ -128,7 +128,7 @@ The following are acceptance tasks for this one integration PR. A checkbox is ma
 - [ ] Verify 48 dp minimum interactive targets, meaningful labels, semantic headings, error announcements, contrast, font scaling, and insets.
 - [x] Give donor map visibility switch rows an explicit 56 dp minimum height and add an instrumentation assertion against the actual clickable row bounds; the rest of the app-wide touch-target audit remains open.
 - [x] Give the donor-area details “Back to map” action an explicit 48 dp minimum height; instrumentation verifies its target and performs the actual in-app return action. The wider navigation-control audit remains open.
-- [x] Announce the donor-map filter result count as a polite live region and assert that accessibility semantic in the workflow instrumentation test, so changes are not visual-only for screen-reader users.
+- [x] Announce the donor-map filter result count as a polite live region and assert that accessibility semantic in the workflow instrumentation test, so changes are not visual-only for screen-reader users.\n- [x] Use singular/plural-aware donor-area counts in both the filter summary and map footer; the deterministic workflow test verifies “1 matching area” and “1 area” rather than the grammatically incorrect plural form.
 - [ ] Add or extend Compose UI tests for feedback states and the main requester/donor journeys.
 - [ ] Capture required screenshots for home, request form, map (loading/populated/empty/error), chat, and profile/availability where the harness can reliably render them.
 - [ ] Keep the fake-backend APK isolated from production configuration and label all synthetic data.
