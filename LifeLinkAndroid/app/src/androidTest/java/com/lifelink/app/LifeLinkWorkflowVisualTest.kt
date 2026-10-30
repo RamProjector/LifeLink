@@ -191,6 +191,7 @@ open class LifeLinkWorkflowVisualTest {
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
+        composeRule.onNodeWithTag("donor-area-card").assertHeightIsAtLeast(48.dp)
         composeRule.onNodeWithTag("donor-area-card").performClick()
         assertVisible("Donor area details")
         assertVisible("Blood type: O+")
