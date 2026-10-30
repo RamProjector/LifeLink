@@ -193,6 +193,45 @@ def test_submit_does_not_broadcast_but_contact_does(pg_url, monkeypatch):
     run_scenario(pg_url, scenario)
 
 
+def test_replaying_request_creation_is_idempotent_and_reports_no_notifications(pg_url):
+    """A retry after a lost response returns the same request without side effects.
+
+    Matches are candidates for requester review; they are not donor
+    notifications. Replaying the same idempotency key must not report them as
+    newly created notifications or insert a second request.
+    """
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        payload = request_payload(requester)
+
+        current["id"] = requester
+        first = await client.post("/v1/emergency-requests", json=payload)
+        assert first.status_code == 201, first.text
+        first_body = first.json()
+        assert [item["donor_id"] for item in first_body["matches"]] == [donor]
+        assert first_body["notifications_created"] == 0
+
+        # Simulate the client retrying because the original response was lost.
+        replay = await client.post("/v1/emergency-requests", json=payload)
+        assert replay.status_code == 201, replay.text
+        replay_body = replay.json()
+        assert replay_body["request_id"] == first_body["request_id"]
+        assert replay_body["status"] == first_body["status"]
+        assert replay_body["notifications_created"] == 0
+
+        engine = create_async_engine(pg_url)
+        async with engine.connect() as connection:
+            count = await connection.scalar(
+                text("SELECT count(*) FROM emergency_requests WHERE idempotency_key = :key"),
+                {"key": payload["idempotency_key"]},
+            )
+        await engine.dispose()
+        assert count == 1, "replaying a create request must not insert a duplicate row"
+
+    run_scenario(pg_url, scenario)
+
+
 def test_cancel_stops_the_donor_search_broadcast(pg_url):
     """Cancelling a request must stop its donor search, not just flip its status.
 
