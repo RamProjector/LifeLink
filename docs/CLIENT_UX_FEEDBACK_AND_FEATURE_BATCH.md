@@ -275,7 +275,7 @@ This section extends the existing acceptance plan. These are implementation prio
 ### Exact donor GPS authorization regression
 
 - Added a PostgreSQL-backed API regression test proving that an active exact-location share is readable by the request's requester only.
-- The test replays the same request and donor identifiers as both an unrelated account and the donor account; both must receive HTTP 403, while the authorized requester receives the exact coordinates.
+- The test verifies an unrelated account cannot activate a share or retrieve exact GPS using known request/donor identifiers; the donor account also cannot retrieve the requester's exact-location response. These calls must receive HTTP 403, while the authorized requester can activate and read the share.
 - This guards against broken object-level authorization (BOLA/IDOR) and prevents identifier knowledge from becoming an authorization mechanism.
 
 ### Research references
