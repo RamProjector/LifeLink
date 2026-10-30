@@ -153,16 +153,19 @@ class SqlAlchemyPrivacyStore:
             # Hiding from the map, or turning off exact-location sharing, must
             # withdraw any live exact-location share immediately.
             await self._revoke_all_shares_for_donor(row.id, now)
-        await self.session.commit()
-        await self.record_audit_async(
-            row.user_id or row.id,
-            "donor_map_visibility_updated",
+        # Commit the privacy change, any share revocations, and its audit
+        # event together. A failed audit insert must roll back the opt-out too.
+        self.session.add(AuditEvent(
+            id=f"audit_{uuid4().hex}",
+            actor_id=row.user_id or row.id,
+            action="donor_map_visibility_updated",
             donor_id=row.id,
-            metadata={
+            event_metadata={
                 "map_visible": payload.map_visible,
                 "exact_location_sharing_enabled": payload.exact_location_sharing_enabled,
             },
-        )
+        ))
+        await self.session.commit()
         return row
 
     # -------------------------------------------------------- location share
