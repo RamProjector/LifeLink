@@ -202,6 +202,34 @@ class LifeLinkWorkflowVisualTest {
     }
 
     @Test
+    fun donorMapErrorKeepsMapVisibleAndRetryable() {
+        val actions = mutableListOf<com.lifelink.app.feature.privacy.PrivacyAction>()
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    DonorMapScreen(
+                        state = PrivacyUiState(mapError = "Check your connection and try again."),
+                        onAction = { actions += it },
+                        onBack = {},
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-map-native-view").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-map-error-feedback").assertIsDisplayed()
+        composeRule.onNodeWithText("Couldn’t load donor areas").assertIsDisplayed()
+        composeRule.onNodeWithText("Retry").performClick()
+        org.junit.Assert.assertEquals(
+            com.lifelink.app.feature.privacy.PrivacyAction.LoadMap,
+            actions.last(),
+        )
+        capture("donor-map-error")
+    }
+
+    @Test
     fun emptyDonorMapKeepsMapVisibleAndOffersRefresh() {
         val actions = mutableListOf<com.lifelink.app.feature.privacy.PrivacyAction>()
         val emptyMapState = PrivacyUiState(
