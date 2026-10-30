@@ -455,8 +455,8 @@ def test_donor_can_revoke_exact_location_share(pg_url):
         # The consent lifecycle is auditable without recording precise GPS.
         audit_rows = await run_sql(
             "SELECT actor_id, action, request_id, donor_id, metadata "
-            "FROM audit_events WHERE request_id = :request_id "
-            "AND action IN ('location_share_activated', 'location_share_revoked') "
+            "FROM audit_events "
+            "WHERE action IN ('location_share_activated', 'location_share_revoked') "
             "ORDER BY created_at",
         )
         assert audit_rows == [
