@@ -27,11 +27,11 @@ LifeLink supports emergency blood-donor discovery. The interface must make the c
 1. **Android Compose accessibility semantics** — announce meaningful changes, use headings and error semantics, and reserve assertive announcements for urgent errors; frequent state changes should not repeatedly interrupt users.  
    https://developer.android.com/develop/ui/compose/accessibility/semantics
 2. **Android accessibility quality** — provide reliable touch targets (at least 48 dp for interactive controls), meaningful descriptions, scalable text, and manual assistive-technology checks.  
-3. **Android touch-target implementation** — custom Compose controls should expose a minimum 48 dp interactive area; test the actual clickable container bounds, not just the visible icon or label. 
    https://developer.android.com/guide/topics/ui/accessibility/apps
-3. **OWASP Logging Cheat Sheet** — log security-relevant successes/failures, validation errors, authorization denials, application errors and privileged actions with enough context for investigation; exclude passwords, tokens, session secrets, and unnecessary sensitive personal data.  
+3. **Android touch-target implementation** — custom Compose controls should expose a minimum 48 dp interactive area; tests should inspect the actual clickable container bounds, not just the visible icon or label.
+4. **OWASP Logging Cheat Sheet** — log security-relevant successes/failures, validation errors, authorization denials, application errors and privileged actions with enough context for investigation; exclude passwords, tokens, session secrets, and unnecessary sensitive personal data.  
    https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
-4. **OWASP DevSecOps logging guidance** — structured event names, timestamps, and correlation identifiers improve cross-service investigation; protect logs and avoid recording secrets or unnecessary personal information.  
+5. **OWASP DevSecOps logging guidance** — structured event names, timestamps, and correlation identifiers improve cross-service investigation; protect logs and avoid recording secrets or unnecessary personal information.  
    https://owasp.github.io/DevSecOpsGuideline/2-Process/2-7-Operate/2-7-2-Logging-and-Monitoring/
 
 These sources guide interaction and observability, not clinical suitability or blood-donor eligibility. LifeLink must not claim to medically screen or guarantee a match.
