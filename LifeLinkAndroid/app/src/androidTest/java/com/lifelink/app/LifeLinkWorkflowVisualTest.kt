@@ -232,6 +232,13 @@ open class LifeLinkWorkflowVisualTest {
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithContentDescription("Map privacy controls").performClick()
+        composeRule.onNodeWithTag("donor-map-privacy-panel")
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.PaneTitle,
+                    "Donor map privacy controls",
+                ),
+            )
         composeRule.onNodeWithText("Show me on the donor map").assertIsDisplayed()
         composeRule.onNodeWithTag("donor-visibility-map-row")
             .assertHeightIsAtLeast(48.dp)
