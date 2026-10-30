@@ -22,6 +22,8 @@ The following feedback-system slice has been added to PR #153:
 
 LifeLink supports emergency blood-donor discovery. The interface must make the current state, next action, and any failure clear without implying that donor availability, GPS, matching, or notifications are guaranteed. The app should be calm, direct, accessible, privacy-preserving, and usable under time pressure.
 
+- [x] Give donor-area list cards an explicit 56 dp minimum height and a descriptive Button action semantic; assert the actual card bounds in the donor-area navigation instrumentation test. The app-wide touch-target audit remains open.
+
 ## Research basis
 
 1. **Android Compose accessibility semantics** — announce meaningful changes, use headings and error semantics, and reserve assertive announcements for urgent errors; frequent state changes should not repeatedly interrupt users.  
