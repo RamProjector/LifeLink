@@ -519,7 +519,7 @@ class SqlAlchemyRequestStore(RequestStore):
             "note": row.note,
             "genuine_request_confirmed": row.genuine_request_confirmed,
             "sharing_consent_confirmed": row.sharing_consent_confirmed,
-            "ai_matching_enabled": True,
+            "ai_matching_enabled": row.matching_version != "v1-distance-only",
             "idempotency_key": row.idempotency_key,
         }, context={"stored": True})
         matches = [
