@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app import db, db_models
 from app.db import get_db_session
 from app.donor_profile_repositories import SqlAlchemyDonorProfileStore
+from app.donor_repositories import SqlAlchemyDonorStore
 from app.main_postgres import app
 from app.security import Principal, get_postgres_principal
 
@@ -272,6 +273,40 @@ def test_availability_toggle(pg_url):
         toggled = await client.patch("/v1/donor-profile/availability", json={"availability_status": "paused"})
         assert toggled.status_code == 200, toggled.text
         assert toggled.json()["availability_status"] == "paused"
+
+    run_scenario(pg_url, scenario)
+
+
+
+def test_availability_mirror_failure_rolls_back_profile_preference(pg_url, monkeypatch):
+    original_get_by_identity = SqlAlchemyDonorStore.get_by_identity
+
+    async def fail_mirror(self, user_id: str):
+        raise RuntimeError("synthetic operational-row mirror failure")
+
+    async def scenario(client, current, run_sql):
+        user = new_user("donor-availability-atomic")
+        await create_account(client, current, user)
+        await opt_in_donor(client, current, user, availability="offline")
+
+        monkeypatch.setattr(SqlAlchemyDonorStore, "get_by_identity", fail_mirror)
+        current["id"] = user
+        failed = await client.patch(
+            "/v1/donor-profile/availability",
+            json={"availability_status": "available"},
+        )
+        assert failed.status_code >= 500
+
+        monkeypatch.setattr(SqlAlchemyDonorStore, "get_by_identity", original_get_by_identity)
+        current["id"] = user
+        profile = await client.get("/v1/donor-profile")
+        assert profile.status_code == 200, profile.text
+        assert profile.json()["availability_status"] == "offline"
+
+        async with current["_session_factory"]() as session:
+            donor_row = await original_get_by_identity(SqlAlchemyDonorStore(session), user)
+        assert donor_row is not None
+        assert donor_row.available is False
 
     run_scenario(pg_url, scenario)
 
