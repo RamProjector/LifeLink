@@ -374,6 +374,9 @@ fun DonorMapScreen(
                                 "${filteredAreas.size} matching areas",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .semantics { liveRegion = LiveRegionMode.Polite }
+                                    .testTag("donor-map-filter-count"),
                             )
                             OutlinedButton(
                                 onClick = {
