@@ -150,8 +150,6 @@ class EmergencyRequestViewModelTest {
     }
 
     @Test
-    fun save_draft_calls_repository() = runTest {
-    @Test
     fun submission_persists_the_exact_draft_before_network_request() = runTest {
         val repository = FakeRepository(SubmitResult.MatchingStarted("persisted-request"))
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
@@ -286,6 +284,8 @@ class EmergencyRequestViewModelTest {
     }
 
 
+    @Test
+    fun save_draft_calls_repository() = runTest {
         val repository = FakeRepository()
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
         viewModel.onAction(EmergencyRequestAction.SaveDraft)
