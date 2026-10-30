@@ -50,6 +50,10 @@ class LocationShareRevokedError(Exception):
     """Raised when a request-scoped donor consent has already been revoked."""
 
 
+class LocationSharingDisabledError(Exception):
+    """Raised when donor-level location sharing is no longer enabled."""
+
+
 # Contact details are only accepted in a plausible shape, so a typo cannot be
 # broadcast to the other participant as a "shared" phone/email.
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -133,7 +137,9 @@ class SqlAlchemyPrivacyStore:
         revokes every active location share for the donor, so hiding is real
         rather than cosmetic.
         """
-        row = await self._donor_row(donor_id)
+        row = await self.session.scalar(
+            select(DonorRow).where(DonorRow.id == donor_id).with_for_update()
+        )
         if row is None:
             raise KeyError(donor_id)
         now = datetime.now(UTC)
@@ -184,6 +190,8 @@ class SqlAlchemyPrivacyStore:
         )
         if donor is None:
             raise KeyError(donor_id)
+        if not donor.map_visible or not donor.exact_location_sharing_enabled:
+            raise LocationSharingDisabledError(donor_id)
         now = datetime.now(UTC)
         share = await self.session.scalar(
             select(DonorLocationShare).where(
