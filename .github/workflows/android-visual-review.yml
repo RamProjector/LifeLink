@@ -172,7 +172,7 @@ jobs:
           test_exit=$?
           if [[ "$test_exit" == "0" ]]; then
             test_results_dir="$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results"
-            for expected_test in "AuthScreenVisualTest" "LifeLinkWorkflowVisualTest" "navigatesCoreWorkflowsAndCapturesEvidence" "donorMapErrorKeepsMapVisibleAndRetryable"; do
+            for expected_test in "AuthScreenVisualTest" "LifeLinkVisualSmokeTest" "ConversationNavigationSmokeTest" "DebugFileLoggerTest" "LifeLinkFeedbackCardTest" "navigatesCoreWorkflowsAndCapturesEvidence" "donorMapErrorKeepsMapVisibleAndRetryable" "donor_can_open_chat_and_system_back_returns_to_the_donor_workspace" "unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions" "debugDiagnosticsAreReadableFromDownloads" "errorFeedbackShowsRecoveryActionAndInvokesIt"; do
               if ! grep -R -Fq "$expected_test" "$test_results_dir"; then
                 echo "::error::Instrumentation result is missing expected visual coverage: $expected_test"
                 find "$test_results_dir" -type f -maxdepth 5 -print 2>/dev/null | sort || true
