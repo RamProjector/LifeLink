@@ -33,7 +33,7 @@ sealed interface SubmissionState {
 
     data class QueuedOffline(val draftId: String) : SubmissionState
 
-    data class Error(val message: String) : SubmissionState
+    data class Error(val message: String, val retryable: Boolean = false) : SubmissionState
 }
 
 data class EmergencyRequestUiState(
@@ -51,6 +51,7 @@ data class EmergencyRequestUiState(
     val matchesError: String? = null,
     val selectedDonorIds: Set<String> = emptySet(),
     val contactRequestSent: Boolean = false,
+    val contactSubmissionInFlight: Boolean = false,
     val contacts: List<RequesterContact> = emptyList(),
     val contactsRefreshing: Boolean = false,
     val contactsError: String? = null,
@@ -192,7 +193,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
             EmergencyRequestAction.CancelRequest -> cancelRequest()
             EmergencyRequestAction.CancelHandled -> _uiState.update { it.copy(cancelCompleted = false) }
             EmergencyRequestAction.FulfillRequest -> fulfillRequest()
-            EmergencyRequestAction.Retry -> submit()
+            EmergencyRequestAction.Retry -> if ((_uiState.value.submission as? SubmissionState.Error)?.retryable == true) submit()
             is EmergencyRequestAction.ToggleDonorSelection -> toggleDonor(action.donorId)
             EmergencyRequestAction.ContactSelectedDonors -> contactSelectedDonors()
             is EmergencyRequestAction.UpdateContactStatus -> updateContactStatus(action.donorId, action.status)
@@ -217,6 +218,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
     }
 
     private fun updateDraft(update: (EmergencyRequestDraft) -> EmergencyRequestDraft) {
+        if (_uiState.value.submission is SubmissionState.Submitting) return
         _uiState.update {
             it.copy(
                 draft = update(it.draft),
@@ -261,23 +263,26 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
     }
 
     private fun saveDraft(manual: Boolean = false) {
+        if (_uiState.value.submission is SubmissionState.Submitting) return
         val draft = _uiState.value.draft
         viewModelScope.launch {
             _uiState.update { it.copy(submission = SubmissionState.Saving) }
             runCatching { repository.saveDraft(draft) }
                 .onSuccess {
-                    _uiState.update {
-                        it.copy(
+                    _uiState.update { state ->
+                        state.copy(
                             draftSaved = true,
                             draftSavedManually = manual,
-                            submission = SubmissionState.Idle,
+                            submission = if (state.submission is SubmissionState.Saving) SubmissionState.Idle else state.submission,
                         )
                     }
                 }.onFailure {
-                    _uiState.update {
-                        it.copy(
-                            submission = SubmissionState.Error("Draft is kept on this device; sync will retry."),
-                        )
+                    _uiState.update { state ->
+                        if (state.submission is SubmissionState.Saving) {
+                            state.copy(submission = SubmissionState.Error("Draft could not be saved on this device. Please try again."))
+                        } else {
+                            state
+                        }
                     }
                 }
         }
@@ -295,11 +300,14 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
         val draft = current.draft
         viewModelScope.launch {
             val result = try {
+                // Persist the exact payload before any network side effect. The
+                // debounced autosave may still be pending when the user submits.
+                repository.saveDraft(draft)
                 repository.submit(draft)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                SubmitResult.Error("Couldn’t submit your emergency request. Check your connection and try again.")
+                SubmitResult.Error("Your request could not be saved safely on this device, so it was not submitted.")
             }
             when (result) {
                 is SubmitResult.MatchingStarted -> {
@@ -335,7 +343,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
                 is SubmitResult.Cancelled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
                 is SubmitResult.Fulfilled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
                 is SubmitResult.OfflineQueued -> _uiState.update { it.copy(submission = SubmissionState.QueuedOffline(result.draftId)) }
-                is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
+                is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message, result.retryable)) }
             }
         }
     }
@@ -371,6 +379,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
     }
 
     private fun toggleDonor(donorId: String) {
+        if (_uiState.value.contactSubmissionInFlight) return
         _uiState.update { state ->
             val next = state.selectedDonorIds.toMutableSet().apply { if (!add(donorId)) remove(donorId) }
             state.copy(selectedDonorIds = next, contactRequestSent = false)
@@ -383,8 +392,10 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
         if (state.selectedDonorIds.isEmpty()) return
         val alreadyContacted = state.contacts.mapTo(mutableSetOf()) { it.donorId }
         val donorIds = state.selectedDonorIds.filterNot { it in alreadyContacted }
-        if (donorIds.isEmpty()) return
+        if (donorIds.isEmpty() || state.contactSubmissionInFlight) return
+        if (!_uiState.compareAndSet(state, state.copy(contactSubmissionInFlight = true))) return
         viewModelScope.launch {
+            try {
             when (val result = repository.contactSelectedDonors(requestId, donorIds)) {
                 is SubmitResult.ContactRequested ->
                     refreshAfterContactRequest(
@@ -402,6 +413,9 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
                     )
                 is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
                 else -> Unit
+            }
+            } finally {
+                _uiState.update { it.copy(contactSubmissionInFlight = false) }
             }
         }
     }
