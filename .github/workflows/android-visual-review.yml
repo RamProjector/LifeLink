@@ -171,7 +171,15 @@ jobs:
           echo "Starting connected Android instrumentation tests."
           # --no-daemon: this step runs while the emulator is live, so avoid
           # keeping a 4 GB Gradle daemon resident next to the 4 GB emulator.
-          ./gradlew connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --no-daemon --stacktrace
+          # This workflow is the visual-evidence gate, not the full instrumentation
+          # regression suite. Run only the two screenshot journeys and the critical
+          # donor-map error-recovery test here; the APK build still compiles every
+          # instrumentation test, while unit/backend suites remain separate checks.
+          visual_test_classes="com.lifelink.app.AuthScreenVisualTest,com.lifelink.app.LifeLinkWorkflowVisualTest#navigatesCoreWorkflowsAndCapturesEvidence,com.lifelink.app.LifeLinkWorkflowVisualTest#donorMapErrorKeepsMapVisibleAndRetryable"
+          ./gradlew connectedDebugAndroidTest \
+            -Pandroid.testInstrumentationRunnerArguments.class="$visual_test_classes" \
+            -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
+            --no-daemon --stacktrace
           test_exit=$?
           if [[ "$test_exit" != "0" ]]; then
             echo "::error::Android instrumentation failed with exit code $test_exit. Inspect the uploaded test-results and logcat artifacts."
