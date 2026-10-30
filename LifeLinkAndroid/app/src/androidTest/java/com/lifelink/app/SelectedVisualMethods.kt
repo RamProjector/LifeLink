@@ -3,6 +3,7 @@ package com.lifelink.app
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.runner.Description
 import org.junit.runner.Runner
+import org.junit.runner.RunWith
 import org.junit.runner.manipulation.Filter
 import org.junit.runner.notification.RunNotifier
 
