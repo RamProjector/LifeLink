@@ -1253,7 +1253,11 @@ async def activate_location_share(
     await enforce_rate_limit(f"location-share:{principal.subject}", 30, 300)
     try:
         share = await store.ensure_location_share(
-            request_id, donor.id, request.requester_id, request.response_deadline
+            request_id,
+            donor.id,
+            request.requester_id,
+            request.response_deadline,
+            actor_id=principal.subject,
         )
     except LocationShareRevokedError:
         # The repository re-checks request-scoped consent after acquiring its lock.
@@ -1267,7 +1271,6 @@ async def activate_location_share(
             status_code=409,
             detail="The donor has disabled exact location sharing or hidden their map",
         ) from None
-    await store.record_audit_async(principal.subject, "location_share_activated", request_id, donor.id)
     # Tell the donor their exact location is now visible to the matched requester,
     # so the disclosure is never silent and they can revoke it.
     await send_push_safely(
@@ -1304,10 +1307,9 @@ async def revoke_location_share(
     if principal.subject != "development-user" and principal.subject != donor.id:
         raise HTTPException(status_code=403, detail="Only the donor can revoke this share")
     try:
-        share = await store.revoke_location_share(request_id, donor.id)
+        share = await store.revoke_location_share(request_id, donor.id, actor_id=principal.subject)
     except KeyError:
         raise HTTPException(status_code=404, detail="Location share not found") from None
-    await store.record_audit_async(principal.subject, "location_share_revoked", request_id, donor.id)
     return LocationShareOut(
         request_id=request_id,
         donor_id=donor.id,
