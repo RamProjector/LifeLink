@@ -57,6 +57,10 @@ class EmergencyRequestRepositoryImpl(
 
     override suspend fun loadDraft(id: String): EmergencyRequestDraft? = draftDao.findById(requireRequesterId(), id)?.toDomain()
 
+    override suspend fun loadLatestDraft(): EmergencyRequestDraft? = draftDao.findLatest(requireRequesterId())?.toDomain()
+
+    override suspend fun deleteDraft(id: String) = draftDao.deleteById(requireRequesterId(), id)
+
     override fun observeActiveRequest(): Flow<ActiveRequestSnapshot?> =
         activeRequestDao.observeLatest(requireRequesterId()).map { it?.toDomain() }
 
