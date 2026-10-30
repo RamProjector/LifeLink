@@ -425,11 +425,17 @@ fun DonorMapScreen(
                 level = LifeLinkFeedbackLevel.Error,
                 actionLabel = "Retry",
                 onAction = { onAction(PrivacyAction.LoadMap) },
-                modifier = Modifier.align(Alignment.Center).padding(16.dp),
+                modifier = Modifier.align(Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp, vertical = 88.dp)
+                    .widthIn(max = 360.dp)
+                    .testTag("donor-map-error-feedback"),
             )
         }
         if (state.mapLoading) {
-            LifeLinkLoadingIndicator(Modifier.align(Alignment.Center), label = "Loading donor areas…")
+            LifeLinkLoadingIndicator(
+                Modifier.align(Alignment.Center).testTag("donor-map-loading-indicator"),
+                label = "Loading donor areas…",
+            )
         }
     }
 }
