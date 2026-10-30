@@ -234,15 +234,19 @@ class SqlAlchemyDonorProfileStore:
         row = await self.session.get(DonorProfileRow, user_id)
         if row is None:
             raise KeyError(user_id)
+        now = datetime.now(UTC)
         row.availability_status = availability.value
-        row.updated_at = datetime.now(UTC)
-        await self.session.commit()
+        row.updated_at = now
 
+        # Keep the donor-facing preference and the operational matching row in
+        # one transaction. A failed mirror must not leave the profile saying
+        # "paused" while the matching row still says "available" (or vice versa).
         donor_row = await SqlAlchemyDonorStore(self.session).get_by_identity(user_id)
         if donor_row is not None:
             donor_row.available = effective_available(availability.value, row.verified)
-            donor_row.availability_updated_at = datetime.now(UTC)
-            await self.session.commit()
+            donor_row.availability_updated_at = now
+
+        await self.session.commit()
         await self._recompute(user_id)
         return self.to_out(row, donor_row.display_name if donor_row else "LifeLink donor", None)
 
