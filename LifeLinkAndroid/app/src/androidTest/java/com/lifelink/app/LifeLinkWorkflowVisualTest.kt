@@ -329,6 +329,13 @@ open class LifeLinkWorkflowVisualTest {
 
         // Filter-result changes are announced politely instead of being silent visual-only updates.
         composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithTag("donor-map-filter-panel")
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.PaneTitle,
+                    "Donor map filters",
+                ),
+            )
         composeRule.onNodeWithTag("donor-map-filter-count")
             .assertIsDisplayed()
             .assert(hasText("2 matching areas", substring = false))
