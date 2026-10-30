@@ -204,12 +204,16 @@ def test_replaying_request_creation_is_idempotent_and_reports_no_notifications(p
         donor, requester = new_user("donor"), new_user("requester")
         await setup_donor(client, current, donor)
         payload = request_payload(requester)
+        # Exercise the non-AI distance-only path: its strategy must survive
+        # database persistence and an idempotent replay.
+        payload["ai_matching_enabled"] = False
 
         current["id"] = requester
         first = await client.post("/v1/emergency-requests", json=payload)
         assert first.status_code == 201, first.text
         first_body = first.json()
         assert [item["donor_id"] for item in first_body["matches"]] == [donor]
+        assert first_body["matching_version"] == "v1-distance-only"
         assert first_body["notifications_created"] == 0
 
         # Simulate the client retrying because the original response was lost.
@@ -218,6 +222,7 @@ def test_replaying_request_creation_is_idempotent_and_reports_no_notifications(p
         replay_body = replay.json()
         assert replay_body["request_id"] == first_body["request_id"]
         assert replay_body["status"] == first_body["status"]
+        assert replay_body["matching_version"] == "v1-distance-only"
         assert replay_body["notifications_created"] == 0
 
         engine = create_async_engine(pg_url)
