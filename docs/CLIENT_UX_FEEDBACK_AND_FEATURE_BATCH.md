@@ -326,3 +326,12 @@ This section extends the existing acceptance plan. These are implementation prio
 - This prevents a successful-looking privacy update from being left without its corresponding audit evidence if audit persistence fails.
 - Research: [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html), [PostgreSQL explicit locking](https://www.postgresql.org/docs/17/explicit-locking.html), and [OWASP MASVS-PRIVACY-4](https://mas.owasp.org/MASVS/controls/MASVS-PRIVACY-4/).
 - Validation is pending on the final commit; implementation and test coverage must not be described as CI-verified until the PostgreSQL workflow passes.
+
+
+## CI follow-up — audit-storage failure response contract (30 October 2026)
+
+- **Observed failure:** the PostgreSQL privacy integration suite expected HTTP 500 when the audit insert failed during a donor map-visibility update; the API returned HTTP 503.
+- **Root cause:** the shared SQLAlchemy exception handler intentionally maps database availability/storage failures to a retryable 503 response. The test expectation was stale; changing the API handler to 500 would make this transient dependency failure inconsistent with the established service-unavailable contract.
+- **Change:** updated the atomicity regression test to expect 503 while retaining its database assertions that donor consent, active location share, and audit rows remain unchanged after the failed transaction.
+- **Validation:** CI must rerun the PostgreSQL integration suite on the updated PR head. No production database, credentials, or deployed services were modified.
+- **Remaining:** verify the test passes and confirm the emulator visual-review workflow completes before considering PR #153 ready for review.
