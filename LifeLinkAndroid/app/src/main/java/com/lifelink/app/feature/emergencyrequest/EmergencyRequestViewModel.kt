@@ -396,24 +396,24 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
         if (!_uiState.compareAndSet(state, state.copy(contactSubmissionInFlight = true))) return
         viewModelScope.launch {
             try {
-            when (val result = repository.contactSelectedDonors(requestId, donorIds)) {
-                is SubmitResult.ContactRequested ->
-                    refreshAfterContactRequest(
-                        requestId,
-                        donorIds,
-                        result.donorIds,
-                        uncertain = false,
-                    )
-                is SubmitResult.ContactRequestUncertain ->
-                    refreshAfterContactRequest(
-                        requestId,
-                        donorIds,
-                        result.donorIds,
-                        uncertain = true,
-                    )
-                is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
-                else -> Unit
-            }
+                when (val result = repository.contactSelectedDonors(requestId, donorIds)) {
+                    is SubmitResult.ContactRequested ->
+                        refreshAfterContactRequest(
+                            requestId,
+                            donorIds,
+                            result.donorIds,
+                            uncertain = false,
+                        )
+                    is SubmitResult.ContactRequestUncertain ->
+                        refreshAfterContactRequest(
+                            requestId,
+                            donorIds,
+                            result.donorIds,
+                            uncertain = true,
+                        )
+                    is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message)) }
+                    else -> Unit
+                }
             } finally {
                 _uiState.update { it.copy(contactSubmissionInFlight = false) }
             }
