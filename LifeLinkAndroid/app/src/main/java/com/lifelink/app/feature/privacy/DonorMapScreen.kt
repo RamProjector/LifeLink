@@ -55,6 +55,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -420,7 +421,9 @@ fun DonorMapScreen(
             Card(
                 Modifier.align(Alignment.BottomCenter)
                     .then(if (embeddedInShell) Modifier else Modifier.navigationBarsPadding())
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .semantics { paneTitle = "Donor map privacy controls" }
+                    .testTag("donor-map-privacy-panel"),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             ) {
