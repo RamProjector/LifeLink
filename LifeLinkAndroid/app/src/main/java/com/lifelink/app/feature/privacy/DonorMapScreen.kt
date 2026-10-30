@@ -504,7 +504,8 @@ private fun VisibilitySwitchRow(title: String, subtitle: String, checked: Boolea
                 enabled = enabled,
                 role = Role.Switch,
                 onValueChange = onCheckedChange,
-            ),
+            )
+            .testTag("donor-visibility-map-row"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
