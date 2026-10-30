@@ -227,10 +227,10 @@ This section extends the existing acceptance plan. These are implementation prio
 
 - [x] Give the donor-map filter overlay a semantic pane title ("Donor map filters") so assistive technology can identify the temporary surface independently from the underlying map.
 - [x] Add an instrumentation assertion for the pane-title semantic.
-- [ ] Apply the same pattern to the privacy-controls overlay after verifying its focus and dismissal behavior.
+- [x] Apply a semantic pane title ("Donor map privacy controls") to the privacy-controls overlay and assert it in the Android workflow instrumentation test.
 - [ ] Verify focus order when opening/closing overlays with TalkBack and keyboard navigation; ensure the underlying map controls do not become confusing duplicate stops.
 
-**Why:** Android Compose documents `paneTitle` for window-like components such as modal sheets, helping accessibility services distinguish a new pane from surrounding content. The filter overlay sits above the map and changes the active interaction context. This should be tested as semantics, not inferred from visual appearance.
+**Why:** Android Compose documents `paneTitle` for window-like components such as modal sheets, helping accessibility services distinguish a new pane from surrounding content. The filter and privacy overlays sit above the map and change the active interaction context. Both pane titles are asserted in instrumentation tests; focus order and dismissal behavior with TalkBack/keyboard remain manual validation items.
 
 ### B. Security and privacy hardening (OWASP MASVS mapping)
 
