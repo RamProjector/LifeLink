@@ -244,10 +244,19 @@ def test_hiding_from_map_revokes_live_location_share(pg_url):
         assert hidden.status_code == 200, hidden.text
 
         current["id"] = requester
+        # A requester cannot silently reactivate a share after the donor revoked
+        # it, even though the donor's account-level opt-in remains enabled.
+        reactivated = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
+        )
+        assert reactivated.status_code == 409, reactivated.text
+
         after = await client.get(
             f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
         )
         assert after.json()["shared"] is False
+        assert after.json()["latitude"] is None
+        assert after.json()["longitude"] is None
         assert after.json()["latitude"] is None
         assert after.json()["longitude"] is None
 
