@@ -272,6 +272,12 @@ This section extends the existing acceptance plan. These are implementation prio
 - [ ] Provide visible selected states and equivalent semantics; do not communicate availability or urgency by color alone.
 - [ ] Test loading, no-data, filtered-empty, stale, offline, error, and success states independently with deterministic fixtures and truthful copy.
 
+### Exact donor GPS authorization regression
+
+- Added a PostgreSQL-backed API regression test proving that an active exact-location share is readable by the request's requester only.
+- The test replays the same request and donor identifiers as both an unrelated account and the donor account; both must receive HTTP 403, while the authorized requester receives the exact coordinates.
+- This guards against broken object-level authorization (BOLA/IDOR) and prevents identifier knowledge from becoming an authorization mechanism.
+
 ### Research references
 
 - Android Compose semantics and pane titles: https://developer.android.com/develop/ui/compose/accessibility/semantics
