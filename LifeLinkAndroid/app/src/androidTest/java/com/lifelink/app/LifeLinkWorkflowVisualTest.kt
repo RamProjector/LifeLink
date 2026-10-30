@@ -331,12 +331,20 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithContentDescription("Show map filters").performClick()
         composeRule.onNodeWithTag("donor-map-filter-count")
             .assertIsDisplayed()
+            .assertTextEquals("2 matching areas")
             .assert(
                 SemanticsMatcher.expectValue(
                     SemanticsProperties.LiveRegion,
                     LiveRegionMode.Polite,
                 ),
             )
+        composeRule.onNodeWithText("Available now").performClick()
+        composeRule.onNodeWithTag("donor-map-filter-count")
+            .assertTextEquals("1 matching areas")
+        composeRule.onNodeWithText("Clear filters").performClick()
+        composeRule.onNodeWithTag("donor-map-filter-count")
+            .assertTextEquals("2 matching areas")
+        composeRule.onNodeWithText("Clear filters").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Hide map filters").performClick()
 
         composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
