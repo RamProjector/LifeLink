@@ -364,3 +364,23 @@ This section extends the existing acceptance plan. These are implementation prio
 - Research: OWASP Business Logic Security recommends atomic check-then-act operations using transactions/row locks or conditional updates and explicitly warns that concurrent requests can exploit even very small race windows: https://cheatsheetseries.owasp.org/cheatsheets/Business_Logic_Security_Cheat_Sheet.html. The IETF Idempotency-Key Internet-Draft distinguishes completed retries from concurrent duplicates: https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header-08.
 - Scope: the advisory lock is PostgreSQL-specific and belongs only in this PostgreSQL API path. It does not replace payload-intent comparison or the unique database constraint.
 - Validation: the concurrent integration test and full CI must pass on the final PR head before this is considered verified.
+
+
+## Requester submission reliability batch (implemented on PR #153, 31 October 2026)
+
+This batch closes five related failure modes in the requester workflow without changing the request schema or server contract.
+
+1. **Persist before network submission.** The ViewModel now writes the exact draft to the account-scoped Room repository before calling the API. If local persistence fails, the API is not called and the UI reports that the request was not submitted. This closes the window where a user could submit before the 500 ms debounced autosave had run.
+2. **Freeze the payload while submitting.** Draft edits are ignored while the submission state is Submitting. The idempotency key (draft.id) therefore cannot be paired with a changing payload during an in-flight attempt.
+3. **Preserve submission state across save races.** A pending autosave can no longer overwrite Submitting with Idle or replace an active submission with a stale save error. Manual save is ignored once submission has begun.
+4. **Offer retry only when the error is retryable.** SubmissionState.Error now carries the repository's retryability decision. The snackbar offers Retry only for retryable errors; validation, authorization, and other permanent errors no longer trigger a misleading retry loop.
+5. **Serialize selected-donor contact actions.** A ViewModel-level in-flight guard prevents rapid repeated contact taps from starting multiple contact requests. Selection is locked during the request, and the button exposes a sending state.
+
+**Regression tests added:** exact local-save-before-submit ordering; local persistence failure prevents network submission; draft edits are ignored during an in-flight submission; non-retryable errors do not reissue the request; and repeated contact actions start only one request. The contact button also reflects its in-flight state.
+
+**Research basis:**
+- Android's state-saving guidance distinguishes transient ViewModel/saved state from persistent local storage and recommends persistent storage for application data that must survive process death: https://developer.android.com/topic/libraries/architecture/saving-states.
+- OWASP Business Logic Security recommends explicit workflow enforcement, atomic operations, and treating concurrency as a real threat; it specifically warns that retries and check-then-act sequences must be designed around duplicate requests: https://cheatsheetseries.owasp.org/cheatsheets/Business_Logic_Security_Cheat_Sheet.html.
+- The idempotency-key guidance used in the existing API implementation requires retrying the same operation with the same key and not reusing that key for a different payload: https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header-08 (Internet-Draft, not a finalized RFC).
+
+**Scope boundary:** this is client-side reliability hardening, not proof that every submission survives uninstall/device loss. Room storage is local to the installed app and account; the server remains authoritative. Full process-death restoration still depends on the existing draft-loading/navigation path and must be validated separately. CI validation is pending on the final PR head.
