@@ -272,6 +272,13 @@ This section extends the existing acceptance plan. These are implementation prio
 - [ ] Provide visible selected states and equivalent semantics; do not communicate availability or urgency by color alone.
 - [ ] Test loading, no-data, filtered-empty, stale, offline, error, and success states independently with deterministic fixtures and truthful copy.
 
+### Donor revocation is final for one request
+
+- Exact-location revocation is now a one-way decision for the specific emergency request/donor pair. A requester cannot reactivate that share while the donor's account-level opt-in remains enabled.
+- A new matched emergency request is a separate consent scope and can establish its own share if the donor's sharing preference still permits it.
+- Regression coverage asserts that reactivation returns HTTP 409 and the exact-location response remains unshared with null coordinates.
+- Rationale: revocation must be an effective user control, not a temporary pause that another participant can reverse. This implements OWASP MASVS-PRIVACY-4 (user control, including revoking consent) and MASVS-PRIVACY-1 (informed consent and minimization).
+
 ### Exact donor GPS authorization regression
 
 - Added a PostgreSQL-backed API regression test proving that an active exact-location share is readable by the request's requester only.
