@@ -203,11 +203,26 @@ jobs:
             adb -s "$device_serial" install "$ui_apk" || exit 4
             adb -s "$device_serial" logcat -c
             adb -s "$device_serial" shell monkey -p com.lifelink.app.uitest 1
-            sleep 10
-            adb -s "$device_serial" shell uiautomator dump /sdcard/lifelink-ui-test-window.xml >/dev/null
-            adb -s "$device_serial" shell cat /sdcard/lifelink-ui-test-window.xml > "$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-dialog.xml"
-            if ! grep -q "UI test build" "$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-dialog.xml"; then
-              echo "::error::The UI-test app did not show its fake-backend warning. Inspect logcat."
+            dialog_xml="$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-dialog.xml"
+            dialog_deadline=$((SECONDS + 90))
+            dialog_ready=0
+            while (( SECONDS < dialog_deadline )); do
+              if timeout 15s adb -s "$device_serial" shell uiautomator dump /sdcard/lifelink-ui-test-window.xml >/dev/null 2>&1 &&
+                timeout 10s adb -s "$device_serial" shell cat /sdcard/lifelink-ui-test-window.xml > "$dialog_xml" 2>/dev/null &&
+                grep -Fq "UI test build" "$dialog_xml"; then
+                dialog_ready=1
+                break
+              fi
+              if adb -s "$device_serial" logcat -d -t 3000 | grep -Fq "FATAL EXCEPTION"; then
+                adb -s "$device_serial" logcat -d -t 3000 | tail -160
+                echo "::error::The fake-backend UI app crashed before showing its warning."
+                exit 8
+              fi
+              sleep 3
+            done
+            if [[ "$dialog_ready" != "1" ]]; then
+              adb -s "$device_serial" logcat -d -t 3000 | tail -160
+              echo "::error::The UI-test app did not show its fake-backend warning within 90 seconds."
               exit 5
             fi
             bounds=$(grep -o 'text="Continue demo"[^>]*' "$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-dialog.xml" | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | head -1)
@@ -218,11 +233,26 @@ jobs:
               echo "::error::Could not locate the fake-backend warning's Continue demo button."
               exit 6
             fi
-            sleep 10
-            adb -s "$device_serial" shell uiautomator dump /sdcard/lifelink-ui-test-home.xml >/dev/null
-            adb -s "$device_serial" shell cat /sdcard/lifelink-ui-test-home.xml > "$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-home.xml"
-            if ! grep -q "Create emergency request" "$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-home.xml"; then
-              echo "::error::The fake-backend UI did not reach the requester workspace."
+            home_xml="$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-home.xml"
+            home_deadline=$((SECONDS + 90))
+            home_ready=0
+            while (( SECONDS < home_deadline )); do
+              if timeout 15s adb -s "$device_serial" shell uiautomator dump /sdcard/lifelink-ui-test-home.xml >/dev/null 2>&1 &&
+                timeout 10s adb -s "$device_serial" shell cat /sdcard/lifelink-ui-test-home.xml > "$home_xml" 2>/dev/null &&
+                grep -Fq "Create emergency request" "$home_xml"; then
+                home_ready=1
+                break
+              fi
+              if adb -s "$device_serial" logcat -d -t 3000 | grep -Fq "FATAL EXCEPTION"; then
+                adb -s "$device_serial" logcat -d -t 3000 | tail -160
+                echo "::error::The fake-backend UI app crashed before reaching the requester workspace."
+                exit 8
+              fi
+              sleep 3
+            done
+            if [[ "$home_ready" != "1" ]]; then
+              adb -s "$device_serial" logcat -d -t 3000 | tail -160
+              echo "::error::The fake-backend UI did not reach the requester workspace within 90 seconds."
               exit 7
             fi
             adb -s "$device_serial" shell screencap -p /sdcard/lifelink-ui-test-home.png
