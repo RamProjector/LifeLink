@@ -364,20 +364,20 @@ fun DonorMapScreen(
                             )
                         }
                     }
-                    if (selectedBloodType != "All" || availableOnly) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                "${filteredAreas.size} matching areas",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .semantics { liveRegion = LiveRegionMode.Polite }
-                                    .testTag("donor-map-filter-count"),
-                            )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "${filteredAreas.size} matching areas",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .semantics { liveRegion = LiveRegionMode.Polite }
+                                .testTag("donor-map-filter-count"),
+                        )
+                        if (selectedBloodType != "All" || availableOnly) {
                             OutlinedButton(
                                 onClick = {
                                     selectedBloodType = "All"
