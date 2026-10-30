@@ -237,6 +237,30 @@ def test_replaying_request_creation_is_idempotent_and_reports_no_notifications(p
     run_scenario(pg_url, scenario)
 
 
+def test_reusing_request_idempotency_key_with_changed_payload_is_rejected(pg_url):
+    """A key identifies one request intent; changing its payload must not replay it."""
+    async def scenario(client, current, run_sql):
+        requester = new_user("requester")
+        payload = request_payload(requester)
+        current["id"] = requester
+        first = await client.post("/v1/emergency-requests", json=payload)
+        assert first.status_code == 201, first.text
+
+        changed = dict(payload)
+        changed["units"] = payload["units"] + 1
+        replay = await client.post("/v1/emergency-requests", json=changed)
+        assert replay.status_code == 422, replay.text
+        assert "different emergency request" in replay.json()["detail"]
+
+        count = await run_sql(
+            "SELECT count(*) FROM emergency_requests "
+            f"WHERE idempotency_key = '{payload['idempotency_key']}'"
+        )
+        assert count == [(1,)], "a changed-payload retry must not create another request"
+
+    run_scenario(pg_url, scenario)
+
+
 def test_cancel_stops_the_donor_search_broadcast(pg_url):
     """Cancelling a request must stop its donor search, not just flip its status.
 
