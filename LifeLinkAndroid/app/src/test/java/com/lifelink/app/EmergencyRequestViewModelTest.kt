@@ -74,6 +74,19 @@ class EmergencyRequestViewModelTest {
     }
 
     @Test
+    fun latest_saved_draft_is_restored_when_no_active_request_exists() = runTest {
+        val savedDraft = EmergencyRequestDraft(bloodType = com.lifelink.app.domain.BloodType.O_NEG, note = "saved note")
+        val repository = FakeRepository().apply { latestDraft = savedDraft }
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        advanceUntilIdle()
+
+        assertEquals(savedDraft.id, viewModel.uiState.value.draft.id)
+        assertEquals(com.lifelink.app.domain.BloodType.O_NEG, viewModel.uiState.value.draft.bloodType)
+        assertEquals("saved note", viewModel.uiState.value.draft.note)
+        assertTrue(viewModel.uiState.value.draftSaved)
+    }
+
+    @Test
     fun continue_without_blood_type_exposes_validation_error() = runTest {
         val viewModel = EmergencyRequestViewModel(FakeRepository(), enablePolling = false)
         viewModel.onAction(EmergencyRequestAction.Continue)
@@ -509,6 +522,8 @@ class EmergencyRequestViewModelTest {
 
 private class FakeRepository(private val submitResult: SubmitResult = SubmitResult.OfflineQueued("draft-1")) : EmergencyRequestRepository {
     var savedDrafts = 0
+    var latestDraft: EmergencyRequestDraft? = null
+    val deletedDraftIds = mutableListOf<String>()
     var draftSaveFailure: Exception? = null
     val submissionEvents = mutableListOf<String>()
     var submitCalls = 0
@@ -532,7 +547,14 @@ private class FakeRepository(private val submitResult: SubmitResult = SubmitResu
         draftSaveFailure?.let { throw it }
     }
 
-    override suspend fun loadDraft(id: String): EmergencyRequestDraft? = null
+    override suspend fun loadDraft(id: String): EmergencyRequestDraft? = latestDraft?.takeIf { it.id == id }
+
+    override suspend fun loadLatestDraft(): EmergencyRequestDraft? = latestDraft
+
+    override suspend fun deleteDraft(id: String) {
+        deletedDraftIds += id
+        if (latestDraft?.id == id) latestDraft = null
+    }
 
     override suspend fun submit(draft: EmergencyRequestDraft): SubmitResult {
         submitCalls++
