@@ -27,6 +27,7 @@ LifeLink supports emergency blood-donor discovery. The interface must make the c
 1. **Android Compose accessibility semantics** — announce meaningful changes, use headings and error semantics, and reserve assertive announcements for urgent errors; frequent state changes should not repeatedly interrupt users.  
    https://developer.android.com/develop/ui/compose/accessibility/semantics
 2. **Android accessibility quality** — provide reliable touch targets (at least 48 dp for interactive controls), meaningful descriptions, scalable text, and manual assistive-technology checks.  
+3. **Android touch-target implementation** — custom Compose controls should expose a minimum 48 dp interactive area; test the actual clickable container bounds, not just the visible icon or label. 
    https://developer.android.com/guide/topics/ui/accessibility/apps
 3. **OWASP Logging Cheat Sheet** — log security-relevant successes/failures, validation errors, authorization denials, application errors and privileged actions with enough context for investigation; exclude passwords, tokens, session secrets, and unnecessary sensitive personal data.  
    https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
@@ -123,6 +124,7 @@ The following are acceptance tasks for this one integration PR. A checkbox is ma
 
 ### 8. Accessibility, visual regression, and release evidence
 - [ ] Verify 48 dp minimum interactive targets, meaningful labels, semantic headings, error announcements, contrast, font scaling, and insets.
+- [x] Give donor map visibility switch rows an explicit 56 dp minimum height and add an instrumentation assertion against the actual clickable row bounds; the rest of the app-wide touch-target audit remains open.
 - [ ] Add or extend Compose UI tests for feedback states and the main requester/donor journeys.
 - [ ] Capture required screenshots for home, request form, map (loading/populated/empty/error), chat, and profile/availability where the harness can reliably render them.
 - [ ] Keep the fake-backend APK isolated from production configuration and label all synthetic data.
