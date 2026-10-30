@@ -78,7 +78,7 @@ private fun DonorAreaDetailsScreen(area: DonorMapArea, onBack: () -> Unit) {
     ) {
         OutlinedButton(
             onClick = onBack,
-            modifier = Modifier.testTag("donor-area-back"),
+            modifier = Modifier.sizeIn(minHeight = 48.dp).testTag("donor-area-back"),
         ) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
             Text("Back to map")
