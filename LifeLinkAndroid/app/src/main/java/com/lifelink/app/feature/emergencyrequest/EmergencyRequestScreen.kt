@@ -135,7 +135,7 @@ fun EmergencyRequestScreen(
     LaunchedEffect(state.submission, state.contactRequestSent) {
         val feedback =
             when (val submission = state.submission) {
-                is SubmissionState.Error -> submission.message to "Retry"
+                is SubmissionState.Error -> submission.message to if (submission.retryable) "Retry" else null
                 is SubmissionState.Matching -> "Request submitted. Matching donors nearby…" to null
                 is SubmissionState.ManualFallback -> "No automatic matches yet. You can broadcast to more potential donors." to "Broadcast"
                 is SubmissionState.QueuedOffline -> "Saved offline. It will sync when connection returns." to null
