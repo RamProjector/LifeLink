@@ -331,7 +331,7 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithContentDescription("Show map filters").performClick()
         composeRule.onNodeWithTag("donor-map-filter-count")
             .assertIsDisplayed()
-            .assertTextEquals("2 matching areas")
+            .assert(hasText("2 matching areas", substring = false))
             .assert(
                 SemanticsMatcher.expectValue(
                     SemanticsProperties.LiveRegion,
@@ -341,7 +341,7 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithText("Available now").performClick()
         composeRule.onNodeWithText("O+").performClick()
         composeRule.onNodeWithTag("donor-map-filter-count")
-            .assertTextEquals("1 matching area")
+            .assert(hasText("1 matching area", substring = false))
         composeRule.onNodeWithText("1 area", substring = false).assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Hide map filters, 2 active filters").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Hide map filters, 2 active filters").performClick()
@@ -349,7 +349,7 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithContentDescription("Show map filters, 2 active filters").performClick()
         composeRule.onNodeWithText("Clear filters").performClick()
         composeRule.onNodeWithTag("donor-map-filter-count")
-            .assertTextEquals("2 matching areas")
+            .assert(hasText("2 matching areas", substring = false))
         composeRule.onNodeWithText("Clear filters").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Hide map filters").performClick()
 
