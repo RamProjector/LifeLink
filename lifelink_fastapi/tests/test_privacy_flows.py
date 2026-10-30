@@ -216,7 +216,9 @@ def test_donor_map_requires_authentication(pg_url):
 
 def test_hiding_from_map_revokes_live_location_share(pg_url):
     async def scenario(client, current, run_sql):
-        donor, requester = new_user("donor"), new_user("requester")
+        donor, requester, stranger = (
+            new_user("donor"), new_user("requester"), new_user("stranger")
+        )
         await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
@@ -257,8 +259,22 @@ def test_hiding_from_map_revokes_live_location_share(pg_url):
         assert after.json()["shared"] is False
         assert after.json()["latitude"] is None
         assert after.json()["longitude"] is None
-        assert after.json()["latitude"] is None
-        assert after.json()["longitude"] is None
+
+        # The repository must independently enforce the account-level opt-out,
+        # even if a future caller bypasses the HTTP route's pre-check.
+        from app.privacy_repositories import LocationSharingDisabledError, SqlAlchemyPrivacyStore
+
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        with pytest.raises(LocationSharingDisabledError):
+            async with sessions() as session:
+                await SqlAlchemyPrivacyStore(session).ensure_location_share(
+                    created["request_id"],
+                    donor,
+                    requester,
+                    datetime.now(UTC) + timedelta(hours=1),
+                )
+        await engine.dispose()
 
     run_scenario(pg_url, scenario)
 
