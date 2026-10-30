@@ -318,3 +318,11 @@ This section extends the existing acceptance plan. These are implementation prio
 
 **Research:** OWASP Logging Cheat Sheet recommends capturing who/what/when and affected objects for security events, while excluding sensitive personal data and secrets. It also recommends testing logging behavior and its side effects. https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
 
+
+
+### Privacy audit transaction integrity (implemented on PR #153)
+- Map visibility changes, any resulting exact-location share revocations, and the `donor_map_visibility_updated` audit event are now written in one database transaction.
+- A PostgreSQL integration test installs a temporary trigger that rejects this audit event, attempts a donor opt-out, and verifies that the donor's consent flags and active share both remain unchanged and no audit row is committed.
+- This prevents a successful-looking privacy update from being left without its corresponding audit evidence if audit persistence fails.
+- Research: [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html), [PostgreSQL explicit locking](https://www.postgresql.org/docs/17/explicit-locking.html), and [OWASP MASVS-PRIVACY-4](https://mas.owasp.org/MASVS/controls/MASVS-PRIVACY-4/).
+- Validation is pending on the final commit; implementation and test coverage must not be described as CI-verified until the PostgreSQL workflow passes.
