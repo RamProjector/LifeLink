@@ -172,7 +172,7 @@ jobs:
           test_exit=$?
           if [[ "$test_exit" == "0" ]]; then
             test_results_dir="$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results"
-            for expected_test in "AuthScreenVisualTest" "LifeLinkVisualSmokeTest" "ConversationNavigationSmokeTest" "DebugFileLoggerTest" "LifeLinkFeedbackCardTest" "navigatesCoreWorkflowsAndCapturesEvidence" "donorMapErrorKeepsMapVisibleAndRetryable" "donor_can_open_chat_and_system_back_returns_to_the_donor_workspace" "unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions" "debugDiagnosticsAreReadableFromDownloads" "errorFeedbackShowsRecoveryActionAndInvokesIt"; do
+            for expected_test in "AuthScreenVisualTest" "LifeLinkVisualSmokeTest" "ConversationNavigationSmokeTest" "DebugFileLoggerTest" "LifeLinkFeedbackCardTest" "navigatesCoreWorkflowsAndCapturesEvidence" "donorMapErrorKeepsMapVisibleAndRetryable" "emptyDonorMapKeepsMapVisibleAndOffersRefresh" "selectingDonorAreaOpensPrivacySafeDetailsAndReturnsToMap" "donor_can_open_chat_and_system_back_returns_to_the_donor_workspace" "unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions" "donor_map_is_a_labeled_top_level_destination_and_navigation_remains_available" "donor_map_shows_the_correct_loading_error_and_empty_state" "debugDiagnosticsAreReadableFromDownloads" "errorFeedbackShowsRecoveryActionAndInvokesIt"; do
               if ! grep -R -Fq "$expected_test" "$test_results_dir"; then
                 echo "::error::Instrumentation result is missing expected visual coverage: $expected_test"
                 find "$test_results_dir" -type f -maxdepth 5 -print 2>/dev/null | sort || true
@@ -366,6 +366,8 @@ jobs:
             "lifelink-phone-light-workflow-home.png"
             "lifelink-phone-light-workflow-donor-map.png"
             "lifelink-phone-light-workflow-requests.png"
+            "lifelink-phone-light-donor-map-error.png"
+            "lifelink-phone-light-donor-map-empty.png"
           )
           for file in "${required[@]}"; do
             if [[ ! -s "$evidence_dir/$file" ]]; then
