@@ -67,7 +67,10 @@ def run_scenario(pg_url: str, scenario):
 
                 async def run_sql(statement: str):
                     async with engine.begin() as conn:
-                        await conn.execute(text(statement))
+                        result = await conn.execute(text(statement))
+                        if statement.lstrip().upper().startswith("SELECT"):
+                            return result.all()
+                        return None
 
                 await scenario(client, current, run_sql)
         finally:
