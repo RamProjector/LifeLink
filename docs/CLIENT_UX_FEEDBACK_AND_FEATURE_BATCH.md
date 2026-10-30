@@ -343,3 +343,13 @@ This section extends the existing acceptance plan. These are implementation prio
 - The PostgreSQL end-to-end regression test disables AI matching, checks the initial response, replays the same payload, and verifies the same request ID, matching version, zero new notifications, and exactly one persisted request row.
 - Research basis: the IETF Idempotency-Key Internet-Draft recommends consistent responses for completed duplicate requests and warns against reusing a key with a different payload. This document is an Internet-Draft, not a finalized RFC: https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header-08. HTTP retry safety is defined in RFC 9110: https://www.rfc-editor.org/rfc/rfc9110.html.
 - Validation: awaiting PostgreSQL CI on the latest PR head; do not treat this regression as passing until the job completes.
+
+
+## Idempotency-key payload binding (implemented on PR #153, 31 October 2026)
+
+- Reusing an emergency-request idempotency key with the same persisted request intent returns the original request, preserving the matching strategy and reporting zero newly created notifications.
+- Reusing that key with a materially different persisted intent now returns HTTP 422 instead of silently returning the earlier request. The comparison covers requester, blood type, units, urgency, deadline, facility ID, coordinates, location precision, contact method, note, consent confirmations, and matching preference.
+- Mutable/display-only facility labels, area, and facility verification are excluded because they are hydrated from facility data and are not persisted as the original requester-supplied intent. The comparison deliberately uses only fields durably stored by the current schema; it does not claim to fingerprint arbitrary future payload fields.
+- Added a PostgreSQL end-to-end regression test that creates a request, changes the units while reusing the same key, expects 422, and verifies only one request row exists.
+- Research: [IETF Idempotency-Key Internet-Draft - uniqueness and fingerprints](https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header-08) recommends that a key not be reused for a different payload and describes a client retry after completion separately from a concurrent request. This is an Internet-Draft, not a finalized RFC.
+- Validation: commit `dd736f0` adds the regression test and `794405e` adds the API guard. CI must complete on the latest head before this change is considered verified. Concurrent duplicate serialization remains a separate follow-up; this change addresses completed-key reuse only.
