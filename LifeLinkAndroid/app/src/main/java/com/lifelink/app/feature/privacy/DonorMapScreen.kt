@@ -65,6 +65,9 @@ import com.lifelink.app.domain.DonorMapArea
 private fun donorAreaKey(area: DonorMapArea): String =
     "${area.latitude}|${area.longitude}|${area.bloodType}|${area.freshnessAt}"
 
+private fun donorAreaCountLabel(count: Int, context: String): String =
+    "$count $context ${if (count == 1) "area" else "areas"}"
+
 @Composable
 private fun DonorAreaDetailsScreen(area: DonorMapArea, onBack: () -> Unit) {
     Column(
@@ -370,7 +373,7 @@ fun DonorMapScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            "${filteredAreas.size} matching areas",
+                            donorAreaCountLabel(filteredAreas.size, "matching"),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
@@ -421,7 +424,7 @@ fun DonorMapScreen(
                         Modifier.padding(start = 8.dp).weight(1f),
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    Text("${filteredAreas.size} areas", style = MaterialTheme.typography.labelMedium)
+                    Text(donorAreaCountLabel(filteredAreas.size, ""), style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
