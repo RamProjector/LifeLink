@@ -278,6 +278,62 @@ def test_exact_location_requires_a_match_and_donor_opt_in(pg_url):
     run_scenario(pg_url, scenario)
 
 
+
+def test_exact_location_is_restricted_to_the_requesting_account(pg_url):
+    """A live share must not become readable by a donor or unrelated account.
+
+    Regression coverage for object-level authorization: knowing both the
+    request ID and donor ID is not sufficient to retrieve exact GPS coordinates.
+    """
+    async def scenario(client, current, run_sql):
+        donor, requester, stranger = (
+            new_user("donor"),
+            new_user("requester"),
+            new_user("stranger"),
+        )
+        await setup_donor(
+            client,
+            current,
+            donor,
+            latitude=11.2447,
+            longitude=125.0023,
+            exact_sharing=True,
+        )
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        activated = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
+        )
+        assert activated.status_code == 200, activated.text
+
+        location_path = (
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
+        )
+
+        # A third party who knows both identifiers still cannot retrieve GPS.
+        current["id"] = stranger
+        stranger_response = await client.get(location_path)
+        assert stranger_response.status_code == 403, stranger_response.text
+
+        # The donor is a participant, but exact coordinates are requester-only.
+        current["id"] = donor
+        donor_response = await client.get(location_path)
+        assert donor_response.status_code == 403, donor_response.text
+
+        # The authorized requester receives the exact coordinates only while
+        # the donor's explicit share is active.
+        current["id"] = requester
+        requester_response = await client.get(location_path)
+        assert requester_response.status_code == 200, requester_response.text
+        body = requester_response.json()
+        assert body["shared"] is True
+        assert body["latitude"] == 11.2447
+        assert body["longitude"] == 125.0023
+
+    run_scenario(pg_url, scenario)
+
+
 def test_exact_location_expires_when_request_is_cancelled(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
