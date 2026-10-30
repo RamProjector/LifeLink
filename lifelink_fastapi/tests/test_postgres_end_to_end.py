@@ -261,6 +261,33 @@ def test_reusing_request_idempotency_key_with_changed_payload_is_rejected(pg_url
     run_scenario(pg_url, scenario)
 
 
+def test_concurrent_request_creation_with_same_key_returns_one_request(pg_url):
+    """Simultaneous retries serialize and converge on one durable request."""
+    async def scenario(client, current, run_sql):
+        requester = new_user("requester")
+        payload = request_payload(requester)
+        current["id"] = requester
+
+        first, second = await asyncio.gather(
+            client.post("/v1/emergency-requests", json=payload),
+            client.post("/v1/emergency-requests", json=payload),
+        )
+        assert first.status_code == 201, first.text
+        assert second.status_code == 201, second.text
+        first_body, second_body = first.json(), second.json()
+        assert first_body["request_id"] == second_body["request_id"]
+        assert first_body["notifications_created"] == 0
+        assert second_body["notifications_created"] == 0
+
+        count = await run_sql(
+            "SELECT count(*) FROM emergency_requests "
+            f"WHERE idempotency_key = '{payload['idempotency_key']}'"
+        )
+        assert count == [(1,)], "concurrent retries must persist exactly one request"
+
+    run_scenario(pg_url, scenario)
+
+
 def test_cancel_stops_the_donor_search_broadcast(pg_url):
     """Cancelling a request must stop its donor search, not just flip its status.
 
