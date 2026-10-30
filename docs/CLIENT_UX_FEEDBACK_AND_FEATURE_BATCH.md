@@ -295,3 +295,12 @@ This section extends the existing acceptance plan. These are implementation prio
 - Android UI jank diagnosis and system traces: https://developer.android.com/studio/profile/jank-detection
 - Android slow-rendering guidance: https://developer.android.com/topic/performance/issues/render
 - Android Baseline Profiles and performance optimization: https://developer.android.com/topic/performance/baselineprofiles
+
+## Donor GPS consent transition concurrency guard (2026-10-30)
+
+- Activation, donor revocation, and donor map/exact-location opt-out now serialize on the donor row with PostgreSQL `SELECT ... FOR UPDATE`. This also protects the first activation, where a location-share row does not yet exist to lock.
+- The repository re-checks both `map_visible` and `exact_location_sharing_enabled` after obtaining the lock. A stale route-level pre-check can no longer activate sharing after the donor has opted out.
+- A request/donor share already marked `revoked` is rejected inside the repository as well as at the API boundary. The API maps both repository consent conflicts to HTTP 409.
+- The donor's map visibility update takes the same row lock before revoking active shares, giving concurrent activation/opt-out operations a deterministic order: if activation wins first, opt-out subsequently revokes it; if opt-out wins first, activation is rejected.
+- PostgreSQL integration coverage now checks that direct repository calls cannot reactivate a revoked share or activate while map visibility is off. The existing map-hiding test also had an undefined stranger fixture; it now creates that user explicitly so the authorization assertion is executable.
+- Research basis: OWASP Business Logic Security guidance says check-then-act operations must be atomic and identifies row locking as a safe read-modify-write pattern. PostgreSQL documents that `FOR UPDATE` blocks conflicting writers/lockers until transaction end. References: https://cheatsheetseries.owasp.org/cheatsheets/Business_Logic_Security_Cheat_Sheet.html and https://www.postgresql.org/docs/current/explicit-locking.html.
