@@ -335,3 +335,11 @@ This section extends the existing acceptance plan. These are implementation prio
 - **Change:** updated the atomicity regression test to expect 503 while retaining its database assertions that donor consent, active location share, and audit rows remain unchanged after the failed transaction.
 - **Validation:** CI must rerun the PostgreSQL integration suite on the updated PR head. No production database, credentials, or deployed services were modified.
 - **Remaining:** verify the test passes and confirm the emulator visual-review workflow completes before considering PR #153 ready for review.
+
+## Idempotent request replay preserves the matching strategy (2026-10-31)
+
+- Emergency-request creation persists the selected matching strategy (`v1-explainable-weighted` or `v1-distance-only`) with the request row instead of silently writing the weighted default.
+- A retry with the same idempotency key therefore returns the original request and its original matching strategy, rather than a response that contradicts the initial successful response.
+- The PostgreSQL end-to-end regression test disables AI matching, checks the initial response, replays the same payload, and verifies the same request ID, matching version, zero new notifications, and exactly one persisted request row.
+- Research basis: the IETF Idempotency-Key Internet-Draft recommends consistent responses for completed duplicate requests and warns against reusing a key with a different payload. This document is an Internet-Draft, not a finalized RFC: https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header-08. HTTP retry safety is defined in RFC 9110: https://www.rfc-editor.org/rfc/rfc9110.html.
+- Validation: awaiting PostgreSQL CI on the latest PR head; do not treat this regression as passing until the job completes.
