@@ -17,6 +17,9 @@ interface EmergencyRequestDraftDao {
     @Query("SELECT * FROM emergency_request_drafts WHERE ownerId = :ownerId AND id = :id LIMIT 1")
     suspend fun findById(ownerId: String, id: String): EmergencyRequestDraftEntity?
 
+    @Query("SELECT * FROM emergency_request_drafts WHERE ownerId = :ownerId ORDER BY updatedAtEpochMillis DESC LIMIT 1")
+    suspend fun findLatest(ownerId: String): EmergencyRequestDraftEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(draft: EmergencyRequestDraftEntity)
 
