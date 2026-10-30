@@ -45,6 +45,11 @@ DEFAULT_LOCATION_SHARE_MINUTES = 120
 # The map never shows a finer grid than this, regardless of device accuracy.
 MAP_GRID_METERS = 1000
 
+
+class LocationShareRevokedError(Exception):
+    """Raised when a request-scoped donor consent has already been revoked."""
+
+
 # Contact details are only accepted in a plausible shape, so a typo cannot be
 # broadcast to the other participant as a "shared" phone/email.
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -171,6 +176,14 @@ class SqlAlchemyPrivacyStore:
         Called only after the request has matched the donor. The share expires
         with the request deadline, or sooner if the donor disabled sharing.
         """
+        # Serialize activation and revocation for this donor. Locking the donor
+        # row also covers the first-share case, where no share row exists yet
+        # and therefore cannot itself be locked.
+        donor = await self.session.scalar(
+            select(DonorRow).where(DonorRow.id == donor_id).with_for_update()
+        )
+        if donor is None:
+            raise KeyError(donor_id)
         now = datetime.now(UTC)
         share = await self.session.scalar(
             select(DonorLocationShare).where(
@@ -178,6 +191,8 @@ class SqlAlchemyPrivacyStore:
                 DonorLocationShare.donor_id == donor_id,
             )
         )
+        if share is not None and share.status == "revoked":
+            raise LocationShareRevokedError(request_id)
         window_end = min(_as_utc(expires_at), now + timedelta(minutes=DEFAULT_LOCATION_SHARE_MINUTES))
         if share is None:
             share = DonorLocationShare(
@@ -205,6 +220,13 @@ class SqlAlchemyPrivacyStore:
 
         Raises ``KeyError`` when no share exists for the (request, donor) pair.
         """
+        # Use the same per-donor lock as activation so overlapping requests
+        # have a deterministic order and a revoke cannot be overwritten.
+        donor = await self.session.scalar(
+            select(DonorRow).where(DonorRow.id == donor_id).with_for_update()
+        )
+        if donor is None:
+            raise KeyError(donor_id)
         share = await self.session.scalar(
             select(DonorLocationShare).where(
                 DonorLocationShare.request_id == request_id,
