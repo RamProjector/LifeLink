@@ -397,6 +397,31 @@ def test_donor_can_revoke_exact_location_share(pg_url):
         )
         assert after.json()["shared"] is False
 
+        # Defense in depth: even callers that bypass the HTTP pre-check cannot
+        # reactivate a revoked consent through the repository write method.
+        from app.privacy_repositories import LocationShareRevokedError, SqlAlchemyPrivacyStore
+
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        with pytest.raises(LocationShareRevokedError):
+            async with sessions() as session:
+                await SqlAlchemyPrivacyStore(session).ensure_location_share(
+                    created["request_id"],
+                    donor,
+                    requester,
+                    datetime.now(UTC) + timedelta(hours=1),
+                )
+        async with engine.connect() as connection:
+            status_result = await connection.execute(
+                text(
+                    "SELECT status FROM donor_location_shares "
+                    "WHERE request_id = :request_id AND donor_id = :donor_id"
+                ),
+                {"request_id": created["request_id"], "donor_id": donor},
+            )
+            assert status_result.scalar_one() == "revoked"
+        await engine.dispose()
+
     run_scenario(pg_url, scenario)
 
 
