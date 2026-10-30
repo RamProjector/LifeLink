@@ -169,7 +169,7 @@ class AccountPersistenceTest {
         for ((owner, id) in listOf("alice" to "oldest", "bob" to "target", "alice" to "target")) {
             dao.upsert(PendingSubmissionEntity(owner, id, Gson().toJson(EmergencyRequestDraft(id = id))))
         }
-        db.emergencyRequestDraftDao().upsert(draft("alice"))
+        db.emergencyRequestDraftDao().upsert(draft("alice").copy(id = "target"))
         var submissions = 0
         val processor = PendingSubmissionProcessor(dao, { "alice" }, draftDao = db.emergencyRequestDraftDao()) { owner, draft ->
             submissions++
@@ -182,7 +182,7 @@ class AccountPersistenceTest {
         assertEquals(ListenableWorker.Result.success(), processor.process("alice", "target"))
         assertEquals(1, submissions)
         assertNull(dao.findById("alice", "target"))
-        assertNull(db.emergencyRequestDraftDao().findById("alice", "draft"))
+        assertNull(db.emergencyRequestDraftDao().findById("alice", "target"))
         assertNotNull(dao.findById("alice", "oldest"))
         assertNotNull(dao.findById("bob", "target"))
     }
