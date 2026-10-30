@@ -94,21 +94,9 @@ jobs:
             echo "available=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Select emulator acceleration mode
-        id: acceleration
-        env:
-          KVM_AVAILABLE: ${{ steps.kvm.outputs.available }}
-        run: |
-          if [[ "$KVM_AVAILABLE" == "true" ]]; then
-            echo "option=" >> "$GITHUB_OUTPUT"
-            echo "mode=KVM hardware acceleration" >> "$GITHUB_OUTPUT"
-            echo "Using KVM hardware acceleration."
-          else
-            echo "option=-accel off" >> "$GITHUB_OUTPUT"
-            echo "mode=software CPU emulation" >> "$GITHUB_OUTPUT"
-            echo "::warning::Using slower software CPU emulation. Instrumentation and screenshot evidence remain required."
-          fi
-
+      # android-emulator-runner detects /dev/kvm itself (disable-linux-hw-accel:auto).
+      # Do not append a second -accel off: the action already adds it on runners
+      # without KVM, and duplicate flags can leave the emulator/ADB offline.
       - name: Build visual-test APKs
         # --no-daemon: the runner has 16 GB and the emulator below claims 4 GB
         # (plus a 512 MB heap). A lingering Gradle daemon (-Xmx4096m) alongside
@@ -296,7 +284,7 @@ jobs:
           emulator-options: >-
             -no-snapshot-load -no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics
             -camera-back none -camera-front none -netfast -dns-server 8.8.8.8,1.1.1.1 -gpu swiftshader_indirect
-            ${{ steps.acceleration.outputs.option }}
+
           cores: 4
           ram-size: 4096M
           heap-size: 512M
