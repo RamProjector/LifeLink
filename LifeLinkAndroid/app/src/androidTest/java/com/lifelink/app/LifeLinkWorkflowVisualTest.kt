@@ -207,7 +207,11 @@ open class LifeLinkWorkflowVisualTest {
             "Privacy protected: this view shows an approximate area only. " +
                 "Donor identity, contact details, and exact coordinates are not disclosed here.",
         )
-        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.onNodeWithTag("donor-area-back")
+            .assertIsDisplayed()
+            .assertHeightIsAtLeast(48.dp)
+            .assertHasClickAction()
+        composeRule.onNodeWithTag("donor-area-back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
     }
