@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -160,6 +162,8 @@ fun DonorMapScreen(
         return
     }
     val bloodTypes = listOf("All") + areas.map { it.bloodType }.distinct().sorted()
+    val activeFilterCount =
+        (if (selectedBloodType == "All") 0 else 1) + (if (availableOnly) 1 else 0)
     val filteredAreas = areas.filter { area ->
         (selectedBloodType == "All" || area.bloodType == selectedBloodType) &&
             (!availableOnly || area.availability.equals("Available", ignoreCase = true))
@@ -328,8 +332,22 @@ fun DonorMapScreen(
             ) {
                 Text(if (showList) "Map" else "List")
             }
-            IconButton(onClick = { filtersOpen = !filtersOpen }) {
-                Icon(Icons.Default.FilterList, contentDescription = if (filtersOpen) "Hide map filters" else "Show map filters")
+            BadgedBox(
+                badge = {
+                    if (activeFilterCount > 0) {
+                        Badge { Text(activeFilterCount.toString()) }
+                    }
+                },
+            ) {
+                IconButton(onClick = { filtersOpen = !filtersOpen }) {
+                    val filterAction = if (filtersOpen) "Hide map filters" else "Show map filters"
+                    val filterDescription = if (activeFilterCount == 0) {
+                        filterAction
+                    } else {
+                        "$filterAction, $activeFilterCount active filters"
+                    }
+                    Icon(Icons.Default.FilterList, contentDescription = filterDescription)
+                }
             }
             IconButton(onClick = { privacyOpen = !privacyOpen }) {
                 Icon(Icons.Default.Shield, contentDescription = "Map privacy controls")
