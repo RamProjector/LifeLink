@@ -384,3 +384,26 @@ This batch closes five related failure modes in the requester workflow without c
 - The idempotency-key guidance used in the existing API implementation requires retrying the same operation with the same key and not reusing that key for a different payload: https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header-08 (Internet-Draft, not a finalized RFC).
 
 **Scope boundary:** this is client-side reliability hardening, not proof that every submission survives uninstall/device loss. Room storage is local to the installed app and account; the server remains authoritative. Full process-death restoration still depends on the existing draft-loading/navigation path and must be validated separately. CI validation is pending on the final PR head.
+
+
+## Requester workflow integrity batch (implemented on PR #153, 31 October 2026)
+
+This batch hardens the existing requester flow without redesigning the screen or changing its navigation.
+
+- [x] **Persist before submit:** cancel the pending debounced draft save and persist the exact draft snapshot before starting the network submission. If local persistence fails, do not send the request; show a non-retryable local-save error rather than implying that a request may have reached the server.
+- [x] **Freeze the submitted payload:** ignore draft edits while a submission is in flight so the fields displayed by the form cannot drift away from the immutable payload already being sent.
+- [x] **Retry only retryable failures:** carry retryability from the repository's HTTP/network classification into UI state. Show a Retry action only for HTTP 408, 429, 5xx, and recoverable network timeouts; do not encourage retries for permanent 4xx/authorization failures or local persistence failures.
+- [x] **Serialize donor-contact actions:** atomically claim a contact-submission-in-flight state before the network call, block repeated actions and selection changes during that call, and release the state in finally on both success and failure.
+- [x] **Prevent autosave completion from overwriting submission state:** asynchronous save completion updates the Saving state only if it is still current, avoiding a late save result replacing a newer submission state.
+- [x] **Regression coverage:** add tests for persist-before-submit ordering, local-save failure preventing network side effects, editing during submit, non-retryable retry suppression, and duplicate contact-action suppression.
+- [ ] Add Room-backed process-death restoration tests for a requester draft and verify the idempotency key remains stable for the same request intent after app recreation. This remains a follow-up; ViewModel-only state must not be described as process-death persistence.
+
+**Why these changes:** An emergency request is a consequential, non-idempotent user action. The client must preserve the user's work, avoid submitting a different payload from the one currently shown, prevent accidental duplicate contact requests, and communicate whether a retry is safe. Retry policy is based on the existing API response classification, not a generic try-again message.
+
+**Research basis:**
+- Android's state-saving guidance distinguishes ViewModel memory (configuration changes) from saved state (system process death) and persistent storage (survives process death and screen dismissal). This is why durable draft recovery is tracked separately instead of overstating the guarantees of the current ViewModel: https://developer.android.com/topic/libraries/architecture/saving-states.
+- Android's data-layer guidance recommends Room for data that must survive process death and needs queryable/partial updates: https://developer.android.com/topic/architecture/data-layer.
+- OWASP mobile security guidance emphasizes server-side authorization, least privilege, secure local storage, and minimizing sensitive data exposure: https://cheatsheetseries.owasp.org/cheatsheets/Mobile_Application_Security_Cheat_Sheet.html.
+- OWASP MAS guidance treats production logging and data exposure as explicit mobile security risks; diagnostics must not include tokens, personal data, exact GPS, or request bodies: https://mas.owasp.org/MASWE/MASVS-STORAGE/MASWE-0005/.
+
+**Validation:** The regression tests and formatting/build checks must pass on the final PR head. Emulator visual review currently has an infrastructure boot failure (ADB/emulator did not become ready within the workflow's 600-second window), so this batch is not visually CI-verified until that environment issue is resolved.
