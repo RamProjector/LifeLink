@@ -509,7 +509,9 @@ async def create_emergency_request_postgres(
             expires_at=existing.expires_at,
             matches=existing.matches,
             matching_version="v1-explainable-weighted",
-            notifications_created=len(existing.matches),
+            # Matches are candidates for requester review, not notifications.
+            # Replaying a completed create must report zero new side effects.
+            notifications_created=0,
         )
 
     now = datetime.now(timezone.utc)
