@@ -77,6 +77,8 @@ sealed interface SubmitResult {
 interface EmergencyRequestRepository {
     suspend fun saveDraft(draft: EmergencyRequestDraft)
     suspend fun loadDraft(id: String): EmergencyRequestDraft?
+    suspend fun loadLatestDraft(): EmergencyRequestDraft? = null
+    suspend fun deleteDraft(id: String) {}
     suspend fun submit(draft: EmergencyRequestDraft): SubmitResult
     suspend fun contactSelectedDonors(requestId: String, donorIds: List<String>): SubmitResult
     suspend fun refreshMatches(requestId: String): List<DiscoveredDonor>
