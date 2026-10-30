@@ -163,12 +163,23 @@ jobs:
           # regression suite. Run only the two screenshot journeys and the critical
           # donor-map error-recovery test here; the APK build still compiles every
           # instrumentation test, while unit/backend suites remain separate checks.
-          visual_test_classes="com.lifelink.app.AuthScreenVisualTest,com.lifelink.app.LifeLinkWorkflowVisualTest#navigatesCoreWorkflowsAndCapturesEvidence,com.lifelink.app.LifeLinkWorkflowVisualTest#donorMapErrorKeepsMapVisibleAndRetryable"
+          # A single suite avoids AndroidJUnitRunner silently accepting only the first mixed class/method selector.
+          visual_test_classes="com.lifelink.app.LifeLinkVisualReviewSuite"
           ./gradlew connectedDebugAndroidTest \
             -Pandroid.testInstrumentationRunnerArguments.class="$visual_test_classes" \
             -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
             --no-daemon --stacktrace
           test_exit=$?
+          if [[ "$test_exit" == "0" ]]; then
+            test_results_dir="$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results"
+            for expected_test in "AuthScreenVisualTest" "LifeLinkWorkflowVisualTest" "navigatesCoreWorkflowsAndCapturesEvidence" "donorMapErrorKeepsMapVisibleAndRetryable"; do
+              if ! grep -R -Fq "$expected_test" "$test_results_dir"; then
+                echo "::error::Instrumentation result is missing expected visual coverage: $expected_test"
+                find "$test_results_dir" -type f -maxdepth 5 -print 2>/dev/null | sort || true
+                exit 9
+              fi
+            done
+          fi
           if [[ "$test_exit" != "0" ]]; then
             echo "::error::Android instrumentation failed with exit code $test_exit. Inspect the uploaded test-results and logcat artifacts."
             echo "--- Failed instrumentation result files ---"
