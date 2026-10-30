@@ -28,7 +28,11 @@ LifeLink supports emergency blood-donor discovery. The interface must make the c
 
 ## Research basis
 
-1. **Android Compose accessibility semantics** — announce meaningful changes, use headings and error semantics, and reserve assertive announcements for urgent errors; frequent state changes should not repeatedly interrupt users.  
+1. **Android saved UI state and durable application data** — ViewModels alone do not survive system process death; persistent local storage is appropriate for complex application data. This implementation restores only the most recently saved account-scoped draft when there is no non-terminal active request.  
+   https://developer.android.com/topic/libraries/architecture/saving-states
+2. **HTTP idempotency guidance** — a retry must reuse the same key for the same intent and must not reuse that key with a different payload. LifeLink's draft ID remains the submission key while the draft is being recovered.  
+   https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header
+3. **Android Compose accessibility semantics** — announce meaningful changes, use headings and error semantics, and reserve assertive announcements for urgent errors; frequent state changes should not repeatedly interrupt users.  
    https://developer.android.com/develop/ui/compose/accessibility/semantics
 2. **Android accessibility quality** — provide reliable touch targets (at least 48 dp for interactive controls), meaningful descriptions, scalable text, and manual assistive-technology checks.  
    https://developer.android.com/guide/topics/ui/accessibility/apps
