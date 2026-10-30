@@ -65,8 +65,10 @@ import com.lifelink.app.domain.DonorMapArea
 private fun donorAreaKey(area: DonorMapArea): String =
     "${area.latitude}|${area.longitude}|${area.bloodType}|${area.freshnessAt}"
 
-private fun donorAreaCountLabel(count: Int, context: String): String =
-    "$count $context ${if (count == 1) "area" else "areas"}"
+private fun donorAreaCountLabel(count: Int, context: String): String {
+    val noun = if (count == 1) "area" else "areas"
+    return if (context.isBlank()) "$count $noun" else "$count $context $noun"
+}
 
 @Composable
 private fun DonorAreaDetailsScreen(area: DonorMapArea, onBack: () -> Unit) {
