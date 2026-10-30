@@ -2,6 +2,7 @@ package com.lifelink.app
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -325,6 +326,18 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithContentDescription("Donor map rendered").assertIsDisplayed()
         composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
         capture("workflow-donor-map")
+
+        // Filter-result changes are announced politely instead of being silent visual-only updates.
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithTag("donor-map-filter-count")
+            .assertIsDisplayed()
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.LiveRegion,
+                    LiveRegionMode.Polite,
+                ),
+            )
+        composeRule.onNodeWithContentDescription("Hide map filters").performClick()
 
         composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
         composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
