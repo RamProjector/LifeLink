@@ -127,6 +127,7 @@ The following are acceptance tasks for this one integration PR. A checkbox is ma
 ### 8. Accessibility, visual regression, and release evidence
 - [ ] Verify 48 dp minimum interactive targets, meaningful labels, semantic headings, error announcements, contrast, font scaling, and insets.
 - [x] Give donor map visibility switch rows an explicit 56 dp minimum height and add an instrumentation assertion against the actual clickable row bounds; the rest of the app-wide touch-target audit remains open.
+- [x] Give the donor-area details “Back to map” action an explicit 48 dp minimum height; instrumentation verifies its target and performs the actual in-app return action. The wider navigation-control audit remains open.
 - [ ] Add or extend Compose UI tests for feedback states and the main requester/donor journeys.
 - [ ] Capture required screenshots for home, request form, map (loading/populated/empty/error), chat, and profile/availability where the harness can reliably render them.
 - [ ] Keep the fake-backend APK isolated from production configuration and label all synthetic data.
@@ -151,6 +152,8 @@ The following are acceptance tasks for this one integration PR. A checkbox is ma
 ## Research links
 
 - Android Compose accessibility semantics: https://developer.android.com/develop/ui/compose/accessibility/semantics
+- Android Compose minimum touch targets and action semantics: https://developer.android.com/develop/ui/compose/accessibility/api-defaults
+- Android accessibility principles and descriptive action labels: https://developer.android.com/guide/topics/ui/accessibility/principles
 - Android accessibility app quality: https://developer.android.com/guide/topics/ui/accessibility/apps
 - OWASP Logging Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
 - OWASP DevSecOps logging and monitoring: https://owasp.github.io/DevSecOpsGuideline/2-Process/2-7-Operate/2-7-2-Logging-and-Monitoring/
