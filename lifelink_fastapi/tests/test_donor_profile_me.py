@@ -580,6 +580,60 @@ def test_presence_sweeper_expires_stale_donor_but_keeps_fresh_donor(pg_url):
     run_scenario(pg_url, scenario)
 
 
+
+def test_presence_sweeper_preserves_heartbeat_after_candidate_select(pg_url, monkeypatch):
+    async def scenario(client, current, run_sql):
+        donor = new_user("donor-heartbeat-race")
+        await create_account(client, current, donor)
+        await opt_in_donor(client, current, donor, availability="available")
+        await run_sql(f"UPDATE donor_profiles SET verified = TRUE WHERE user_id = '{donor}'")
+        current["id"] = donor
+        enabled = await client.patch(
+            "/v1/donor-profile/availability",
+            json={"availability_status": "available"},
+        )
+        assert enabled.status_code == 200, enabled.text
+        await run_sql(
+            f"UPDATE donors SET last_presence_at = now() - interval '2 days' "
+            f"WHERE user_id = '{donor}'"
+        )
+
+        heartbeat_at = datetime.now(UTC)
+        heartbeat_written = False
+        async with current["_session_factory"]() as session:
+            original_scalars = session.scalars
+
+            async def scalars_with_concurrent_heartbeat(statement, *args, **kwargs):
+                nonlocal heartbeat_written
+                result = await original_scalars(statement, *args, **kwargs)
+                if not heartbeat_written:
+                    async with current["_session_factory"]() as heartbeat_session:
+                        await heartbeat_session.execute(
+                            text(
+                                "UPDATE donors SET last_presence_at = :heartbeat_at "
+                                "WHERE user_id = :user_id"
+                            ),
+                            {"heartbeat_at": heartbeat_at, "user_id": donor},
+                        )
+                        await heartbeat_session.commit()
+                    heartbeat_written = True
+                return result
+
+            monkeypatch.setattr(session, "scalars", scalars_with_concurrent_heartbeat)
+            expired_count = await SqlAlchemyDonorProfileStore(session).expire_stale_presence()
+
+        assert heartbeat_written
+        async with current["_session_factory"]() as verify_session:
+            donor_row = await verify_session.scalar(
+                select(db_models.Donor).where(db_models.Donor.user_id == donor)
+            )
+        assert expired_count == 0
+        assert donor_row is not None and donor_row.available is True
+        assert donor_row.last_presence_at == heartbeat_at
+
+    run_scenario(pg_url, scenario)
+
+
 def test_donor_presence_updates_location_and_server_freshness(pg_url):
     async def scenario(client, current, run_sql):
         donor = new_user("donor")
