@@ -175,6 +175,22 @@ def test_donor_map_shows_approximate_areas_only(pg_url):
         assert body["approximate_only"] is True
         assert len(body["entries"]) == 1
         entry = body["entries"][0]
+        # Treat the public map response as an allowlisted privacy contract:
+        # adding an identity, contact, or exact-location field must fail this test.
+        assert set(entry) == {
+            "area_label",
+            "latitude",
+            "longitude",
+            "radius_meters",
+            "blood_type",
+            "availability",
+            "freshness_at",
+            "freshness_age_minutes",
+            "is_stale",
+        }
+        assert -90 <= entry["latitude"] <= 90
+        assert -180 <= entry["longitude"] <= 180
+        assert entry["radius_meters"] >= 1000
         # Coarsened to a ~1 km grid, never the exact stored coordinate.
         assert entry["latitude"] == 11.24
         assert entry["longitude"] == 125.0
