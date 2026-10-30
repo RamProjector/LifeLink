@@ -1143,6 +1143,13 @@ def test_map_visibility_change_and_audit_are_atomic(pg_url):
         )
         assert activated.status_code == 200, activated.text
 
+        # setup_donor() records the initial visibility choice in the audit
+        # log. Capture that existing count so this test checks that the failed
+        # update adds no new event rather than incorrectly expecting an empty log.
+        baseline_audit_rows = await run_sql(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'donor_map_visibility_updated'",
+        )
+
         # Simulate an audit-storage failure at the database boundary. The
         # privacy update must not partially commit before the audit insert.
         await run_sql(
@@ -1187,7 +1194,7 @@ def test_map_visibility_change_and_audit_are_atomic(pg_url):
         audit_rows = await run_sql(
             "SELECT COUNT(*) FROM audit_events WHERE action = 'donor_map_visibility_updated'",
         )
-        assert audit_rows == [(0,)]
+        assert audit_rows == baseline_audit_rows
 
     run_scenario(pg_url, scenario)
 
