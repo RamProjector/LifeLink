@@ -87,6 +87,30 @@ class EmergencyRequestViewModelTest {
     }
 
     @Test
+    fun successful_submission_removes_the_local_unsent_draft() = runTest {
+        val repository = FakeRepository(SubmitResult.MatchingStarted("request-accepted"))
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(
+            EmergencyRequestAction.UpdateDraft {
+                it.copy(
+                    bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                    facility = facility,
+                    requesterLatitude = 14.6466,
+                    requesterLongitude = 121.0437,
+                    genuineRequestConfirmed = true,
+                    sharingConsentConfirmed = true,
+                )
+            },
+        )
+        val submittedDraftId = viewModel.uiState.value.draft.id
+        viewModel.onAction(EmergencyRequestAction.Submit)
+        advanceUntilIdle()
+
+        assertTrue(submittedDraftId in repository.deletedDraftIds)
+        assertEquals(SubmissionState.Matching("request-accepted"), viewModel.uiState.value.submission)
+    }
+
+    @Test
     fun continue_without_blood_type_exposes_validation_error() = runTest {
         val viewModel = EmergencyRequestViewModel(FakeRepository(), enablePolling = false)
         viewModel.onAction(EmergencyRequestAction.Continue)
