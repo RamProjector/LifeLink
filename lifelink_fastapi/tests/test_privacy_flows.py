@@ -220,10 +220,15 @@ def test_hiding_from_map_revokes_live_location_share(pg_url):
         await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
-        current["id"] = requester
-        activated = await client.post(
+        location_share_path = (
             f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
         )
+        current["id"] = stranger
+        stranger_activation = await client.post(location_share_path)
+        assert stranger_activation.status_code == 403, stranger_activation.text
+
+        current["id"] = requester
+        activated = await client.post(location_share_path)
         assert activated.status_code == 200, activated.text
         visible = await client.get(
             f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
