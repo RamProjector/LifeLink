@@ -57,7 +57,14 @@ class EmergencyRequestRepositoryImpl(
 
     override suspend fun loadDraft(id: String): EmergencyRequestDraft? = draftDao.findById(requireRequesterId(), id)?.toDomain()
 
-    override suspend fun loadLatestDraft(): EmergencyRequestDraft? = draftDao.findLatest(requireRequesterId())?.toDomain()
+    override suspend fun loadLatestDraft(): EmergencyRequestDraft? {
+        val ownerId = requireRequesterId()
+        val latest = draftDao.findLatest(ownerId) ?: return null
+        // A queued offline submission is already owned by WorkManager. Never reopen it
+        // as an editable draft while the worker may submit the original payload.
+        if (pendingSubmissionDao.findById(ownerId, latest.id) != null) return null
+        return latest.toDomain()
+    }
 
     override suspend fun deleteDraft(id: String) = draftDao.deleteById(requireRequesterId(), id)
 
