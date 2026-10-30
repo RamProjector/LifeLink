@@ -69,7 +69,7 @@ from .privacy_api import (
     MessageIn,
     MessageOut,
 )
-from .privacy_repositories import SqlAlchemyPrivacyStore
+from .privacy_repositories import LocationShareRevokedError, SqlAlchemyPrivacyStore
 from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
 from .security import Principal, get_postgres_principal, require_verified_email
 from .rate_limit import enforce_rate_limit
@@ -1247,7 +1247,17 @@ async def activate_location_share(
             detail="The donor revoked exact location sharing for this request",
         )
     await enforce_rate_limit(f"location-share:{principal.subject}", 30, 300)
-    share = await store.ensure_location_share(request_id, donor.id, request.requester_id, request.response_deadline)
+    try:
+        share = await store.ensure_location_share(
+            request_id, donor.id, request.requester_id, request.response_deadline
+        )
+    except LocationShareRevokedError:
+        # The repository re-checks consent after acquiring its transaction lock;
+        # this closes the race between the route's earlier pre-check and write.
+        raise HTTPException(
+            status_code=409,
+            detail="The donor revoked exact location sharing for this request",
+        ) from None
     await store.record_audit_async(principal.subject, "location_share_activated", request_id, donor.id)
     # Tell the donor their exact location is now visible to the matched requester,
     # so the disclosure is never silent and they can revoke it.
