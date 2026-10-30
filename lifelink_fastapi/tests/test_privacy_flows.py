@@ -1176,11 +1176,11 @@ def test_map_visibility_change_and_audit_are_atomic(pg_url):
         # The donor's consent and existing share remain unchanged because the
         # privacy update, share revocation, and audit row share one transaction.
         state = await run_sql(
-            "SELECT map_visible, exact_location_sharing_enabled FROM donors WHERE id = :donor_id",
+            f"SELECT map_visible, exact_location_sharing_enabled FROM donors WHERE id = '{donor}'",
         )
         assert state == [(True, True)]
         share_state = await run_sql(
-            "SELECT status FROM donor_location_shares WHERE request_id = :request_id AND donor_id = :donor_id",
+            f"SELECT status FROM donor_location_shares WHERE request_id = '{created['request_id']}' AND donor_id = '{donor}'",
         )
         assert share_state == [("active",)]
         audit_rows = await run_sql(
