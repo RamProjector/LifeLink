@@ -13,6 +13,9 @@ import org.junit.runners.Suite
 @RunWith(Suite::class)
 @Suite.SuiteClasses(
     AuthScreenVisualTest::class,
-    LifeLinkWorkflowVisualTest::class,
+    LifeLinkVisualSmokeTest::class,
+    ConversationNavigationSmokeTest::class,
+    DebugFileLoggerTest::class,
+    LifeLinkFeedbackCardTest::class,
 )
 class LifeLinkVisualReviewSuite
