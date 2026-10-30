@@ -128,6 +128,7 @@ The following are acceptance tasks for this one integration PR. A checkbox is ma
 - [ ] Verify 48 dp minimum interactive targets, meaningful labels, semantic headings, error announcements, contrast, font scaling, and insets.
 - [x] Give donor map visibility switch rows an explicit 56 dp minimum height and add an instrumentation assertion against the actual clickable row bounds; the rest of the app-wide touch-target audit remains open.
 - [x] Give the donor-area details “Back to map” action an explicit 48 dp minimum height; instrumentation verifies its target and performs the actual in-app return action. The wider navigation-control audit remains open.
+- [x] Announce the donor-map filter result count as a polite live region and assert that accessibility semantic in the workflow instrumentation test, so changes are not visual-only for screen-reader users.
 - [ ] Add or extend Compose UI tests for feedback states and the main requester/donor journeys.
 - [ ] Capture required screenshots for home, request form, map (loading/populated/empty/error), chat, and profile/availability where the harness can reliably render them.
 - [ ] Keep the fake-backend APK isolated from production configuration and label all synthetic data.
@@ -197,3 +198,8 @@ This register is a risk inventory and acceptance checklist, not a claim that eve
 - Instrument performance with bounded metrics (request duration/status, DB latency, queue depth, crash/ANR and UI jank signals) while excluding personal content. Define actionable thresholds before alerting; do not collect extra sensitive analytics by default.
 - For each touched flow, require tests for happy path, invalid input, authorization denial, offline/timeout, retry/duplicate, empty state, lifecycle interruption, and privacy redaction where applicable. Keep deterministic fake-backend tests separate from live-service claims.
 - Use the final PR head for every merge decision. A green earlier commit, successful APK compilation, or passing fake backend does not substitute for final-head backend tests, emulator screenshots, or real-device GPS/FCM evidence.
+
+
+Additional research for live announcements:
+- Compose accessibility API defaults and live-region semantics: https://developer.android.com/develop/ui/compose/accessibility/semantics
+- Compose accessibility guidance for logically structured and understandable UI: https://developer.android.com/guide/topics/ui/accessibility/composables
