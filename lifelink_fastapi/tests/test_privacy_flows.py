@@ -1128,3 +1128,65 @@ def test_donor_with_distinct_user_id_can_use_the_conversation(pg_url):
         assert denied.status_code == 403, denied.text
 
     run_scenario(pg_url, scenario)
+
+
+def test_map_visibility_change_and_audit_are_atomic(pg_url):
+    """A failed audit insert must roll back consent changes and share revocation."""
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        activated = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
+        )
+        assert activated.status_code == 200, activated.text
+
+        # Simulate an audit-storage failure at the database boundary. The
+        # privacy update must not partially commit before the audit insert.
+        await run_sql(
+            """
+            CREATE OR REPLACE FUNCTION reject_map_visibility_audit()
+            RETURNS trigger AS $$
+            BEGIN
+                IF NEW.action = 'donor_map_visibility_updated' THEN
+                    RAISE EXCEPTION 'simulated audit storage failure';
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            """
+        )
+        await run_sql(
+            """
+            CREATE TRIGGER reject_map_visibility_audit_trigger
+            BEFORE INSERT ON audit_events
+            FOR EACH ROW EXECUTE FUNCTION reject_map_visibility_audit()
+            """
+        )
+
+        current["id"] = donor
+        failed = await client.put(
+            f"/v1/donors/{donor}/map-visibility",
+            json={"map_visible": False, "exact_location_sharing_enabled": True},
+        )
+        assert failed.status_code == 500, failed.text
+
+        # The donor's consent and existing share remain unchanged because the
+        # privacy update, share revocation, and audit row share one transaction.
+        state = await run_sql(
+            "SELECT map_visible, exact_location_sharing_enabled FROM donors WHERE id = :donor_id",
+        )
+        assert state == [(True, True)]
+        share_state = await run_sql(
+            "SELECT status FROM donor_location_shares WHERE request_id = :request_id AND donor_id = :donor_id",
+        )
+        assert share_state == [("active",)]
+        audit_rows = await run_sql(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'donor_map_visibility_updated'",
+        )
+        assert audit_rows == [(0,)]
+
+    run_scenario(pg_url, scenario)
+
