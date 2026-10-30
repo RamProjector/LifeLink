@@ -508,7 +508,9 @@ async def create_emergency_request_postgres(
             created_at=existing.created_at,
             expires_at=existing.expires_at,
             matches=existing.matches,
-            matching_version="v1-explainable-weighted",
+            matching_version=(
+                "v1-explainable-weighted" if existing.payload.ai_matching_enabled else "v1-distance-only"
+            ),
             # Matches are candidates for requester review, not notifications.
             # Replaying a completed create must report zero new side effects.
             notifications_created=0,
