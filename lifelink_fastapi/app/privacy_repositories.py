@@ -138,7 +138,10 @@ class SqlAlchemyPrivacyStore:
         rather than cosmetic.
         """
         row = await self.session.scalar(
-            select(DonorRow).where(DonorRow.id == donor_id).with_for_update()
+            select(DonorRow)
+            .where(DonorRow.id == donor_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if row is None:
             raise KeyError(donor_id)
@@ -186,7 +189,10 @@ class SqlAlchemyPrivacyStore:
         # row also covers the first-share case, where no share row exists yet
         # and therefore cannot itself be locked.
         donor = await self.session.scalar(
-            select(DonorRow).where(DonorRow.id == donor_id).with_for_update()
+            select(DonorRow)
+            .where(DonorRow.id == donor_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if donor is None:
             raise KeyError(donor_id)
@@ -231,7 +237,10 @@ class SqlAlchemyPrivacyStore:
         # Use the same per-donor lock as activation so overlapping requests
         # have a deterministic order and a revoke cannot be overwritten.
         donor = await self.session.scalar(
-            select(DonorRow).where(DonorRow.id == donor_id).with_for_update()
+            select(DonorRow)
+            .where(DonorRow.id == donor_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if donor is None:
             raise KeyError(donor_id)
