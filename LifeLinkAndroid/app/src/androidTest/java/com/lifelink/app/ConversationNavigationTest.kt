@@ -42,7 +42,7 @@ import org.junit.runner.RunWith
 
 /** Exercise the new navigation paths and screen callbacks through real Compose interactions. */
 @RunWith(AndroidJUnit4::class)
-class ConversationNavigationTest {
+open class ConversationNavigationTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
