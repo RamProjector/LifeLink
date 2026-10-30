@@ -226,6 +226,7 @@ This section extends the existing acceptance plan. These are implementation prio
 ### A. Contextual accessibility for map overlays
 
 - [x] Give the donor-map filter overlay a semantic pane title ("Donor map filters") so assistive technology can identify the temporary surface independently from the underlying map.
+- [x] Enforce an allowlisted public donor-map response contract in PostgreSQL integration tests: only approximate area, radius, blood type, availability, and freshness fields are permitted; unexpected identity/contact/exact-location fields fail the test.
 - [x] Add an instrumentation assertion for the pane-title semantic.
 - [x] Apply a semantic pane title ("Donor map privacy controls") to the privacy-controls overlay and assert it in the Android workflow instrumentation test.
 - [ ] Verify focus order when opening/closing overlays with TalkBack and keyboard navigation; ensure the underlying map controls do not become confusing duplicate stops.
