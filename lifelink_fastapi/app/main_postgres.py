@@ -1237,6 +1237,15 @@ async def activate_location_share(
         raise HTTPException(status_code=403, detail="Donor is not matched to this request")
     if not donor.exact_location_sharing_enabled:
         raise HTTPException(status_code=409, detail="The donor has not enabled exact location sharing")
+    existing_share = await store.location_share_for_pair(request_id, donor.id)
+    if existing_share is not None and existing_share.status == "revoked":
+        # Revocation is final for this request. A requester must not be able to
+        # silently re-enable exact GPS after the donor explicitly withdrew it.
+        # A future matched request creates a separate consent scope.
+        raise HTTPException(
+            status_code=409,
+            detail="The donor revoked exact location sharing for this request",
+        )
     await enforce_rate_limit(f"location-share:{principal.subject}", 30, 300)
     share = await store.ensure_location_share(request_id, donor.id, request.requester_id, request.response_deadline)
     await store.record_audit_async(principal.subject, "location_share_activated", request_id, donor.id)
