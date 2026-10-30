@@ -327,9 +327,9 @@ def test_exact_location_requires_a_match_and_donor_opt_in(pg_url):
     async def scenario(client, current, run_sql):
         matched, unmatched = new_user("donor"), new_user("donor")
         requester = new_user("requester")
-        await setup_donor(client, current, matched, blood_type="O+", exact_sharing=True)
+        await setup_donor(client, current, matched, blood_type="O+", map_visible=True, exact_sharing=True)
         # A+ donor is not compatible with an O+ request, so it never matches.
-        await setup_donor(client, current, unmatched, blood_type="A+", exact_sharing=True)
+        await setup_donor(client, current, unmatched, blood_type="A+", map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
         assert [m["donor_id"] for m in created["matches"]] == [matched]
 
@@ -371,6 +371,7 @@ def test_exact_location_is_restricted_to_the_requesting_account(pg_url):
             donor,
             latitude=11.2447,
             longitude=125.0023,
+            map_visible=True,
             exact_sharing=True,
         )
         created = await submit_request(client, current, requester)
@@ -411,7 +412,7 @@ def test_exact_location_is_restricted_to_the_requesting_account(pg_url):
 def test_exact_location_expires_when_request_is_cancelled(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -438,7 +439,7 @@ def test_exact_location_expires_when_request_is_cancelled(pg_url):
 def test_donor_can_revoke_exact_location_share(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -673,7 +674,7 @@ def test_donors_without_fresh_gps_presence_are_hidden_from_the_map(pg_url):
 def test_exact_location_requires_a_fresh_donor_location(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -769,7 +770,7 @@ def test_blank_message_is_rejected(pg_url):
 def test_location_share_cannot_be_activated_on_an_inactive_request(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
         current["id"] = requester
         cancelled = await client.post(f"/v1/emergency-requests/{created['request_id']}/cancel")
@@ -785,7 +786,7 @@ def test_location_share_cannot_be_activated_on_an_inactive_request(pg_url):
 def test_sweeper_expires_shares_for_timed_out_requests(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
         current["id"] = requester
         await client.post(f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share")
