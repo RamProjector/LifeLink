@@ -203,3 +203,15 @@ This register is a risk inventory and acceptance checklist, not a claim that eve
 Additional research for live announcements:
 - Compose accessibility API defaults and live-region semantics: https://developer.android.com/develop/ui/compose/accessibility/semantics
 - Compose accessibility guidance for logically structured and understandable UI: https://developer.android.com/guide/topics/ui/accessibility/composables
+
+### Donor-map filter feedback and reset behavior
+
+- Keep the matching-area count visible whenever the filter panel is open, including the unfiltered state. This gives users a baseline before changing a filter and keeps the live-region announcement target consistently present.
+- Expose the count as a polite live region so filter changes are announced without interrupting the current task.
+- Show “Clear filters” only while at least one filter is active; after clearing, restore the unfiltered count and hide the now-unnecessary action.
+- Instrumentation verifies the initial count, an availability-filtered count, reset to the full count, and disappearance of the clear action.
+
+Research:
+- Android Compose semantics guidance explains how accessibility services consume semantic labels, state, and actions: https://developer.android.com/develop/ui/compose/accessibility/semantics
+- Android's Compose accessibility guidance recommends meaningful interactive semantics and logical UI structure: https://developer.android.com/guide/topics/ui/accessibility/composables
+- Compose's merging/clearing guidance explains why semantic information should remain available to accessibility services and test tooling: https://developer.android.com/develop/ui/compose/accessibility/merging-clearing
