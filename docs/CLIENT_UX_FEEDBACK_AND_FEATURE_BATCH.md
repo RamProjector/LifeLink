@@ -353,3 +353,14 @@ This section extends the existing acceptance plan. These are implementation prio
 - Added a PostgreSQL end-to-end regression test that creates a request, changes the units while reusing the same key, expects 422, and verifies only one request row exists.
 - Research: [IETF Idempotency-Key Internet-Draft - uniqueness and fingerprints](https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header-08) recommends that a key not be reused for a different payload and describes a client retry after completion separately from a concurrent request. This is an Internet-Draft, not a finalized RFC.
 - Validation: commit `dd736f0` adds the regression test and `794405e` adds the API guard. CI must complete on the latest head before this change is considered verified. Concurrent duplicate serialization remains a separate follow-up; this change addresses completed-key reuse only.
+
+
+## Concurrent emergency-request retry serialization (implemented on PR #153, 31 October 2026)
+
+- The PostgreSQL request-creation endpoint now acquires a transaction-scoped advisory lock derived from the emergency-request idempotency key before checking for an existing request.
+- Requests with the same key therefore serialize across API workers: the first transaction creates the request; a waiting retry reads and returns that committed request instead of racing into the unique constraint.
+- The lock is transaction-scoped and is released automatically on commit or rollback. The database unique constraint remains as a final integrity guard.
+- Added a PostgreSQL end-to-end test that submits the same payload concurrently and asserts both responses return the same request ID and exactly one row is persisted.
+- Research: OWASP Business Logic Security recommends atomic check-then-act operations using transactions/row locks or conditional updates and explicitly warns that concurrent requests can exploit even very small race windows: https://cheatsheetseries.owasp.org/cheatsheets/Business_Logic_Security_Cheat_Sheet.html. The IETF Idempotency-Key Internet-Draft distinguishes completed retries from concurrent duplicates: https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header-08.
+- Scope: the advisory lock is PostgreSQL-specific and belongs only in this PostgreSQL API path. It does not replace payload-intent comparison or the unique database constraint.
+- Validation: the concurrent integration test and full CI must pass on the final PR head before this is considered verified.
