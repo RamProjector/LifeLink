@@ -178,7 +178,12 @@ class SqlAlchemyPrivacyStore:
         )
 
     async def ensure_location_share(
-        self, request_id: str, donor_id: str, requester_id: str, expires_at: datetime
+        self,
+        request_id: str,
+        donor_id: str,
+        requester_id: str,
+        expires_at: datetime,
+        actor_id: str | None = None,
     ) -> DonorLocationShare:
         """Create or refresh the matched-requester-only exact location share.
 
@@ -226,10 +231,22 @@ class SqlAlchemyPrivacyStore:
             share.shared_at = now
             share.expires_at = window_end
             share.updated_at = now
+        # Persist the disclosure and its audit event atomically. A failed audit
+        # insert must not leave an active exact-location share without evidence.
+        self.session.add(AuditEvent(
+            id=f"audit_{uuid4().hex}",
+            actor_id=actor_id or requester_id,
+            action="location_share_activated",
+            request_id=request_id,
+            donor_id=donor_id,
+            event_metadata={},
+        ))
         await self.session.commit()
         return share
 
-    async def revoke_location_share(self, request_id: str, donor_id: str) -> DonorLocationShare:
+    async def revoke_location_share(
+        self, request_id: str, donor_id: str, actor_id: str | None = None
+    ) -> DonorLocationShare:
         """Mark a donor's location share for a request as revoked.
 
         Raises ``KeyError`` when no share exists for the (request, donor) pair.
@@ -256,6 +273,16 @@ class SqlAlchemyPrivacyStore:
         share.status = "revoked"
         share.revoked_at = now
         share.updated_at = now
+        # Revocation and its audit event share one transaction so a successful
+        # withdrawal can never be committed without its corresponding record.
+        self.session.add(AuditEvent(
+            id=f"audit_{uuid4().hex}",
+            actor_id=actor_id or donor_id,
+            action="location_share_revoked",
+            request_id=request_id,
+            donor_id=donor_id,
+            event_metadata={},
+        ))
         await self.session.commit()
         return share
 
