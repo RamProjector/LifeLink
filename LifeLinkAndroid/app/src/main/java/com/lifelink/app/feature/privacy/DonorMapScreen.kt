@@ -185,7 +185,11 @@ fun DonorMapScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { selectedAreaKey = donorAreaKey(area) }
+                                .sizeIn(minHeight = 56.dp)
+                                .clickable(
+                                    role = Role.Button,
+                                    onClickLabel = "View donor area details",
+                                ) { selectedAreaKey = donorAreaKey(area) }
                                 .testTag("donor-area-card"),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
