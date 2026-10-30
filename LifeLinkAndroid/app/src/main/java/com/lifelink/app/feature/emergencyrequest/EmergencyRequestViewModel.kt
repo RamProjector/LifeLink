@@ -132,7 +132,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
         val initialDraft = _uiState.value.draft
         viewModelScope.launch {
             val active = repository.observeActiveRequest().first()
-            if (active == null) {
+            if (active == null || active.isTerminal) {
                 val savedDraft = repository.loadLatestDraft()
                 if (savedDraft != null && _uiState.value.draft == initialDraft) {
                     _uiState.update { it.copy(draft = savedDraft, draftSaved = true) }
