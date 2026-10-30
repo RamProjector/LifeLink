@@ -472,6 +472,38 @@ async def auth_confirmed() -> str:
 </main><script>const target=document.getElementById('open-app');const recovery=new URLSearchParams(window.location.search).get('type')==='recovery';const path=recovery?'/recovery':'/confirm';target.href='lifelink://auth'+path+window.location.search+window.location.hash;</script></body></html>"""
 
 
+def _same_emergency_request_intent(
+    incoming: EmergencyRequestIn,
+    stored: EmergencyRequestIn,
+) -> bool:
+    """Compare fields durably persisted for an idempotent request.
+
+    Display-only facility labels/area/verification are intentionally excluded:
+    they can be hydrated from mutable facility data and are not stored as
+    requester-supplied values. Coordinates and precision are included.
+    """
+    def persisted_intent(payload: EmergencyRequestIn) -> tuple:
+        location = payload.location
+        return (
+            payload.requester_id,
+            payload.blood_type.value,
+            payload.units,
+            payload.urgency.value,
+            payload.response_deadline,
+            location.facility_id,
+            float(location.latitude),
+            float(location.longitude),
+            location.precision_meters,
+            payload.contact_method.value,
+            payload.note,
+            payload.genuine_request_confirmed,
+            payload.sharing_consent_confirmed,
+            payload.ai_matching_enabled,
+        )
+
+    return persisted_intent(incoming) == persisted_intent(stored)
+
+
 @app.post("/v1/emergency-requests", response_model=EmergencyRequestOut | ManualFallbackOut, status_code=201)
 async def create_emergency_request_postgres(
     payload: EmergencyRequestIn,
@@ -502,6 +534,11 @@ async def create_emergency_request_postgres(
     store = SqlAlchemyRequestStore(session)
     existing = await store.get_by_idempotency_key_async(payload.idempotency_key)
     if existing:
+        if not _same_emergency_request_intent(payload, existing.payload):
+            raise HTTPException(
+                status_code=422,
+                detail="Idempotency key was already used for a different emergency request.",
+            )
         return EmergencyRequestOut(
             request_id=existing.request_id,
             status=existing.status,
