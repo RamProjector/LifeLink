@@ -1255,12 +1255,17 @@ async def activate_location_share(
         share = await store.ensure_location_share(
             request_id, donor.id, request.requester_id, request.response_deadline
         )
-    except (LocationShareRevokedError, LocationSharingDisabledError):
-        # The repository re-checks donor consent after acquiring its transaction
-        # lock; this closes races with both request-scoped revocation and opt-out.
+    except LocationShareRevokedError:
+        # The repository re-checks request-scoped consent after acquiring its lock.
         raise HTTPException(
             status_code=409,
             detail="The donor revoked exact location sharing for this request",
+        ) from None
+    except LocationSharingDisabledError:
+        # A concurrent donor opt-out/map-hide must win over this activation.
+        raise HTTPException(
+            status_code=409,
+            detail="The donor has disabled exact location sharing or hidden their map",
         ) from None
     await store.record_audit_async(principal.subject, "location_share_activated", request_id, donor.id)
     # Tell the donor their exact location is now visible to the matched requester,
