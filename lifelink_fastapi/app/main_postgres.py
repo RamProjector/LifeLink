@@ -531,6 +531,14 @@ async def create_emergency_request_postgres(
                 "location": payload.location.model_copy(update={"facility_id": None, "verified": False})
             })
 
+    # Serialize creates for the same key across API workers. The
+    # transaction-scoped advisory lock is released automatically on commit or
+    # rollback, so the following lookup and insert behave as one check-and-act
+    # operation even when two retries arrive at the same time.
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"),
+        {"lock_key": f"lifelink:emergency-request:{payload.idempotency_key}"},
+    )
     store = SqlAlchemyRequestStore(session)
     existing = await store.get_by_idempotency_key_async(payload.idempotency_key)
     if existing:
