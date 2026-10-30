@@ -38,7 +38,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class LifeLinkWorkflowVisualTest {
+open class LifeLinkWorkflowVisualTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
