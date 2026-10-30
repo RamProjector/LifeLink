@@ -1171,7 +1171,8 @@ def test_map_visibility_change_and_audit_are_atomic(pg_url):
             f"/v1/donors/{donor}/map-visibility",
             json={"map_visible": False, "exact_location_sharing_enabled": True},
         )
-        assert failed.status_code == 500, failed.text
+        # Database/audit storage failures use the API-wide retryable 503 contract.
+        assert failed.status_code == 503, failed.text
 
         # The donor's consent and existing share remain unchanged because the
         # privacy update, share revocation, and audit row share one transaction.
