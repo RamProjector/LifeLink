@@ -68,6 +68,16 @@ class AccountPersistenceTest {
         assertNotNull(db.pendingSubmissionDao().findById("bob", "draft"))
     }
 
+    @Test fun latestDraftLookupIsScopedAndUsesMostRecentSave() = runBlocking {
+        db.emergencyRequestDraftDao().upsert(draft("alice").copy(id = "alice-old", updatedAtEpochMillis = 1))
+        db.emergencyRequestDraftDao().upsert(draft("alice").copy(id = "alice-new", updatedAtEpochMillis = 2))
+        db.emergencyRequestDraftDao().upsert(draft("bob").copy(id = "bob-latest", updatedAtEpochMillis = 99))
+
+        assertEquals("alice-new", db.emergencyRequestDraftDao().findLatest("alice")?.id)
+        assertEquals("bob-latest", db.emergencyRequestDraftDao().findLatest("bob")?.id)
+        assertNull(db.emergencyRequestDraftDao().findLatest("new-account"))
+    }
+
     @Test fun donorReplacementIsScopedAndPrioritizesCriticalRequests() = runBlocking {
         val dao = db.donorDao()
         dao.upsertRequest(request("bob", "private"))
@@ -159,8 +169,9 @@ class AccountPersistenceTest {
         for ((owner, id) in listOf("alice" to "oldest", "bob" to "target", "alice" to "target")) {
             dao.upsert(PendingSubmissionEntity(owner, id, Gson().toJson(EmergencyRequestDraft(id = id))))
         }
+        db.emergencyRequestDraftDao().upsert(draft("alice"))
         var submissions = 0
-        val processor = PendingSubmissionProcessor(dao, { "alice" }) { owner, draft ->
+        val processor = PendingSubmissionProcessor(dao, { "alice" }, draftDao = db.emergencyRequestDraftDao()) { owner, draft ->
             submissions++
             assertEquals("alice", owner)
             assertEquals("target", draft.id)
@@ -171,6 +182,7 @@ class AccountPersistenceTest {
         assertEquals(ListenableWorker.Result.success(), processor.process("alice", "target"))
         assertEquals(1, submissions)
         assertNull(dao.findById("alice", "target"))
+        assertNull(db.emergencyRequestDraftDao().findById("alice", "draft"))
         assertNotNull(dao.findById("alice", "oldest"))
         assertNotNull(dao.findById("bob", "target"))
     }
