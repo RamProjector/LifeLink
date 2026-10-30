@@ -305,3 +305,16 @@ This section extends the existing acceptance plan. These are implementation prio
 - PostgreSQL integration coverage now checks that direct repository calls cannot reactivate a revoked share or activate while map visibility is off. The existing map-hiding test also had an undefined stranger fixture; it now creates that user explicitly so the authorization assertion is executable.
 - Research basis: OWASP Business Logic Security guidance says check-then-act operations must be atomic and identifies row locking as a safe read-modify-write pattern. PostgreSQL documents that `FOR UPDATE` blocks conflicting writers/lockers until transaction end. References: https://cheatsheetseries.owasp.org/cheatsheets/Business_Logic_Security_Cheat_Sheet.html and https://www.postgresql.org/docs/current/explicit-locking.html.
 - The locked donor-row SELECT uses SQLAlchemy `populate_existing=True` so the lock acquisition refreshes an already-loaded ORM identity-map object; without this, the route's earlier donor lookup could leave stale opt-in flags in memory. A PostgreSQL regression test now loads stale donor state in one session, commits opt-out in another, and verifies activation is denied with no share row created. Research: https://docs.sqlalchemy.org/en/20/orm/queryguide/api.html.
+
+### Atomic donor GPS consent audit events (2026-10-30)
+
+- [x] Persist exact-location activation and its `location_share_activated` audit event in the same database transaction.
+- [x] Persist donor revocation and its `location_share_revoked` audit event in the same database transaction.
+- [x] Attribute activation to the authenticated requester and revocation to the authenticated donor.
+- [x] Keep audit metadata free of coordinates and contact data; PostgreSQL integration coverage asserts actor, action, request, donor, and empty metadata for both lifecycle events.
+- [ ] Extend the same atomic audit pattern to other high-risk state transitions after reviewing their transaction boundaries and failure semantics.
+
+**Why:** Previously, the share state committed before a separate audit commit. If audit persistence failed between those commits, the API could leave a live or revoked share without its corresponding audit event. The two GPS consent transitions now commit state and evidence together, so either both persist or neither does. This is a targeted guarantee for these transitions, not a claim that every LifeLink audit path is already atomic.
+
+**Research:** OWASP Logging Cheat Sheet recommends capturing who/what/when and affected objects for security events, while excluding sensitive personal data and secrets. It also recommends testing logging behavior and its side effects. https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
+
