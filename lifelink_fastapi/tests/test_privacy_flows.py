@@ -279,6 +279,50 @@ def test_hiding_from_map_revokes_live_location_share(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_location_share_activation_refreshes_locked_donor_consent(pg_url):
+    """A stale ORM identity-map object must not override a newer donor opt-out."""
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+
+        from app.privacy_repositories import LocationSharingDisabledError, SqlAlchemyPrivacyStore
+
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        async with sessions() as activation_session:
+            # Simulate the route having loaded the donor before another request
+            # commits the opt-out. The identity map now contains stale consent.
+            loaded = await activation_session.get(db_models.Donor, donor)
+            assert loaded is not None and loaded.map_visible is True
+            assert loaded.exact_location_sharing_enabled is True
+
+            async with sessions() as optout_session:
+                changed = await optout_session.get(db_models.Donor, donor)
+                assert changed is not None
+                changed.map_visible = False
+                await optout_session.commit()
+
+            with pytest.raises(LocationSharingDisabledError):
+                await SqlAlchemyPrivacyStore(activation_session).ensure_location_share(
+                    created["request_id"],
+                    donor,
+                    requester,
+                    datetime.now(UTC) + timedelta(hours=1),
+                )
+            assert loaded.map_visible is False
+
+        async with engine.connect() as connection:
+            result = await connection.execute(
+                text("SELECT COUNT(*) FROM donor_location_shares WHERE request_id = :request_id"),
+                {"request_id": created["request_id"]},
+            )
+            assert result.scalar_one() == 0
+        await engine.dispose()
+
+    run_scenario(pg_url, scenario)
+
+
 def test_exact_location_requires_a_match_and_donor_opt_in(pg_url):
     async def scenario(client, current, run_sql):
         matched, unmatched = new_user("donor"), new_user("donor")
