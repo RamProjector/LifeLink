@@ -63,8 +63,8 @@ class PendingSubmissionWorker(
 internal class PendingSubmissionProcessor(
     private val dao: PendingSubmissionDao,
     private val currentUserId: () -> String?,
-    private val submit: suspend (String, EmergencyRequestDraft) -> SubmitResult,
-    private val draftDao: EmergencyRequestDraftDao? = null
+    private val draftDao: EmergencyRequestDraftDao? = null,
+    private val submit: suspend (String, EmergencyRequestDraft) -> SubmitResult
 ) {
     suspend fun process(ownerId: String?, draftId: String?): WorkResult {
         if (ownerId.isNullOrBlank() || draftId.isNullOrBlank()) return WorkResult.failure()
