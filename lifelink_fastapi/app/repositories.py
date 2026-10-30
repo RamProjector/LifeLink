@@ -253,7 +253,11 @@ class SqlAlchemyRequestStore(RequestStore):
                 sharing_consent_confirmed=record.payload.sharing_consent_confirmed,
                 idempotency_key=record.payload.idempotency_key,
                 status=record.status.value,
-                matching_version=MATCHING_VERSION,
+                matching_version=(
+                    "v1-explainable-weighted"
+                    if record.payload.ai_matching_enabled
+                    else "v1-distance-only"
+                ),
                 created_at=record.created_at,
             )
             self.session.add(existing)
