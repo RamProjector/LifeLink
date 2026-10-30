@@ -17,6 +17,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -128,6 +129,16 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
      * [pollJob] so it can be cancelled (e.g. on cancel or [onCleared]).
      */
     init {
+        val initialDraft = _uiState.value.draft
+        viewModelScope.launch {
+            val active = repository.observeActiveRequest().first()
+            if (active == null) {
+                val savedDraft = repository.loadLatestDraft()
+                if (savedDraft != null && _uiState.value.draft == initialDraft) {
+                    _uiState.update { it.copy(draft = savedDraft, draftSaved = true) }
+                }
+            }
+        }
         viewModelScope.launch {
             repository.observeActiveRequest().collect { active ->
                 _uiState.update { it.copy(activeRequest = active) }
@@ -311,6 +322,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
             }
             when (result) {
                 is SubmitResult.MatchingStarted -> {
+                    runCatching { repository.deleteDraft(draft.id) }
                     // Do not keep the submit button spinning while the optional contacts refresh waits on the API.
                     _uiState.update {
                         it.copy(
@@ -334,12 +346,14 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
                     _uiState.update {
                         it.copy(contactsError = "The server response was empty; contact status could not be confirmed yet.")
                     }
-                is SubmitResult.ManualFallback ->
+                is SubmitResult.ManualFallback -> {
+                    runCatching { repository.deleteDraft(draft.id) }
                     _uiState.update {
                         it.copy(
                             submission = SubmissionState.ManualFallback(result.requestId, result.reason),
                         )
                     }
+                }
                 is SubmitResult.Cancelled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
                 is SubmitResult.Fulfilled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
                 is SubmitResult.OfflineQueued -> _uiState.update { it.copy(submission = SubmissionState.QueuedOffline(result.draftId)) }
@@ -705,6 +719,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
             _uiState.update { it.copy(statusRefreshing = true) }
             when (val result = repository.cancelRequest(requestId)) {
                 is SubmitResult.Cancelled -> {
+                    runCatching { repository.deleteDraft(_uiState.value.draft.id) }
                     // Stop the background donor search: cancel the status/contact poll
                     // so the client no longer keeps looking for donors for a request
                     // that has been cancelled.
