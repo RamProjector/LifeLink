@@ -217,3 +217,67 @@ Research:
 - Android Compose semantics guidance explains how accessibility services consume semantic labels, state, and actions: https://developer.android.com/develop/ui/compose/accessibility/semantics
 - Android's Compose accessibility guidance recommends meaningful interactive semantics and logical UI structure: https://developer.android.com/guide/topics/ui/accessibility/composables
 - Compose's merging/clearing guidance explains why semantic information should remain available to accessibility services and test tooling: https://developer.android.com/develop/ui/compose/accessibility/merging-clearing
+
+
+## Additional research-backed improvements — 30 October 2026
+
+This section extends the existing acceptance plan. These are implementation priorities, not claims that the entire audit is complete.
+
+### A. Contextual accessibility for map overlays
+
+- [x] Give the donor-map filter overlay a semantic pane title ("Donor map filters") so assistive technology can identify the temporary surface independently from the underlying map.
+- [x] Add an instrumentation assertion for the pane-title semantic.
+- [ ] Apply the same pattern to the privacy-controls overlay after verifying its focus and dismissal behavior.
+- [ ] Verify focus order when opening/closing overlays with TalkBack and keyboard navigation; ensure the underlying map controls do not become confusing duplicate stops.
+
+**Why:** Android Compose documents `paneTitle` for window-like components such as modal sheets, helping accessibility services distinguish a new pane from surrounding content. The filter overlay sits above the map and changes the active interaction context. This should be tested as semantics, not inferred from visual appearance.
+
+### B. Security and privacy hardening (OWASP MASVS mapping)
+
+- [ ] **AUTH:** verify every protected API operation authorizes the authenticated subject and relationship server-side; never trust role, donor ID, requester ID, or request ownership supplied by the client.
+- [ ] **NETWORK:** verify release builds use HTTPS only, reject cleartext traffic, and do not log authorization headers or response bodies containing personal data.
+- [ ] **STORAGE:** inspect Room, preferences, files, backups, exported diagnostics, and notification payloads for tokens, exact coordinates, contact details, and emergency-request data; define retention and deletion.
+- [ ] **PRIVACY:** test location opt-in, approximate public display, request-scoped exact sharing, expiry, and revocation against the server—not merely local UI state.
+- [ ] **CODE / RESILIENCE:** verify debug-only diagnostics and demo/fake-backend entry points cannot be enabled in release builds; scan packaged APKs and merged manifests.
+- [ ] **AUDIT:** record security-relevant outcomes with correlation IDs while redacting credentials, session tokens, precise GPS, message content, and unnecessary personal details.
+
+**Acceptance:** create an endpoint-by-endpoint authorization matrix (actor × resource × operation), add negative tests for cross-account and guessed-ID access, inspect release manifest/network config, and prove sensitive values are absent from logs and exported diagnostics.
+
+### C. Functional correctness and user convenience
+
+- [ ] Request submission: field-level required/optional rules, review summary, persisted draft, idempotency key or equivalent server duplicate protection, and clear submitted-vs-queued-vs-failed outcomes.
+- [ ] Donor availability: separate willingness, verification, GPS permission, location freshness, and effective matchability in both server responses and user-facing copy.
+- [ ] Chat: explicit sending/sent/failed/retrying states, safe retry without duplicate message creation, reconnect behavior, unread count, and notification deep-link authorization fallback.
+- [ ] Session recovery: distinguish expired session (401), forbidden action (403), conflict (409), rate limit (429), and transient server/network failure; do not offer endless retry for permanent denial.
+- [ ] Forms: preserve valid user input after network failure and restore drafts after process recreation where appropriate; confirm before discarding meaningful unsaved work.
+- [ ] Status truthfulness: never imply that a donor was notified, a message delivered/read, a location shared, or a request accepted unless the server/provider confirms that exact outcome.
+
+### D. Performance and efficiency — measure before optimizing
+
+- [ ] Add a reproducible Macrobenchmark for cold start, Home → Request, Home → Map, and map/list navigation on a stable emulator profile.
+- [ ] Capture frame timing / jank traces for donor-area list scrolling and map/filter interactions; compare p50/p90 and frame deadline misses before and after changes.
+- [ ] Keep map style/network initialization separate from annotation updates. Filtering should update markers in place and must not reset camera position or reload the style; retain a regression check for this contract.
+- [ ] Profile Compose recomposition and list scrolling before adding caching or derived-state complexity. Keep stable LazyColumn keys for donor areas and avoid expensive work inside item composition.
+- [ ] Evaluate Baseline Profiles only after critical user journeys are stable and benchmarked; measure release-like builds rather than treating a successful build as a performance result.
+- [ ] Use lifecycle-aware collection and cancel polling/location work when the screen is stopped or the donor is no longer explicitly available.
+
+**Acceptance:** publish baseline and post-change measurements, include device/API/build mode and test scenario, and reject optimizations that trade correctness, privacy, or readability for an unmeasured theoretical gain.
+
+### E. Visual/HCI quality gate
+
+- [ ] Review all core screens at compact width and large font scale; ensure no clipped actions, overlapping map overlays, or inaccessible horizontal filter chips.
+- [ ] Check 48×48 dp minimum touch targets and practical spacing for every custom interactive control; verify actual hit bounds rather than icon size.
+- [ ] Use one clear primary action per screen, keep secondary actions visually quieter, and avoid stacking multiple feedback surfaces for one event.
+- [ ] Provide visible selected states and equivalent semantics; do not communicate availability or urgency by color alone.
+- [ ] Test loading, no-data, filtered-empty, stale, offline, error, and success states independently with deterministic fixtures and truthful copy.
+
+### Research references
+
+- Android Compose semantics and pane titles: https://developer.android.com/develop/ui/compose/accessibility/semantics
+- Android Compose API defaults and 48 dp minimum touch targets: https://developer.android.com/develop/ui/compose/accessibility/api-defaults
+- Android touch target guidance and accessibility testing: https://support.google.com/accessibility/android/answer/7101858
+- OWASP MASVS control groups (authentication, network, storage, privacy, code, resilience): https://mas.owasp.org/MASVS/
+- OWASP DevSecOps mobile security testing checklist: https://owasp.github.io/DevSecOpsGuideline/2-Process/2-4-Test/2-4-3-Mobile-Application-Security-Test/
+- Android UI jank diagnosis and system traces: https://developer.android.com/studio/profile/jank-detection
+- Android slow-rendering guidance: https://developer.android.com/topic/performance/issues/render
+- Android Baseline Profiles and performance optimization: https://developer.android.com/topic/performance/baselineprofiles
