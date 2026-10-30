@@ -452,6 +452,18 @@ def test_donor_can_revoke_exact_location_share(pg_url):
         assert revoked.status_code == 200, revoked.text
         assert revoked.json()["status"] == "revoked"
 
+        # The consent lifecycle is auditable without recording precise GPS.
+        audit_rows = await run_sql(
+            "SELECT actor_id, action, request_id, donor_id, metadata "
+            "FROM audit_events WHERE request_id = :request_id "
+            "AND action IN ('location_share_activated', 'location_share_revoked') "
+            "ORDER BY created_at",
+        )
+        assert audit_rows == [
+            (requester, "location_share_activated", created["request_id"], donor, {}),
+            (donor, "location_share_revoked", created["request_id"], donor, {}),
+        ]
+
         current["id"] = requester
         after = await client.get(
             f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
