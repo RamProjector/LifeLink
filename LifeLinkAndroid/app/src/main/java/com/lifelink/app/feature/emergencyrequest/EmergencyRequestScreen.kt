@@ -391,11 +391,13 @@ private fun DonorPicker(
             val newSelectionCount = state.selectedDonorIds.count { it !in alreadyContactedIds }
             Button(
                 onClick = { onAction(EmergencyRequestAction.ContactSelectedDonors) },
-                enabled = newSelectionCount > 0,
+                enabled = newSelectionCount > 0 && !state.contactSubmissionInFlight,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    if (newSelectionCount > 0) {
+                    if (state.contactSubmissionInFlight) {
+                        "Sending contact request…"
+                    } else if (newSelectionCount > 0) {
                         "Contact $newSelectionCount new donor${if (newSelectionCount == 1) "" else "s"}"
                     } else if (state.selectedDonorIds.isNotEmpty()) {
                         "Selected donors already contacted"
