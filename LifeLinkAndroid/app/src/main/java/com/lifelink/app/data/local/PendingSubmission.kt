@@ -47,6 +47,7 @@ class PendingSubmissionWorker(
         val application = applicationContext as? LifeLinkApplication ?: return Result.failure()
         return PendingSubmissionProcessor(
             dao = LifeLinkDatabase.getInstance(applicationContext).pendingSubmissionDao(),
+            draftDao = LifeLinkDatabase.getInstance(applicationContext).emergencyRequestDraftDao(),
             currentUserId = { application.authRepository.session.value?.userId },
             submit = { ownerId, draft -> application.accountContainer(ownerId).emergencyRequestRepository.submit(draft) }
         ).process(inputData.getString(OWNER_ID), inputData.getString(DRAFT_ID))
@@ -62,7 +63,8 @@ class PendingSubmissionWorker(
 internal class PendingSubmissionProcessor(
     private val dao: PendingSubmissionDao,
     private val currentUserId: () -> String?,
-    private val submit: suspend (String, EmergencyRequestDraft) -> SubmitResult
+    private val submit: suspend (String, EmergencyRequestDraft) -> SubmitResult,
+    private val draftDao: EmergencyRequestDraftDao? = null
 ) {
     suspend fun process(ownerId: String?, draftId: String?): WorkResult {
         if (ownerId.isNullOrBlank() || draftId.isNullOrBlank()) return WorkResult.failure()
@@ -79,6 +81,7 @@ internal class PendingSubmissionProcessor(
             is SubmitResult.Cancelled,
             is SubmitResult.Fulfilled -> {
                 dao.delete(ownerId, draftId)
+                draftDao?.deleteById(ownerId, draftId)
                 WorkResult.success()
             }
             is SubmitResult.OfflineQueued -> WorkResult.retry()
