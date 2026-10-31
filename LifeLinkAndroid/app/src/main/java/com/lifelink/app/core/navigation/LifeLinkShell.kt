@@ -164,6 +164,7 @@ fun LifeLinkShell(
     onMarkAllUpdatesRead: () -> Unit,
     notificationOpenUpdates: Boolean = false,
     notificationRequestId: String? = null,
+    donorMapStyleJson: String? = null,
 ) {
     val context = LocalContext.current
     val welcomePrefs = context.getSharedPreferences("lifelink_welcome", 0)
@@ -437,6 +438,7 @@ fun LifeLinkShell(
                                     centerLongitude = state.draft.requesterLongitude,
                                     showCloseButton = false,
                                     embeddedInShell = true,
+                                    mapStyleJson = donorMapStyleJson,
                                 )
                             ShellTab.MESSAGING ->
                                 MessagingScreen(
