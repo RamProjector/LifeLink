@@ -49,6 +49,7 @@ class SelectedMethodsRunner(testClass: Class<*>) : Runner() {
     "donorMapErrorKeepsMapVisibleAndRetryable",
     "emptyDonorMapKeepsMapVisibleAndOffersRefresh",
     "selectingDonorAreaOpensPrivacySafeDetailsAndReturnsToMap",
+    "syntheticMapMarkerTapSelectsTheMatchingApproximateAreaWithoutNetwork",
 )
 class LifeLinkVisualSmokeTest : LifeLinkWorkflowVisualTest()
 
