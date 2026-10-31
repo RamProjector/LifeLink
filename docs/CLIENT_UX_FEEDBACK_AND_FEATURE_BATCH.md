@@ -15,6 +15,8 @@ The following feedback-system slice has been added to PR #153:
 - [x] Kept the native map viewport more visible by anchoring the no-area overlay near the bottom; added a UI regression test for the map, empty-state explanation, and refresh action.
 - [x] Prevented rapid duplicate emergency-request submissions with an atomic in-flight guard; unexpected repository exceptions now produce a safe retry message, and a gated unit test verifies one network call for repeated submit actions.
 - [x] Restored the most recently saved, account-scoped requester draft from Room when no non-terminal active request exists; accepted/manual-fallback submissions remove the local draft, and the background retry worker removes its saved draft after successful delivery. Queued submissions are not reopened as editable drafts while WorkManager owns their original payload.
+- [x] Excluded queued submissions from draft-recovery candidates at the DAO query level, so an older editable draft can still be restored without exposing the queued payload.
+- [x] Locked the queued request's payload against edits/autosaves while WorkManager owns the immutable retry snapshot; added a ViewModel regression test for this state transition.
 - [x] Added ViewModel regression coverage for restoring a saved draft and deleting the local draft after a successful submission.
 - [x] Added Compose instrumentation tests for visible error copy, retry callback behavior, and a success state without an action.
 - [ ] The broader message catalog and adoption across requester submission, donor availability, chat, session recovery, and web are still follow-up work within the same consolidated feature batch.
