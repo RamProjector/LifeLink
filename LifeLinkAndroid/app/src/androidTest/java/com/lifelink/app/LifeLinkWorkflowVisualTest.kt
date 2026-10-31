@@ -169,31 +169,12 @@ open class LifeLinkWorkflowVisualTest {
 
     @Test
     fun selectingDonorAreaOpensPrivacySafeDetailsAndReturnsToMap() {
-        val mapState = PrivacyUiState(
-            map = DonorMap(
-                generatedAt = "2026-10-28T00:00:00Z",
-                approximateOnly = true,
-                areas = listOf(
-                    DonorMapArea(
-                        areaLabel = "Approximate donor area",
-                        latitude = 11.24,
-                        longitude = 125.0,
-                        radiusMeters = 1000,
-                        bloodType = "O+",
-                        availability = "available",
-                        freshnessAt = "2026-10-28T00:00:00Z",
-                        freshnessAgeMinutes = 2,
-                        isStale = false,
-                    ),
-                ),
-            ),
-        )
         var parentBackCount = 0
         composeRule.activity.runOnUiThread {
             composeRule.activity.setContent {
                 LifeLinkTheme(themeMode = testTheme) {
                     DonorMapScreen(
-                        state = mapState,
+                        state = privacySafeDonorMapState(),
                         onAction = {},
                         onBack = { parentBackCount++ },
                     )
@@ -207,21 +188,16 @@ open class LifeLinkWorkflowVisualTest {
             .assertHasClickAction()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
         composeRule.onNodeWithTag("donor-area-card").performClick()
-        assertVisible("Donor area details")
-        assertVisible("Blood type: O+")
-        assertVisible(
-            "Privacy protected: this view shows an approximate area only. " +
-                "Donor identity, contact details, and exact coordinates are not disclosed here.",
-        )
+        assertPrivacySafeDonorAreaDetails()
 
-        // System Back must close the detail layer first, not escape the map destination.
+        // System Back closes the detail layer without escaping the map destination.
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
         composeRule.onNodeWithTag("donor-area-card").assertIsDisplayed()
         composeRule.runOnIdle { org.junit.Assert.assertEquals(0, parentBackCount) }
 
-        // Re-open the same area and also verify the visible in-screen Back control.
+        // The visible Back control must provide the same in-destination behavior.
         composeRule.onNodeWithTag("donor-area-card").performClick()
         assertVisible("Donor area details")
         composeRule.onNodeWithTag("donor-area-back")
@@ -231,6 +207,35 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("donor-area-back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+    }
+
+    private fun privacySafeDonorMapState() = PrivacyUiState(
+        map = DonorMap(
+            generatedAt = "2026-10-28T00:00:00Z",
+            approximateOnly = true,
+            areas = listOf(
+                DonorMapArea(
+                    areaLabel = "Approximate donor area",
+                    latitude = 11.24,
+                    longitude = 125.0,
+                    radiusMeters = 1000,
+                    bloodType = "O+",
+                    availability = "available",
+                    freshnessAt = "2026-10-28T00:00:00Z",
+                    freshnessAgeMinutes = 2,
+                    isStale = false,
+                ),
+            ),
+        ),
+    )
+
+    private fun assertPrivacySafeDonorAreaDetails() {
+        assertVisible("Donor area details")
+        assertVisible("Blood type: O+")
+        assertVisible(
+            "Privacy protected: this view shows an approximate area only. " +
+                "Donor identity, contact details, and exact coordinates are not disclosed here.",
+        )
     }
 
     @Test
