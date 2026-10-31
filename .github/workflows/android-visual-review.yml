@@ -389,6 +389,7 @@ jobs:
             "lifelink-phone-light-donor-map-error.png"
             "lifelink-phone-light-donor-map-empty.png"
             "lifelink-phone-light-donor-map-synthetic-marker-selected.png"
+            "lifelink-phone-light-donor-map-synthetic-filtered-marker-selected.png"
             "lifelink-donor-workspace-after-open.png"
           )
           for file in "${required[@]}"; do
