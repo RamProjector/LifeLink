@@ -536,12 +536,13 @@ fun MapLibrePrivacySafeDonorMap(
                 }
             }
         }
-        if (!mapLoading && !mapError && areas.isEmpty()) {
+        if (!mapLoading && mapRendered && !mapError && areas.isEmpty()) {
             Card(
                 modifier = Modifier
                     .align(androidx.compose.ui.Alignment.BottomStart)
                     .padding(12.dp)
-                    .semantics { liveRegion = LiveRegionMode.Polite },
+                    .semantics { liveRegion = LiveRegionMode.Polite }
+                    .testTag("donor-map-empty-state"),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             ) {
