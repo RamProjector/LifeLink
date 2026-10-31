@@ -73,9 +73,14 @@ class AccountPersistenceTest {
         db.emergencyRequestDraftDao().upsert(draft("alice").copy(id = "alice-new", updatedAtEpochMillis = 2))
         db.emergencyRequestDraftDao().upsert(draft("bob").copy(id = "bob-latest", updatedAtEpochMillis = 99))
 
-        assertEquals("alice-new", db.emergencyRequestDraftDao().findLatest("alice")?.id)
-        assertEquals("bob-latest", db.emergencyRequestDraftDao().findLatest("bob")?.id)
-        assertNull(db.emergencyRequestDraftDao().findLatest("new-account"))
+        assertEquals("alice-new", db.emergencyRequestDraftDao().findLatestUnqueued("alice")?.id)
+        assertEquals("bob-latest", db.emergencyRequestDraftDao().findLatestUnqueued("bob")?.id)
+        assertNull(db.emergencyRequestDraftDao().findLatestUnqueued("new-account"))
+
+        db.pendingSubmissionDao().upsert(PendingSubmissionEntity("alice", "alice-new", "queued-payload"))
+        assertEquals("alice-old", db.emergencyRequestDraftDao().findLatestUnqueued("alice")?.id)
+        db.pendingSubmissionDao().upsert(PendingSubmissionEntity("alice", "alice-old", "queued-payload"))
+        assertNull(db.emergencyRequestDraftDao().findLatestUnqueued("alice"))
     }
 
     @Test fun donorReplacementIsScopedAndPrioritizesCriticalRequests() = runBlocking {
