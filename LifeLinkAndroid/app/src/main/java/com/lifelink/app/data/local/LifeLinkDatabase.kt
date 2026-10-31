@@ -17,7 +17,21 @@ interface EmergencyRequestDraftDao {
     @Query("SELECT * FROM emergency_request_drafts WHERE ownerId = :ownerId AND id = :id LIMIT 1")
     suspend fun findById(ownerId: String, id: String): EmergencyRequestDraftEntity?
 
-    @Query("SELECT draft.* FROM emergency_request_drafts AS draft WHERE draft.ownerId = :ownerId AND NOT EXISTS (SELECT 1 FROM pending_submissions AS pending WHERE pending.ownerId = draft.ownerId AND pending.id = draft.id) ORDER BY draft.updatedAtEpochMillis DESC LIMIT 1")
+    @Query(
+        """
+        SELECT draft.*
+        FROM emergency_request_drafts AS draft
+        WHERE draft.ownerId = :ownerId
+          AND NOT EXISTS (
+              SELECT 1
+              FROM pending_submissions AS pending
+              WHERE pending.ownerId = draft.ownerId
+                AND pending.id = draft.id
+          )
+        ORDER BY draft.updatedAtEpochMillis DESC
+        LIMIT 1
+        """,
+    )
     suspend fun findLatestUnqueued(ownerId: String): EmergencyRequestDraftEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
