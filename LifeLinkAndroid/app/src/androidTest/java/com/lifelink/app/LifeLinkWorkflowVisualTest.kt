@@ -294,16 +294,19 @@ open class LifeLinkWorkflowVisualTest {
 
     @Test
     fun syntheticMapMarkerTapSelectsTheMatchingApproximateAreaWithoutNetwork() {
-        val area = SyntheticDonorMapFixture.state.map!!.areas.first()
-        val visibleAreas = mutableStateOf(listOf(area))
+        val areas = SyntheticDonorMapFixture.state.map!!.areas
+        val firstArea = areas.first()
+        val filteredArea = areas.last()
+        val mapCenter = mutableStateOf(firstArea)
+        val visibleAreas = mutableStateOf(listOf(firstArea))
         val selectedAreaLabel = mutableStateOf<String?>(null)
 
         composeRule.activity.runOnUiThread {
             composeRule.activity.setContent {
                 LifeLinkTheme(themeMode = testTheme) {
                     MapLibrePrivacySafeDonorMap(
-                        latitude = area.latitude,
-                        longitude = area.longitude,
+                        latitude = mapCenter.value.latitude,
+                        longitude = mapCenter.value.longitude,
                         areas = visibleAreas.value,
                         styleJson = SYNTHETIC_MAP_STYLE_JSON,
                         onAreaSelected = { selectedAreaLabel.value = it.areaLabel },
@@ -319,12 +322,45 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("donor-map-native-view").assertIsDisplayed()
         composeRule.onNodeWithTag("donor-map-native-view").performTouchInput { click() }
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            selectedAreaLabel.value == area.areaLabel
+            selectedAreaLabel.value == firstArea.areaLabel
         }
         composeRule.runOnIdle {
-            org.junit.Assert.assertEquals(area.areaLabel, selectedAreaLabel.value)
+            org.junit.Assert.assertEquals(firstArea.areaLabel, selectedAreaLabel.value)
         }
         capture("donor-map-synthetic-marker-selected")
+
+        // Simulate a filter result changing the marker collection. Recenter on the
+        // remaining synthetic area so the same deterministic tap can select it.
+        composeRule.runOnIdle {
+            selectedAreaLabel.value = null
+            visibleAreas.value = listOf(filteredArea)
+            mapCenter.value = filteredArea
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("donor-map-native-view").performTouchInput { click() }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            selectedAreaLabel.value == filteredArea.areaLabel
+        }
+        composeRule.runOnIdle {
+            org.junit.Assert.assertEquals(filteredArea.areaLabel, selectedAreaLabel.value)
+        }
+        capture("donor-map-synthetic-filtered-marker-selected")
+
+        // A marker removed by the filter must not remain tappable after the camera
+        // returns to its old position.
+        composeRule.runOnIdle {
+            selectedAreaLabel.value = null
+            mapCenter.value = firstArea
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("donor-map-native-view").performTouchInput { click() }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            org.junit.Assert.assertNull(
+                "The filtered-out synthetic marker must not remain on the map",
+                selectedAreaLabel.value,
+            )
+        }
     }
 
     @Test
