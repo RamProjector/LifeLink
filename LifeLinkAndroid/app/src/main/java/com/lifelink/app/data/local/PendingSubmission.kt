@@ -76,7 +76,8 @@ internal class PendingSubmissionProcessor(
             is SubmitResult.ContactRequestUncertain,
             is SubmitResult.ManualFallback,
             is SubmitResult.Cancelled,
-            is SubmitResult.Fulfilled -> {
+            is SubmitResult.Fulfilled,
+            -> {
                 dao.delete(ownerId, draftId)
                 draftDao?.deleteById(ownerId, draftId)
                 WorkResult.success()
