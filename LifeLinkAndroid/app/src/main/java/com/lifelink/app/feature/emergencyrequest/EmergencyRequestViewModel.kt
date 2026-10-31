@@ -229,7 +229,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
     }
 
     private fun updateDraft(update: (EmergencyRequestDraft) -> EmergencyRequestDraft) {
-        if (_uiState.value.submission is SubmissionState.Submitting) return
+        if (isDraftLocked()) return
         _uiState.update {
             it.copy(
                 draft = update(it.draft),
@@ -245,6 +245,9 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
                 saveDraft()
             }
     }
+
+    private fun isDraftLocked(): Boolean =
+        _uiState.value.submission.let { it is SubmissionState.Submitting || it is SubmissionState.QueuedOffline }
 
     private fun continueStep() {
         val state = _uiState.value
@@ -274,7 +277,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
     }
 
     private fun saveDraft(manual: Boolean = false) {
-        if (_uiState.value.submission is SubmissionState.Submitting) return
+        if (isDraftLocked()) return
         val draft = _uiState.value.draft
         viewModelScope.launch {
             _uiState.update { it.copy(submission = SubmissionState.Saving) }
