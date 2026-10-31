@@ -44,6 +44,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
+// This repository is the single boundary for the request lifecycle; keep its cohesive
+// API together rather than splitting persistence, matching, and contact operations.
+@Suppress("TooManyFunctions")
 class EmergencyRequestRepositoryImpl(
     private val draftDao: EmergencyRequestDraftDao,
     private val pendingSubmissionDao: PendingSubmissionDao,
@@ -59,11 +62,7 @@ class EmergencyRequestRepositoryImpl(
 
     override suspend fun loadLatestDraft(): EmergencyRequestDraft? {
         val ownerId = requireRequesterId()
-        val latest = draftDao.findLatest(ownerId) ?: return null
-        // A queued offline submission is already owned by WorkManager. Never reopen it
-        // as an editable draft while the worker may submit the original payload.
-        if (pendingSubmissionDao.findById(ownerId, latest.id) != null) return null
-        return latest.toDomain()
+        return draftDao.findLatestUnqueued(ownerId)?.toDomain()
     }
 
     override suspend fun deleteDraft(id: String) = draftDao.deleteById(requireRequesterId(), id)
