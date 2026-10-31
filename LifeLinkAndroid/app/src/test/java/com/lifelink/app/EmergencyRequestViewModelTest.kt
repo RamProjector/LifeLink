@@ -29,6 +29,8 @@ import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
+// This cohesive suite exercises the request ViewModel state machine across many independent transitions.
+@Suppress("TooManyFunctions")
 class EmergencyRequestViewModelTest {
     private val facility = Facility("facility-1", "St. Luke’s Medical Center", "Quezon City")
 
@@ -282,6 +284,19 @@ class EmergencyRequestViewModelTest {
         val repository = FakeRepository(SubmitResult.OfflineQueued("draft-queued"))
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
         val originalNote = viewModel.uiState.value.draft.note
+        viewModel.onAction(
+            EmergencyRequestAction.UpdateDraft {
+                it.copy(
+                    bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                    facility = facility,
+                    requesterLatitude = 14.6466,
+                    requesterLongitude = 121.0437,
+                    genuineRequestConfirmed = true,
+                    sharingConsentConfirmed = true,
+                )
+            },
+        )
+        val submittedDraft = viewModel.uiState.value.draft
         viewModel.onAction(EmergencyRequestAction.Submit)
         advanceUntilIdle()
 
@@ -290,6 +305,7 @@ class EmergencyRequestViewModelTest {
         viewModel.onAction(EmergencyRequestAction.SaveDraft)
         advanceUntilIdle()
 
+        assertEquals(submittedDraft, viewModel.uiState.value.draft)
         assertEquals(originalNote, viewModel.uiState.value.draft.note)
         assertEquals(1, repository.savedDrafts)
     }
