@@ -438,10 +438,15 @@ open class LifeLinkWorkflowVisualTest {
                 }
             }
         }
-        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 30_000) {
+            composeRule.onAllNodesWithContentDescription("Donor map rendered")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
 
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithTag("donor-map-native-view").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-map-empty-state").assertIsDisplayed()
+        composeRule.onNodeWithText("No donor areas to show").assertIsDisplayed()
         composeRule.onNodeWithText("No donor areas available").assertIsDisplayed()
         composeRule.onNodeWithText("Refresh areas").assertIsDisplayed()
         capture("donor-map-empty")
