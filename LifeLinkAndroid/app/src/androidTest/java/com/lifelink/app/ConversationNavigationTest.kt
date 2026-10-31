@@ -1,12 +1,14 @@
 package com.lifelink.app
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -15,6 +17,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.lifelink.app.core.auth.UserRole
+import com.lifelink.app.core.location.LocalMapLibreStyleJson
 import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
@@ -34,13 +37,14 @@ import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /** Exercise the new navigation paths and screen callbacks through real Compose interactions. */
 @RunWith(AndroidJUnit4::class)
-class ConversationNavigationTest {
+open class ConversationNavigationTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -88,8 +92,19 @@ class ConversationNavigationTest {
     @Test
     fun donor_can_open_chat_and_system_back_returns_to_the_donor_workspace() {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
-        composeRule.onNodeWithContentDescription("Profile").performClick()
-        composeRule.onNodeWithText("Open donor workspace", substring = false).performClick()
+        composeRule.onNodeWithTag("open-profile").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Account, privacy, and LifeLink information.").assertIsDisplayed()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("open-donor-workspace").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("open-donor-workspace").performScrollTo().assertIsDisplayed().performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("donor-workspace-screen").fetchSemanticsNodes().isNotEmpty()
+        }
+        // Capture the actual destination before asserting so a regression leaves a useful
+        // screenshot in the CI artifact rather than only a line-number failure.
+        assertTrue(VisualEvidence.capture("lifelink-donor-workspace-after-open.png"))
+        composeRule.onNodeWithTag("donor-workspace-screen").assertIsDisplayed()
         composeRule.onNodeWithText("Donor workspace", substring = false).assertIsDisplayed()
         composeRule.onNodeWithTag("donor-tab-REQUESTS").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Message requester").performScrollTo().performClick()
@@ -99,7 +114,8 @@ class ConversationNavigationTest {
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
 
         composeRule.onNodeWithText("Conversation").assertDoesNotExist()
-        composeRule.onNodeWithText("Donor workspace").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-tab-REQUESTS").assertIsDisplayed().assertIsSelected()
+        composeRule.onNodeWithText("Message requester").performScrollTo().assertIsDisplayed()
         assertOpenedTimes(1)
     }
 
@@ -178,9 +194,9 @@ class ConversationNavigationTest {
         composeRule.runOnIdle { assertEquals("saved-request" to "donor-42", opened.last()) }
     }
 
-    /** Verifies unsaved coordinates and service radius survive entering and leaving the full-screen editor. */
+    /** Verifies unsaved radius and GPS-only controls survive full-screen editor transitions. */
     @Test
-    fun unsaved_profile_coordinates_and_radius_survive_full_screen_transitions() {
+    fun unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions() {
         composeRule.setContent {
             LifeLinkTheme {
                 DonorScreen(DonorUiState(profile = profile), onAction = {}, onBack = {})
@@ -188,8 +204,7 @@ class ConversationNavigationTest {
         }
         composeRule.onNodeWithText("Edit donor profile").performScrollTo().performClick()
         replaceField("Service radius (km)", "27")
-        replaceField("Latitude", "14.75")
-        replaceField("Longitude", "121.25")
+        composeRule.onNodeWithText("Update current location").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Open profile in full screen").performClick()
 
         assertEditorValues()
@@ -202,11 +217,10 @@ class ConversationNavigationTest {
         composeRule.onNodeWithText(label).performScrollTo().performTextReplacement(value)
     }
 
-    /** Asserts that the editor still displays the unsaved radius and coordinates entered by the test. */
+    /** Asserts the unsaved radius and GPS-only location control remain available. */
     private fun assertEditorValues() {
         composeRule.onNodeWithText("Service radius (km)").performScrollTo().assertTextContains("27")
-        composeRule.onNodeWithText("Latitude").performScrollTo().assertTextContains("14.75")
-        composeRule.onNodeWithText("Longitude").performScrollTo().assertTextContains("121.25")
+        composeRule.onNodeWithText("Update current location").performScrollTo().assertIsDisplayed()
     }
 
     /** Checks on the idle UI thread that every recorded action opens the expected request and donor pair. */
@@ -245,13 +259,17 @@ class ConversationNavigationTest {
         val state = mutableStateOf(PrivacyUiState(mapLoading = true))
         composeRule.setContent {
             LifeLinkTheme {
-                DonorMapScreen(state.value, onAction = {}, onBack = {})
+                CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                    DonorMapScreen(state.value, onAction = {}, onBack = {})
+                }
             }
         }
 
         composeRule.onNodeWithText("Loading donor areas…").assertIsDisplayed()
         composeRule.onNodeWithText("No donor areas available").assertDoesNotExist()
         composeRule.onNodeWithText("0 areas").assertDoesNotExist()
+        composeRule.waitForIdle()
+        assertTrue(VisualEvidence.capture("lifelink-phone-light-donor-map-loading-state.png"))
 
         composeRule.runOnIdle { state.value = PrivacyUiState(mapError = "Could not load donor areas.") }
         composeRule.onNodeWithText("Could not load donor areas.").assertIsDisplayed()
@@ -262,6 +280,40 @@ class ConversationNavigationTest {
         composeRule.onNodeWithText("No donor areas available").assertIsDisplayed()
     }
 
+    /** Uses only a local synthetic fixture to verify list rendering and both donor-map filters. */
+    @Test
+    fun donor_map_synthetic_fixture_filters_areas_without_live_data() {
+        composeRule.setContent {
+            LifeLinkTheme {
+                CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                    DonorMapScreen(
+                        state = SyntheticDonorMapFixture.state,
+                        onAction = {},
+                        onBack = {},
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
+        composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area B").assertIsDisplayed()
+
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("O+", substring = false).performClick()
+        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area B").assertDoesNotExist()
+
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+        composeRule.onNodeWithText("Synthetic Test Area B").assertIsDisplayed()
+        composeRule.onNodeWithText("Available now", substring = false).performClick()
+        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area B").assertDoesNotExist()
+    }
+
     /** Renders a restorable shell for the supplied role, skips welcome, and records privacy actions. */
     private fun renderShell(restoration: StateRestorationTester, role: UserRole) {
         composeRule.activity.getSharedPreferences("lifelink_welcome", 0)
@@ -270,31 +322,33 @@ class ConversationNavigationTest {
             .commit()
         restoration.setContent {
             LifeLinkTheme {
-                LifeLinkShell(
-                    state = contactResults("accepted"),
-                    onAction = {},
-                    donorState = DonorUiState(profile = profile, requests = listOf(request.copy(response = DonorResponse.ACCEPTED))),
-                    onDonorAction = {},
-                    becomeDonorState = com.lifelink.app.feature.donor.BecomeDonorUiState(loading = false),
-                    onBecomeDonorAction = {},
-                    privacyState = PrivacyUiState(),
-                    onPrivacyAction = { actions += it },
-                    role = role,
-                    onSwitchRole = {},
-                    accountEmail = "conversation@example.invalid",
-                    accountUserId = "conversation-test",
-                    accountDisplayName = "Test User",
-                    profileSaving = false,
-                    profileMessage = null,
-                    onSaveProfile = {},
-                    themeMode = ThemeMode.LIGHT,
-                    onThemeModeChange = {},
-                    onRequestPasswordReset = {},
-                    onSignOut = {},
-                    updates = emptyList(),
-                    onUpdateRead = {},
-                    onMarkAllUpdatesRead = {},
-                )
+                CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                    LifeLinkShell(
+                        state = contactResults("accepted"),
+                        onAction = {},
+                        donorState = DonorUiState(profile = profile, requests = listOf(request.copy(response = DonorResponse.ACCEPTED))),
+                        onDonorAction = {},
+                        becomeDonorState = com.lifelink.app.feature.donor.BecomeDonorUiState(loading = false),
+                        onBecomeDonorAction = {},
+                        privacyState = PrivacyUiState(),
+                        onPrivacyAction = { actions += it },
+                        role = role,
+                        onSwitchRole = {},
+                        accountEmail = "conversation@example.invalid",
+                        accountUserId = "conversation-test",
+                        accountDisplayName = "Test User",
+                        profileSaving = false,
+                        profileMessage = null,
+                        onSaveProfile = {},
+                        themeMode = ThemeMode.LIGHT,
+                        onThemeModeChange = {},
+                        onRequestPasswordReset = {},
+                        onSignOut = {},
+                        updates = emptyList(),
+                        onUpdateRead = {},
+                        onMarkAllUpdatesRead = {},
+                    )
+                }
             }
         }
     }

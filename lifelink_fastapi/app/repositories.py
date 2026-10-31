@@ -8,7 +8,7 @@ rather than hiding it behind synchronous wrappers.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -43,6 +43,7 @@ from .main import (
     RequestRecord,
     RequestStatus,
     RequestStore,
+    donor_location_max_age_minutes,
     require_verified_donors,
 )
 
@@ -72,9 +73,13 @@ class SqlAlchemyDonorRepository(DonorRepository):
 
     async def list_active_donors(self, excluded_user_id: str | None = None) -> list[Donor]:
         """Return donors that are available and visible, optionally excluding one user."""
+        # An old database flag must not keep a donor matchable after their
+        # last server-recorded availability/location update has gone stale.
+        freshness_cutoff = datetime.now(UTC) - timedelta(minutes=donor_location_max_age_minutes())
         conditions = [
             DonorRow.available.is_(True),
             DonorRow.profile_visible.is_(True),
+            DonorRow.last_presence_at >= freshness_cutoff,
         ]
         if require_verified_donors():
             conditions.append(DonorRow.verified.is_(True))
@@ -92,7 +97,7 @@ class SqlAlchemyDonorRepository(DonorRepository):
                 latitude=float(row.latitude),
                 longitude=float(row.longitude),
                 available=row.available,
-                availability_updated_at=row.availability_updated_at,
+                availability_updated_at=row.last_presence_at or datetime.min.replace(tzinfo=UTC),
                 verified=row.verified,
                 service_radius_km=float(row.service_radius_km),
                 estimated_response_probability=float(row.estimated_response_probability),
@@ -248,7 +253,11 @@ class SqlAlchemyRequestStore(RequestStore):
                 sharing_consent_confirmed=record.payload.sharing_consent_confirmed,
                 idempotency_key=record.payload.idempotency_key,
                 status=record.status.value,
-                matching_version=MATCHING_VERSION,
+                matching_version=(
+                    "v1-explainable-weighted"
+                    if record.payload.ai_matching_enabled
+                    else "v1-distance-only"
+                ),
                 created_at=record.created_at,
             )
             self.session.add(existing)
@@ -514,7 +523,7 @@ class SqlAlchemyRequestStore(RequestStore):
             "note": row.note,
             "genuine_request_confirmed": row.genuine_request_confirmed,
             "sharing_consent_confirmed": row.sharing_consent_confirmed,
-            "ai_matching_enabled": True,
+            "ai_matching_enabled": row.matching_version != "v1-distance-only",
             "idempotency_key": row.idempotency_key,
         }, context={"stored": True})
         matches = [

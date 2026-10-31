@@ -12,7 +12,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db_models import (
@@ -44,6 +44,15 @@ from .privacy_api import (
 DEFAULT_LOCATION_SHARE_MINUTES = 120
 # The map never shows a finer grid than this, regardless of device accuracy.
 MAP_GRID_METERS = 1000
+
+
+class LocationShareRevokedError(Exception):
+    """Raised when a request-scoped donor consent has already been revoked."""
+
+
+class LocationSharingDisabledError(Exception):
+    """Raised when donor-level location sharing is no longer enabled."""
+
 
 # Contact details are only accepted in a plausible shape, so a typo cannot be
 # broadcast to the other participant as a "shared" phone/email.
@@ -87,19 +96,24 @@ class SqlAlchemyPrivacyStore:
         """
         now = datetime.now(UTC)
         max_age = donor_location_max_age_minutes()
-        freshness = func.coalesce(DonorRow.availability_updated_at, DonorRow.created_at)
+        freshness = DonorRow.last_presence_at
         rows = await self.session.scalars(
             select(DonorRow).where(
                 DonorRow.map_visible.is_(True),
                 DonorRow.available.is_(True),
                 DonorRow.profile_visible.is_(True),
                 # A stale snapshot is not a current location: never show it.
+                freshness.is_not(None),
                 freshness >= now - timedelta(minutes=max_age),
             )
         )
         entries: list[DonorMapEntry] = []
         for row in rows.all():
-            freshness_at = _as_utc(row.availability_updated_at or row.created_at)
+            # Keep the invariant explicit even if the query changes later:
+            # creation/profile timestamps are never substitutes for GPS presence.
+            if row.last_presence_at is None:
+                continue
+            freshness_at = _as_utc(row.last_presence_at)
             age_minutes = max(0, int((now - freshness_at).total_seconds() // 60))
             entries.append(
                 DonorMapEntry(
@@ -123,7 +137,12 @@ class SqlAlchemyPrivacyStore:
         revokes every active location share for the donor, so hiding is real
         rather than cosmetic.
         """
-        row = await self._donor_row(donor_id)
+        row = await self.session.scalar(
+            select(DonorRow)
+            .where(DonorRow.id == donor_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
         if row is None:
             raise KeyError(donor_id)
         now = datetime.now(UTC)
@@ -134,27 +153,59 @@ class SqlAlchemyPrivacyStore:
             # Hiding from the map, or turning off exact-location sharing, must
             # withdraw any live exact-location share immediately.
             await self._revoke_all_shares_for_donor(row.id, now)
-        await self.session.commit()
-        await self.record_audit_async(
-            row.user_id or row.id,
-            "donor_map_visibility_updated",
+        # Commit the privacy change, any share revocations, and its audit
+        # event together. A failed audit insert must roll back the opt-out too.
+        self.session.add(AuditEvent(
+            id=f"audit_{uuid4().hex}",
+            actor_id=row.user_id or row.id,
+            action="donor_map_visibility_updated",
             donor_id=row.id,
-            metadata={
+            event_metadata={
                 "map_visible": payload.map_visible,
                 "exact_location_sharing_enabled": payload.exact_location_sharing_enabled,
             },
-        )
+        ))
+        await self.session.commit()
         return row
 
     # -------------------------------------------------------- location share
+    async def location_share_for_pair(
+        self, request_id: str, donor_id: str
+    ) -> DonorLocationShare | None:
+        """Return the existing request-scoped share, if one exists."""
+        return await self.session.scalar(
+            select(DonorLocationShare).where(
+                DonorLocationShare.request_id == request_id,
+                DonorLocationShare.donor_id == donor_id,
+            )
+        )
+
     async def ensure_location_share(
-        self, request_id: str, donor_id: str, requester_id: str, expires_at: datetime
+        self,
+        request_id: str,
+        donor_id: str,
+        requester_id: str,
+        expires_at: datetime,
+        actor_id: str | None = None,
     ) -> DonorLocationShare:
         """Create or refresh the matched-requester-only exact location share.
 
         Called only after the request has matched the donor. The share expires
         with the request deadline, or sooner if the donor disabled sharing.
         """
+        # Serialize activation and revocation for this donor. Locking the donor
+        # row also covers the first-share case, where no share row exists yet
+        # and therefore cannot itself be locked.
+        donor = await self.session.scalar(
+            select(DonorRow)
+            .where(DonorRow.id == donor_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if donor is None:
+            raise KeyError(donor_id)
+        if not donor.map_visible or not donor.exact_location_sharing_enabled:
+            raise LocationSharingDisabledError(donor_id)
         now = datetime.now(UTC)
         share = await self.session.scalar(
             select(DonorLocationShare).where(
@@ -162,6 +213,8 @@ class SqlAlchemyPrivacyStore:
                 DonorLocationShare.donor_id == donor_id,
             )
         )
+        if share is not None and share.status == "revoked":
+            raise LocationShareRevokedError(request_id)
         window_end = min(_as_utc(expires_at), now + timedelta(minutes=DEFAULT_LOCATION_SHARE_MINUTES))
         if share is None:
             share = DonorLocationShare(
@@ -181,14 +234,36 @@ class SqlAlchemyPrivacyStore:
             share.shared_at = now
             share.expires_at = window_end
             share.updated_at = now
+        # Persist the disclosure and its audit event atomically. A failed audit
+        # insert must not leave an active exact-location share without evidence.
+        self.session.add(AuditEvent(
+            id=f"audit_{uuid4().hex}",
+            actor_id=actor_id or requester_id,
+            action="location_share_activated",
+            request_id=request_id,
+            donor_id=donor_id,
+            event_metadata={},
+        ))
         await self.session.commit()
         return share
 
-    async def revoke_location_share(self, request_id: str, donor_id: str) -> DonorLocationShare:
+    async def revoke_location_share(
+        self, request_id: str, donor_id: str, actor_id: str | None = None
+    ) -> DonorLocationShare:
         """Mark a donor's location share for a request as revoked.
 
         Raises ``KeyError`` when no share exists for the (request, donor) pair.
         """
+        # Use the same per-donor lock as activation so overlapping requests
+        # have a deterministic order and a revoke cannot be overwritten.
+        donor = await self.session.scalar(
+            select(DonorRow)
+            .where(DonorRow.id == donor_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if donor is None:
+            raise KeyError(donor_id)
         share = await self.session.scalar(
             select(DonorLocationShare).where(
                 DonorLocationShare.request_id == request_id,
@@ -201,6 +276,16 @@ class SqlAlchemyPrivacyStore:
         share.status = "revoked"
         share.revoked_at = now
         share.updated_at = now
+        # Revocation and its audit event share one transaction so a successful
+        # withdrawal can never be committed without its corresponding record.
+        self.session.add(AuditEvent(
+            id=f"audit_{uuid4().hex}",
+            actor_id=actor_id or donor_id,
+            action="location_share_revoked",
+            request_id=request_id,
+            donor_id=donor_id,
+            event_metadata={},
+        ))
         await self.session.commit()
         return share
 
@@ -223,8 +308,14 @@ class SqlAlchemyPrivacyStore:
             )
         )
         now = datetime.now(UTC)
-        freshness_at = _as_utc(donor.availability_updated_at or donor.created_at)
-        freshness_age_minutes = max(0.0, (now - freshness_at).total_seconds() / 60)
+        # Profile edits and account creation are not evidence of a fresh GPS observation.
+        # A missing server-recorded presence timestamp must never authorize exact coordinates.
+        freshness_at = _as_utc(donor.last_presence_at) if donor.last_presence_at else None
+        freshness_age_minutes = (
+            float("inf")
+            if freshness_at is None
+            else max(0.0, (now - freshness_at).total_seconds() / 60)
+        )
         reason = None
         live = False
         if share is None:

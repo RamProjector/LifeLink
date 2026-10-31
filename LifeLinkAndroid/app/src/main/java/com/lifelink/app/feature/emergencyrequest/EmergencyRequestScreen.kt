@@ -75,6 +75,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
@@ -135,7 +136,7 @@ fun EmergencyRequestScreen(
     LaunchedEffect(state.submission, state.contactRequestSent) {
         val feedback =
             when (val submission = state.submission) {
-                is SubmissionState.Error -> submission.message to "Retry"
+                is SubmissionState.Error -> submission.message to if (submission.retryable) "Retry" else null
                 is SubmissionState.Matching -> "Request submitted. Matching donors nearby…" to null
                 is SubmissionState.ManualFallback -> "No automatic matches yet. You can broadcast to more potential donors." to "Broadcast"
                 is SubmissionState.QueuedOffline -> "Saved offline. It will sync when connection returns." to null
@@ -313,8 +314,18 @@ private fun DonorPicker(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Results", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !showMap, onClick = { showMap = false }, label = { Text("Donors") })
-                FilterChip(selected = showMap, onClick = { showMap = true }, label = { Text("Map") })
+                FilterChip(
+                    selected = !showMap,
+                    onClick = { showMap = false },
+                    label = { Text("Donors") },
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("request-results-donors-view"),
+                )
+                FilterChip(
+                    selected = showMap,
+                    onClick = { showMap = true },
+                    label = { Text("Map") },
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("request-results-map-view"),
+                )
             }
         }
         if (showMap) {
@@ -391,11 +402,13 @@ private fun DonorPicker(
             val newSelectionCount = state.selectedDonorIds.count { it !in alreadyContactedIds }
             Button(
                 onClick = { onAction(EmergencyRequestAction.ContactSelectedDonors) },
-                enabled = newSelectionCount > 0,
+                enabled = newSelectionCount > 0 && !state.contactSubmissionInFlight,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    if (newSelectionCount > 0) {
+                    if (state.contactSubmissionInFlight) {
+                        "Sending contact request…"
+                    } else if (newSelectionCount > 0) {
                         "Contact $newSelectionCount new donor${if (newSelectionCount == 1) "" else "s"}"
                     } else if (state.selectedDonorIds.isNotEmpty()) {
                         "Selected donors already contacted"

@@ -17,6 +17,23 @@ interface EmergencyRequestDraftDao {
     @Query("SELECT * FROM emergency_request_drafts WHERE ownerId = :ownerId AND id = :id LIMIT 1")
     suspend fun findById(ownerId: String, id: String): EmergencyRequestDraftEntity?
 
+    @Query(
+        """
+        SELECT draft.*
+        FROM emergency_request_drafts AS draft
+        WHERE draft.ownerId = :ownerId
+          AND NOT EXISTS (
+              SELECT 1
+              FROM pending_submissions AS pending
+              WHERE pending.ownerId = draft.ownerId
+                AND pending.id = draft.id
+          )
+        ORDER BY draft.updatedAtEpochMillis DESC
+        LIMIT 1
+        """,
+    )
+    suspend fun findLatestUnqueued(ownerId: String): EmergencyRequestDraftEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(draft: EmergencyRequestDraftEntity)
 
@@ -27,7 +44,18 @@ interface EmergencyRequestDraftDao {
     suspend fun clearAll(ownerId: String)
 }
 
-@Database(entities = [EmergencyRequestDraftEntity::class, PendingSubmissionEntity::class, ActiveRequestEntity::class, DonorProfileEntity::class, DonorRequestEntity::class, UpdateEntity::class], version = 9, exportSchema = false)
+@Database(
+    entities = [
+        EmergencyRequestDraftEntity::class,
+        PendingSubmissionEntity::class,
+        ActiveRequestEntity::class,
+        DonorProfileEntity::class,
+        DonorRequestEntity::class,
+        UpdateEntity::class,
+    ],
+    version = 9,
+    exportSchema = false,
+)
 abstract class LifeLinkDatabase : RoomDatabase() {
     abstract fun emergencyRequestDraftDao(): EmergencyRequestDraftDao
     abstract fun pendingSubmissionDao(): PendingSubmissionDao
@@ -44,28 +72,36 @@ abstract class LifeLinkDatabase : RoomDatabase() {
     }
 
     companion object {
-        @Volatile private var INSTANCE: LifeLinkDatabase? = null
+        @Volatile private var instance: LifeLinkDatabase? = null
 
         fun getInstance(context: Context): LifeLinkDatabase =
-            INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
+            instance ?: synchronized(this) {
+                instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     LifeLinkDatabase::class.java,
-                    "lifelink.db"
-                ).addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5).build().also { INSTANCE = it }
+                    "lifelink.db",
+                ).addMigrations(
+                    migration6To7,
+                    migration7To8,
+                    migration8To9,
+                ).fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5).build().also {
+                    instance =
+                        it
+                }
             }
 
-        internal val MIGRATION_6_7 = object : Migration(6, 7) {
+        internal val migration6To7 = object : Migration(6, 7) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 // Preserve legacy rows, but never assign unowned data to a signed-in user.
                 addOwnerIfMissing(database, "active_requests")
             }
         }
 
-        internal val MIGRATION_7_8 = object : Migration(7, 8) {
+        internal val migration7To8 = object : Migration(7, 8) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE donor_requests RENAME TO donor_requests_legacy")
-                database.execSQL("""
+                database.execSQL(
+                    """
                     CREATE TABLE donor_requests (
                         donorId TEXT NOT NULL,
                         requestId TEXT NOT NULL,
@@ -78,17 +114,20 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                         response TEXT,
                         PRIMARY KEY(donorId, requestId)
                     )
-                """.trimIndent())
-                database.execSQL("""
+                    """.trimIndent(),
+                )
+                database.execSQL(
+                    """
                     INSERT INTO donor_requests
                     SELECT '', requestId, bloodType, units, urgency, facilityName, area, distanceKm, response
                     FROM donor_requests_legacy
-                """.trimIndent())
+                    """.trimIndent(),
+                )
                 database.execSQL("DROP TABLE donor_requests_legacy")
             }
         }
 
-        internal val MIGRATION_8_9 = object : Migration(8, 9) {
+        internal val migration8To9 = object : Migration(8, 9) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 // Some v7/v8 installs predate ownerId on active_requests.
                 addOwnerIfMissing(database, "active_requests")
@@ -122,10 +161,13 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                     val type = cursor.getString(cursor.getColumnIndexOrThrow("type"))
                     val required = cursor.getInt(cursor.getColumnIndexOrThrow("notnull")) == 1
                     columns += "`$name`"
-                    definitions += "`$name` $type" + if (required) " NOT NULL" else ""
+                    definitions += "`$name` $type" +
+                        if (required) " NOT NULL" else ""
                 }
             }
-            database.execSQL("CREATE TABLE `${table}_owned` (ownerId TEXT NOT NULL, ${definitions.joinToString()}, PRIMARY KEY(ownerId, id))")
+            database.execSQL(
+                "CREATE TABLE `${table}_owned` (ownerId TEXT NOT NULL, ${definitions.joinToString()}, PRIMARY KEY(ownerId, id))",
+            )
             database.execSQL("INSERT INTO `${table}_owned` SELECT $ownerExpression, ${columns.joinToString()} FROM `$table`")
             database.execSQL("DROP TABLE `$table`")
             database.execSQL("ALTER TABLE `${table}_owned` RENAME TO `$table`")

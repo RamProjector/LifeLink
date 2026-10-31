@@ -146,6 +146,13 @@ async def setup_donor(
         json={"map_visible": map_visible, "exact_location_sharing_enabled": exact_sharing},
     )
     assert visibility.status_code == 200, visibility.text
+    # Profile and availability writes do not refresh GPS presence; the
+    # fixture models the separate location observation sent by the Android app.
+    presence = await client.post(
+        f"/v1/donors/{donor_id}/presence",
+        json={"latitude": latitude, "longitude": longitude, "precision_meters": 35},
+    )
+    assert presence.status_code == 200, presence.text
 
 
 async def submit_request(client, current, requester_id: str, **kwargs) -> dict:
@@ -168,6 +175,22 @@ def test_donor_map_shows_approximate_areas_only(pg_url):
         assert body["approximate_only"] is True
         assert len(body["entries"]) == 1
         entry = body["entries"][0]
+        # Treat the public map response as an allowlisted privacy contract:
+        # adding an identity, contact, or exact-location field must fail this test.
+        assert set(entry) == {
+            "area_label",
+            "latitude",
+            "longitude",
+            "radius_meters",
+            "blood_type",
+            "availability",
+            "freshness_at",
+            "freshness_age_minutes",
+            "is_stale",
+        }
+        assert -90 <= entry["latitude"] <= 90
+        assert -180 <= entry["longitude"] <= 180
+        assert entry["radius_meters"] >= 1000
         # Coarsened to a ~1 km grid, never the exact stored coordinate.
         assert entry["latitude"] == 11.24
         assert entry["longitude"] == 125.0
@@ -193,14 +216,21 @@ def test_donor_map_requires_authentication(pg_url):
 
 def test_hiding_from_map_revokes_live_location_share(pg_url):
     async def scenario(client, current, run_sql):
-        donor, requester = new_user("donor"), new_user("requester")
+        donor, requester, stranger = (
+            new_user("donor"), new_user("requester"), new_user("stranger")
+        )
         await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
-        current["id"] = requester
-        activated = await client.post(
+        location_share_path = (
             f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
         )
+        current["id"] = stranger
+        stranger_activation = await client.post(location_share_path)
+        assert stranger_activation.status_code == 403, stranger_activation.text
+
+        current["id"] = requester
+        activated = await client.post(location_share_path)
         assert activated.status_code == 200, activated.text
         visible = await client.get(
             f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
@@ -216,12 +246,79 @@ def test_hiding_from_map_revokes_live_location_share(pg_url):
         assert hidden.status_code == 200, hidden.text
 
         current["id"] = requester
+        # A requester cannot silently reactivate a share after the donor revoked
+        # it, even though the donor's account-level opt-in remains enabled.
+        reactivated = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
+        )
+        assert reactivated.status_code == 409, reactivated.text
+
         after = await client.get(
             f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
         )
         assert after.json()["shared"] is False
         assert after.json()["latitude"] is None
         assert after.json()["longitude"] is None
+
+        # The repository must independently enforce the account-level opt-out,
+        # even if a future caller bypasses the HTTP route's pre-check.
+        from app.privacy_repositories import LocationSharingDisabledError, SqlAlchemyPrivacyStore
+
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        with pytest.raises(LocationSharingDisabledError):
+            async with sessions() as session:
+                await SqlAlchemyPrivacyStore(session).ensure_location_share(
+                    created["request_id"],
+                    donor,
+                    requester,
+                    datetime.now(UTC) + timedelta(hours=1),
+                )
+        await engine.dispose()
+
+    run_scenario(pg_url, scenario)
+
+
+def test_location_share_activation_refreshes_locked_donor_consent(pg_url):
+    """A stale ORM identity-map object must not override a newer donor opt-out."""
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+
+        from app.privacy_repositories import LocationSharingDisabledError, SqlAlchemyPrivacyStore
+
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        async with sessions() as activation_session:
+            # Simulate the route having loaded the donor before another request
+            # commits the opt-out. The identity map now contains stale consent.
+            loaded = await activation_session.get(db_models.Donor, donor)
+            assert loaded is not None and loaded.map_visible is True
+            assert loaded.exact_location_sharing_enabled is True
+
+            async with sessions() as optout_session:
+                changed = await optout_session.get(db_models.Donor, donor)
+                assert changed is not None
+                changed.map_visible = False
+                await optout_session.commit()
+
+            with pytest.raises(LocationSharingDisabledError):
+                await SqlAlchemyPrivacyStore(activation_session).ensure_location_share(
+                    created["request_id"],
+                    donor,
+                    requester,
+                    datetime.now(UTC) + timedelta(hours=1),
+                )
+            assert loaded.map_visible is False
+
+        async with engine.connect() as connection:
+            result = await connection.execute(
+                text("SELECT COUNT(*) FROM donor_location_shares WHERE request_id = :request_id"),
+                {"request_id": created["request_id"]},
+            )
+            assert result.scalar_one() == 0
+        await engine.dispose()
 
     run_scenario(pg_url, scenario)
 
@@ -230,9 +327,9 @@ def test_exact_location_requires_a_match_and_donor_opt_in(pg_url):
     async def scenario(client, current, run_sql):
         matched, unmatched = new_user("donor"), new_user("donor")
         requester = new_user("requester")
-        await setup_donor(client, current, matched, blood_type="O+", exact_sharing=True)
+        await setup_donor(client, current, matched, blood_type="O+", map_visible=True, exact_sharing=True)
         # A+ donor is not compatible with an O+ request, so it never matches.
-        await setup_donor(client, current, unmatched, blood_type="A+", exact_sharing=True)
+        await setup_donor(client, current, unmatched, blood_type="A+", map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
         assert [m["donor_id"] for m in created["matches"]] == [matched]
 
@@ -255,10 +352,67 @@ def test_exact_location_requires_a_match_and_donor_opt_in(pg_url):
     run_scenario(pg_url, scenario)
 
 
+
+def test_exact_location_is_restricted_to_the_requesting_account(pg_url):
+    """A live share must not become readable by a donor or unrelated account.
+
+    Regression coverage for object-level authorization: knowing both the
+    request ID and donor ID is not sufficient to retrieve exact GPS coordinates.
+    """
+    async def scenario(client, current, run_sql):
+        donor, requester, stranger = (
+            new_user("donor"),
+            new_user("requester"),
+            new_user("stranger"),
+        )
+        await setup_donor(
+            client,
+            current,
+            donor,
+            latitude=11.2447,
+            longitude=125.0023,
+            map_visible=True,
+            exact_sharing=True,
+        )
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        activated = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
+        )
+        assert activated.status_code == 200, activated.text
+
+        location_path = (
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
+        )
+
+        # A third party who knows both identifiers still cannot retrieve GPS.
+        current["id"] = stranger
+        stranger_response = await client.get(location_path)
+        assert stranger_response.status_code == 403, stranger_response.text
+
+        # The donor is a participant, but exact coordinates are requester-only.
+        current["id"] = donor
+        donor_response = await client.get(location_path)
+        assert donor_response.status_code == 403, donor_response.text
+
+        # The authorized requester receives the exact coordinates only while
+        # the donor's explicit share is active.
+        current["id"] = requester
+        requester_response = await client.get(location_path)
+        assert requester_response.status_code == 200, requester_response.text
+        body = requester_response.json()
+        assert body["shared"] is True
+        assert body["latitude"] == 11.2447
+        assert body["longitude"] == 125.0023
+
+    run_scenario(pg_url, scenario)
+
+
 def test_exact_location_expires_when_request_is_cancelled(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -285,7 +439,7 @@ def test_exact_location_expires_when_request_is_cancelled(pg_url):
 def test_donor_can_revoke_exact_location_share(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -298,11 +452,48 @@ def test_donor_can_revoke_exact_location_share(pg_url):
         assert revoked.status_code == 200, revoked.text
         assert revoked.json()["status"] == "revoked"
 
+        # The consent lifecycle is auditable without recording precise GPS.
+        audit_rows = await run_sql(
+            "SELECT actor_id, action, request_id, donor_id, metadata "
+            "FROM audit_events "
+            "WHERE action IN ('location_share_activated', 'location_share_revoked') "
+            "ORDER BY created_at",
+        )
+        assert audit_rows == [
+            (requester, "location_share_activated", created["request_id"], donor, {}),
+            (donor, "location_share_revoked", created["request_id"], donor, {}),
+        ]
+
         current["id"] = requester
         after = await client.get(
             f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
         )
         assert after.json()["shared"] is False
+
+        # Defense in depth: even callers that bypass the HTTP pre-check cannot
+        # reactivate a revoked consent through the repository write method.
+        from app.privacy_repositories import LocationShareRevokedError, SqlAlchemyPrivacyStore
+
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        with pytest.raises(LocationShareRevokedError):
+            async with sessions() as session:
+                await SqlAlchemyPrivacyStore(session).ensure_location_share(
+                    created["request_id"],
+                    donor,
+                    requester,
+                    datetime.now(UTC) + timedelta(hours=1),
+                )
+        async with engine.connect() as connection:
+            status_result = await connection.execute(
+                text(
+                    "SELECT status FROM donor_location_shares "
+                    "WHERE request_id = :request_id AND donor_id = :donor_id"
+                ),
+                {"request_id": created["request_id"], "donor_id": donor},
+            )
+            assert status_result.scalar_one() == "revoked"
+        await engine.dispose()
 
     run_scenario(pg_url, scenario)
 
@@ -452,16 +643,42 @@ def test_map_visibility_off_revokes_live_share(pg_url):
     run_scenario(pg_url, scenario)
 
 
-def test_stale_donor_is_hidden_from_the_map(pg_url):
+def test_legacy_donor_gps_presence_refreshes_stale_location(pg_url):
     async def scenario(client, current, run_sql):
         donor = new_user("donor")
         await setup_donor(client, current, donor, map_visible=True)
         await run_sql(
-            f"UPDATE donors SET availability_updated_at = now() - interval '10 days' WHERE id = '{donor}'"
+            f"UPDATE donors SET last_presence_at = now() - interval '10 days' WHERE id = '{donor}'"
         )
+        current["id"] = donor
+        refreshed = await client.post(
+            f"/v1/donors/{donor}/presence",
+            json={"latitude": 11.2540, "longitude": 125.0110, "precision_meters": 35},
+        )
+        assert refreshed.status_code == 200, refreshed.text
+
         current["id"] = new_user("viewer")
         body = (await client.get("/v1/donor-map")).json()
-        assert body["entries"] == []
+        assert len(body["entries"]) == 1
+        assert body["entries"][0]["latitude"] == 11.25
+        assert body["entries"][0]["longitude"] == 125.01
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donors_without_fresh_gps_presence_are_hidden_from_the_map(pg_url):
+    async def scenario(client, current, run_sql):
+        stale_donor, never_present = new_user("donor"), new_user("donor")
+        await setup_donor(client, current, stale_donor, map_visible=True)
+        await setup_donor(client, current, never_present, map_visible=True)
+        await run_sql(
+            f"UPDATE donors SET last_presence_at = now() - interval '10 days' "
+            f"WHERE id = '{stale_donor}'"
+        )
+        await run_sql(f"UPDATE donors SET last_presence_at = NULL WHERE id = '{never_present}'")
+        current["id"] = new_user("viewer")
+        body = (await client.get("/v1/donor-map")).json()
+        assert body["entries"] == [], "stale and never-refreshed donors must both be hidden"
 
     run_scenario(pg_url, scenario)
 
@@ -469,7 +686,7 @@ def test_stale_donor_is_hidden_from_the_map(pg_url):
 def test_exact_location_requires_a_fresh_donor_location(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
 
         current["id"] = requester
@@ -480,13 +697,24 @@ def test_exact_location_requires_a_fresh_donor_location(pg_url):
 
         # The donor's snapshot goes stale: the pin must stop being disclosed.
         await run_sql(
-            f"UPDATE donors SET availability_updated_at = now() - interval '10 days' WHERE id = '{donor}'"
+            f"UPDATE donors SET last_presence_at = now() - interval '10 days' WHERE id = '{donor}'"
         )
         after = await client.get(
             f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
         )
         assert after.json()["shared"] is False
         assert "fresh" in (after.json()["reason"] or "").lower()
+
+        # A missing GPS timestamp must also deny disclosure; profile edits or
+        # account timestamps must never be treated as a substitute GPS fix.
+        await run_sql(f"UPDATE donors SET last_presence_at = NULL WHERE id = '{donor}'")
+        never_present = await client.get(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
+        )
+        assert never_present.json()["shared"] is False
+        assert "fresh" in (never_present.json()["reason"] or "").lower()
+        assert never_present.json().get("latitude") is None
+        assert never_present.json().get("longitude") is None
 
     run_scenario(pg_url, scenario)
 
@@ -554,7 +782,7 @@ def test_blank_message_is_rejected(pg_url):
 def test_location_share_cannot_be_activated_on_an_inactive_request(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
         current["id"] = requester
         cancelled = await client.post(f"/v1/emergency-requests/{created['request_id']}/cancel")
@@ -570,7 +798,7 @@ def test_location_share_cannot_be_activated_on_an_inactive_request(pg_url):
 def test_sweeper_expires_shares_for_timed_out_requests(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        await setup_donor(client, current, donor, exact_sharing=True)
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
         current["id"] = requester
         await client.post(f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share")
@@ -900,3 +1128,73 @@ def test_donor_with_distinct_user_id_can_use_the_conversation(pg_url):
         assert denied.status_code == 403, denied.text
 
     run_scenario(pg_url, scenario)
+
+
+def test_map_visibility_change_and_audit_are_atomic(pg_url):
+    """A failed audit insert must roll back consent changes and share revocation."""
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        activated = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
+        )
+        assert activated.status_code == 200, activated.text
+
+        # setup_donor() records the initial visibility choice in the audit
+        # log. Capture that existing count so this test checks that the failed
+        # update adds no new event rather than incorrectly expecting an empty log.
+        baseline_audit_rows = await run_sql(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'donor_map_visibility_updated'",
+        )
+
+        # Simulate an audit-storage failure at the database boundary. The
+        # privacy update must not partially commit before the audit insert.
+        await run_sql(
+            """
+            CREATE OR REPLACE FUNCTION reject_map_visibility_audit()
+            RETURNS trigger AS $$
+            BEGIN
+                IF NEW.action = 'donor_map_visibility_updated' THEN
+                    RAISE EXCEPTION 'simulated audit storage failure';
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            """
+        )
+        await run_sql(
+            """
+            CREATE TRIGGER reject_map_visibility_audit_trigger
+            BEFORE INSERT ON audit_events
+            FOR EACH ROW EXECUTE FUNCTION reject_map_visibility_audit()
+            """
+        )
+
+        current["id"] = donor
+        failed = await client.put(
+            f"/v1/donors/{donor}/map-visibility",
+            json={"map_visible": False, "exact_location_sharing_enabled": True},
+        )
+        # Database/audit storage failures use the API-wide retryable 503 contract.
+        assert failed.status_code == 503, failed.text
+
+        # The donor's consent and existing share remain unchanged because the
+        # privacy update, share revocation, and audit row share one transaction.
+        state = await run_sql(
+            f"SELECT map_visible, exact_location_sharing_enabled FROM donors WHERE id = '{donor}'",
+        )
+        assert state == [(True, True)]
+        share_state = await run_sql(
+            f"SELECT status FROM donor_location_shares WHERE request_id = '{created['request_id']}' AND donor_id = '{donor}'",
+        )
+        assert share_state == [("active",)]
+        audit_rows = await run_sql(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'donor_map_visibility_updated'",
+        )
+        assert audit_rows == baseline_audit_rows
+
+    run_scenario(pg_url, scenario)
+

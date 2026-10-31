@@ -42,7 +42,10 @@ class AuthScreenVisualTest {
         composeRule.onNodeWithText("LifeLink").assertIsDisplayed()
         composeRule.onNodeWithText("Email address").assertIsDisplayed()
 
-        VisualEvidence.capture("lifelink-auth-screen.png")
+        org.junit.Assert.assertTrue(
+            "Required authentication screenshot capture failed",
+            VisualEvidence.capture("lifelink-auth-screen.png"),
+        )
 
         composeRule.onNodeWithText("Create an account").performScrollTo().performClick()
         composeRule.onNodeWithText("Confirm password").assertIsDisplayed()

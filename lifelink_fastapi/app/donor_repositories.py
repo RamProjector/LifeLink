@@ -93,8 +93,8 @@ class SqlAlchemyDonorStore:
             row.user_id = donor_id
             row.display_name = payload.display_name
             row.blood_type = payload.blood_type.value
-            row.latitude = Decimal(str(payload.latitude))
-            row.longitude = Decimal(str(payload.longitude))
+            # Coordinates are updated only by the dedicated GPS-presence endpoint.
+            # Profile edits must not replace a fresh operational location with client data.
             row.service_radius_km = Decimal(str(payload.service_radius_km))
             # `verified` is intentionally left as stored: clients cannot verify themselves,
             # and re-saving a profile must not un-verify an already verified donor.
@@ -126,7 +126,7 @@ class SqlAlchemyDonorStore:
             latitude=float(row.latitude),
             longitude=float(row.longitude),
             available=row.available,
-            availability_updated_at=row.availability_updated_at,
+            availability_updated_at=row.last_presence_at or datetime.min.replace(tzinfo=UTC),
             verified=row.verified,
             service_radius_km=float(row.service_radius_km),
             estimated_response_probability=float(row.estimated_response_probability),

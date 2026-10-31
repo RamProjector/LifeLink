@@ -1,5 +1,7 @@
 package com.lifelink.app.feature.privacy
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,15 +21,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Button
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,11 +55,80 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.core.location.LocalMapLibreStyleJson
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
+import com.lifelink.app.core.ui.LifeLinkFeedbackCard
+import com.lifelink.app.core.ui.LifeLinkFeedbackLevel
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
+import com.lifelink.app.domain.DonorMapArea
+
+private fun donorAreaKey(area: DonorMapArea): String =
+    "${area.latitude}|${area.longitude}|${area.bloodType}|${area.freshnessAt}"
+
+private fun donorAreaCountLabel(count: Int, context: String): String {
+    val noun = if (count == 1) "area" else "areas"
+    return if (context.isBlank()) "$count $noun" else "$count $context $noun"
+}
+
+@Composable
+private fun DonorAreaDetailsScreen(area: DonorMapArea, onBack: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        OutlinedButton(
+            onClick = onBack,
+            modifier = Modifier.sizeIn(minHeight = 48.dp).testTag("donor-area-back"),
+        ) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+            Text("Back to map")
+        }
+        Text(
+            "Donor area details",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.semantics { heading() },
+        )
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(area.areaLabel, style = MaterialTheme.typography.titleMedium)
+                Text("Blood type: ${area.bloodType}")
+                Text("Availability: ${area.availability}")
+                Text("Approximate coverage: at least ${area.radiusMeters} m")
+                Text(
+                    if (area.isStale) {
+                        "Location may be out of date"
+                    } else {
+                        "Last updated about ${area.freshnessAgeMinutes} minutes ago"
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer,
+        ) {
+            Text(
+                "Privacy protected: this view shows an approximate area only. " +
+                    "Donor identity, contact details, and exact coordinates are not disclosed here.",
+                Modifier.fillMaxWidth().padding(16.dp),
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
 
 private const val DEFAULT_MAP_LATITUDE = 14.5995
 private const val DEFAULT_MAP_LONGITUDE = 120.9842
@@ -77,13 +150,23 @@ fun DonorMapScreen(
     embeddedInShell: Boolean = false,
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
+    val mapStyleJson = LocalMapLibreStyleJson.current
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
     var showList by rememberSaveable { mutableStateOf(false) }
     var privacyOpen by rememberSaveable { mutableStateOf(false) }
     var selectedBloodType by rememberSaveable { mutableStateOf("All") }
     var availableOnly by rememberSaveable { mutableStateOf(false) }
+    var selectedAreaKey by rememberSaveable { mutableStateOf("") }
     val areas = state.map?.areas.orEmpty()
+    val selectedArea = areas.firstOrNull { donorAreaKey(it) == selectedAreaKey }
+    if (selectedArea != null) {
+        BackHandler { selectedAreaKey = "" }
+        DonorAreaDetailsScreen(selectedArea) { selectedAreaKey = "" }
+        return
+    }
     val bloodTypes = listOf("All") + areas.map { it.bloodType }.distinct().sorted()
+    val activeFilterCount =
+        (if (selectedBloodType == "All") 0 else 1) + (if (availableOnly) 1 else 0)
     val filteredAreas = areas.filter { area ->
         (selectedBloodType == "All" || area.bloodType == selectedBloodType) &&
             (!availableOnly || area.availability.equals("Available", ignoreCase = true))
@@ -112,7 +195,14 @@ fun DonorMapScreen(
                 ) {
                     items(filteredAreas) { area ->
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .sizeIn(minHeight = 56.dp)
+                                .clickable(
+                                    role = Role.Button,
+                                    onClickLabel = "View donor area details",
+                                ) { selectedAreaKey = donorAreaKey(area) }
+                                .testTag("donor-area-card"),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                             ),
@@ -151,6 +241,8 @@ fun DonorMapScreen(
                 areas = filteredAreas,
                 modifier = Modifier.fillMaxSize(),
                 fullScreen = true,
+                onAreaSelected = { area -> selectedAreaKey = donorAreaKey(area) },
+                styleJson = mapStyleJson,
             )
         }
 
@@ -158,7 +250,9 @@ fun DonorMapScreen(
         // Those states need their own truthful feedback and recovery action.
         if (!state.mapLoading && state.mapError == null && filteredAreas.isEmpty()) {
             Surface(
-                Modifier.align(Alignment.Center).padding(24.dp).widthIn(max = 360.dp),
+                Modifier.align(Alignment.BottomCenter)
+                    .padding(start = 24.dp, end = 24.dp, bottom = 88.dp)
+                    .widthIn(max = 360.dp),
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
                 shadowElevation = 4.dp,
@@ -203,6 +297,10 @@ fun DonorMapScreen(
                         ) {
                             Text("Clear filters")
                         }
+                    } else {
+                        OutlinedButton(onClick = { onAction(PrivacyAction.LoadMap) }) {
+                            Text("Refresh areas")
+                        }
                     }
                 }
             }
@@ -238,8 +336,22 @@ fun DonorMapScreen(
             ) {
                 Text(if (showList) "Map" else "List")
             }
-            IconButton(onClick = { filtersOpen = !filtersOpen }) {
-                Icon(Icons.Default.FilterList, contentDescription = if (filtersOpen) "Hide map filters" else "Show map filters")
+            BadgedBox(
+                badge = {
+                    if (activeFilterCount > 0) {
+                        Badge { Text(activeFilterCount.toString()) }
+                    }
+                },
+            ) {
+                IconButton(onClick = { filtersOpen = !filtersOpen }) {
+                    val filterAction = if (filtersOpen) "Hide map filters" else "Show map filters"
+                    val filterDescription = if (activeFilterCount == 0) {
+                        filterAction
+                    } else {
+                        "$filterAction, $activeFilterCount active filters"
+                    }
+                    Icon(Icons.Default.FilterList, contentDescription = filterDescription)
+                }
             }
             IconButton(onClick = { privacyOpen = !privacyOpen }) {
                 Icon(Icons.Default.Shield, contentDescription = "Map privacy controls")
@@ -253,7 +365,8 @@ fun DonorMapScreen(
             Card(
                 Modifier.align(Alignment.TopCenter)
                     .then(if (embeddedInShell) Modifier else Modifier.statusBarsPadding())
-                    .padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                    .padding(top = 72.dp, start = 16.dp, end = 16.dp)
+                    .semantics { paneTitle = "Donor map filters" }.testTag("donor-map-filter-panel"),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             ) {
@@ -270,26 +383,31 @@ fun DonorMapScreen(
                             selected = availableOnly,
                             onClick = { availableOnly = !availableOnly },
                             label = { Text("Available now") },
+                            modifier = Modifier.sizeIn(minHeight = 48.dp),
                         )
                         bloodTypes.forEach { type ->
                             FilterChip(
                                 selected = selectedBloodType == type,
                                 onClick = { selectedBloodType = type },
                                 label = { Text(type) },
+                                modifier = Modifier.sizeIn(minHeight = 48.dp),
                             )
                         }
                     }
-                    if (selectedBloodType != "All" || availableOnly) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                "${filteredAreas.size} matching areas",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            donorAreaCountLabel(filteredAreas.size, "matching"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .semantics { liveRegion = LiveRegionMode.Polite }
+                                .testTag("donor-map-filter-count"),
+                        )
+                        if (selectedBloodType != "All" || availableOnly) {
                             OutlinedButton(
                                 onClick = {
                                     selectedBloodType = "All"
@@ -308,7 +426,9 @@ fun DonorMapScreen(
             Card(
                 Modifier.align(Alignment.BottomCenter)
                     .then(if (embeddedInShell) Modifier else Modifier.navigationBarsPadding())
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .semantics { paneTitle = "Donor map privacy controls" }
+                    .testTag("donor-map-privacy-panel"),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             ) {
@@ -333,49 +453,29 @@ fun DonorMapScreen(
                         Modifier.padding(start = 8.dp).weight(1f),
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    Text("${filteredAreas.size} areas", style = MaterialTheme.typography.labelMedium)
+                    Text(donorAreaCountLabel(filteredAreas.size, ""), style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
 
         state.mapError?.let { error ->
-            DonorMapErrorCard(
-                error = error,
-                onRetry = { onAction(PrivacyAction.LoadMap) },
-                modifier = Modifier.align(Alignment.Center).padding(16.dp),
+            LifeLinkFeedbackCard(
+                title = "Couldn’t load donor areas",
+                message = error,
+                level = LifeLinkFeedbackLevel.Error,
+                actionLabel = "Retry",
+                onAction = { onAction(PrivacyAction.LoadMap) },
+                modifier = Modifier.align(Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp, vertical = 88.dp)
+                    .widthIn(max = 360.dp)
+                    .testTag("donor-map-error-feedback"),
             )
         }
         if (state.mapLoading) {
-            LifeLinkLoadingIndicator(Modifier.align(Alignment.Center), label = "Loading donor areas…")
-        }
-    }
-}
-
-/** Error surface with a retry action, announced assertively to screen readers. */
-@Composable
-private fun DonorMapErrorCard(error: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
-    Card(
-        modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-    ) {
-        Row(
-            Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                Icons.Default.Error,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.size(20.dp),
+            LifeLinkLoadingIndicator(
+                Modifier.align(Alignment.Center).testTag("donor-map-loading-indicator"),
+                label = "Loading donor areas…",
             )
-            Text(
-                error,
-                modifier = Modifier.weight(1f),
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Button(onClick = onRetry) { Text("Retry") }
         }
     }
 }
@@ -436,12 +536,15 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
 @Composable
 private fun VisibilitySwitchRow(title: String, subtitle: String, checked: Boolean, enabled: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().toggleable(
-            value = checked,
-            enabled = enabled,
-            role = Role.Switch,
-            onValueChange = onCheckedChange,
-        ),
+        Modifier.fillMaxWidth()
+            .sizeIn(minHeight = 56.dp)
+            .toggleable(
+                value = checked,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            )
+            .testTag("donor-visibility-map-row"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {

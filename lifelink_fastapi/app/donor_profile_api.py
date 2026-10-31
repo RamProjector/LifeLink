@@ -37,6 +37,14 @@ class DonorAvailabilityToggleIn(BaseModel):
     availability_status: DonorAvailability
 
 
+class DonorPresenceIn(BaseModel):
+    """Fresh GPS observation sent while a donor is actively using the app."""
+
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    precision_meters: int = Field(ge=1, le=10000)
+
+
 class DonorProfileMeOut(BaseModel):
     """The current user's own donor profile, including server-controlled fields."""
 

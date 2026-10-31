@@ -8,11 +8,11 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import androidx.work.ListenableWorker.Result as WorkResult
 import com.google.gson.Gson
 import com.lifelink.app.LifeLinkApplication
 import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.SubmitResult
+import androidx.work.ListenableWorker.Result as WorkResult
 
 @Entity(tableName = "pending_submissions", primaryKeys = ["ownerId", "id"])
 data class PendingSubmissionEntity(
@@ -21,7 +21,7 @@ data class PendingSubmissionEntity(
     val payloadJson: String,
     val attempts: Int = 0,
     val lastError: String? = null,
-    val createdAtEpochMillis: Long = System.currentTimeMillis()
+    val createdAtEpochMillis: Long = System.currentTimeMillis(),
 )
 
 @Dao
@@ -39,16 +39,14 @@ interface PendingSubmissionDao {
     suspend fun clearAll(ownerId: String)
 }
 
-class PendingSubmissionWorker(
-    context: Context,
-    params: WorkerParameters
-) : CoroutineWorker(context, params) {
+class PendingSubmissionWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val application = applicationContext as? LifeLinkApplication ?: return Result.failure()
         return PendingSubmissionProcessor(
             dao = LifeLinkDatabase.getInstance(applicationContext).pendingSubmissionDao(),
+            draftDao = LifeLinkDatabase.getInstance(applicationContext).emergencyRequestDraftDao(),
             currentUserId = { application.authRepository.session.value?.userId },
-            submit = { ownerId, draft -> application.accountContainer(ownerId).emergencyRequestRepository.submit(draft) }
+            submit = { ownerId, draft -> application.accountContainer(ownerId).emergencyRequestRepository.submit(draft) },
         ).process(inputData.getString(OWNER_ID), inputData.getString(DRAFT_ID))
     }
 
@@ -62,7 +60,8 @@ class PendingSubmissionWorker(
 internal class PendingSubmissionProcessor(
     private val dao: PendingSubmissionDao,
     private val currentUserId: () -> String?,
-    private val submit: suspend (String, EmergencyRequestDraft) -> SubmitResult
+    private val draftDao: EmergencyRequestDraftDao? = null,
+    private val submit: suspend (String, EmergencyRequestDraft) -> SubmitResult,
 ) {
     suspend fun process(ownerId: String?, draftId: String?): WorkResult {
         if (ownerId.isNullOrBlank() || draftId.isNullOrBlank()) return WorkResult.failure()
@@ -77,8 +76,10 @@ internal class PendingSubmissionProcessor(
             is SubmitResult.ContactRequestUncertain,
             is SubmitResult.ManualFallback,
             is SubmitResult.Cancelled,
-            is SubmitResult.Fulfilled -> {
+            is SubmitResult.Fulfilled,
+            -> {
                 dao.delete(ownerId, draftId)
+                draftDao?.deleteById(ownerId, draftId)
                 WorkResult.success()
             }
             is SubmitResult.OfflineQueued -> WorkResult.retry()

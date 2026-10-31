@@ -56,12 +56,6 @@ android {
             .orElse(providers.environmentVariable("LIFELINK_API_BASE_URL"))
             .orElse("https://lifelink-api-uzje.onrender.com/")
             .get()
-    val apiToken =
-        providers
-            .gradleProperty("lifelinkApiToken")
-            .orElse(providers.environmentVariable("LIFELINK_API_TOKEN"))
-            .orElse("development-user")
-            .get()
     val supabaseUrl =
         providers
             .gradleProperty("supabaseUrl")
@@ -111,8 +105,8 @@ android {
         versionName = providers.gradleProperty("versionName").orElse("1.0.0").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
+        buildConfigField("boolean", "LIFELINK_FAKE_BACKEND", "false")
         buildConfigField("String", "LIFELINK_API_BASE_URL", "\"${apiBaseUrl.replace("\\\"", "\\\\\"")}\"")
-        buildConfigField("String", "LIFELINK_API_TOKEN", "\"${apiToken.replace("\\\"", "\\\\\"")}\"")
         buildConfigField("String", "SUPABASE_URL", "\"${supabaseUrl.replace("\\\"", "\\\\\"")}\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${supabasePublishableKey.replace("\\\"", "\\\\\"")}\"")
     }
@@ -132,6 +126,14 @@ android {
                         keyPassword = stableKeyPassword
                     }
             }
+        }
+        create("uiTest") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".uitest"
+            versionNameSuffix = "-ui-test"
+            isDebuggable = true
+            buildConfigField("boolean", "LIFELINK_FAKE_BACKEND", "true")
+            matchingFallbacks += listOf("debug")
         }
         release {
             // Sign with the configured production keystore when one is present;
@@ -153,7 +155,16 @@ android {
         compose = true
         buildConfig = true
     }
-    testOptions { unitTests.isIncludeAndroidResources = true }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            // Robolectric fetches android-all at test runtime outside Gradle's
+            // dependency resolver. Use Maven Central's canonical endpoint rather
+            // than repo1, which returned HTTP 429 in the hosted runner.
+            it.systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
+            it.systemProperty("robolectric.dependency.repo.id", "mavenCentral")
+        }
+    }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
         jniLibs.keepDebugSymbols +=
@@ -181,9 +192,7 @@ android {
         if (lintBaseline.exists()) {
             baseline = lintBaseline
         }
-        // Keep the report machine-readable for CI annotations.
-        xmlReport = true
-        htmlReport = true
+        // AGP generates XML and HTML lint reports by default for CI artifacts.
     }
 }
 
@@ -289,6 +298,8 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
     implementation("com.google.firebase:firebase-messaging")
 
+    add("uiTestImplementation", "com.squareup.okhttp3:mockwebserver:5.5.0")
+
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.test:core:1.7.0")
@@ -344,3 +355,10 @@ tasks.register("buildRelease") {
 
 // Make sure the signing guard runs before the release APK is assembled.
 tasks.matching { it.name == "assembleRelease" }.configureEach { mustRunAfter(verifyReleaseSigning) }
+
+// The UI-test APK must not bind itself to the production Firebase project. The
+// demo disables Firebase token registration, so skip only its google-services
+// resource generation; normal debug/release variants retain their existing setup.
+tasks.matching { it.name == "processUiTestGoogleServices" }.configureEach {
+    enabled = false
+}

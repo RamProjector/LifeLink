@@ -2,9 +2,21 @@ package com.lifelink.app
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -13,22 +25,51 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lifelink.app.core.auth.UserRole
+import com.lifelink.app.core.location.LocalMapLibreStyleJson
+import com.lifelink.app.core.location.MapLibreLocationPicker
+import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
 import com.lifelink.app.domain.ActiveRequestStatus
+import com.lifelink.app.domain.DonorMap
+import com.lifelink.app.domain.DonorMapArea
 import com.lifelink.app.domain.RequestHistoryItem
+import com.lifelink.app.feature.donor.BecomeDonorScreen
+import com.lifelink.app.feature.donor.BecomeDonorUiState
+import com.lifelink.app.feature.donor.DonorScreen
 import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
+import com.lifelink.app.feature.privacy.DonorMapScreen
+import com.lifelink.app.feature.privacy.PrivacyUiState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+internal val SYNTHETIC_MAP_STYLE_JSON = """
+    {
+      "version": 8,
+      "name": "LifeLink synthetic marker test",
+      "sources": {},
+      "layers": [
+        {
+          "id": "background",
+          "type": "background",
+          "paint": {
+            "background-color": "#eef2f5"
+          }
+        }
+      ]
+    }
+""".trimIndent()
+
 @RunWith(AndroidJUnit4::class)
-class LifeLinkWorkflowVisualTest {
+open class LifeLinkWorkflowVisualTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -37,6 +78,7 @@ class LifeLinkWorkflowVisualTest {
         updates: List<com.lifelink.app.domain.UpdateItem> = emptyList(),
         role: UserRole = UserRole.REQUESTER,
         onAction: (com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction) -> Unit = {},
+        privacyState: PrivacyUiState = PrivacyUiState(),
     ) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.getSharedPreferences("lifelink_welcome", 0)
@@ -54,7 +96,7 @@ class LifeLinkWorkflowVisualTest {
                         onDonorAction = {},
                         becomeDonorState = com.lifelink.app.feature.donor.BecomeDonorUiState(loading = false),
                         onBecomeDonorAction = {},
-                        privacyState = com.lifelink.app.feature.privacy.PrivacyUiState(),
+                        privacyState = privacyState,
                         onPrivacyAction = {},
                         role = role,
                         onSwitchRole = {},
@@ -82,25 +124,424 @@ class LifeLinkWorkflowVisualTest {
     private val testTheme: ThemeMode
         get() = if (InstrumentationRegistry.getArguments().getString("theme") == "dark") ThemeMode.DARK else ThemeMode.LIGHT
 
+    @Test
+    fun locationPickerReportsReadyOnlyAfterFullyRenderedMap() {
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    MapLibreLocationPicker(
+                        latitude = null,
+                        longitude = null,
+                        onLocationSelected = { _, _ -> },
+                    )
+                }
+            }
+        }
+        composeRule.waitUntil(timeoutMillis = 70_000) {
+            composeRule.onAllNodesWithContentDescription("Location map rendered")
+                .fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithContentDescription("Location map unavailable")
+                    .fetchSemanticsNodes().isNotEmpty()
+        }
+        org.junit.Assert.assertTrue(
+            "Location picker reported a map error instead of a fully rendered map",
+            composeRule.onAllNodesWithContentDescription("Location map unavailable")
+                .fetchSemanticsNodes().isEmpty(),
+        )
+        composeRule.onNodeWithContentDescription("Location map rendered").assertIsDisplayed()
+    }
+
+    @Test
+    fun donorProfileRequiresFreshGpsAndDoesNotOfferManualCoordinates() {
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    BecomeDonorScreen(
+                        state = BecomeDonorUiState(loading = false),
+                        onAction = {},
+                        onBack = {},
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("donor-gps-location").assertIsDisplayed()
+        composeRule.onNodeWithTag("capture-donor-gps").assertIsDisplayed()
+        org.junit.Assert.assertTrue(composeRule.onAllNodesWithText("Latitude").fetchSemanticsNodes().isEmpty())
+        org.junit.Assert.assertTrue(composeRule.onAllNodesWithText("Longitude").fetchSemanticsNodes().isEmpty())
+        composeRule.onNodeWithTag("donor-save").performScrollTo().assertIsNotEnabled()
+    }
+
+    @Test
+    fun legacyDonorWorkspaceAlsoRequiresFreshGpsAndHasNoManualCoordinates() {
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    DonorScreen(state = DonorUiState(), onAction = {}, onBack = {})
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Edit donor profile").performClick()
+        composeRule.onNodeWithText("Use my current location").performScrollTo().assertIsDisplayed()
+        org.junit.Assert.assertTrue(composeRule.onAllNodesWithText("Latitude").fetchSemanticsNodes().isEmpty())
+        org.junit.Assert.assertTrue(composeRule.onAllNodesWithText("Longitude").fetchSemanticsNodes().isEmpty())
+        composeRule.onNodeWithTag("donor-profile-save").assertIsNotEnabled()
+    }
+
+    @Test
+    fun selectingDonorAreaOpensPrivacySafeDetailsAndReturnsToMap() {
+        var parentBackCount = 0
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                        DonorMapScreen(
+                            state = privacySafeDonorMapState(),
+                            onAction = {},
+                            onBack = { parentBackCount++ },
+                        )
+                    }
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
+        composeRule.onNodeWithTag("donor-area-card")
+            .assertHeightIsAtLeast(48.dp)
+            .assertHasClickAction()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+        composeRule.onNodeWithTag("donor-area-card").performClick()
+        assertPrivacySafeDonorAreaDetails()
+
+        // System Back closes the detail layer without escaping the map destination.
+        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-area-card").assertIsDisplayed()
+        composeRule.runOnIdle { org.junit.Assert.assertEquals(0, parentBackCount) }
+
+        // The visible Back control must provide the same in-destination behavior.
+        composeRule.onNodeWithTag("donor-area-card").performClick()
+        assertVisible("Donor area details")
+        composeRule.onNodeWithTag("donor-area-back")
+            .assertIsDisplayed()
+            .assertHeightIsAtLeast(48.dp)
+            .assertHasClickAction()
+        composeRule.onNodeWithTag("donor-area-back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+    }
+
+    private fun privacySafeDonorMapState() = PrivacyUiState(
+        map = DonorMap(
+            generatedAt = "2026-10-28T00:00:00Z",
+            approximateOnly = true,
+            areas = listOf(
+                DonorMapArea(
+                    areaLabel = "Approximate donor area",
+                    latitude = 11.24,
+                    longitude = 125.0,
+                    radiusMeters = 1000,
+                    bloodType = "O+",
+                    availability = "available",
+                    freshnessAt = "2026-10-28T00:00:00Z",
+                    freshnessAgeMinutes = 2,
+                    isStale = false,
+                ),
+            ),
+        ),
+    )
+
+    private fun assertPrivacySafeDonorAreaDetails() {
+        assertVisible("Donor area details")
+        assertVisible("Blood type: O+")
+        assertVisible(
+            "Privacy protected: this view shows an approximate area only. " +
+                "Donor identity, contact details, and exact coordinates are not disclosed here.",
+        )
+    }
+
+    @Test
+    fun donorMapVisibilitySwitchRowsMeetMinimumTouchTarget() {
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                        DonorMapScreen(
+                            state = PrivacyUiState(),
+                            onAction = {},
+                            onBack = {},
+                        )
+                    }
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription("Map privacy controls").performClick()
+        composeRule.onNodeWithTag("donor-map-privacy-panel")
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.PaneTitle,
+                    "Donor map privacy controls",
+                ),
+            )
+        composeRule.onNodeWithText("Show me on the donor map").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-visibility-map-row")
+            .assertHeightIsAtLeast(48.dp)
+    }
+
+    @Test
+    fun syntheticMapMarkerTapSelectsTheMatchingApproximateAreaWithoutNetwork() {
+        val areas = SyntheticDonorMapFixture.state.map!!.areas
+        val firstArea = areas.first()
+        val filteredArea = areas.last()
+        val harness = SyntheticMapHarness(firstArea)
+        renderSyntheticMap(harness)
+
+        composeRule.waitUntil(timeoutMillis = 30_000) {
+            composeRule.onAllNodesWithContentDescription("Donor map rendered")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("donor-map-native-view").assertIsDisplayed()
+        tapMapAndAssertSelection(firstArea) { harness.selectedArea.value }
+        capture("donor-map-synthetic-marker-selected")
+
+        // Simulate a filter result replacing the visible marker set.
+        composeRule.runOnIdle {
+            harness.show(listOf(filteredArea), filteredArea)
+        }
+        composeRule.waitForIdle()
+        tapMapAndAssertSelection(filteredArea) { harness.selectedArea.value }
+        capture("donor-map-synthetic-filtered-marker-selected")
+
+        // A refresh may change details while the approximate point stays the same.
+        val refreshedArea = filteredArea.copy(
+            areaLabel = "Synthetic Refreshed Test Area B",
+            freshnessAgeMinutes = filteredArea.freshnessAgeMinutes + 1,
+            isStale = true,
+        )
+        composeRule.runOnIdle {
+            harness.show(listOf(refreshedArea), filteredArea)
+        }
+        composeRule.waitForIdle()
+        tapMapAndAssertSelection(refreshedArea) { harness.selectedArea.value }
+        capture("donor-map-synthetic-marker-metadata-refreshed")
+
+        // A filtered-out marker must not remain tappable at its previous position.
+        composeRule.runOnIdle {
+            harness.show(listOf(refreshedArea), firstArea)
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("donor-map-native-view").performTouchInput { click() }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            org.junit.Assert.assertNull(
+                "The filtered-out synthetic marker must not remain on the map",
+                harness.selectedArea.value,
+            )
+        }
+    }
+
+    private class SyntheticMapHarness(initialArea: DonorMapArea) {
+        val center = mutableStateOf(initialArea)
+        val areas = mutableStateOf(listOf(initialArea))
+        val selectedArea = mutableStateOf<DonorMapArea?>(null)
+
+        fun show(visibleAreas: List<DonorMapArea>, mapCenter: DonorMapArea) {
+            selectedArea.value = null
+            areas.value = visibleAreas
+            center.value = mapCenter
+        }
+    }
+
+    private fun renderSyntheticMap(harness: SyntheticMapHarness) {
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    MapLibrePrivacySafeDonorMap(
+                        latitude = harness.center.value.latitude,
+                        longitude = harness.center.value.longitude,
+                        areas = harness.areas.value,
+                        styleJson = SYNTHETIC_MAP_STYLE_JSON,
+                        onAreaSelected = { harness.selectedArea.value = it },
+                    )
+                }
+            }
+        }
+    }
+
+    private fun tapMapAndAssertSelection(
+        expectedArea: DonorMapArea,
+        selectedArea: () -> DonorMapArea?,
+    ) {
+        composeRule.onNodeWithTag("donor-map-native-view").performTouchInput { click() }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            selectedArea() == expectedArea
+        }
+        composeRule.runOnIdle {
+            org.junit.Assert.assertEquals(expectedArea, selectedArea())
+        }
+    }
+
+    @Test
+    fun donorMapErrorKeepsMapVisibleAndRetryable() {
+        val actions = mutableListOf<com.lifelink.app.feature.privacy.PrivacyAction>()
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                        DonorMapScreen(
+                            state = PrivacyUiState(mapError = "Check your connection and try again."),
+                            onAction = { actions += it },
+                            onBack = {},
+                        )
+                    }
+                }
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-map-native-view").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-map-error-feedback").assertIsDisplayed()
+        composeRule.onNodeWithText("Couldn’t load donor areas").assertIsDisplayed()
+        composeRule.onNodeWithText("Retry").performClick()
+        org.junit.Assert.assertEquals(
+            com.lifelink.app.feature.privacy.PrivacyAction.LoadMap,
+            actions.last(),
+        )
+        capture("donor-map-error")
+    }
+
+    @Test
+    fun emptyDonorMapKeepsMapVisibleAndOffersRefresh() {
+        val actions = mutableListOf<com.lifelink.app.feature.privacy.PrivacyAction>()
+        val emptyMapState = PrivacyUiState(
+            map = DonorMap(
+                generatedAt = "2026-10-30T00:00:00Z",
+                approximateOnly = true,
+                areas = emptyList(),
+            ),
+        )
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                        DonorMapScreen(
+                            state = emptyMapState,
+                            onAction = { actions += it },
+                            onBack = {},
+                        )
+                    }
+                }
+            }
+        }
+        composeRule.waitUntil(timeoutMillis = 30_000) {
+            composeRule.onAllNodesWithContentDescription("Donor map rendered")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-map-native-view").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-map-empty-state").assertIsDisplayed()
+        composeRule.onNodeWithText("No donor areas to show").assertIsDisplayed()
+        composeRule.onNodeWithText("No donor areas available").assertIsDisplayed()
+        composeRule.onNodeWithText("Refresh areas").assertIsDisplayed()
+        capture("donor-map-empty")
+    }
+
     /** Verifies navigation through requests, notifications, settings, and donor setup, capturing each screen. */
     @Test
     fun navigatesCoreWorkflowsAndCapturesEvidence() {
-        render()
+        render(privacyState = SyntheticDonorMapFixture.state)
         assertVisible("Your requests")
         capture("workflow-home")
+        verifyDonorMapWorkflow()
+        verifyRequestsAndNotifications()
+        verifyProfileSettings()
+    }
 
+    private fun verifyDonorMapWorkflow() {
         composeRule.onNodeWithTag("nav-MAP").performClick()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
         composeRule.onNodeWithTag("toggle-donor-map-view").assertIsDisplayed()
-        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
-        composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
-        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
-        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+        verifyMapAvailability()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
         capture("workflow-donor-map")
+        verifyDonorMapFilters()
+        verifyDonorMapListSwitch()
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
+    }
 
+    private fun verifyMapAvailability() {
+        // Switching to List disposes MapView, so wait for a reported map state first.
+        composeRule.waitUntil(timeoutMillis = 70_000) {
+            composeRule.onAllNodesWithContentDescription("Donor map rendered")
+                .fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithContentDescription("Donor map unavailable")
+                    .fetchSemanticsNodes().isNotEmpty()
+        }
+        val mapUnavailable = composeRule.onAllNodesWithContentDescription("Donor map unavailable")
+            .fetchSemanticsNodes().isNotEmpty()
+        org.junit.Assert.assertFalse(
+            "The real OpenFreeMap style and visible tiles must render in the emulator; inspect MapLibre logcat if unavailable.",
+            mapUnavailable,
+        )
+        composeRule.onNodeWithContentDescription("Donor map rendered").assertIsDisplayed()
+    }
+
+    private fun verifyDonorMapFilters() {
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithTag("donor-map-filter-panel")
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.PaneTitle,
+                    "Donor map filters",
+                ),
+            )
+        composeRule.onNodeWithTag("donor-map-filter-count")
+            .assertIsDisplayed()
+            .assert(hasText("2 matching areas", substring = false))
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.LiveRegion,
+                    LiveRegionMode.Polite,
+                ),
+            )
+        composeRule.onNodeWithText("Available now")
+            .assertHeightIsAtLeast(48.dp)
+            .performClick()
+        composeRule.onNodeWithText("O+")
+            .assertHeightIsAtLeast(48.dp)
+            .performClick()
+        composeRule.onNodeWithTag("donor-map-filter-count")
+            .assert(hasText("1 matching area", substring = false))
+        composeRule.onNodeWithText("1 area", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Hide map filters, 2 active filters").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Hide map filters, 2 active filters").performClick()
+        composeRule.onNodeWithContentDescription("Show map filters, 2 active filters").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Show map filters, 2 active filters").performClick()
+        composeRule.onNodeWithText("Clear filters").performClick()
+        composeRule.onNodeWithTag("donor-map-filter-count")
+            .assert(hasText("2 matching areas", substring = false))
+        composeRule.onNodeWithText("Clear filters").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Hide map filters").performClick()
+    }
+
+    private fun verifyDonorMapListSwitch() {
+        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
+        composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area B").assertIsDisplayed()
+        composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
+        composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
+    }
+
+    private fun verifyRequestsAndNotifications() {
         tapTab("Requests")
         assertVisible("No active request")
         capture("workflow-requests")
@@ -110,11 +551,12 @@ class LifeLinkWorkflowVisualTest {
         assertVisible("Nothing needs your attention")
         capture("workflow-updates")
 
-        // The notifications overlay replaces the shell (and its bottom navigation),
-        // so dismiss it before navigating to another tab.
+        // Dismiss the overlay before navigating because it replaces bottom navigation.
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
+    }
 
+    private fun verifyProfileSettings() {
         composeRule.onNodeWithTag("open-profile").performClick()
         composeRule.waitForIdle()
         assertVisible("Account, privacy, and LifeLink information.")
@@ -229,6 +671,9 @@ class LifeLinkWorkflowVisualTest {
 
     private fun capture(name: String) {
         val scenario = InstrumentationRegistry.getArguments().getString("scenario", "phone")
-        VisualEvidence.capture("lifelink-$scenario-${testTheme.name.lowercase()}-$name.png")
+        org.junit.Assert.assertTrue(
+            "Required screenshot capture failed: $name",
+            VisualEvidence.capture("lifelink-$scenario-${testTheme.name.lowercase()}-$name.png"),
+        )
     }
 }

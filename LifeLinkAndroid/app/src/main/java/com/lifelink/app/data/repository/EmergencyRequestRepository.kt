@@ -44,6 +44,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
+// This repository is the single boundary for the request lifecycle; keep its cohesive
+// API together rather than splitting persistence, matching, and contact operations.
+@Suppress("TooManyFunctions")
 class EmergencyRequestRepositoryImpl(
     private val draftDao: EmergencyRequestDraftDao,
     private val pendingSubmissionDao: PendingSubmissionDao,
@@ -56,6 +59,13 @@ class EmergencyRequestRepositoryImpl(
     override suspend fun saveDraft(draft: EmergencyRequestDraft) = draftDao.upsert(draft.toEntity(requireRequesterId()))
 
     override suspend fun loadDraft(id: String): EmergencyRequestDraft? = draftDao.findById(requireRequesterId(), id)?.toDomain()
+
+    override suspend fun loadLatestDraft(): EmergencyRequestDraft? {
+        val ownerId = requireRequesterId()
+        return draftDao.findLatestUnqueued(ownerId)?.toDomain()
+    }
+
+    override suspend fun deleteDraft(id: String) = draftDao.deleteById(requireRequesterId(), id)
 
     override fun observeActiveRequest(): Flow<ActiveRequestSnapshot?> =
         activeRequestDao.observeLatest(requireRequesterId()).map { it?.toDomain() }
