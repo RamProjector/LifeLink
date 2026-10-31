@@ -155,7 +155,16 @@ android {
         compose = true
         buildConfig = true
     }
-    testOptions { unitTests.isIncludeAndroidResources = true }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            // Robolectric fetches android-all at test runtime outside Gradle's
+            // dependency resolver. Use Maven Central's canonical endpoint rather
+            // than repo1, which returned HTTP 429 in the hosted runner.
+            it.systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
+            it.systemProperty("robolectric.dependency.repo.id", "mavenCentral")
+        }
+    }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
         jniLibs.keepDebugSymbols +=
