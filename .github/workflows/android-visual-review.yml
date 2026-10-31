@@ -385,6 +385,7 @@ jobs:
             "lifelink-auth-screen.png"
             "lifelink-phone-light-workflow-home.png"
             "lifelink-phone-light-workflow-donor-map.png"
+            "lifelink-phone-light-donor-map-loading-state.png"
             "lifelink-phone-light-workflow-requests.png"
             "lifelink-phone-light-donor-map-error.png"
             "lifelink-phone-light-donor-map-empty.png"
