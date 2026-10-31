@@ -1,14 +1,19 @@
 name: Android visual review
 
 on:
-  # Emulator/screenshot review is intentionally manual: it is slow and can be
-  # flaky on shared GitHub-hosted runners. Required PR checks stay deterministic.
+  pull_request:
+    paths:
+      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/location/**'
+      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/privacy/**'
+      - 'LifeLinkAndroid/app/src/androidTest/**'
+      - '.github/workflows/android-visual-review.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# A manual visual run is isolated per selected ref; it never blocks pull requests.
+# Keep PR emulator evidence attached to the exact tested commit; do not cancel
+# an in-progress screenshot run when another small fix lands on the same PR.
 concurrency:
   group: android-visual-review-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name != 'pull_request' }}
@@ -28,8 +33,7 @@ jobs:
   visual-review:
     name: Capture Android visual evidence
     runs-on: ubuntu-24.04
-    # Manual review on a standard Linux x86_64 runner. Emulator evidence is
-    # supplemental and is not a required pull-request status check.
+    # Focused map/navigation visual review on a standard Linux x86_64 runner.
     timeout-minutes: 45
     defaults:
       run:
@@ -56,6 +60,26 @@ jobs:
 
       - name: Make Gradle executable
         run: chmod +x ./gradlew
+
+      - name: Diagnose OpenFreeMap runner connectivity
+        shell: bash
+        run: |
+          mkdir -p ../visual-artifacts
+          cat /etc/resolv.conf > ../visual-artifacts/runner-resolv.conf 2>&1 || true
+          getent ahostsv4 tiles.openfreemap.org > ../visual-artifacts/openfreemap-host-dns.txt 2>&1
+          echo "$?" > ../visual-artifacts/openfreemap-host-dns-exit-code.txt
+          curl -fsS --connect-timeout 10 --max-time 20 \
+            -o ../visual-artifacts/openfreemap-style.json \
+            -w 'HTTP %{http_code}\\n' \
+            https://tiles.openfreemap.org/styles/liberty \
+            > ../visual-artifacts/openfreemap-style-http.txt 2>&1
+          curl_exit=$?
+          echo "$curl_exit" > ../visual-artifacts/openfreemap-style-exit-code.txt
+          if [[ "$curl_exit" != "0" ]]; then
+            echo "::warning::Runner could not fetch the OpenFreeMap style; emulator map rendering may be blocked by network/DNS."
+          else
+            echo "Runner can fetch the OpenFreeMap style JSON."
+          fi
 
       # GitHub's Ubuntu runners usually expose /dev/kvm. If unavailable, use
       # software CPU emulation without skipping instrumentation or screenshots.
@@ -95,6 +119,11 @@ jobs:
             timeout 10s adb -s "$device_serial" get-state > "$GITHUB_WORKSPACE/visual-artifacts/adb-device-state.txt" 2>&1 || true
             timeout 10s adb -s "$device_serial" shell getprop sys.boot_completed > "$GITHUB_WORKSPACE/visual-artifacts/boot-completed.txt" 2>&1 || true
             timeout 15s adb -s "$device_serial" logcat -d -t 5000 > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" shell getprop net.dns1 > "$GITHUB_WORKSPACE/visual-artifacts/emulator-dns1.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" shell getprop net.dns2 > "$GITHUB_WORKSPACE/visual-artifacts/emulator-dns2.txt" 2>&1 || true
+            timeout 15s adb -s "$device_serial" shell dumpsys connectivity > "$GITHUB_WORKSPACE/visual-artifacts/emulator-connectivity.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" shell ip route > "$GITHUB_WORKSPACE/visual-artifacts/emulator-ip-route.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" shell settings get global private_dns_mode > "$GITHUB_WORKSPACE/visual-artifacts/emulator-private-dns-mode.txt" 2>&1 || true
             for remote_file in $(timeout 10s adb -s "$device_serial" shell ls /sdcard/Android/data/com.lifelink.app/files/lifelink-*.png 2>/dev/null | tr -d '\r'); do
               timeout 15s adb -s "$device_serial" pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
             done
@@ -148,7 +177,7 @@ jobs:
           test_exit=$?
           if [[ "$test_exit" == "0" ]]; then
             test_results_dir="$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results"
-            for expected_test in "AuthScreenVisualTest" "LifeLinkVisualSmokeTest" "ConversationNavigationSmokeTest" "DebugFileLoggerTest" "LifeLinkFeedbackCardTest" "navigatesCoreWorkflowsAndCapturesEvidence" "donorMapErrorKeepsMapVisibleAndRetryable" "emptyDonorMapKeepsMapVisibleAndOffersRefresh" "selectingDonorAreaOpensPrivacySafeDetailsAndReturnsToMap" "donor_can_open_chat_and_system_back_returns_to_the_donor_workspace" "unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions" "donor_map_is_a_labeled_top_level_destination_and_navigation_remains_available" "donor_map_shows_the_correct_loading_error_and_empty_state" "debugDiagnosticsAreReadableFromDownloads" "errorFeedbackShowsRecoveryActionAndInvokesIt"; do
+            for expected_test in "AuthScreenVisualTest" "LifeLinkVisualSmokeTest" "ConversationNavigationSmokeTest" "DebugFileLoggerTest" "LifeLinkFeedbackCardTest" "navigatesCoreWorkflowsAndCapturesEvidence" "donorMapErrorKeepsMapVisibleAndRetryable" "emptyDonorMapKeepsMapVisibleAndOffersRefresh" "selectingDonorAreaOpensPrivacySafeDetailsAndReturnsToMap" "donor_can_open_chat_and_system_back_returns_to_the_donor_workspace" "unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions" "donor_map_is_a_labeled_top_level_destination_and_navigation_remains_available" "donor_map_shows_the_correct_loading_error_and_empty_state" "syntheticMapMarkerTapSelectsTheMatchingApproximateAreaWithoutNetwork" "debugDiagnosticsAreReadableFromDownloads" "errorFeedbackShowsRecoveryActionAndInvokesIt"; do
               if ! grep -R -Fq "$expected_test" "$test_results_dir"; then
                 echo "::error::Instrumentation result is missing expected visual coverage: $expected_test"
                 find "$test_results_dir" -type f -maxdepth 5 -print 2>/dev/null | sort || true
@@ -180,7 +209,7 @@ jobs:
             adb -s "$device_serial" logcat -c
             adb -s "$device_serial" shell monkey -p com.lifelink.app.uitest 1
             dialog_xml="$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-dialog.xml"
-            dialog_deadline=$((SECONDS + 90))
+            dialog_deadline=$((SECONDS + 180))
             dialog_ready=0
             while (( SECONDS < dialog_deadline )); do
               if timeout 15s adb -s "$device_serial" shell uiautomator dump /sdcard/lifelink-ui-test-window.xml >/dev/null 2>&1 &&
@@ -198,7 +227,7 @@ jobs:
             done
             if [[ "$dialog_ready" != "1" ]]; then
               adb -s "$device_serial" logcat -d -t 3000 | tail -160
-              echo "::error::The UI-test app did not show its fake-backend warning within 90 seconds."
+              echo "::error::The UI-test app did not show its fake-backend warning within 180 seconds."
               exit 5
             fi
             bounds=$(grep -o 'text="Continue demo"[^>]*' "$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-dialog.xml" | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | head -1)
@@ -210,7 +239,7 @@ jobs:
               exit 6
             fi
             home_xml="$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-home.xml"
-            home_deadline=$((SECONDS + 90))
+            home_deadline=$((SECONDS + 120))
             home_ready=0
             while (( SECONDS < home_deadline )); do
               if timeout 15s adb -s "$device_serial" shell uiautomator dump /sdcard/lifelink-ui-test-home.xml >/dev/null 2>&1 &&
@@ -228,7 +257,7 @@ jobs:
             done
             if [[ "$home_ready" != "1" ]]; then
               adb -s "$device_serial" logcat -d -t 3000 | tail -160
-              echo "::error::The fake-backend UI did not reach the requester workspace within 90 seconds."
+              echo "::error::The fake-backend UI did not reach the requester workspace within 120 seconds."
               exit 7
             fi
             adb -s "$device_serial" shell screencap -p /sdcard/lifelink-ui-test-home.png
@@ -319,6 +348,11 @@ jobs:
           adb devices -l > ../visual-artifacts/adb-devices-post-step.txt 2>&1 || true
           timeout 10s adb -s "${ANDROID_SERIAL:-emulator-5554}" shell getprop sys.boot_completed > ../visual-artifacts/boot-completed-post-step.txt 2>&1 || true
           timeout 15s adb -s "${ANDROID_SERIAL:-emulator-5554}" logcat -d -t 5000 > ../visual-artifacts/logcat-post-step.txt 2>&1 || true
+          timeout 10s adb -s "${ANDROID_SERIAL:-emulator-5554}" shell getprop net.dns1 > ../visual-artifacts/emulator-dns1-post-step.txt 2>&1 || true
+          timeout 10s adb -s "${ANDROID_SERIAL:-emulator-5554}" shell getprop net.dns2 > ../visual-artifacts/emulator-dns2-post-step.txt 2>&1 || true
+          timeout 15s adb -s "${ANDROID_SERIAL:-emulator-5554}" shell dumpsys connectivity > ../visual-artifacts/emulator-connectivity-post-step.txt 2>&1 || true
+          timeout 10s adb -s "${ANDROID_SERIAL:-emulator-5554}" shell ip route > ../visual-artifacts/emulator-ip-route-post-step.txt 2>&1 || true
+          timeout 10s adb -s "${ANDROID_SERIAL:-emulator-5554}" shell settings get global private_dns_mode > ../visual-artifacts/emulator-private-dns-mode-post-step.txt 2>&1 || true
 
       - name: Collect visual test reports
         if: always()
@@ -344,6 +378,7 @@ jobs:
             "lifelink-phone-light-workflow-requests.png"
             "lifelink-phone-light-donor-map-error.png"
             "lifelink-phone-light-donor-map-empty.png"
+            "lifelink-phone-light-donor-map-synthetic-marker-selected.png"
           )
           for file in "${required[@]}"; do
             if [[ ! -s "$evidence_dir/$file" ]]; then
