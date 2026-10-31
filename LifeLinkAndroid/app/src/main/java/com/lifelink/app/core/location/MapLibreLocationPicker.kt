@@ -49,6 +49,7 @@ import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.Style
 
 private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
 
@@ -56,6 +57,13 @@ private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/li
 // so the picker does not spin forever.
 private const val MAP_LOAD_TIMEOUT_MS = 30_000L
 private const val MAP_RENDER_TIMEOUT_MS = 25_000L
+
+private fun donorMapStyle(styleJson: String?): Style.Builder =
+    if (styleJson.isNullOrBlank()) {
+        Style.Builder().fromUri(OPEN_FREE_MAP_STYLE)
+    } else {
+        Style.Builder().fromJson(styleJson)
+    }
 
 /**
  * Real native MapLibre map. No WebView or JavaScript is used. OpenFreeMap
@@ -337,6 +345,7 @@ fun MapLibrePrivacySafeDonorMap(
     modifier: Modifier = Modifier,
     fullScreen: Boolean = false,
     onAreaSelected: (DonorMapArea) -> Unit = {},
+    styleJson: String? = null,
 ) {
     val context = LocalContext.current
     val latestOnAreaSelected by rememberUpdatedState(onAreaSelected)
@@ -428,7 +437,7 @@ fun MapLibrePrivacySafeDonorMap(
                         mapLoading = true
                         mapError = false
                         mapRendered = false
-                        map.setStyle(OPEN_FREE_MAP_STYLE) {
+                        map.setStyle(donorMapStyle(styleJson)) {
                             styleReady = true
                             mapLoading = false
                             mapError = false
@@ -449,7 +458,7 @@ fun MapLibrePrivacySafeDonorMap(
                         mapLoading = true
                         mapError = false
                         mapRendered = false
-                        map.setStyle(OPEN_FREE_MAP_STYLE) {
+                        map.setStyle(donorMapStyle(styleJson)) {
                             styleReady = true
                             mapLoading = false
                             mapError = false
