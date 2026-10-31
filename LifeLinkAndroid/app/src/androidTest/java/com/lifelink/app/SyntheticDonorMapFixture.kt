@@ -27,8 +27,8 @@ internal object SyntheticDonorMapFixture {
                 ),
                 DonorMapArea(
                     areaLabel = "Synthetic Test Area B",
-                    latitude = 14.6021,
-                    longitude = 120.9872,
+                    latitude = 14.6201,
+                    longitude = 121.0020,
                     radiusMeters = 1_800,
                     bloodType = "A+",
                     availability = "Unavailable",
