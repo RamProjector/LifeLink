@@ -415,3 +415,17 @@ This batch hardens the existing requester flow without redesigning the screen or
 - OWASP MAS guidance treats production logging and data exposure as explicit mobile security risks; diagnostics must not include tokens, personal data, exact GPS, or request bodies: https://mas.owasp.org/MASWE/MASVS-STORAGE/MASWE-0005/.
 
 **Validation:** The regression tests and formatting/build checks must pass on the final PR head. Emulator visual review currently has an infrastructure boot failure (ADB/emulator did not become ready within the workflow's 600-second window), so this batch is not visually CI-verified until that environment issue is resolved.
+
+
+## Donor-map back navigation and diagnostic minimization (implemented on PR #153, 31 October 2026)
+
+- [x] Intercept Android system Back while an approximate donor-area detail is open. Back returns to the same donor-area list/map destination rather than escaping to the parent route; the instrumentation test verifies the list remains available, the parent callback is not invoked, and the visible Back to map control still works.
+- [x] Keep background donor-presence failure diagnostics message-only. The log records a fixed safe message with the exception class name, not the throwable or stack trace, reducing the amount of implementation detail written to a user-shareable Downloads file.
+- [ ] Re-run the Android instrumentation suite and inspect final-head screenshots/logs; these new assertions are committed but not yet CI-verified.
+
+**Research basis:**
+- Android recommends custom Compose `BackHandler` behavior for nested transient UI such as a panel/detail layer, with the innermost enabled handler consuming Back first: https://developer.android.com/guide/navigation/custom-back.
+- OWASP Logging guidance recommends logging actionable security/operational events while avoiding sensitive data and excessive detail: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html.
+- OWASP MASVS-PRIVACY-1 requires minimizing sensitive data exposure across the app's data flows: https://mas.owasp.org/MASVS/controls/MASVS-PRIVACY-1/.
+
+**Validation:** The code and instrumentation changes are on this PR's existing branch. CI must pass on the final head before this work is marked verified.
