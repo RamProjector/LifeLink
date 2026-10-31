@@ -80,17 +80,17 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                     context.applicationContext,
                     LifeLinkDatabase::class.java,
                     "lifelink.db"
-                ).addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5).build().also { INSTANCE = it }
+                ).addMigrations(migration6To7, migration7To8, migration8To9).fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5).build().also { INSTANCE = it }
             }
 
-        internal val MIGRATION_6_7 = object : Migration(6, 7) {
+        internal val migration6To7 = object : Migration(6, 7) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 // Preserve legacy rows, but never assign unowned data to a signed-in user.
                 addOwnerIfMissing(database, "active_requests")
             }
         }
 
-        internal val MIGRATION_7_8 = object : Migration(7, 8) {
+        internal val migration7To8 = object : Migration(7, 8) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE donor_requests RENAME TO donor_requests_legacy")
                 database.execSQL("""
@@ -116,7 +116,7 @@ abstract class LifeLinkDatabase : RoomDatabase() {
             }
         }
 
-        internal val MIGRATION_8_9 = object : Migration(8, 9) {
+        internal val migration8To9 = object : Migration(8, 9) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 // Some v7/v8 installs predate ownerId on active_requests.
                 addOwnerIfMissing(database, "active_requests")
