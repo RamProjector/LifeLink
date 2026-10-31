@@ -64,13 +64,14 @@ jobs:
       - name: Diagnose OpenFreeMap runner connectivity
         shell: bash
         run: |
+          set +e
           mkdir -p ../visual-artifacts
           cat /etc/resolv.conf > ../visual-artifacts/runner-resolv.conf 2>&1 || true
           getent ahostsv4 tiles.openfreemap.org > ../visual-artifacts/openfreemap-host-dns.txt 2>&1
           echo "$?" > ../visual-artifacts/openfreemap-host-dns-exit-code.txt
           curl -fsS --connect-timeout 10 --max-time 20 \
             -o ../visual-artifacts/openfreemap-style.json \
-            -w 'HTTP %{http_code}\\n' \
+            -w 'HTTP %{http_code}\n' \
             https://tiles.openfreemap.org/styles/liberty \
             > ../visual-artifacts/openfreemap-style-http.txt 2>&1
           curl_exit=$?
