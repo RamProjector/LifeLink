@@ -268,6 +268,8 @@ open class ConversationNavigationTest {
         composeRule.onNodeWithText("Loading donor areas…").assertIsDisplayed()
         composeRule.onNodeWithText("No donor areas available").assertDoesNotExist()
         composeRule.onNodeWithText("0 areas").assertDoesNotExist()
+        composeRule.waitForIdle()
+        assertTrue(VisualEvidence.capture("lifelink-phone-light-donor-map-loading-state.png"))
 
         composeRule.runOnIdle { state.value = PrivacyUiState(mapError = "Could not load donor areas.") }
         composeRule.onNodeWithText("Could not load donor areas.").assertIsDisplayed()
