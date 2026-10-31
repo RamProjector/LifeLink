@@ -318,25 +318,33 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Show map filters").assertIsDisplayed()
         composeRule.onNodeWithTag("toggle-donor-map-view").assertIsDisplayed()
-        // Switching to List disposes MapView, so wait for actual tile rendering first.
+        verifyMapAvailability()
+        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
+        capture("workflow-donor-map")
+        verifyDonorMapFilters()
+        verifyDonorMapListSwitch()
+        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitForIdle()
+    }
+
+    private fun verifyMapAvailability() {
+        // Switching to List disposes MapView, so wait for a reported map state first.
         composeRule.waitUntil(timeoutMillis = 70_000) {
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
                 .fetchSemanticsNodes().isNotEmpty() ||
                 composeRule.onAllNodesWithContentDescription("Donor map unavailable")
                     .fetchSemanticsNodes().isNotEmpty()
         }
-        // Tile providers are external and may be unreachable in CI. Both the
-        // fully rendered map and the explicit unavailable state are valid UI
-        // outcomes; the screen controls and recovery path must remain usable.
+        // External tile providers may be unreachable in CI. Both outcomes must leave
+        // the map controls and recovery path usable.
         val mapRendered = composeRule.onAllNodesWithContentDescription("Donor map rendered")
             .fetchSemanticsNodes().isNotEmpty()
         val mapUnavailable = composeRule.onAllNodesWithContentDescription("Donor map unavailable")
             .fetchSemanticsNodes().isNotEmpty()
         org.junit.Assert.assertTrue("Map must report either rendered or unavailable", mapRendered || mapUnavailable)
-        composeRule.onNodeWithText("2 areas", substring = false).assertIsDisplayed()
-        capture("workflow-donor-map")
+    }
 
-        // Filter-result changes are announced politely instead of being silent visual-only updates.
+    private fun verifyDonorMapFilters() {
         composeRule.onNodeWithContentDescription("Show map filters").performClick()
         composeRule.onNodeWithTag("donor-map-filter-panel")
             .assert(
@@ -372,15 +380,15 @@ open class LifeLinkWorkflowVisualTest {
             .assert(hasText("2 matching areas", substring = false))
         composeRule.onNodeWithText("Clear filters").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Hide map filters").performClick()
+    }
 
+    private fun verifyDonorMapListSwitch() {
         composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
         composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area B").assertIsDisplayed()
         composeRule.onNodeWithTag("toggle-donor-map-view").performClick()
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
-        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
-        composeRule.waitForIdle()
     }
 
     private fun verifyRequestsAndNotifications() {
