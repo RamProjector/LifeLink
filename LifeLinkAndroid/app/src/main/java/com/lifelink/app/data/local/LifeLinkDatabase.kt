@@ -79,8 +79,15 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     LifeLinkDatabase::class.java,
-                    "lifelink.db"
-                ).addMigrations(migration6To7, migration7To8, migration8To9).fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5).build().also { instance = it }
+                    "lifelink.db",
+                ).addMigrations(
+                    migration6To7,
+                    migration7To8,
+                    migration8To9,
+                ).fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5).build().also {
+                    instance =
+                        it
+                }
             }
 
         internal val migration6To7 = object : Migration(6, 7) {
@@ -107,11 +114,13 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                         PRIMARY KEY(donorId, requestId)
                     )
                 """.trimIndent())
-                database.execSQL("""
+                database.execSQL(
+                    """
                     INSERT INTO donor_requests
                     SELECT '', requestId, bloodType, units, urgency, facilityName, area, distanceKm, response
                     FROM donor_requests_legacy
-                """.trimIndent())
+                    """.trimIndent(),
+                )
                 database.execSQL("DROP TABLE donor_requests_legacy")
             }
         }
@@ -150,7 +159,8 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                     val type = cursor.getString(cursor.getColumnIndexOrThrow("type"))
                     val required = cursor.getInt(cursor.getColumnIndexOrThrow("notnull")) == 1
                     columns += "`$name`"
-                    definitions += "`$name` $type" + if (required) " NOT NULL" else ""
+                    definitions += "`$name` $type" +
+                        if (required) " NOT NULL" else ""
                 }
             }
             database.execSQL("CREATE TABLE `${table}_owned` (ownerId TEXT NOT NULL, ${definitions.joinToString()}, PRIMARY KEY(ownerId, id))")
