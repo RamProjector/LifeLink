@@ -188,10 +188,15 @@ open class LifeLinkWorkflowVisualTest {
                 ),
             ),
         )
+        var parentBackCount = 0
         composeRule.activity.runOnUiThread {
             composeRule.activity.setContent {
                 LifeLinkTheme(themeMode = testTheme) {
-                    DonorMapScreen(state = mapState, onAction = {}, onBack = {})
+                    DonorMapScreen(
+                        state = mapState,
+                        onAction = {},
+                        onBack = { parentBackCount++ },
+                    )
                 }
             }
         }
@@ -208,6 +213,17 @@ open class LifeLinkWorkflowVisualTest {
             "Privacy protected: this view shows an approximate area only. " +
                 "Donor identity, contact details, and exact coordinates are not disclosed here.",
         )
+
+        // System Back must close the detail layer first, not escape the map destination.
+        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-area-card").assertIsDisplayed()
+        composeRule.runOnIdle { org.junit.Assert.assertEquals(0, parentBackCount) }
+
+        // Re-open the same area and also verify the visible in-screen Back control.
+        composeRule.onNodeWithTag("donor-area-card").performClick()
+        assertVisible("Donor area details")
         composeRule.onNodeWithTag("donor-area-back")
             .assertIsDisplayed()
             .assertHeightIsAtLeast(48.dp)
