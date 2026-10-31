@@ -72,15 +72,15 @@ abstract class LifeLinkDatabase : RoomDatabase() {
     }
 
     companion object {
-        @Volatile private var INSTANCE: LifeLinkDatabase? = null
+        @Volatile private var instance: LifeLinkDatabase? = null
 
         fun getInstance(context: Context): LifeLinkDatabase =
-            INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
+            instance ?: synchronized(this) {
+                instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     LifeLinkDatabase::class.java,
                     "lifelink.db"
-                ).addMigrations(migration6To7, migration7To8, migration8To9).fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5).build().also { INSTANCE = it }
+                ).addMigrations(migration6To7, migration7To8, migration8To9).fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5).build().also { instance = it }
             }
 
         internal val migration6To7 = object : Migration(6, 7) {
