@@ -358,6 +358,7 @@ open class LifeLinkWorkflowVisualTest {
             org.junit.Assert.assertEquals(expectedLabel, selectedLabel())
         }
     }
+
     @Test
     fun donorMapErrorKeepsMapVisibleAndRetryable() {
         val actions = mutableListOf<com.lifelink.app.feature.privacy.PrivacyAction>()
