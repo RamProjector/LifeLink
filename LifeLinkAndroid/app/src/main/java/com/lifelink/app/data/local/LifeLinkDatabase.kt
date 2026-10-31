@@ -100,7 +100,8 @@ abstract class LifeLinkDatabase : RoomDatabase() {
         internal val migration7To8 = object : Migration(7, 8) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE donor_requests RENAME TO donor_requests_legacy")
-                database.execSQL("""
+                database.execSQL(
+                    """
                     CREATE TABLE donor_requests (
                         donorId TEXT NOT NULL,
                         requestId TEXT NOT NULL,
@@ -113,7 +114,8 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                         response TEXT,
                         PRIMARY KEY(donorId, requestId)
                     )
-                """.trimIndent())
+                    """.trimIndent(),
+                )
                 database.execSQL(
                     """
                     INSERT INTO donor_requests
