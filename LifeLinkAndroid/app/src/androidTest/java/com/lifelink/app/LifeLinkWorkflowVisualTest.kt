@@ -49,7 +49,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-private val SYNTHETIC_MAP_STYLE_JSON = """
+internal val SYNTHETIC_MAP_STYLE_JSON = """
     {
       "version": 8,
       "name": "LifeLink synthetic marker test",
@@ -158,6 +158,7 @@ open class LifeLinkWorkflowVisualTest {
                         state = BecomeDonorUiState(loading = false),
                         onAction = {},
                         onBack = {},
+                        mapStyleJson = SYNTHETIC_MAP_STYLE_JSON,
                     )
                 }
             }
@@ -198,6 +199,7 @@ open class LifeLinkWorkflowVisualTest {
                         state = privacySafeDonorMapState(),
                         onAction = {},
                         onBack = { parentBackCount++ },
+                        mapStyleJson = SYNTHETIC_MAP_STYLE_JSON,
                     )
                 }
             }
