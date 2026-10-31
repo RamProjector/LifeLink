@@ -44,7 +44,9 @@ class AccountPersistenceTest {
             .allowMainThreadQueries().build()
     }
 
-    @After fun tearDown() { db.close() }
+    @After fun tearDown() {
+        db.close()
+    }
 
     @Test fun sameEventIdHasIndependentContentAndReadStatePerAccount() = runBlocking {
         val alice = UpdatesRepository(db.updateDao(), "alice")
@@ -219,6 +221,6 @@ class AccountPersistenceTest {
         facilityId = null, facilityName = null, facilityArea = null, facilityVerified = false,
         requesterLatitude = null, requesterLongitude = null, locationPrecisionMeters = 100,
         contactMethod = "IN_APP", genuineRequestConfirmed = true, sharingConsentConfirmed = true,
-        aiMatchingEnabled = true, updatedAtEpochMillis = 1
+        aiMatchingEnabled = true, updatedAtEpochMillis = 1,
     )
 }
