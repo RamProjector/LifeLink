@@ -253,7 +253,7 @@ open class ConversationNavigationTest {
         val state = mutableStateOf(PrivacyUiState(mapLoading = true))
         composeRule.setContent {
             LifeLinkTheme {
-                DonorMapScreen(state.value, onAction = {}, onBack = {})
+                DonorMapScreen(state.value, onAction = {}, onBack = {}, mapStyleJson = SYNTHETIC_MAP_STYLE_JSON)
             }
         }
 
@@ -279,6 +279,7 @@ open class ConversationNavigationTest {
                     state = SyntheticDonorMapFixture.state,
                     onAction = {},
                     onBack = {},
+                    mapStyleJson = SYNTHETIC_MAP_STYLE_JSON,
                 )
             }
         }
@@ -334,6 +335,7 @@ open class ConversationNavigationTest {
                     updates = emptyList(),
                     onUpdateRead = {},
                     onMarkAllUpdatesRead = {},
+                    donorMapStyleJson = SYNTHETIC_MAP_STYLE_JSON,
                 )
             }
         }
