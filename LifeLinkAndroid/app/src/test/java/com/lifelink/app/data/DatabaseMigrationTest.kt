@@ -35,9 +35,9 @@ class DatabaseMigrationTest {
         val name = "migration-$version.db"
         context.deleteDatabase(name)
         var schema = javaClass.getResource("/database-v8.sql")!!.readText()
-        if (version < 7) schema = schema.replace("  ownerId TEXT NOT NULL,\\n", "")
+        if (version < 7) schema = schema.replace("  ownerId TEXT NOT NULL,\n", "")
         if (version < 8) {
-            schema = schema.replace("  donorId TEXT NOT NULL,\\n  requestId", "  requestId")
+            schema = schema.replace("  donorId TEXT NOT NULL,\n  requestId", "  requestId")
                 .replace("PRIMARY KEY(donorId, requestId)", "PRIMARY KEY(requestId)")
         }
         context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null).use { old ->
