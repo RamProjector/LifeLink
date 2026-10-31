@@ -278,6 +278,23 @@ class EmergencyRequestViewModelTest {
     }
 
     @Test
+    fun queued_offline_submission_keeps_its_original_payload_immutable() = runTest {
+        val repository = FakeRepository(SubmitResult.OfflineQueued("draft-queued"))
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        val originalNote = viewModel.uiState.value.draft.note
+        viewModel.onAction(EmergencyRequestAction.Submit)
+        advanceUntilIdle()
+
+        assertEquals(SubmissionState.QueuedOffline("draft-queued"), viewModel.uiState.value.submission)
+        viewModel.onAction(EmergencyRequestAction.UpdateDraft { it.copy(note = "changed after queue") })
+        viewModel.onAction(EmergencyRequestAction.SaveDraft)
+        advanceUntilIdle()
+
+        assertEquals(originalNote, viewModel.uiState.value.draft.note)
+        assertEquals(1, repository.savedDrafts)
+    }
+
+    @Test
     fun non_retryable_submission_error_does_not_repeat_network_request() = runTest {
         val repository = FakeRepository(SubmitResult.Error("Request is not authorized.", retryable = false))
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
