@@ -147,6 +147,7 @@ fun DonorMapScreen(
     centerLongitude: Double? = null,
     showCloseButton: Boolean = true,
     embeddedInShell: Boolean = false,
+    mapStyleJson: String? = null,
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
@@ -240,6 +241,7 @@ fun DonorMapScreen(
                 modifier = Modifier.fillMaxSize(),
                 fullScreen = true,
                 onAreaSelected = { area -> selectedAreaKey = donorAreaKey(area) },
+                styleJson = mapStyleJson,
             )
         }
 
