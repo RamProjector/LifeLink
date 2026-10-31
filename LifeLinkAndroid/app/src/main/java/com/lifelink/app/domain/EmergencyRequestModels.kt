@@ -3,8 +3,22 @@ package com.lifelink.app.domain
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 
-enum class BloodType(val label: String) { A_POS("A+"), A_NEG("A−"), B_POS("B+"), B_NEG("B−"), AB_POS("AB+"), AB_NEG("AB−"), O_POS("O+"), O_NEG("O−") }
-enum class Urgency(val label: String, val description: String) { CRITICAL("Critical", "Needed within 2 hours"), URGENT("Urgent", "Needed today"), PLANNED("Planned", "Needed within 24 hours") }
+enum class BloodType(val label: String) {
+    A_POS("A+"),
+    A_NEG("A−"),
+    B_POS("B+"),
+    B_NEG("B−"),
+    AB_POS("AB+"),
+    AB_NEG("AB−"),
+    O_POS("O+"),
+    O_NEG("O−"),
+}
+
+enum class Urgency(val label: String, val description: String) {
+    CRITICAL("Critical", "Needed within 2 hours"),
+    URGENT("Urgent", "Needed today"),
+    PLANNED("Planned", "Needed within 24 hours"),
+}
 enum class ContactMethod(val label: String) { IN_APP("In-app message"), PHONE("Verified coordinator call") }
 enum class RequestStep(val index: Int) { BLOOD_NEED(0), URGENCY(1), LOCATION(2), CONTACT(3), REVIEW(4), RESULTS(5) }
 
@@ -25,7 +39,7 @@ data class EmergencyRequestDraft(
     val contactMethod: ContactMethod = ContactMethod.IN_APP,
     val genuineRequestConfirmed: Boolean = false,
     val sharingConsentConfirmed: Boolean = false,
-    val aiMatchingEnabled: Boolean = true
+    val aiMatchingEnabled: Boolean = true,
 )
 
 data class DiscoveredDonor(
@@ -35,7 +49,7 @@ data class DiscoveredDonor(
     val distanceKm: Double,
     val travelMinutes: Int,
     val score: Double,
-    val explanation: List<String> = emptyList()
+    val explanation: List<String> = emptyList(),
 )
 
 data class RequesterContact(
@@ -45,7 +59,7 @@ data class RequesterContact(
     val acceptedAt: String? = null,
     val contactSharedAt: String? = null,
     val updatedAt: String? = null,
-    val contactEmail: String? = null
+    val contactEmail: String? = null,
 )
 
 data class RequestHistoryItem(
@@ -60,7 +74,7 @@ data class RequestHistoryItem(
     val area: String? = null,
     val notificationsCreated: Int = 0,
     val matchesResponded: Int = 0,
-    val contactStatuses: List<String> = emptyList()
+    val contactStatuses: List<String> = emptyList(),
 )
 
 sealed interface SubmitResult {
