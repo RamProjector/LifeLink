@@ -26,8 +26,10 @@ env:
   AVD_TARGET: google_apis
   AVD_ARCH: x86_64
   AVD_PROFILE: pixel_2
+  # MapLibre 11.8.0 uses OpenGL ES; disabling guest Vulkan avoids the software-renderer
+  # color-buffer startup failure observed on Linux runners without KVM.
   # Bump after changing the guest architecture or emulator options to invalidate stale snapshots.
-  AVD_CACHE_VERSION: v4
+  AVD_CACHE_VERSION: v5
 
 jobs:
   visual-review:
@@ -314,7 +316,7 @@ jobs:
           force-avd-creation: false
           # No -no-snapshot here: the emulator must be allowed to save a snapshot
           # on exit so the cache step can persist it.
-          emulator-options: -no-window -no-audio -no-boot-anim -no-metrics -camera-back none -camera-front none -netfast -dns-server ${{ steps.map-network.outputs.dns_servers }} -gpu swiftshader_indirect
+          emulator-options: -no-window -no-audio -no-boot-anim -no-metrics -camera-back none -camera-front none -netfast -dns-server ${{ steps.map-network.outputs.dns_servers }} -gpu swiftshader_indirect -feature -Vulkan
           cores: 4
           ram-size: 4096M
           heap-size: 512M
@@ -339,7 +341,7 @@ jobs:
           # a clean boot. Keep rendering deterministic on headless Linux runners.
           emulator-options: >-
             -no-snapshot-load -no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics
-            -camera-back none -camera-front none -netfast -dns-server ${{ steps.map-network.outputs.dns_servers }} -gpu swiftshader_indirect
+            -camera-back none -camera-front none -netfast -dns-server ${{ steps.map-network.outputs.dns_servers }} -gpu swiftshader_indirect -feature -Vulkan
 
           cores: 4
           ram-size: 4096M
