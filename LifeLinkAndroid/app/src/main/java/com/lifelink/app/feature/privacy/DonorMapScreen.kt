@@ -380,12 +380,14 @@ fun DonorMapScreen(
                             selected = availableOnly,
                             onClick = { availableOnly = !availableOnly },
                             label = { Text("Available now") },
+                            modifier = Modifier.sizeIn(minHeight = 48.dp),
                         )
                         bloodTypes.forEach { type ->
                             FilterChip(
                                 selected = selectedBloodType == type,
                                 onClick = { selectedBloodType = type },
                                 label = { Text(type) },
+                                modifier = Modifier.sizeIn(minHeight = 48.dp),
                             )
                         }
                     }
