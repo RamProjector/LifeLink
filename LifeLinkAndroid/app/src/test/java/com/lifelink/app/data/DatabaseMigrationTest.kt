@@ -1,6 +1,7 @@
 package com.lifelink.app.data
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.lifelink.app.data.local.LifeLinkDatabase
@@ -58,56 +59,71 @@ class DatabaseMigrationTest {
         }
         context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null).use { old ->
             schema.split(';').filter { it.isNotBlank() }.forEach(old::execSQL)
-            old.execSQL("INSERT INTO pending_submissions VALUES ('legacy-draft', '{}', 2, 'offline', 1)")
-            old.execSQL(
-                """
-                INSERT INTO updates
-                VALUES ('legacy-event', 'SYSTEM', 'Private title', 'Private body', 1, NULL, NULL, 0)
-                """.trimIndent(),
-            )
-            val ownerColumn = if (version >= 7) "ownerId," else ""
-            val ownerValue =
-                when (version) {
-                    8 -> "'alice',"
-                    7 -> "'',"
-                    else -> ""
-                }
-            old.execSQL(
-                """
-                INSERT INTO active_requests (
-                    requestId, ${ownerColumn}status, notificationsCreated, matchesResponded,
-                    reason, lastUpdatedEpochMillis
-                ) VALUES (
-                    'request', ${ownerValue}'MATCHING', 0, 0, NULL, 1
-                )
-                """.trimIndent(),
-            )
-            val donorColumn = if (version == 8) "donorId," else ""
-            val donorValue = if (version == 8) "'alice'," else ""
-            old.execSQL(
-                """
-                INSERT INTO donor_requests (
-                    ${donorColumn}requestId, bloodType, units, urgency, facilityName,
-                    area, distanceKm, response
-                ) VALUES (
-                    ${donorValue}'donor-request', 'O-', 1, 'urgent', 'Hospital', 'Area', 1.0, NULL
-                )
-                """.trimIndent(),
-            )
-            if (ownedLegacyRows) {
-                for (table in listOf("emergency_request_drafts", "pending_submissions", "updates")) {
-                    old.execSQL("ALTER TABLE `$table` ADD COLUMN ownerId TEXT")
-                    old.execSQL("UPDATE `$table` SET ownerId = 'alice'")
-                }
-                old.execSQL(
-                    """
-                    INSERT INTO pending_submissions (
-                        id, payloadJson, attempts, createdAtEpochMillis
-                    ) VALUES ('legacy-null-owner', '{}', 0, 1)
-                    """.trimIndent(),
-                )
-            }
+            insertLegacyRows(old, version, ownedLegacyRows)
             old.version = version
+        }
+    }
+
+    private fun insertLegacyRows(old: SQLiteDatabase, version: Int, ownedLegacyRows: Boolean) {
+        old.execSQL(
+            """
+            INSERT INTO pending_submissions
+            VALUES ('legacy-draft', '{}', 2, 'offline', 1)
+            """.trimIndent(),
+        )
+        old.execSQL(
+            """
+            INSERT INTO updates
+            VALUES ('legacy-event', 'SYSTEM', 'Private title', 'Private body', 1, NULL, NULL, 0)
+            """.trimIndent(),
+        )
+        val ownerColumn = if (version >= 7) "ownerId," else ""
+        val ownerValue =
+            when (version) {
+                8 -> "'alice',"
+                7 -> "'',"
+                else -> ""
+            }
+        old.execSQL(
+            """
+            INSERT INTO active_requests (
+                requestId, ${ownerColumn}status, notificationsCreated, matchesResponded,
+                reason, lastUpdatedEpochMillis
+            ) VALUES (
+                'request', ${ownerValue}'MATCHING', 0, 0, NULL, 1
+            )
+            """.trimIndent(),
+        )
+        val donorColumn = if (version == 8) "donorId," else ""
+        val donorValue = if (version == 8) "'alice'," else ""
+        old.execSQL(
+            """
+            INSERT INTO donor_requests (
+                ${donorColumn}requestId, bloodType, units, urgency, facilityName,
+                area, distanceKm, response
+            ) VALUES (
+                ${donorValue}'donor-request', 'O-', 1, 'urgent', 'Hospital', 'Area', 1.0, NULL
+            )
+            """.trimIndent(),
+        )
+        if (ownedLegacyRows) {
+            for (
+                table in listOf(
+                    "emergency_request_drafts",
+                    "pending_submissions",
+                    "updates",
+                )
+            ) {
+                old.execSQL("ALTER TABLE `$table` ADD COLUMN ownerId TEXT")
+                old.execSQL("UPDATE `$table` SET ownerId = 'alice'")
+            }
+            old.execSQL(
+                """
+                INSERT INTO pending_submissions (
+                    id, payloadJson, attempts, createdAtEpochMillis
+                ) VALUES ('legacy-null-owner', '{}', 0, 1)
+                """.trimIndent(),
+            )
         }
     }
 
@@ -135,8 +151,14 @@ class DatabaseMigrationTest {
             assertNotNull(migrated.pendingSubmissionDao().findById("", "legacy-null-owner"))
             assertNull(migrated.pendingSubmissionDao().findById("alice", "legacy-null-owner"))
         }
-        assertEquals(2, migrated.pendingSubmissionDao().findById(legacyOwner, "legacy-draft")?.attempts)
-        assertEquals("Private body", migrated.updateDao().findById(legacyOwner, "legacy-event")?.body)
+        assertEquals(
+            2,
+            migrated.pendingSubmissionDao().findById(legacyOwner, "legacy-draft")?.attempts,
+        )
+        assertEquals(
+            "Private body",
+            migrated.updateDao().findById(legacyOwner, "legacy-event")?.body,
+        )
         assertNull(migrated.activeRequestDao().observeLatest("bob").first())
         assertTrue(migrated.donorDao().observeRequests("bob").first().isEmpty())
         val expectedOwner = if (version == 8) "alice" else ""
