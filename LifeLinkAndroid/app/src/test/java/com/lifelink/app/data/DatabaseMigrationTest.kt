@@ -51,7 +51,7 @@ class DatabaseMigrationTest {
             old.version = version
         }
         val migrated = Room.databaseBuilder(context, LifeLinkDatabase::class.java, name)
-            .addMigrations(LifeLinkDatabase.MIGRATION_6_7, LifeLinkDatabase.MIGRATION_7_8, LifeLinkDatabase.MIGRATION_8_9)
+            .addMigrations(LifeLinkDatabase.migration6To7, LifeLinkDatabase.migration7To8, LifeLinkDatabase.migration8To9)
             .allowMainThreadQueries().build()
         try {
             // Opening through Room validates the entire migrated schema.
