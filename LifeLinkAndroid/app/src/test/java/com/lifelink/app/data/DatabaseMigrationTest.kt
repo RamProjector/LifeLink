@@ -90,7 +90,7 @@ class DatabaseMigrationTest {
                 requestId, ${ownerColumn}status, notificationsCreated, matchesResponded,
                 reason, lastUpdatedEpochMillis
             ) VALUES (
-                'request', ${ownerValue}'MATCHING', 0, 0, NULL, 1
+                'request', $ownerValue'MATCHING', 0, 0, NULL, 1
             )
             """.trimIndent(),
         )
@@ -102,7 +102,7 @@ class DatabaseMigrationTest {
                 ${donorColumn}requestId, bloodType, units, urgency, facilityName,
                 area, distanceKm, response
             ) VALUES (
-                ${donorValue}'donor-request', 'O-', 1, 'urgent', 'Hospital', 'Area', 1.0, NULL
+                $donorValue'donor-request', 'O-', 1, 'urgent', 'Hospital', 'Area', 1.0, NULL
             )
             """.trimIndent(),
         )
