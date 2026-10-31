@@ -2,6 +2,7 @@ package com.lifelink.app
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -22,11 +23,13 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.location.MapLibreLocationPicker
+import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
@@ -44,6 +47,23 @@ import com.lifelink.app.feature.privacy.PrivacyUiState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+
+private val SYNTHETIC_MAP_STYLE_JSON = """
+    {
+      "version": 8,
+      "name": "LifeLink synthetic marker test",
+      "sources": {},
+      "layers": [
+        {
+          "id": "background",
+          "type": "background",
+          "paint": {
+            "background-color": "#eef2f5"
+          }
+        }
+      ]
+    }
+""".trimIndent()
 
 @RunWith(AndroidJUnit4::class)
 open class LifeLinkWorkflowVisualTest {
@@ -263,6 +283,41 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithText("Show me on the donor map").assertIsDisplayed()
         composeRule.onNodeWithTag("donor-visibility-map-row")
             .assertHeightIsAtLeast(48.dp)
+    }
+
+    @Test
+    fun syntheticMapMarkerTapSelectsTheMatchingApproximateAreaWithoutNetwork() {
+        val area = SyntheticDonorMapFixture.state.map!!.areas.first()
+        val visibleAreas = mutableStateOf(listOf(area))
+        val selectedAreaLabel = mutableStateOf<String?>(null)
+
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    MapLibrePrivacySafeDonorMap(
+                        latitude = area.latitude,
+                        longitude = area.longitude,
+                        areas = visibleAreas.value,
+                        styleJson = SYNTHETIC_MAP_STYLE_JSON,
+                        onAreaSelected = { selectedAreaLabel.value = it.areaLabel },
+                    )
+                }
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 30_000) {
+            composeRule.onAllNodesWithContentDescription("Donor map rendered")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("donor-map-native-view").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-map-native-view").performTouchInput { click() }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            selectedAreaLabel.value == area.areaLabel
+        }
+        composeRule.runOnIdle {
+            org.junit.Assert.assertEquals(area.areaLabel, selectedAreaLabel.value)
+        }
+        capture("donor-map-synthetic-marker-selected")
     }
 
     @Test
