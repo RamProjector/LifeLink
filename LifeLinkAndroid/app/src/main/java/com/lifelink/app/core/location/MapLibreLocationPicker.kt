@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -57,6 +58,12 @@ private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/li
 // so the picker does not spin forever.
 private const val MAP_LOAD_TIMEOUT_MS = 30_000L
 private const val MAP_RENDER_TIMEOUT_MS = 25_000L
+
+/**
+ * Supplies a deterministic local MapLibre style to previews and instrumentation tests.
+ * Production uses the OpenFreeMap style when no override is provided.
+ */
+val LocalMapLibreStyleJson = staticCompositionLocalOf<String?> { null }
 
 private fun donorMapStyle(styleJson: String?): Style.Builder =
     if (styleJson.isNullOrBlank()) {

@@ -128,6 +128,7 @@ jobs:
             timeout 10s adb -s "$device_serial" get-state > "$GITHUB_WORKSPACE/visual-artifacts/adb-device-state.txt" 2>&1 || true
             timeout 10s adb -s "$device_serial" shell getprop sys.boot_completed > "$GITHUB_WORKSPACE/visual-artifacts/boot-completed.txt" 2>&1 || true
             timeout 15s adb -s "$device_serial" logcat -d -t 5000 > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" 2>&1 || true
+            grep -Eai 'MapLibre|org\.maplibre|tiles\.openfreemap|UnknownHostException|ConnectException|SSLHandshakeException' "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" > "$GITHUB_WORKSPACE/visual-artifacts/maplibre-logcat.txt" || true
             timeout 10s adb -s "$device_serial" shell getprop net.dns1 > "$GITHUB_WORKSPACE/visual-artifacts/emulator-dns1.txt" 2>&1 || true
             timeout 10s adb -s "$device_serial" shell getprop net.dns2 > "$GITHUB_WORKSPACE/visual-artifacts/emulator-dns2.txt" 2>&1 || true
             timeout 15s adb -s "$device_serial" shell dumpsys connectivity > "$GITHUB_WORKSPACE/visual-artifacts/emulator-connectivity.txt" 2>&1 || true
@@ -174,9 +175,9 @@ jobs:
           # --no-daemon: this step runs while the emulator is live, so avoid
           # keeping a 4 GB Gradle daemon resident next to the 4 GB emulator.
           # This workflow is the visual-evidence gate, not the full instrumentation
-          # regression suite. Run only the two screenshot journeys and the critical
-          # donor-map error-recovery test here; the APK build still compiles every
-          # instrumentation test, while unit/backend suites remain separate checks.
+          # regression suite. Run the selected map, navigation, and recovery journeys
+          # here; the APK build compiles every instrumentation test, while unit/backend
+          # suites remain separate checks.
           # A single suite avoids AndroidJUnitRunner silently accepting only the first mixed class/method selector.
           visual_test_classes="com.lifelink.app.LifeLinkVisualReviewSuite"
           ./gradlew connectedDebugAndroidTest \
@@ -388,6 +389,7 @@ jobs:
             "lifelink-phone-light-donor-map-error.png"
             "lifelink-phone-light-donor-map-empty.png"
             "lifelink-phone-light-donor-map-synthetic-marker-selected.png"
+            "lifelink-donor-workspace-after-open.png"
           )
           for file in "${required[@]}"; do
             if [[ ! -s "$evidence_dir/$file" ]]; then
@@ -396,7 +398,7 @@ jobs:
               exit 1
             fi
           done
-          echo "Required home, fully rendered donor map, and requests screenshots are present."
+          echo "Required home, rendered donor map, donor workspace, and requests screenshots are present."
 
       - name: Upload visual evidence and reports
         if: always()
