@@ -297,46 +297,41 @@ open class LifeLinkWorkflowVisualTest {
         val areas = SyntheticDonorMapFixture.state.map!!.areas
         val firstArea = areas.first()
         val filteredArea = areas.last()
-        val mapCenter = mutableStateOf(firstArea)
-        val visibleAreas = mutableStateOf(listOf(firstArea))
-        val selectedAreaLabel = mutableStateOf<String?>(null)
-
-        composeRule.activity.runOnUiThread {
-            composeRule.activity.setContent {
-                LifeLinkTheme(themeMode = testTheme) {
-                    MapLibrePrivacySafeDonorMap(
-                        latitude = mapCenter.value.latitude,
-                        longitude = mapCenter.value.longitude,
-                        areas = visibleAreas.value,
-                        styleJson = SYNTHETIC_MAP_STYLE_JSON,
-                        onAreaSelected = { selectedAreaLabel.value = it.areaLabel },
-                    )
-                }
-            }
-        }
+        val harness = SyntheticMapHarness(firstArea)
+        renderSyntheticMap(harness)
 
         composeRule.waitUntil(timeoutMillis = 30_000) {
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
                 .fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithTag("donor-map-native-view").assertIsDisplayed()
-        tapMapAndAssertSelection(firstArea.areaLabel) { selectedAreaLabel.value }
+        tapMapAndAssertSelection(firstArea) { harness.selectedArea.value }
         capture("donor-map-synthetic-marker-selected")
 
-        // Simulate a filter result changing the marker collection and camera center.
+        // Simulate a filter result replacing the visible marker set.
         composeRule.runOnIdle {
-            selectedAreaLabel.value = null
-            visibleAreas.value = listOf(filteredArea)
-            mapCenter.value = filteredArea
+            harness.show(listOf(filteredArea), filteredArea)
         }
         composeRule.waitForIdle()
-        tapMapAndAssertSelection(filteredArea.areaLabel) { selectedAreaLabel.value }
+        tapMapAndAssertSelection(filteredArea) { harness.selectedArea.value }
         capture("donor-map-synthetic-filtered-marker-selected")
 
-        // A filtered-out marker must no longer be tappable at its previous position.
+        // A refresh may change details while the approximate point stays the same.
+        val refreshedArea = filteredArea.copy(
+            areaLabel = "Synthetic Refreshed Test Area B",
+            freshnessAgeMinutes = filteredArea.freshnessAgeMinutes + 1,
+            isStale = true,
+        )
         composeRule.runOnIdle {
-            selectedAreaLabel.value = null
-            mapCenter.value = firstArea
+            harness.show(listOf(refreshedArea), filteredArea)
+        }
+        composeRule.waitForIdle()
+        tapMapAndAssertSelection(refreshedArea) { harness.selectedArea.value }
+        capture("donor-map-synthetic-marker-metadata-refreshed")
+
+        // A filtered-out marker must not remain tappable at its previous position.
+        composeRule.runOnIdle {
+            harness.show(listOf(refreshedArea), firstArea)
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("donor-map-native-view").performTouchInput { click() }
@@ -344,21 +339,51 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.runOnIdle {
             org.junit.Assert.assertNull(
                 "The filtered-out synthetic marker must not remain on the map",
-                selectedAreaLabel.value,
+                harness.selectedArea.value,
             )
         }
     }
 
-    private fun tapMapAndAssertSelection(expectedLabel: String, selectedLabel: () -> String?) {
-        composeRule.onNodeWithTag("donor-map-native-view").performTouchInput { click() }
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            selectedLabel() == expectedLabel
-        }
-        composeRule.runOnIdle {
-            org.junit.Assert.assertEquals(expectedLabel, selectedLabel())
+    private class SyntheticMapHarness(initialArea: DonorMapArea) {
+        val center = mutableStateOf(initialArea)
+        val areas = mutableStateOf(listOf(initialArea))
+        val selectedArea = mutableStateOf<DonorMapArea?>(null)
+
+        fun show(visibleAreas: List<DonorMapArea>, mapCenter: DonorMapArea) {
+            selectedArea.value = null
+            areas.value = visibleAreas
+            center.value = mapCenter
         }
     }
 
+    private fun renderSyntheticMap(harness: SyntheticMapHarness) {
+        composeRule.activity.runOnUiThread {
+            composeRule.activity.setContent {
+                LifeLinkTheme(themeMode = testTheme) {
+                    MapLibrePrivacySafeDonorMap(
+                        latitude = harness.center.value.latitude,
+                        longitude = harness.center.value.longitude,
+                        areas = harness.areas.value,
+                        styleJson = SYNTHETIC_MAP_STYLE_JSON,
+                        onAreaSelected = { harness.selectedArea.value = it },
+                    )
+                }
+            }
+        }
+    }
+
+    private fun tapMapAndAssertSelection(
+        expectedArea: DonorMapArea,
+        selectedArea: () -> DonorMapArea?,
+    ) {
+        composeRule.onNodeWithTag("donor-map-native-view").performTouchInput { click() }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            selectedArea() == expectedArea
+        }
+        composeRule.runOnIdle {
+            org.junit.Assert.assertEquals(expectedArea, selectedArea())
+        }
+    }
     @Test
     fun donorMapErrorKeepsMapVisibleAndRetryable() {
         val actions = mutableListOf<com.lifelink.app.feature.privacy.PrivacyAction>()
