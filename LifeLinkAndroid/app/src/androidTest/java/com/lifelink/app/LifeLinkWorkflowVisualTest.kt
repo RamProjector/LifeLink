@@ -411,13 +411,13 @@ open class LifeLinkWorkflowVisualTest {
                 composeRule.onAllNodesWithContentDescription("Donor map unavailable")
                     .fetchSemanticsNodes().isNotEmpty()
         }
-        // External tile providers may be unreachable in CI. Both outcomes must leave
-        // the map controls and recovery path usable.
-        val mapRendered = composeRule.onAllNodesWithContentDescription("Donor map rendered")
-            .fetchSemanticsNodes().isNotEmpty()
         val mapUnavailable = composeRule.onAllNodesWithContentDescription("Donor map unavailable")
             .fetchSemanticsNodes().isNotEmpty()
-        org.junit.Assert.assertTrue("Map must report either rendered or unavailable", mapRendered || mapUnavailable)
+        org.junit.Assert.assertFalse(
+            "The real OpenFreeMap style and visible tiles must render in the emulator; inspect MapLibre logcat if unavailable.",
+            mapUnavailable,
+        )
+        composeRule.onNodeWithContentDescription("Donor map rendered").assertIsDisplayed()
     }
 
     private fun verifyDonorMapFilters() {
