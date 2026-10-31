@@ -370,12 +370,7 @@ fun MapLibrePrivacySafeDonorMap(
     var recenterRequest by remember { mutableStateOf(0) }
     var appliedRecenterRequest by remember { mutableStateOf(-1) }
     var appliedCenter by remember { mutableStateOf<LatLng?>(null) }
-    var appliedAreasSignature by remember { mutableStateOf("") }
-    val areasSignature = remember(areas) {
-        areas.joinToString(separator = "|") { area ->
-            "${area.latitude},${area.longitude},${area.bloodType},${area.availability},${area.freshnessAt}"
-        }
-    }
+    var appliedAreas by remember { mutableStateOf<List<DonorMapArea>?>(null) }
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
         MapView(context).also { it.onCreate(null) }
@@ -452,7 +447,7 @@ fun MapLibrePrivacySafeDonorMap(
                             appliedCenter = center
                             appliedRecenterRequest = recenterRequest
                             addAreaMarkers(map, areas, markerAreas)
-                            appliedAreasSignature = areasSignature
+                            appliedAreas = areas.toList()
                             map.setOnMarkerClickListener { marker -> onMarkerClick(marker) }
                         }
                     }
@@ -470,7 +465,7 @@ fun MapLibrePrivacySafeDonorMap(
                             mapLoading = false
                             mapError = false
                             addAreaMarkers(map, areas, markerAreas)
-                            appliedAreasSignature = areasSignature
+                            appliedAreas = areas.toList()
                             appliedCenter = center
                             appliedRecenterRequest = recenterRequest
                             map.setOnMarkerClickListener { marker -> onMarkerClick(marker) }
@@ -478,11 +473,11 @@ fun MapLibrePrivacySafeDonorMap(
                         retryRequest = 0
                     }
                     if (!styleReady) return@getMapAsync
-                    if (appliedAreasSignature != areasSignature) {
+                    if (appliedAreas != areas) {
                         // Update annotations in place. Reloading the whole style for a
                         // blood-type/availability filter needlessly reloads map tiles.
                         addAreaMarkers(map, areas, markerAreas)
-                        appliedAreasSignature = areasSignature
+                        appliedAreas = areas.toList()
                         map.setOnMarkerClickListener { marker -> onMarkerClick(marker) }
                     }
                     // Repeated Compose updates must not keep resetting the camera.
