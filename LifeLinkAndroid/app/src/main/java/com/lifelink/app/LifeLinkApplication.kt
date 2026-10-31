@@ -107,7 +107,7 @@ class LifeLinkApplication : Application() {
                     // leak exception messages into logcat/downloadable diagnostics.
                     val message = "Donor presence refresh failed (${error.javaClass.simpleName}); it will retry."
                     Log.w("LifeLinkPresence", message)
-                    DebugFileLogger.warning("donor-presence", message, error)
+                    DebugFileLogger.warning("donor-presence", message)
                 }
                 delay(DONOR_PRESENCE_INTERVAL_MILLIS)
             }
