@@ -107,13 +107,8 @@ class DatabaseMigrationTest {
             """.trimIndent(),
         )
         if (ownedLegacyRows) {
-            for (
-                table in listOf(
-                    "emergency_request_drafts",
-                    "pending_submissions",
-                    "updates",
-                )
-            ) {
+            val ownedTables = listOf("emergency_request_drafts", "pending_submissions", "updates")
+            for (table in ownedTables) {
                 old.execSQL("ALTER TABLE `$table` ADD COLUMN ownerId TEXT")
                 old.execSQL("UPDATE `$table` SET ownerId = 'alice'")
             }
