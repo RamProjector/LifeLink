@@ -320,34 +320,20 @@ open class LifeLinkWorkflowVisualTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithTag("donor-map-native-view").assertIsDisplayed()
-        composeRule.onNodeWithTag("donor-map-native-view").performTouchInput { click() }
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            selectedAreaLabel.value == firstArea.areaLabel
-        }
-        composeRule.runOnIdle {
-            org.junit.Assert.assertEquals(firstArea.areaLabel, selectedAreaLabel.value)
-        }
+        tapMapAndAssertSelection(firstArea.areaLabel) { selectedAreaLabel.value }
         capture("donor-map-synthetic-marker-selected")
 
-        // Simulate a filter result changing the marker collection. Recenter on the
-        // remaining synthetic area so the same deterministic tap can select it.
+        // Simulate a filter result changing the marker collection and camera center.
         composeRule.runOnIdle {
             selectedAreaLabel.value = null
             visibleAreas.value = listOf(filteredArea)
             mapCenter.value = filteredArea
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("donor-map-native-view").performTouchInput { click() }
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            selectedAreaLabel.value == filteredArea.areaLabel
-        }
-        composeRule.runOnIdle {
-            org.junit.Assert.assertEquals(filteredArea.areaLabel, selectedAreaLabel.value)
-        }
+        tapMapAndAssertSelection(filteredArea.areaLabel) { selectedAreaLabel.value }
         capture("donor-map-synthetic-filtered-marker-selected")
 
-        // A marker removed by the filter must not remain tappable after the camera
-        // returns to its old position.
+        // A filtered-out marker must no longer be tappable at its previous position.
         composeRule.runOnIdle {
             selectedAreaLabel.value = null
             mapCenter.value = firstArea
@@ -363,6 +349,15 @@ open class LifeLinkWorkflowVisualTest {
         }
     }
 
+    private fun tapMapAndAssertSelection(expectedLabel: String, selectedLabel: () -> String?) {
+        composeRule.onNodeWithTag("donor-map-native-view").performTouchInput { click() }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            selectedLabel() == expectedLabel
+        }
+        composeRule.runOnIdle {
+            org.junit.Assert.assertEquals(expectedLabel, selectedLabel())
+        }
+    }
     @Test
     fun donorMapErrorKeepsMapVisibleAndRetryable() {
         val actions = mutableListOf<com.lifelink.app.feature.privacy.PrivacyAction>()
