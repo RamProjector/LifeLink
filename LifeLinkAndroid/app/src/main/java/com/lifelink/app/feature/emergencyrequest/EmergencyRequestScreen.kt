@@ -313,8 +313,18 @@ private fun DonorPicker(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Results", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !showMap, onClick = { showMap = false }, label = { Text("Donors") })
-                FilterChip(selected = showMap, onClick = { showMap = true }, label = { Text("Map") })
+                FilterChip(
+                    selected = !showMap,
+                    onClick = { showMap = false },
+                    label = { Text("Donors") },
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("request-results-donors-view"),
+                )
+                FilterChip(
+                    selected = showMap,
+                    onClick = { showMap = true },
+                    label = { Text("Map") },
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("request-results-map-view"),
+                )
             }
         }
         if (showMap) {
