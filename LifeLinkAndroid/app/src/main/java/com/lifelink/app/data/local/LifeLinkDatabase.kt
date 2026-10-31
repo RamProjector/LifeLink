@@ -165,7 +165,9 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                         if (required) " NOT NULL" else ""
                 }
             }
-            database.execSQL("CREATE TABLE `${table}_owned` (ownerId TEXT NOT NULL, ${definitions.joinToString()}, PRIMARY KEY(ownerId, id))")
+            database.execSQL(
+                "CREATE TABLE `${table}_owned` (ownerId TEXT NOT NULL, ${definitions.joinToString()}, PRIMARY KEY(ownerId, id))",
+            )
             database.execSQL("INSERT INTO `${table}_owned` SELECT $ownerExpression, ${columns.joinToString()} FROM `$table`")
             database.execSQL("DROP TABLE `$table`")
             database.execSQL("ALTER TABLE `${table}_owned` RENAME TO `$table`")
