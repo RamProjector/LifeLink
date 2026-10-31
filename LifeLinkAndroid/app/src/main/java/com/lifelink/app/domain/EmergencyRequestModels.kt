@@ -1,7 +1,7 @@
 package com.lifelink.app.domain
 
-import java.util.UUID
 import kotlinx.coroutines.flow.Flow
+import java.util.UUID
 
 enum class BloodType(val label: String) {
     A_POS("A+"),
