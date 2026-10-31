@@ -1,37 +1,14 @@
 name: Android visual review
 
 on:
-  pull_request:
-    paths:
-      # Keep visual review focused on UI, resources, and the visual test harness.
-      # Functional/build/unit-test validation still runs on every Android change in validate.yml.
-      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/navigation/**'
-      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/ui/**'
-      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/**/*.kt'
-      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/location/**'
-      - 'LifeLinkAndroid/app/src/main/res/**'
-      - 'LifeLinkAndroid/app/src/main/AndroidManifest.xml'
-      - 'LifeLinkAndroid/app/src/androidTest/**'
-      - 'LifeLinkAndroid/app/src/uiTest/**'
-      - 'LifeLinkAndroid/app/build.gradle.kts'
-      - 'LifeLinkAndroid/build.gradle.kts'
-      - 'LifeLinkAndroid/settings.gradle.kts'
-      - 'LifeLinkAndroid/gradle/**'
-      - 'LifeLinkAndroid/gradle.properties'
-      # The workflow itself must be in the trigger list, otherwise a change that
-      # only edits this file would never run it.
-      - '.github/workflows/android-visual-review.yml'
+  # Emulator/screenshot review is intentionally manual: it is slow and can be
+  # flaky on shared GitHub-hosted runners. Required PR checks stay deterministic.
   workflow_dispatch:
-
-  workflow_call:
 
 permissions:
   contents: read
 
-# Keep required screenshot/instrumentation evidence alive while a newer commit
-# arrives on the same PR. Otherwise rapid fix commits cancel the emulator before
-# it can finish, leaving only post-step diagnostics and guaranteed missing-image
-# failures. Non-PR/manual runs may still replace an older run on the same ref.
+# A manual visual run is isolated per selected ref; it never blocks pull requests.
 concurrency:
   group: android-visual-review-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name != 'pull_request' }}
@@ -51,9 +28,8 @@ jobs:
   visual-review:
     name: Capture Android visual evidence
     runs-on: ubuntu-24.04
-    # Visual review is required evidence, not a best-effort check. Prefer the
-    # standard Linux x86_64 runner with KVM; software emulation remains a fallback
-    # but instrumentation and screenshots must still pass.
+    # Manual review on a standard Linux x86_64 runner. Emulator evidence is
+    # supplemental and is not a required pull-request status check.
     timeout-minutes: 45
     defaults:
       run:
