@@ -1,6 +1,7 @@
 package com.lifelink.app
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
@@ -16,6 +17,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.lifelink.app.core.auth.UserRole
+import com.lifelink.app.core.location.LocalMapLibreStyleJson
 import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
@@ -90,7 +92,11 @@ open class ConversationNavigationTest {
     @Test
     fun donor_can_open_chat_and_system_back_returns_to_the_donor_workspace() {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
-        composeRule.onNodeWithContentDescription("Profile").performClick()
+        composeRule.onNodeWithTag("open-profile").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Account, privacy, and LifeLink information.").assertIsDisplayed()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("open-donor-workspace").fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithTag("open-donor-workspace").performScrollTo().assertIsDisplayed().performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithTag("donor-workspace-screen").fetchSemanticsNodes().isNotEmpty()
@@ -253,7 +259,9 @@ open class ConversationNavigationTest {
         val state = mutableStateOf(PrivacyUiState(mapLoading = true))
         composeRule.setContent {
             LifeLinkTheme {
-                DonorMapScreen(state.value, onAction = {}, onBack = {}, mapStyleJson = SYNTHETIC_MAP_STYLE_JSON)
+                CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                    DonorMapScreen(state.value, onAction = {}, onBack = {})
+                }
             }
         }
 
@@ -275,12 +283,13 @@ open class ConversationNavigationTest {
     fun donor_map_synthetic_fixture_filters_areas_without_live_data() {
         composeRule.setContent {
             LifeLinkTheme {
-                DonorMapScreen(
-                    state = SyntheticDonorMapFixture.state,
-                    onAction = {},
-                    onBack = {},
-                    mapStyleJson = SYNTHETIC_MAP_STYLE_JSON,
-                )
+                CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                    DonorMapScreen(
+                        state = SyntheticDonorMapFixture.state,
+                        onAction = {},
+                        onBack = {},
+                    )
+                }
             }
         }
 
@@ -311,32 +320,33 @@ open class ConversationNavigationTest {
             .commit()
         restoration.setContent {
             LifeLinkTheme {
-                LifeLinkShell(
-                    state = contactResults("accepted"),
-                    onAction = {},
-                    donorState = DonorUiState(profile = profile, requests = listOf(request.copy(response = DonorResponse.ACCEPTED))),
-                    onDonorAction = {},
-                    becomeDonorState = com.lifelink.app.feature.donor.BecomeDonorUiState(loading = false),
-                    onBecomeDonorAction = {},
-                    privacyState = PrivacyUiState(),
-                    onPrivacyAction = { actions += it },
-                    role = role,
-                    onSwitchRole = {},
-                    accountEmail = "conversation@example.invalid",
-                    accountUserId = "conversation-test",
-                    accountDisplayName = "Test User",
-                    profileSaving = false,
-                    profileMessage = null,
-                    onSaveProfile = {},
-                    themeMode = ThemeMode.LIGHT,
-                    onThemeModeChange = {},
-                    onRequestPasswordReset = {},
-                    onSignOut = {},
-                    updates = emptyList(),
-                    onUpdateRead = {},
-                    onMarkAllUpdatesRead = {},
-                    donorMapStyleJson = SYNTHETIC_MAP_STYLE_JSON,
-                )
+                CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                    LifeLinkShell(
+                        state = contactResults("accepted"),
+                        onAction = {},
+                        donorState = DonorUiState(profile = profile, requests = listOf(request.copy(response = DonorResponse.ACCEPTED))),
+                        onDonorAction = {},
+                        becomeDonorState = com.lifelink.app.feature.donor.BecomeDonorUiState(loading = false),
+                        onBecomeDonorAction = {},
+                        privacyState = PrivacyUiState(),
+                        onPrivacyAction = { actions += it },
+                        role = role,
+                        onSwitchRole = {},
+                        accountEmail = "conversation@example.invalid",
+                        accountUserId = "conversation-test",
+                        accountDisplayName = "Test User",
+                        profileSaving = false,
+                        profileMessage = null,
+                        onSaveProfile = {},
+                        themeMode = ThemeMode.LIGHT,
+                        onThemeModeChange = {},
+                        onRequestPasswordReset = {},
+                        onSignOut = {},
+                        updates = emptyList(),
+                        onUpdateRead = {},
+                        onMarkAllUpdatesRead = {},
+                    )
+                }
             }
         }
     }

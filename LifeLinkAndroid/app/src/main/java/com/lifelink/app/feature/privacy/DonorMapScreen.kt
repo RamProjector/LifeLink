@@ -59,6 +59,7 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.core.location.LocalMapLibreStyleJson
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.LifeLinkFeedbackCard
 import com.lifelink.app.core.ui.LifeLinkFeedbackLevel
@@ -147,9 +148,9 @@ fun DonorMapScreen(
     centerLongitude: Double? = null,
     showCloseButton: Boolean = true,
     embeddedInShell: Boolean = false,
-    mapStyleJson: String? = null,
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
+    val mapStyleJson = LocalMapLibreStyleJson.current
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
     var showList by rememberSaveable { mutableStateOf(false) }
     var privacyOpen by rememberSaveable { mutableStateOf(false) }

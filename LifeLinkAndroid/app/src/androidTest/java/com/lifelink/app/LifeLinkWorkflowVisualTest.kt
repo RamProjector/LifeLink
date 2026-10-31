@@ -2,6 +2,7 @@ package com.lifelink.app
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -29,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lifelink.app.core.auth.UserRole
+import com.lifelink.app.core.location.LocalMapLibreStyleJson
 import com.lifelink.app.core.location.MapLibreLocationPicker
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.navigation.LifeLinkShell
@@ -158,7 +160,6 @@ open class LifeLinkWorkflowVisualTest {
                         state = BecomeDonorUiState(loading = false),
                         onAction = {},
                         onBack = {},
-                        mapStyleJson = SYNTHETIC_MAP_STYLE_JSON,
                     )
                 }
             }
@@ -195,12 +196,13 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.activity.runOnUiThread {
             composeRule.activity.setContent {
                 LifeLinkTheme(themeMode = testTheme) {
-                    DonorMapScreen(
-                        state = privacySafeDonorMapState(),
-                        onAction = {},
-                        onBack = { parentBackCount++ },
-                        mapStyleJson = SYNTHETIC_MAP_STYLE_JSON,
-                    )
+                    CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                        DonorMapScreen(
+                            state = privacySafeDonorMapState(),
+                            onAction = {},
+                            onBack = { parentBackCount++ },
+                        )
+                    }
                 }
             }
         }
@@ -266,11 +268,13 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.activity.runOnUiThread {
             composeRule.activity.setContent {
                 LifeLinkTheme(themeMode = testTheme) {
-                    DonorMapScreen(
-                        state = PrivacyUiState(),
-                        onAction = {},
-                        onBack = {},
-                    )
+                    CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                        DonorMapScreen(
+                            state = PrivacyUiState(),
+                            onAction = {},
+                            onBack = {},
+                        )
+                    }
                 }
             }
         }
@@ -329,11 +333,13 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.activity.runOnUiThread {
             composeRule.activity.setContent {
                 LifeLinkTheme(themeMode = testTheme) {
-                    DonorMapScreen(
-                        state = PrivacyUiState(mapError = "Check your connection and try again."),
-                        onAction = { actions += it },
-                        onBack = {},
-                    )
+                    CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                        DonorMapScreen(
+                            state = PrivacyUiState(mapError = "Check your connection and try again."),
+                            onAction = { actions += it },
+                            onBack = {},
+                        )
+                    }
                 }
             }
         }
@@ -364,11 +370,13 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.activity.runOnUiThread {
             composeRule.activity.setContent {
                 LifeLinkTheme(themeMode = testTheme) {
-                    DonorMapScreen(
-                        state = emptyMapState,
-                        onAction = { actions += it },
-                        onBack = {},
-                    )
+                    CompositionLocalProvider(LocalMapLibreStyleJson provides SYNTHETIC_MAP_STYLE_JSON) {
+                        DonorMapScreen(
+                            state = emptyMapState,
+                            onAction = { actions += it },
+                            onBack = {},
+                        )
+                    }
                 }
             }
         }
