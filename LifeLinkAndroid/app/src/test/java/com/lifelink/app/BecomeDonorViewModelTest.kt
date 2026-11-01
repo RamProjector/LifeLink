@@ -85,7 +85,8 @@ class BecomeDonorViewModelTest {
         )
         viewModel.onAction(BecomeDonorAction.Save)
 
-        assertTrue(viewModel.state.value.message!!.contains("verify"))
+        assertTrue(viewModel.state.value.message!!.contains("not appear in matching"))
+        assertEquals(LifeLinkFeedbackLevel.Warning, viewModel.state.value.messageLevel)
         assertFalse(viewModel.state.value.draft.isMatchable)
     }
 
