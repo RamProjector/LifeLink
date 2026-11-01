@@ -50,6 +50,7 @@ import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
+import org.maplibre.android.tile.TileOperation
 import org.maplibre.android.maps.Style
 
 private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
@@ -353,9 +354,11 @@ fun MapLibrePrivacySafeDonorMap(
     fullScreen: Boolean = false,
     onAreaSelected: (DonorMapArea) -> Unit = {},
     styleJson: String? = null,
+    onTileAction: (TileOperation) -> Unit = {},
 ) {
     val context = LocalContext.current
     val latestOnAreaSelected by rememberUpdatedState(onAreaSelected)
+    val latestOnTileAction = rememberUpdatedState(onTileAction)
     val markerAreas = remember { mutableMapOf<Long, DonorMapArea>() }
     val onMarkerClick: (Marker) -> Boolean = { marker ->
         markerAreas[marker.id]?.let(latestOnAreaSelected)
@@ -375,10 +378,19 @@ fun MapLibrePrivacySafeDonorMap(
         MapLibre.getInstance(context.applicationContext)
         MapView(context).also { it.onCreate(null) }
     }
-    DisposableEffect(mapView) {
+    val tileActionListener = remember(mapView) {
+        MapView.OnTileActionListener { operation, _, _, _, _, _, _ ->
+            // Do not expose tile coordinates or source metadata: these can reveal
+            // the viewed area. Consumers receive only the operation category.
+            latestOnTileAction.value(operation)
+        }
+    }
+    DisposableEffect(mapView, tileActionListener) {
+        mapView.addOnTileActionListener(tileActionListener)
         mapView.onStart()
         mapView.onResume()
         onDispose {
+            mapView.removeOnTileActionListener(tileActionListener)
             mapView.onPause()
             mapView.onStop()
             mapView.onDestroy()
