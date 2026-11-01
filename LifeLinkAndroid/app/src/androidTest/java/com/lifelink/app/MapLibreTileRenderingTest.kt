@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.lifelink.app.core.location.MapLibreMapCallbacks
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
@@ -40,10 +41,12 @@ class MapLibreTileRenderingTest {
                         latitude = 0.0,
                         longitude = 0.0,
                         areas = emptyList(),
-                        onTileAction = { operation ->
-                            tileActions.add(operation)
-                            Log.d("LifeLinkMapTiles", "operation=${operation.name}")
-                        },
+                        callbacks = MapLibreMapCallbacks(
+                            onTileAction = { operation ->
+                                tileActions.add(operation)
+                                Log.d("LifeLinkMapTiles", "operation=${operation.name}")
+                            },
+                        ),
                     )
                 }
             }
