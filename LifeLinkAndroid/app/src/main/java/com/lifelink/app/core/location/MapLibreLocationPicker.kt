@@ -536,7 +536,8 @@ fun MapLibrePrivacySafeDonorMap(
                 }
             }
         }
-        if (!mapLoading && mapRendered && !mapError && areas.isEmpty()) {
+        val showEmptyMapState = !mapLoading && mapRendered && !mapError && areas.isEmpty()
+        if (showEmptyMapState) {
             Card(
                 modifier = Modifier
                     .align(androidx.compose.ui.Alignment.BottomStart)
