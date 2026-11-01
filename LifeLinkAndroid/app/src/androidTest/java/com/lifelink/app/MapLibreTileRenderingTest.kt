@@ -65,6 +65,10 @@ class MapLibreTileRenderingTest {
             "LifeLinkMapTiles",
             "renderer=$renderer networkRequested=$networkRequests networkLoaded=$networkLoads parsed=$parsedTiles errors=$tileErrors",
         )
+        assertTrue(
+            "OpenFreeMap tile-render screenshot could not be captured",
+            VisualEvidence.capture("lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"),
+        )
 
         assertEquals(
             "The CI emulator should select MapLibre Vulkan so OpenFreeMap text/symbol layers render",
@@ -78,10 +82,6 @@ class MapLibreTileRenderingTest {
             "MapLibre did not report a fully rendered map",
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
                 .fetchSemanticsNodes().isNotEmpty(),
-        )
-        assertTrue(
-            "OpenFreeMap tile-render screenshot could not be captured",
-            VisualEvidence.capture("lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"),
         )
     }
 }
