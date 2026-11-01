@@ -60,6 +60,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.location.LocalMapLibreStyleJson
+import com.lifelink.app.core.location.MapLibreMapCallbacks
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.LifeLinkFeedbackCard
 import com.lifelink.app.core.ui.LifeLinkFeedbackLevel
@@ -241,7 +242,9 @@ fun DonorMapScreen(
                 areas = filteredAreas,
                 modifier = Modifier.fillMaxSize(),
                 fullScreen = true,
-                onAreaSelected = { area -> selectedAreaKey = donorAreaKey(area) },
+                callbacks = MapLibreMapCallbacks(
+                    onAreaSelected = { area -> selectedAreaKey = donorAreaKey(area) },
+                ),
                 styleJson = mapStyleJson,
             )
         }
