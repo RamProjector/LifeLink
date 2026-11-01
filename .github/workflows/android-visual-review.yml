@@ -189,10 +189,10 @@ jobs:
           # guest booted with wlan0 up but unassociated (0.0.0.0) in the previous
           # run, leaving ConnectivityService with no default network. Explicitly
           # enable and join the emulator's open virtual AP before testing DNS.
-          adb -s "$device_serial" shell settings put global airplane_mode_on 0 >/dev/null 2>&1 || true
-          adb -s "$device_serial" shell cmd wifi set-wifi-enabled enabled \
+          timeout 15s adb -s "$device_serial" shell settings put global airplane_mode_on 0 >/dev/null 2>&1 || true
+          timeout 15s adb -s "$device_serial" shell cmd wifi set-wifi-enabled enabled \
             > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-enable.txt" 2>&1 || true
-          adb -s "$device_serial" shell cmd wifi connect-network AndroidWifi open \
+          timeout 30s adb -s "$device_serial" shell cmd wifi connect-network AndroidWifi open \
             > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-connect.txt" 2>&1 || true
           network_ready=0
           for attempt in $(seq 1 30); do
