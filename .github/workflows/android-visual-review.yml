@@ -29,7 +29,7 @@ env:
   # selects Vulkan when the guest advertises support, with OpenGL as device fallback.
   ANDROID_EMU_VK_ICD: swiftshader
   # Bump after changing the guest architecture or system-image selection.
-  AVD_CACHE_VERSION: v5
+  AVD_CACHE_VERSION: v6
 
 jobs:
   visual-review:
@@ -328,14 +328,51 @@ jobs:
           EOF
           chmod +x "$RUNNER_TEMP/lifelink-visual-test.sh"
 
-      # Cache only the Android system image. The visual run intentionally
-      # cold-boots a fresh AVD and disables snapshot loading/saving so screenshots
-      # are deterministic; an AVD snapshot would add a boot that is never reused.
-      # Never cache the ADB key pair (~/.android/adbkey, adbkey.pub): it is a
-      # per-runner credential and must not be shared between PR/base-branch runs.
-      - name: Cache Android emulator system image
-        if: steps.kvm.outputs.available == 'true'
-        uses: actions/cache@v4
+      # Restore only the system image. The visual run cold-boots a fresh AVD
+      # and never loads or saves snapshots, so no previous guest state is reused.
+      - name: Restore Android emulator system image
+        id: system-image-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /usr/local/lib/android/sdk/system-images
+          key: android-system-image-${{ env.API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_CACHE_VERSION }}
+
+      # sdkmanager occasionally leaves a truncated system-image archive behind.
+      # Validate the installed package and retry clean downloads before the
+      # emulator action starts, rather than failing deep inside AVD creation.
+      - name: Ensure Android emulator system image is installed
+        id: system-image
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="system-images;android-${API_LEVEL};${AVD_TARGET};${AVD_ARCH}"
+          package_dir="$ANDROID_HOME/system-images/android-${API_LEVEL}/${AVD_TARGET}/${AVD_ARCH}"
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [[ -f "$package_dir/package.xml" && -f "$package_dir/source.properties" ]]; then
+            echo "Android emulator system image is already installed."
+            exit 0
+          fi
+          rm -rf "$package_dir"
+          for attempt in 1 2 3; do
+            echo "Installing $package (attempt $attempt/3)."
+            set +e
+            "$sdkmanager" --sdk_root="$ANDROID_HOME" --install "$package" --channel=0
+            install_exit=$?
+            set -e
+            if [[ "$install_exit" == "0" && -f "$package_dir/package.xml" && -f "$package_dir/source.properties" ]]; then
+              echo "Android emulator system image installed and validated."
+              exit 0
+            fi
+            echo "::warning::System image install attempt $attempt failed or produced an incomplete package."
+            rm -rf "$package_dir" "$HOME/.android/cache"
+            if [[ "$attempt" != "3" ]]; then sleep $((attempt * 10)); fi
+          done
+          echo "::error::Could not install a valid Android emulator system image after three attempts."
+          exit 1
+
+      - name: Save Android emulator system image cache
+        if: steps.system-image-cache.outputs.cache-hit != 'true' && steps.system-image.outcome == 'success'
+        uses: actions/cache/save@v4
         with:
           path: /usr/local/lib/android/sdk/system-images
           key: android-system-image-${{ env.API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_CACHE_VERSION }}
