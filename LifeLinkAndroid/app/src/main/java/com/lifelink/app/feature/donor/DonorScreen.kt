@@ -521,18 +521,8 @@ private fun StatusMessage(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
-    val containerColor = when (level) {
-        LifeLinkFeedbackLevel.Success -> MaterialTheme.colorScheme.secondaryContainer
-        LifeLinkFeedbackLevel.Info -> MaterialTheme.colorScheme.surfaceContainerHigh
-        LifeLinkFeedbackLevel.Warning -> MaterialTheme.colorScheme.tertiaryContainer
-        LifeLinkFeedbackLevel.Error -> MaterialTheme.colorScheme.errorContainer
-    }
-    val contentColor = when (level) {
-        LifeLinkFeedbackLevel.Success -> MaterialTheme.colorScheme.onSecondaryContainer
-        LifeLinkFeedbackLevel.Info -> MaterialTheme.colorScheme.onSurface
-        LifeLinkFeedbackLevel.Warning -> MaterialTheme.colorScheme.onTertiaryContainer
-        LifeLinkFeedbackLevel.Error -> MaterialTheme.colorScheme.onErrorContainer
-    }
+    val containerColor = feedbackContainerColor(level)
+    val contentColor = feedbackContentColor(level)
     Card(
         Modifier.fillMaxWidth().semantics {
             liveRegion = if (level == LifeLinkFeedbackLevel.Error) LiveRegionMode.Assertive else LiveRegionMode.Polite
@@ -559,6 +549,24 @@ private fun StatusMessage(
         }
     }
 }
+
+@Composable
+private fun feedbackContainerColor(level: LifeLinkFeedbackLevel) =
+    when (level) {
+        LifeLinkFeedbackLevel.Success -> MaterialTheme.colorScheme.secondaryContainer
+        LifeLinkFeedbackLevel.Info -> MaterialTheme.colorScheme.surfaceContainerHigh
+        LifeLinkFeedbackLevel.Warning -> MaterialTheme.colorScheme.tertiaryContainer
+        LifeLinkFeedbackLevel.Error -> MaterialTheme.colorScheme.errorContainer
+    }
+
+@Composable
+private fun feedbackContentColor(level: LifeLinkFeedbackLevel) =
+    when (level) {
+        LifeLinkFeedbackLevel.Success -> MaterialTheme.colorScheme.onSecondaryContainer
+        LifeLinkFeedbackLevel.Info -> MaterialTheme.colorScheme.onSurface
+        LifeLinkFeedbackLevel.Warning -> MaterialTheme.colorScheme.onTertiaryContainer
+        LifeLinkFeedbackLevel.Error -> MaterialTheme.colorScheme.onErrorContainer
+    }
 
 /** Displays availability choices and dispatches changes while no save is in progress. */
 @Composable private fun AvailabilityCard(profile: DonorProfile, onAction: (DonorAction) -> Unit, saving: Boolean) {

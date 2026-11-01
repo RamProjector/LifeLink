@@ -224,7 +224,8 @@ class DonorViewModel(
         when (availability) {
             DonorAvailability.AVAILABLE -> when {
                 profileDirty ->
-                    "Availability set to Available. Save your profile edits before relying on matching status; a recent location is also required."
+                    "Availability set to Available. Save your profile edits before relying on matching status; " +
+                        "a recent location is also required."
                 !profile.verified -> "Availability is Available, but you will not appear in matching until your profile is verified."
                 !profile.profileVisible -> "Availability is Available, but your profile is hidden from matching."
                 else -> "Availability set to Available. Matching also requires a recent location."

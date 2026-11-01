@@ -1,6 +1,7 @@
 package com.lifelink.app.feature.donor
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -66,6 +67,7 @@ import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfileMe
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 private const val GPS_CAPTURE_MAX_AGE_MILLIS = 5 * 60 * 1000L
@@ -379,61 +381,31 @@ private fun GpsLocationCapture(
     var loading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var showAppSettings by remember { mutableStateOf(false) }
-
     val captureCurrentGps: () -> Unit = {
-        scope.launch {
-            loading = true
-            onCaptureStateChanged(false)
-            message = null
-            showAppSettings = false
-            try {
-                val location = try {
-                    LocationProvider(context).currentLocation()
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    null
-                }
-                if (location == null) {
-                    message = "Could not get a current GPS fix. Turn on device location and try again."
-                } else {
-                    onLocationCaptured(location.latitude, location.longitude, location.precisionMeters)
-                    onCaptureStateChanged(true)
-                    message = "Current GPS captured (about ±${location.precisionMeters} m accuracy)."
-                }
-            } finally {
-                loading = false
-            }
-        }
+        launchGpsCapture(
+            scope = scope,
+            context = context,
+            setLoading = { loading = it },
+            onCaptureStateChanged = onCaptureStateChanged,
+            setMessage = { message = it },
+            onLocationCaptured = onLocationCaptured,
+        )
     }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) { grants ->
-        if (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
+
+    val requestCurrentGps = rememberGpsPermissionRequest(
+        context = context,
+        onGranted = {
             showAppSettings = false
             captureCurrentGps()
-        } else {
+        },
+        onDenied = {
             onCaptureStateChanged(false)
             showAppSettings = true
             message =
                 "Precise location permission is required to register as a donor. " +
                 "Enable it in app settings to continue."
-        }
-    }
-    val requestCurrentGps: () -> Unit = {
-        val fineGranted = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED
-        if (fineGranted) {
-            captureCurrentGps()
-        } else {
-            permissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                ),
-            )
-        }
-    }
+        },
+    )
 
     GpsLocationCard(
         latitude = latitude,
@@ -443,16 +415,71 @@ private fun GpsLocationCapture(
         message = message,
         onRequestCurrentGps = requestCurrentGps,
         onOpenAppSettings = if (showAppSettings) {
-            {
-                context.startActivity(
-                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", context.packageName, null)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    },
-                )
-            }
+            { openAppSettings(context) }
         } else {
             null
+        },
+    )
+}
+
+@Composable
+private fun rememberGpsPermissionRequest(
+    context: Context,
+    onGranted: () -> Unit,
+    onDenied: () -> Unit,
+): () -> Unit {
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        if (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true) onGranted() else onDenied()
+    }
+    return {
+        val fineGranted = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        if (fineGranted) {
+            onGranted()
+        } else {
+            launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        }
+    }
+}
+
+private fun launchGpsCapture(
+    scope: CoroutineScope,
+    context: Context,
+    setLoading: (Boolean) -> Unit,
+    onCaptureStateChanged: (Boolean) -> Unit,
+    setMessage: (String?) -> Unit,
+    onLocationCaptured: (Double, Double, Int) -> Unit,
+) {
+    scope.launch {
+        setLoading(true)
+        onCaptureStateChanged(false)
+        setMessage(null)
+        try {
+            val location = try {
+                LocationProvider(context).currentLocation()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
+            if (location == null) {
+                setMessage("Could not get a current GPS fix. Turn on device location and try again.")
+            } else {
+                onLocationCaptured(location.latitude, location.longitude, location.precisionMeters)
+                onCaptureStateChanged(true)
+                setMessage("Current GPS captured (about ±${location.precisionMeters} m accuracy).")
+            }
+        } finally {
+            setLoading(false)
+        }
+    }
+}
+
+private fun openAppSettings(context: Context) {
+    context.startActivity(
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", context.packageName, null)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         },
     )
 }
