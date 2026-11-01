@@ -299,12 +299,14 @@ open class ConversationNavigationTest {
         composeRule.onNodeWithTag("donor-map-area-list").assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area B").assertIsDisplayed()
+        assertTrue(VisualEvidence.capture("lifelink-phone-light-donor-map-synthetic-list.png"))
 
         composeRule.onNodeWithContentDescription("Show map filters").performClick()
         composeRule.onNodeWithText("O+", substring = false).performClick()
         composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area B").assertDoesNotExist()
+        assertTrue(VisualEvidence.capture("lifelink-phone-light-donor-map-synthetic-blood-filter.png"))
 
         composeRule.onNodeWithText("Clear filters", substring = false).performClick()
         composeRule.onNodeWithText("Synthetic Test Area B").assertIsDisplayed()
@@ -312,6 +314,21 @@ open class ConversationNavigationTest {
         composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area B").assertDoesNotExist()
+        assertTrue(VisualEvidence.capture("lifelink-phone-light-donor-map-synthetic-available-filter.png"))
+
+        // Combining blood type and availability must produce a truthful zero-match state.
+        composeRule.onNodeWithText("A+", substring = false).performClick()
+        composeRule.onNodeWithText("0 matching areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("No areas match these filters", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Clear filters", substring = false).assertIsDisplayed()
+        assertTrue(VisualEvidence.capture("lifelink-phone-light-donor-map-synthetic-no-matches.png"))
+
+        composeRule.onNodeWithContentDescription("Hide map filters").performClick()
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+        composeRule.onNodeWithText("2 matching areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
+        composeRule.onNodeWithText("Synthetic Test Area B").assertIsDisplayed()
+        assertTrue(VisualEvidence.capture("lifelink-phone-light-donor-map-synthetic-filters-cleared.png"))
     }
 
     /** Renders a restorable shell for the supplied role, skips welcome, and records privacy actions. */
