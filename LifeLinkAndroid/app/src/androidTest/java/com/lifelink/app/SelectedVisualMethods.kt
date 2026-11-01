@@ -59,5 +59,6 @@ class LifeLinkVisualSmokeTest : LifeLinkWorkflowVisualTest()
     "unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions",
     "donor_map_is_a_labeled_top_level_destination_and_navigation_remains_available",
     "donor_map_shows_the_correct_loading_error_and_empty_state",
+    "donor_map_synthetic_fixture_filters_areas_without_live_data",
 )
 class ConversationNavigationSmokeTest : ConversationNavigationTest()
