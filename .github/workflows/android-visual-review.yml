@@ -292,8 +292,8 @@ jobs:
                 # using the bounds from the current UI hierarchy rather than a
                 # hard-coded screen coordinate.
                 if [[ "$welcome_dismissed" != "1" ]] && grep -Fq 'text="Go to Home"' "$home_xml"; then
-                  bounds=$(grep -o 'text="Go to Home"[^>]*' "$home_xml" | sed -E 's/.*bounds="\\[([0-9]+),([0-9]+)\\]\\[([0-9]+),([0-9]+)\\]".*/\\1 \\2 \\3 \\4/' | head -1)
-                  if [[ "$bounds" =~ ^[0-9]+\\ [0-9]+\\ [0-9]+\\ [0-9]+$ ]]; then
+                  bounds=$(grep -o 'text="Go to Home"[^>]*' "$home_xml" | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | head -1)
+                  if [[ "$bounds" =~ ^[0-9]+\ [0-9]+\ [0-9]+\ [0-9]+$ ]]; then
                     read -r x1 y1 x2 y2 <<< "$bounds"
                     echo "Dismiss the fake-backend demo welcome via Go to Home."
                     adb -s "$device_serial" shell input tap "$(((x1+x2)/2))" "$(((y1+y2)/2))"
