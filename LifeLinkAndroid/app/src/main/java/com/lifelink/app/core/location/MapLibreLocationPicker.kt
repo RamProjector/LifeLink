@@ -50,8 +50,8 @@ import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
-import org.maplibre.android.tile.TileOperation
 import org.maplibre.android.maps.Style
+import org.maplibre.android.tile.TileOperation
 
 private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
 
@@ -64,10 +64,7 @@ private const val MAP_RENDER_TIMEOUT_MS = 25_000L
  * Optional observation hooks for a privacy-safe donor map. Tile callbacks expose
  * operation categories only; tile coordinates and source identifiers stay private.
  */
-data class MapLibreMapCallbacks(
-    val onAreaSelected: (DonorMapArea) -> Unit = {},
-    val onTileAction: (TileOperation) -> Unit = {},
-)
+data class MapLibreMapCallbacks(val onAreaSelected: (DonorMapArea) -> Unit = {}, val onTileAction: (TileOperation) -> Unit = {})
 
 /**
  * Supplies a deterministic local MapLibre style to previews and instrumentation tests.
