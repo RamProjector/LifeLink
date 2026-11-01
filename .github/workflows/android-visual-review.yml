@@ -185,15 +185,13 @@ jobs:
             echo "::error::Emulator did not become ready within 600 seconds after the emulator action returned."
             exit 2
           fi
-          # API 34's emulator exposes an AndroidWifi virtual access point. The
-          # guest booted with wlan0 up but unassociated (0.0.0.0) in the previous
-          # run, leaving ConnectivityService with no default network. Explicitly
-          # enable and join the emulator's open virtual AP before testing DNS.
+          # API 34 exposes an AndroidWifi virtual access point. The previous
+          # guest booted with Wi-Fi disabled and no default network. Enabling
+          # Wi-Fi lets the emulator autojoin its built-in open virtual AP; the
+          # shell UID cannot force connect-network on this system image.
           timeout 15s adb -s "$device_serial" shell settings put global airplane_mode_on 0 >/dev/null 2>&1 || true
           timeout 15s adb -s "$device_serial" shell cmd wifi set-wifi-enabled enabled \
             > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-enable.txt" 2>&1 || true
-          timeout 30s adb -s "$device_serial" shell cmd wifi connect-network AndroidWifi open \
-            > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-connect.txt" 2>&1 || true
           network_ready=0
           for attempt in $(seq 1 30); do
             wifi_status="$(timeout 10s adb -s "$device_serial" shell cmd wifi status 2>&1 | tr -d '\r' || true)"
