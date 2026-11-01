@@ -147,7 +147,7 @@ jobs:
             timeout 10s adb -s "$device_serial" get-state > "$GITHUB_WORKSPACE/visual-artifacts/adb-device-state.txt" 2>&1 || true
             timeout 10s adb -s "$device_serial" shell getprop sys.boot_completed > "$GITHUB_WORKSPACE/visual-artifacts/boot-completed.txt" 2>&1 || true
             timeout 15s adb -s "$device_serial" logcat -d -t 5000 > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" 2>&1 || true
-            grep -Eai 'MapLibre|org\.maplibre|tiles\.openfreemap|UnknownHostException|ConnectException|SSLHandshakeException' "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" > "$GITHUB_WORKSPACE/visual-artifacts/maplibre-logcat.txt" || true
+            grep -Eai 'MapLibre|LifeLinkMapTiles|org\.maplibre|tiles\.openfreemap|UnknownHostException|ConnectException|SSLHandshakeException' "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" > "$GITHUB_WORKSPACE/visual-artifacts/maplibre-logcat.txt" || true
             timeout 10s adb -s "$device_serial" shell getprop net.dns1 > "$GITHUB_WORKSPACE/visual-artifacts/emulator-dns1.txt" 2>&1 || true
             timeout 10s adb -s "$device_serial" shell getprop net.dns2 > "$GITHUB_WORKSPACE/visual-artifacts/emulator-dns2.txt" 2>&1 || true
             timeout 15s adb -s "$device_serial" shell dumpsys connectivity > "$GITHUB_WORKSPACE/visual-artifacts/emulator-connectivity.txt" 2>&1 || true
@@ -215,7 +215,7 @@ jobs:
           test_exit=$?
           if [[ "$test_exit" == "0" ]]; then
             test_results_dir="$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results"
-            for expected_test in "AuthScreenVisualTest" "LifeLinkVisualSmokeTest" "ConversationNavigationSmokeTest" "DebugFileLoggerTest" "LifeLinkFeedbackCardTest" "navigatesCoreWorkflowsAndCapturesEvidence" "donorMapErrorKeepsMapVisibleAndRetryable" "emptyDonorMapKeepsMapVisibleAndOffersRefresh" "selectingDonorAreaOpensPrivacySafeDetailsAndReturnsToMap" "donor_can_open_chat_and_system_back_returns_to_the_donor_workspace" "unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions" "donor_map_is_a_labeled_top_level_destination_and_navigation_remains_available" "donor_map_shows_the_correct_loading_error_and_empty_state" "syntheticMapMarkerTapSelectsTheMatchingApproximateAreaWithoutNetwork" "debugDiagnosticsAreReadableFromDownloads" "errorFeedbackShowsRecoveryActionAndInvokesIt"; do
+            for expected_test in "AuthScreenVisualTest" "MapLibreTileRenderingTest" "LifeLinkVisualSmokeTest" "ConversationNavigationSmokeTest" "DebugFileLoggerTest" "LifeLinkFeedbackCardTest" "openFreeMapLoadsAndParsesNetworkTilesBeforeMapIsReportedRendered" "donor_map_synthetic_fixture_filters_areas_without_live_data" "navigatesCoreWorkflowsAndCapturesEvidence" "donorMapErrorKeepsMapVisibleAndRetryable" "emptyDonorMapKeepsMapVisibleAndOffersRefresh" "selectingDonorAreaOpensPrivacySafeDetailsAndReturnsToMap" "donor_can_open_chat_and_system_back_returns_to_the_donor_workspace" "unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions" "donor_map_is_a_labeled_top_level_destination_and_navigation_remains_available" "donor_map_shows_the_correct_loading_error_and_empty_state" "syntheticMapMarkerTapSelectsTheMatchingApproximateAreaWithoutNetwork" "debugDiagnosticsAreReadableFromDownloads" "errorFeedbackShowsRecoveryActionAndInvokesIt"; do
               if ! grep -R -Fq "$expected_test" "$test_results_dir"; then
                 echo "::error::Instrumentation result is missing expected visual coverage: $expected_test"
                 find "$test_results_dir" -type f -maxdepth 5 -print 2>/dev/null | sort || true
@@ -420,6 +420,12 @@ jobs:
             "lifelink-phone-light-donor-map-synthetic-marker-selected.png"
             "lifelink-phone-light-donor-map-synthetic-filtered-marker-selected.png"
             "lifelink-phone-light-donor-map-synthetic-marker-metadata-refreshed.png"
+            "lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"
+            "lifelink-phone-light-donor-map-synthetic-list.png"
+            "lifelink-phone-light-donor-map-synthetic-blood-filter.png"
+            "lifelink-phone-light-donor-map-synthetic-available-filter.png"
+            "lifelink-phone-light-donor-map-synthetic-no-matches.png"
+            "lifelink-phone-light-donor-map-synthetic-filters-cleared.png"
             "lifelink-donor-workspace-after-open.png"
           )
           for file in "${required[@]}"; do
