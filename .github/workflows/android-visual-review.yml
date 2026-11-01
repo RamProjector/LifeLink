@@ -201,8 +201,9 @@ jobs:
             routes="$(timeout 10s adb -s "$device_serial" shell ip route 2>&1 | tr -d '\r' || true)"
             active_network="$(sed -n 's/^Active default network: //p' <<< "$connectivity" | head -1)"
             active_agent_line="$(grep -F "NetworkAgentInfo{network{$active_network}" <<< "$connectivity" | head -1)"
-            if grep -Fq 'Wifi is connected to "AndroidWifi"' <<< "$wifi_status" \
-              && [[ "$active_network" =~ ^[0-9]+$ ]] \
+            if [[ "$active_network" =~ ^[0-9]+$ ]] \
+              && [[ "$active_agent_line" == *'WIFI CONNECTED'* ]] \
+              && [[ "$active_agent_line" == *'SSID: "AndroidWifi"'* ]] \
               && [[ "$active_agent_line" == *IS_VALIDATED* ]]; then
               network_ready=1
               break
