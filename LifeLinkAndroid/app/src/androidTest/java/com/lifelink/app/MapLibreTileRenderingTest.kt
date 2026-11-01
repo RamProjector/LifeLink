@@ -10,10 +10,12 @@ import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
 import java.util.concurrent.CopyOnWriteArrayList
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.maplibre.android.RenderingEngine
 import org.maplibre.android.tile.TileOperation
 
 /**
@@ -54,15 +56,21 @@ class MapLibreTileRenderingTest {
                 tileActions.contains(TileOperation.EndParse)
         }
 
+        val renderer = RenderingEngine.getCurrentType()
         val networkRequests = tileActions.count { it == TileOperation.RequestedFromNetwork }
         val networkLoads = tileActions.count { it == TileOperation.LoadFromNetwork }
         val parsedTiles = tileActions.count { it == TileOperation.EndParse }
         val tileErrors = tileActions.count { it == TileOperation.Error }
         Log.i(
             "LifeLinkMapTiles",
-            "networkRequested=$networkRequests networkLoaded=$networkLoads parsed=$parsedTiles errors=$tileErrors",
+            "renderer=$renderer networkRequested=$networkRequests networkLoaded=$networkLoads parsed=$parsedTiles errors=$tileErrors",
         )
 
+        assertEquals(
+            "The CI emulator should select MapLibre Vulkan so OpenFreeMap text/symbol layers render",
+            RenderingEngine.Type.VULKAN,
+            renderer,
+        )
         assertTrue("MapLibre did not request any network tiles: $tileActions", networkRequests > 0)
         assertTrue("MapLibre did not load any network tiles: $tileActions", networkLoads > 0)
         assertTrue("MapLibre did not parse any tiles: $tileActions", parsedTiles > 0)
