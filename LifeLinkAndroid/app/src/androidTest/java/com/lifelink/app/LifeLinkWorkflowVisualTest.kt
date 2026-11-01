@@ -32,6 +32,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.location.LocalMapLibreStyleJson
 import com.lifelink.app.core.location.MapLibreLocationPicker
+import com.lifelink.app.core.location.MapLibreMapCallbacks
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
@@ -365,7 +366,9 @@ open class LifeLinkWorkflowVisualTest {
                         longitude = harness.center.value.longitude,
                         areas = harness.areas.value,
                         styleJson = SYNTHETIC_MAP_STYLE_JSON,
-                        onAreaSelected = { harness.selectedArea.value = it },
+                        callbacks = MapLibreMapCallbacks(
+                            onAreaSelected = { harness.selectedArea.value = it },
+                        ),
                     )
                 }
             }
