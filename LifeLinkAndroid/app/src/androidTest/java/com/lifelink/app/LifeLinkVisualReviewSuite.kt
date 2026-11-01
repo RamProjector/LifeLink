@@ -13,6 +13,7 @@ import org.junit.runners.Suite
 @RunWith(Suite::class)
 @Suite.SuiteClasses(
     AuthScreenVisualTest::class,
+    MapLibreTileRenderingTest::class,
     LifeLinkVisualSmokeTest::class,
     ConversationNavigationSmokeTest::class,
     DebugFileLoggerTest::class,
