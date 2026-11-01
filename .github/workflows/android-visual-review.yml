@@ -199,9 +199,11 @@ jobs:
             wifi_status="$(timeout 10s adb -s "$device_serial" shell cmd wifi status 2>&1 || true)"
             connectivity="$(timeout 10s adb -s "$device_serial" shell dumpsys connectivity 2>&1 || true)"
             routes="$(timeout 10s adb -s "$device_serial" shell ip route 2>&1 || true)"
+            active_network="$(sed -n 's/^Active default network: //p' <<< "$connectivity" | head -1)"
             if grep -Fq 'Wifi is connected to "AndroidWifi"' <<< "$wifi_status" \
-              && ! grep -Fq 'Active default network: none' <<< "$connectivity" \
-              && grep -Eq '^default ' <<< "$routes"; then
+              && [[ "$active_network" =~ ^[0-9]+$ ]] \
+              && grep -Fq "network{$active_network}" <<< "$connectivity" \
+              && grep -Fq 'IS_VALIDATED' <<< "$connectivity"; then
               network_ready=1
               break
             fi
