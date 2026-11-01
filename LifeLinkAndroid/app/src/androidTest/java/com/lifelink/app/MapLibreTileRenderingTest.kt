@@ -23,8 +23,8 @@ import java.util.concurrent.CopyOnWriteArrayList
  * Verifies the production OpenFreeMap style on a real MapLibre view.
  *
  * This test uses no donor areas, donor identifiers, accounts, or backend writes.
- * The camera is centred on the Null Island test coordinate solely to exercise
- * public basemap tiles without representing a donor's location.
+ * The camera is centred on a public central-London basemap fixture solely to
+ * exercise visible public tiles; no donor coordinates or backend data are used.
  */
 @RunWith(AndroidJUnit4::class)
 class MapLibreTileRenderingTest {
@@ -38,8 +38,8 @@ class MapLibreTileRenderingTest {
             composeRule.activity.setContent {
                 LifeLinkTheme(themeMode = ThemeMode.LIGHT) {
                     MapLibrePrivacySafeDonorMap(
-                        latitude = 0.0,
-                        longitude = 0.0,
+                        latitude = 51.5074,
+                        longitude = -0.1278,
                         areas = emptyList(),
                         callbacks = MapLibreMapCallbacks(
                             onTileAction = { operation ->
@@ -56,12 +56,9 @@ class MapLibreTileRenderingTest {
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        assertTrue(
-            "OpenFreeMap tile-render screenshot could not be captured",
-            VisualEvidence.capture("lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"),
-        )
         composeRule.waitUntil(timeoutMillis = 30_000) {
-            tileActions.contains(TileOperation.LoadFromNetwork) &&
+            tileActions.contains(TileOperation.RequestedFromNetwork) &&
+                tileActions.contains(TileOperation.LoadFromNetwork) &&
                 tileActions.contains(TileOperation.EndParse)
         }
 
@@ -82,10 +79,15 @@ class MapLibreTileRenderingTest {
         assertTrue("MapLibre did not request any network tiles: $tileActions", networkRequests > 0)
         assertTrue("MapLibre did not load any network tiles: $tileActions", networkLoads > 0)
         assertTrue("MapLibre did not parse any tiles: $tileActions", parsedTiles > 0)
+        assertEquals("MapLibre reported tile request failures: $tileActions", 0, tileErrors)
         assertTrue(
             "MapLibre did not report a fully rendered map",
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
                 .fetchSemanticsNodes().isNotEmpty(),
+        )
+        assertTrue(
+            "OpenFreeMap tile-render screenshot could not be captured",
+            VisualEvidence.capture("lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"),
         )
     }
 }
