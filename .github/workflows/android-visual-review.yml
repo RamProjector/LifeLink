@@ -151,7 +151,10 @@ jobs:
             timeout 10s adb -s "$device_serial" shell getprop net.dns1 > "$GITHUB_WORKSPACE/visual-artifacts/emulator-dns1.txt" 2>&1 || true
             timeout 10s adb -s "$device_serial" shell getprop net.dns2 > "$GITHUB_WORKSPACE/visual-artifacts/emulator-dns2.txt" 2>&1 || true
             timeout 15s adb -s "$device_serial" shell dumpsys connectivity > "$GITHUB_WORKSPACE/visual-artifacts/emulator-connectivity.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" shell ip addr > "$GITHUB_WORKSPACE/visual-artifacts/emulator-ip-addresses.txt" 2>&1 || true
             timeout 10s adb -s "$device_serial" shell ip route > "$GITHUB_WORKSPACE/visual-artifacts/emulator-ip-route.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" shell cmd wifi status > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-status.txt" 2>&1 || true
+            timeout 15s adb -s "$device_serial" shell dumpsys wifi > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-diagnostics.txt" 2>&1 || true
             timeout 10s adb -s "$device_serial" shell settings get global private_dns_mode > "$GITHUB_WORKSPACE/visual-artifacts/emulator-private-dns-mode.txt" 2>&1 || true
             for remote_file in $(timeout 10s adb -s "$device_serial" shell ls /sdcard/Android/data/com.lifelink.app/files/lifelink-*.png 2>/dev/null | tr -d '\r'); do
               timeout 15s adb -s "$device_serial" pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
@@ -182,13 +185,49 @@ jobs:
             echo "::error::Emulator did not become ready within 600 seconds after the emulator action returned."
             exit 2
           fi
+          # API 34's emulator exposes an AndroidWifi virtual access point. The
+          # guest booted with wlan0 up but unassociated (0.0.0.0) in the previous
+          # run, leaving ConnectivityService with no default network. Explicitly
+          # enable and join the emulator's open virtual AP before testing DNS.
+          adb -s "$device_serial" shell settings put global airplane_mode_on 0 >/dev/null 2>&1 || true
+          adb -s "$device_serial" shell cmd wifi set-wifi-enabled enabled \
+            > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-enable.txt" 2>&1 || true
+          adb -s "$device_serial" shell cmd wifi connect-network AndroidWifi open \
+            > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-connect.txt" 2>&1 || true
+          network_ready=0
+          for attempt in $(seq 1 30); do
+            wifi_status="$(timeout 10s adb -s "$device_serial" shell cmd wifi status 2>&1 || true)"
+            connectivity="$(timeout 10s adb -s "$device_serial" shell dumpsys connectivity 2>&1 || true)"
+            routes="$(timeout 10s adb -s "$device_serial" shell ip route 2>&1 || true)"
+            if grep -Fq 'Wifi is connected to "AndroidWifi"' <<< "$wifi_status" \
+              && ! grep -Fq 'Active default network: none' <<< "$connectivity" \
+              && grep -Eq '^default ' <<< "$routes"; then
+              network_ready=1
+              break
+            fi
+            sleep 3
+          done
+          printf '%s\\n' "$wifi_status" > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-status.txt"
+          printf '%s\\n' "$connectivity" > "$GITHUB_WORKSPACE/visual-artifacts/emulator-connectivity.txt"
+          printf '%s\\n' "$routes" > "$GITHUB_WORKSPACE/visual-artifacts/emulator-ip-route.txt"
+          if [[ "$network_ready" != "1" ]]; then
+            echo "::error::Android emulator did not join its AndroidWifi virtual access point or obtain a default route."
+            echo "--- Wi-Fi status ---"
+            printf '%s\\n' "$wifi_status"
+            echo "--- IP addresses ---"
+            adb -s "$device_serial" shell ip addr || true
+            echo "--- Connectivity ---"
+            printf '%s\\n' "$connectivity" | grep -E 'Active default network|NetworkAgentInfo|No default network' | head -60 || true
+            exit 11
+          fi
           # Host-side curl is not proof that the Android guest can resolve the
-          # same host. Fail early with a saved probe instead of spending the
-          # remaining instrumentation time on a guaranteed MapLibre failure.
+          # same host. Android Emulator networking can lack ICMP replies, so this
+          # probe checks only whether Android's resolver returns a numeric
+          # destination; MapLibre's instrumentation test verifies HTTPS tile IO.
           dns_probe="$(timeout 15s adb -s "$device_serial" shell ping -c 1 -W 5 tiles.openfreemap.org 2>&1 || true)"
-          printf '%s\n' "$dns_probe" > "$GITHUB_WORKSPACE/visual-artifacts/emulator-openfreemap-dns-probe.txt"
-          if ! grep -Eq 'PING .*\([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\)' "$GITHUB_WORKSPACE/visual-artifacts/emulator-openfreemap-dns-probe.txt"; then
-            echo "::error::Android emulator cannot resolve tiles.openfreemap.org. See emulator-openfreemap-dns-probe.txt and emulator connectivity diagnostics."
+          printf '%s\\n' "$dns_probe" > "$GITHUB_WORKSPACE/visual-artifacts/emulator-openfreemap-dns-probe.txt"
+          if ! grep -Eq 'PING .*\\([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\)' "$GITHUB_WORKSPACE/visual-artifacts/emulator-openfreemap-dns-probe.txt"; then
+            echo "::error::Android emulator cannot resolve tiles.openfreemap.org after connecting AndroidWifi. See DNS and connectivity diagnostics."
             exit 10
           fi
           # The cached AVD snapshot may already contain the app installed by a
