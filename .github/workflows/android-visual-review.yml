@@ -96,16 +96,29 @@ jobs:
             echo "Runner can fetch the OpenFreeMap style JSON."
           fi
 
-      # GitHub's Ubuntu runners usually expose /dev/kvm. If unavailable, use
-      # software CPU emulation without skipping instrumentation or screenshots.
+      # GitHub-hosted Ubuntu runners expose /dev/kvm, but the default
+      # root:kvm mode (0660) excludes the runner user. Install the documented
+      # udev rule and apply it to the current device before the emulator action.
+      # This only changes the disposable CI runner, not repository or service
+      # permissions. Without this step the action silently falls back to TCG
+      # (-accel off), which timed out before Android completed boot.
       - name: Enable native emulator virtualization
         id: kvm
         run: |
+          if [[ -e /dev/kvm ]]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+              | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+            # Apply immediately as well; the udev rule persists only for this
+            # ephemeral runner and covers subsequent device-node recreation.
+            sudo chmod 0666 /dev/kvm
+          fi
           if [[ -r /dev/kvm && -w /dev/kvm ]]; then
-            echo "KVM is available: $(ls -l /dev/kvm)"
+            echo "KVM is available to $(id -un): $(ls -l /dev/kvm)"
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::/dev/kvm is unavailable; software emulation may not boot reliably."
+            echo "::warning::/dev/kvm is absent or still inaccessible; software emulation may not boot reliably."
             echo "available=false" >> "$GITHUB_OUTPUT"
           fi
 
