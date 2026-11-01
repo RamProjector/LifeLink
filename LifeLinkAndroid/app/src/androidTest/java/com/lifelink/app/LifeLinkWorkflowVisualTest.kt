@@ -9,6 +9,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
@@ -406,6 +407,8 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithTag("donor-map-native-view").assertIsDisplayed()
         composeRule.onNodeWithTag("donor-map-error-feedback").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-map-screen-empty-state").assertDoesNotExist()
+        composeRule.onNodeWithTag("donor-map-empty-state").assertDoesNotExist()
         composeRule.onNodeWithText("Couldn’t load donor areas").assertIsDisplayed()
         composeRule.onNodeWithText("Retry").performClick()
         org.junit.Assert.assertEquals(
@@ -445,8 +448,9 @@ open class LifeLinkWorkflowVisualTest {
 
         composeRule.onNodeWithTag("donor-map-fullscreen").assertIsDisplayed()
         composeRule.onNodeWithTag("donor-map-native-view").assertIsDisplayed()
-        composeRule.onNodeWithTag("donor-map-empty-state").assertIsDisplayed()
-        composeRule.onNodeWithText("No donor areas to show").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-map-screen-empty-state").assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-map-empty-state").assertDoesNotExist()
+        composeRule.onNodeWithText("No donor areas to show").assertDoesNotExist()
         composeRule.onNodeWithText("No donor areas available").assertIsDisplayed()
         composeRule.onNodeWithText("Refresh areas").assertIsDisplayed()
         capture("donor-map-empty")
