@@ -38,7 +38,10 @@ class MapLibreTileRenderingTest {
                         latitude = 0.0,
                         longitude = 0.0,
                         areas = emptyList(),
-                        onTileAction = { operation -> tileActions.add(operation) },
+                        onTileAction = { operation ->
+                            tileActions.add(operation)
+                            Log.d("LifeLinkMapTiles", "operation=${operation.name}")
+                        },
                     )
                 }
             }
