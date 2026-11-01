@@ -3,6 +3,8 @@ package com.lifelink.app.feature.donor
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.lifelink.app.core.errors.userFacingError
+import com.lifelink.app.core.ui.LifeLinkFeedbackLevel
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRepository
@@ -20,6 +22,7 @@ data class DonorUiState(
     val requests: List<DonorRequest> = emptyList(),
     val saving: Boolean = false,
     val message: String? = null,
+    val messageLevel: LifeLinkFeedbackLevel = LifeLinkFeedbackLevel.Info,
     val profileDirty: Boolean = false,
     val requestsRefreshing: Boolean = false,
 )
@@ -80,6 +83,7 @@ class DonorViewModel(
                 profile = action.update(_state.value.profile),
                 profileDirty = true,
                 message = null,
+                messageLevel = LifeLinkFeedbackLevel.Info,
             )
             DonorAction.SaveProfile -> saveProfile(_state.value.profile)
             is DonorAction.SetLocation -> _state.value = _state.value.copy(
@@ -89,21 +93,35 @@ class DonorViewModel(
                     locationPrecisionMeters = action.precisionMeters,
                 ),
                 message = "Location captured; save your profile to update matching.",
+                messageLevel = LifeLinkFeedbackLevel.Info,
                 profileDirty = true,
             )
             is DonorAction.SetAvailability -> setAvailability(action.availability)
             is DonorAction.Respond -> respond(action.requestId, action.response)
             DonorAction.RefreshRequests -> refreshRequests()
-            DonorAction.ClearMessage -> _state.value = _state.value.copy(message = null)
+            DonorAction.ClearMessage -> _state.value = _state.value.copy(
+                message = null,
+                messageLevel = LifeLinkFeedbackLevel.Info,
+            )
         }
     }
 
     private fun saveProfile(profile: DonorProfile) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(saving = true)
+            _state.value = _state.value.copy(
+                saving = true,
+                message = "Saving donor profile\u2026",
+                messageLevel = LifeLinkFeedbackLevel.Info,
+            )
             runCatching { repository.saveProfile(profile) }
                 .onSuccess {
-                    _state.value = _state.value.copy(profile = profile, saving = false, message = "Profile saved", profileDirty = false)
+                    _state.value = _state.value.copy(
+                        profile = profile,
+                        saving = false,
+                        message = "Profile saved.",
+                        messageLevel = LifeLinkFeedbackLevel.Success,
+                        profileDirty = false,
+                    )
                     // A blood-type change must re-evaluate matching immediately, so
                     // pull the donor's inbox again instead of waiting for the poll.
                     runCatching { repository.refresh() }
@@ -112,7 +130,8 @@ class DonorViewModel(
                     _state.value = _state.value.copy(
                         saving = false,
                         profileDirty = true,
-                        message = error.message ?: "Profile could not be saved. Check your connection and try again.",
+                        message = userFacingError(error, "Profile could not be saved. Check your connection and try again."),
+                        messageLevel = LifeLinkFeedbackLevel.Error,
                     )
                 }
         }
@@ -120,38 +139,111 @@ class DonorViewModel(
 
     private fun setAvailability(availability: DonorAvailability) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(saving = true)
+            _state.value = _state.value.copy(
+                saving = true,
+                message = "Updating availability\u2026",
+                messageLevel = LifeLinkFeedbackLevel.Info,
+            )
             runCatching { repository.setAvailability(availability) }
-                .onSuccess { _state.value = _state.value.copy(saving = false, message = "Availability updated") }
+                .onSuccess {
+                    val updatedProfile = _state.value.profile.copy(availability = availability)
+                    val profileDirty = _state.value.profileDirty
+                    _state.value = _state.value.copy(
+                        profile = updatedProfile,
+                        saving = false,
+                        message = availabilityMessage(availability, updatedProfile, profileDirty),
+                        messageLevel = availabilityMessageLevel(availability, updatedProfile, profileDirty),
+                    )
+                }
                 .onFailure { error ->
                     _state.value =
-                        _state.value.copy(saving = false, message = error.message ?: "Availability could not be updated.")
+                        _state.value.copy(
+                            saving = false,
+                            message = userFacingError(error, "Availability could not be updated. Check your connection and try again."),
+                            messageLevel = LifeLinkFeedbackLevel.Error,
+                        )
                 }
         }
     }
 
     private fun respond(requestId: String, response: DonorResponse) {
-        _state.value = _state.value.copy(saving = true)
+        _state.value = _state.value.copy(
+            saving = true,
+            message = "Sending your response\u2026",
+            messageLevel = LifeLinkFeedbackLevel.Info,
+        )
         launchDurableWrite {
             repository.respond(requestId, response)
-                .onSuccess { _state.value = _state.value.copy(saving = false, message = "Response sent") }
-                .onFailure { _state.value = _state.value.copy(saving = false, message = "Response could not be sent") }
+                .onSuccess {
+                    _state.value = _state.value.copy(
+                        saving = false,
+                        message = "Response sent.",
+                        messageLevel = LifeLinkFeedbackLevel.Success,
+                    )
+                }
+                .onFailure { error ->
+                    _state.value = _state.value.copy(
+                        saving = false,
+                        message = userFacingError(error, "Response could not be sent. Check your connection and try again."),
+                        messageLevel = LifeLinkFeedbackLevel.Error,
+                    )
+                }
         }
     }
 
     private fun refreshRequests() {
         viewModelScope.launch {
-            _state.value = _state.value.copy(requestsRefreshing = true, message = null)
+            _state.value = _state.value.copy(
+                requestsRefreshing = true,
+                message = null,
+                messageLevel = LifeLinkFeedbackLevel.Info,
+            )
             runCatching { repository.refresh() }
-                .onSuccess { _state.value = _state.value.copy(requestsRefreshing = false, message = "Requests refreshed") }
+                .onSuccess {
+                    _state.value = _state.value.copy(
+                        requestsRefreshing = false,
+                        message = "Requests refreshed.",
+                        messageLevel = LifeLinkFeedbackLevel.Success,
+                    )
+                }
                 .onFailure { error ->
                     _state.value = _state.value.copy(
                         requestsRefreshing = false,
-                        message = error.message ?: "Requests could not be refreshed. Check your connection and try again.",
+                        message = userFacingError(error, "Requests could not be refreshed. Check your connection and try again."),
+                        messageLevel = LifeLinkFeedbackLevel.Error,
                     )
                 }
         }
     }
+
+    private fun availabilityMessage(
+        availability: DonorAvailability,
+        profile: DonorProfile,
+        profileDirty: Boolean,
+    ): String =
+        when (availability) {
+            DonorAvailability.AVAILABLE -> when {
+                profileDirty ->
+                    "Availability set to Available. Save your profile edits before relying on matching status; a recent location is also required."
+                !profile.verified -> "Availability is Available, but you will not appear in matching until your profile is verified."
+                !profile.profileVisible -> "Availability is Available, but your profile is hidden from matching."
+                else -> "Availability set to Available. Matching also requires a recent location."
+            }
+            DonorAvailability.PAUSED -> "Availability paused. You will not receive new matching requests until you resume."
+            DonorAvailability.OFFLINE ->
+                "Availability set to Offline. You will not receive new matching requests until you choose Available."
+        }
+
+    private fun availabilityMessageLevel(
+        availability: DonorAvailability,
+        profile: DonorProfile,
+        profileDirty: Boolean,
+    ): LifeLinkFeedbackLevel =
+        when {
+            availability == DonorAvailability.AVAILABLE && (profileDirty || !profile.verified || !profile.profileVisible) ->
+                LifeLinkFeedbackLevel.Warning
+            else -> LifeLinkFeedbackLevel.Success
+        }
 }
 
 class DonorViewModelFactory(

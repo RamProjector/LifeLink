@@ -1,8 +1,11 @@
 package com.lifelink.app.feature.donor
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.SystemClock
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,6 +52,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -55,10 +60,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.location.LocationProvider
+import com.lifelink.app.core.ui.LifeLinkFeedbackCard
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfileMe
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private const val GPS_CAPTURE_MAX_AGE_MILLIS = 5 * 60 * 1000L
@@ -131,12 +138,12 @@ private fun BecomeDonorContent(
         }
         DonorDetailsCard(state, onAction)
         state.message?.let { message ->
-            Card(
-                Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-            ) {
-                Text(message, Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onSecondaryContainer)
-            }
+            LifeLinkFeedbackCard(
+                title = "Donor profile",
+                message = message,
+                level = state.messageLevel,
+                modifier = Modifier.testTag("donor-feedback"),
+            )
         }
         if (state.optedIn) {
             OutlinedButton(
@@ -159,10 +166,14 @@ private fun VerificationCard(profile: DonorProfileMe) {
             Text("Matching status", fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
             Text(
                 when {
-                    profile.isMatchable -> "You are verified and available. You can appear in matching results."
                     !profile.verified ->
                         "Waiting for verification. You will not appear in matching results until an admin verifies you."
-                    else -> "You are verified but not available. Set availability to Available to be matched."
+                    !profile.profileVisible -> "Your profile is hidden from matching. Make it visible when you are ready to be found."
+                    profile.availability == DonorAvailability.AVAILABLE ->
+                        "You are verified and available. Matching still requires a recent location."
+                    profile.availability == DonorAvailability.PAUSED ->
+                        "You are verified but paused. You will not receive new matching requests until you resume."
+                    else -> "You are verified but offline. Set availability to Available when you are ready to receive matches."
                 },
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
@@ -367,30 +378,43 @@ private fun GpsLocationCapture(
     val scope = rememberCoroutineScope()
     var loading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var showAppSettings by remember { mutableStateOf(false) }
 
     val captureCurrentGps: () -> Unit = {
         scope.launch {
             loading = true
             onCaptureStateChanged(false)
             message = null
-            val location = runCatching { LocationProvider(context).currentLocation() }.getOrNull()
-            if (location == null) {
-                message = "Could not get a current GPS fix. Turn on device location and try again."
-            } else {
-                onLocationCaptured(location.latitude, location.longitude, location.precisionMeters)
-                onCaptureStateChanged(true)
-                message = "Current GPS captured (about ±${location.precisionMeters} m accuracy)."
+            showAppSettings = false
+            try {
+                val location = try {
+                    LocationProvider(context).currentLocation()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    null
+                }
+                if (location == null) {
+                    message = "Could not get a current GPS fix. Turn on device location and try again."
+                } else {
+                    onLocationCaptured(location.latitude, location.longitude, location.precisionMeters)
+                    onCaptureStateChanged(true)
+                    message = "Current GPS captured (about ±${location.precisionMeters} m accuracy)."
+                }
+            } finally {
+                loading = false
             }
-            loading = false
         }
     }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { grants ->
         if (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
+            showAppSettings = false
             captureCurrentGps()
         } else {
             onCaptureStateChanged(false)
+            showAppSettings = true
             message =
                 "Precise location permission is required to register as a donor. " +
                 "Enable it in app settings to continue."
@@ -418,6 +442,18 @@ private fun GpsLocationCapture(
         loading = loading,
         message = message,
         onRequestCurrentGps = requestCurrentGps,
+        onOpenAppSettings = if (showAppSettings) {
+            {
+                context.startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    },
+                )
+            }
+        } else {
+            null
+        },
     )
 }
 
@@ -429,6 +465,7 @@ private fun GpsLocationCard(
     loading: Boolean,
     message: String?,
     onRequestCurrentGps: () -> Unit,
+    onOpenAppSettings: (() -> Unit)?,
 ) {
     Card(
         Modifier.fillMaxWidth().testTag("donor-gps-location"),
@@ -468,10 +505,17 @@ private fun GpsLocationCard(
                         MaterialTheme.colorScheme.error
                     },
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier
-                        .testTag("donor-gps-message")
-                        .semantics { liveRegion = LiveRegionMode.Polite },
+                    modifier = Modifier.testTag("donor-gps-message").semantics {
+                        liveRegion = if (capturedThisSession) LiveRegionMode.Polite else LiveRegionMode.Assertive
+                        if (!capturedThisSession) error(it)
+                    },
                 )
+            }
+            if (onOpenAppSettings != null) {
+                TextButton(
+                    onClick = onOpenAppSettings,
+                    modifier = Modifier.testTag("donor-gps-settings"),
+                ) { Text("Open app settings") }
             }
         }
     }

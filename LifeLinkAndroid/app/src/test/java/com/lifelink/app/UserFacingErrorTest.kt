@@ -1,6 +1,7 @@
 package com.lifelink.app
 
 import com.lifelink.app.core.errors.userFacingError
+import kotlinx.coroutines.CancellationException
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.IOException
@@ -41,5 +42,10 @@ class UserFacingErrorTest {
             "The conversation could not be opened.",
             userFacingError(IllegalStateException(), "The conversation could not be opened."),
         )
+    }
+
+    @Test(expected = CancellationException::class)
+    fun propagates_cancellation_instead_of_formatting_it_as_an_error() {
+        userFacingError(CancellationException("screen was closed"), "fallback")
     }
 }

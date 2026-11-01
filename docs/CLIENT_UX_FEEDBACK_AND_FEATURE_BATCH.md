@@ -19,8 +19,16 @@ The following feedback-system slice has been added to PR #153:
 - [x] Locked the queued request's payload against edits/autosaves while WorkManager owns the immutable retry snapshot; added a ViewModel regression test for this state transition.
 - [x] Added ViewModel regression coverage for restoring a saved draft and deleting the local draft after a successful submission.
 - [x] Added Compose instrumentation tests for visible error copy, retry callback behavior, and a success state without an action.
-- [ ] The broader message catalog and adoption across requester submission, donor availability, chat, session recovery, and web are still follow-up work within the same consolidated feature batch.
+- [ ] The broader message catalog and adoption across requester submission, chat, session recovery, and web remain follow-up work. Donor availability has a first Android integration slice below; the overall acceptance task is not yet validated.
 - [ ] These new tests and the full emulator visual evidence must pass on the final head commit before the feature batch can be called validated.
+
+### Donor availability feedback — 1 November 2026
+
+- Added severity-aware status feedback to both donor profile flows. Profile-load/save, availability, opt-out, request-refresh, and response errors use safe user-facing copy instead of arbitrary backend exception text.
+- Pause, offline, and resume outcomes now say what the server-confirmed preference means. Available-but-unverified or hidden profiles are identified as not matchable; available profiles also disclose the recent-location requirement. If profile edits are still unsaved, the legacy flow warns users to save before relying on matchability instead of presenting those edits as server state.
+- Precise-location permission denial now includes a direct app-settings action in both donor flows. GPS capture errors are announced as errors, ordinary updates remain polite, and coroutine cancellation no longer becomes a false location failure.
+- Added ViewModel regression tests for pause/resume messaging, unsaved-visibility safety, and backend-detail redaction.
+- **Validation pending:** Kotlin formatting completed successfully. Local `:app:testDebugUnitTest` could not start because this sandbox has no Android SDK; hosted Android CI must compile and run the tests on the pushed PR head. The permission-dialog recovery path and stale/location-disabled GPS states still need deterministic UI coverage, so task 3 remains unchecked.
 
 ## Purpose
 
