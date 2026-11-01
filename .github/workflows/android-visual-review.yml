@@ -279,12 +279,31 @@ jobs:
             home_xml="$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-home.xml"
             home_deadline=$((SECONDS + 120))
             home_ready=0
+            welcome_dismissed=0
             while (( SECONDS < home_deadline )); do
               if timeout 15s adb -s "$device_serial" shell uiautomator dump /sdcard/lifelink-ui-test-home.xml >/dev/null 2>&1 &&
-                timeout 10s adb -s "$device_serial" shell cat /sdcard/lifelink-ui-test-home.xml > "$home_xml" 2>/dev/null &&
-                grep -Fq "Create emergency request" "$home_xml"; then
-                home_ready=1
-                break
+                timeout 10s adb -s "$device_serial" shell cat /sdcard/lifelink-ui-test-home.xml > "$home_xml" 2>/dev/null; then
+                if grep -Fq "Create emergency request" "$home_xml"; then
+                  home_ready=1
+                  break
+                fi
+                # The isolated uiTest variant shows its first-run welcome after
+                # the fake-backend warning. Dismiss it by the labelled control,
+                # using the bounds from the current UI hierarchy rather than a
+                # hard-coded screen coordinate.
+                if [[ "$welcome_dismissed" != "1" ]] && grep -Fq 'text="Go to Home"' "$home_xml"; then
+                  bounds=$(grep -o 'text="Go to Home"[^>]*' "$home_xml" | sed -E 's/.*bounds="\\[([0-9]+),([0-9]+)\\]\\[([0-9]+),([0-9]+)\\]".*/\\1 \\2 \\3 \\4/' | head -1)
+                  if [[ "$bounds" =~ ^[0-9]+\\ [0-9]+\\ [0-9]+\\ [0-9]+$ ]]; then
+                    read -r x1 y1 x2 y2 <<< "$bounds"
+                    echo "Dismiss the fake-backend demo welcome via Go to Home."
+                    adb -s "$device_serial" shell input tap "$(((x1+x2)/2))" "$(((y1+y2)/2))"
+                    welcome_dismissed=1
+                    sleep 2
+                    continue
+                  fi
+                  echo "::error::Could not locate the first-run Go to Home control."
+                  exit 9
+                fi
               fi
               if adb -s "$device_serial" logcat -d -t 3000 | grep -Fq "FATAL EXCEPTION"; then
                 adb -s "$device_serial" logcat -d -t 3000 | tail -160
