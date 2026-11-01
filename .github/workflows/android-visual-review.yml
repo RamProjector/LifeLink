@@ -196,14 +196,14 @@ jobs:
             > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-connect.txt" 2>&1 || true
           network_ready=0
           for attempt in $(seq 1 30); do
-            wifi_status="$(timeout 10s adb -s "$device_serial" shell cmd wifi status 2>&1 || true)"
-            connectivity="$(timeout 10s adb -s "$device_serial" shell dumpsys connectivity 2>&1 || true)"
-            routes="$(timeout 10s adb -s "$device_serial" shell ip route 2>&1 || true)"
+            wifi_status="$(timeout 10s adb -s "$device_serial" shell cmd wifi status 2>&1 | tr -d '\r' || true)"
+            connectivity="$(timeout 10s adb -s "$device_serial" shell dumpsys connectivity 2>&1 | tr -d '\r' || true)"
+            routes="$(timeout 10s adb -s "$device_serial" shell ip route 2>&1 | tr -d '\r' || true)"
             active_network="$(sed -n 's/^Active default network: //p' <<< "$connectivity" | head -1)"
+            active_agent_line="$(grep -F "NetworkAgentInfo{network{$active_network}" <<< "$connectivity" | head -1)"
             if grep -Fq 'Wifi is connected to "AndroidWifi"' <<< "$wifi_status" \
               && [[ "$active_network" =~ ^[0-9]+$ ]] \
-              && grep -Fq "network{$active_network}" <<< "$connectivity" \
-              && grep -Fq 'IS_VALIDATED' <<< "$connectivity"; then
+              && [[ "$active_agent_line" == *IS_VALIDATED* ]]; then
               network_ready=1
               break
             fi
