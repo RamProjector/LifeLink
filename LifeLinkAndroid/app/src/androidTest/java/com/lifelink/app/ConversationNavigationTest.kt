@@ -303,7 +303,7 @@ open class ConversationNavigationTest {
 
         composeRule.onNodeWithContentDescription("Show map filters").performClick()
         composeRule.onNodeWithText("O+", substring = false).performClick()
-        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("1 matching area", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area B").assertDoesNotExist()
         assertTrue(VisualEvidence.capture("lifelink-phone-light-donor-map-synthetic-blood-filter.png"))
@@ -311,7 +311,7 @@ open class ConversationNavigationTest {
         composeRule.onNodeWithText("Clear filters", substring = false).performClick()
         composeRule.onNodeWithText("Synthetic Test Area B").assertIsDisplayed()
         composeRule.onNodeWithText("Available now", substring = false).performClick()
-        composeRule.onNodeWithText("1 matching areas", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("1 matching area", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area B").assertDoesNotExist()
         assertTrue(VisualEvidence.capture("lifelink-phone-light-donor-map-synthetic-available-filter.png"))
