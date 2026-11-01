@@ -147,7 +147,7 @@ jobs:
             timeout 10s adb -s "$device_serial" get-state > "$GITHUB_WORKSPACE/visual-artifacts/adb-device-state.txt" 2>&1 || true
             timeout 10s adb -s "$device_serial" shell getprop sys.boot_completed > "$GITHUB_WORKSPACE/visual-artifacts/boot-completed.txt" 2>&1 || true
             timeout 15s adb -s "$device_serial" logcat -d -t 5000 > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" 2>&1 || true
-            grep -Eai 'MapLibre|LifeLinkMapTiles|org\.maplibre|tiles\.openfreemap|UnknownHostException|ConnectException|SSLHandshakeException' "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" > "$GITHUB_WORKSPACE/visual-artifacts/maplibre-logcat.txt" || true
+            grep -Eai 'MapLibre|Mbgl|LifeLinkMapTiles|org\.maplibre|tiles\.openfreemap|UnknownHostException|ConnectException|SSLHandshakeException' "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" > "$GITHUB_WORKSPACE/visual-artifacts/maplibre-logcat.txt" || true
             timeout 10s adb -s "$device_serial" shell getprop net.dns1 > "$GITHUB_WORKSPACE/visual-artifacts/emulator-dns1.txt" 2>&1 || true
             timeout 10s adb -s "$device_serial" shell getprop net.dns2 > "$GITHUB_WORKSPACE/visual-artifacts/emulator-dns2.txt" 2>&1 || true
             timeout 15s adb -s "$device_serial" shell dumpsys connectivity > "$GITHUB_WORKSPACE/visual-artifacts/emulator-connectivity.txt" 2>&1 || true
