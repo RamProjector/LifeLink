@@ -213,7 +213,7 @@ jobs:
           printf '%s\n' "$connectivity" > "$GITHUB_WORKSPACE/visual-artifacts/emulator-connectivity.txt"
           printf '%s\n' "$routes" > "$GITHUB_WORKSPACE/visual-artifacts/emulator-ip-route.txt"
           if [[ "$network_ready" != "1" ]]; then
-            echo "::error::Android emulator did not join its AndroidWifi virtual access point or obtain a default route."
+            echo "::error::Android emulator did not join its AndroidWifi virtual access point or obtain a validated default network."
             echo "--- Wi-Fi status ---"
             printf '%s\n' "$wifi_status"
             echo "--- IP addresses ---"
