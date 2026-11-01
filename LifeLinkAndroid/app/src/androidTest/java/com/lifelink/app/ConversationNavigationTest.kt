@@ -320,7 +320,7 @@ open class ConversationNavigationTest {
         composeRule.onNodeWithText("A+", substring = false).performClick()
         composeRule.onNodeWithText("0 matching areas", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("No areas match these filters", substring = false).assertIsDisplayed()
-        composeRule.onNodeWithText("Clear filters", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithTag("donor-map-screen-empty-state").assertIsDisplayed()
         assertTrue(VisualEvidence.capture("lifelink-phone-light-donor-map-synthetic-no-matches.png"))
 
         composeRule.onNodeWithContentDescription("Hide map filters").performClick()
