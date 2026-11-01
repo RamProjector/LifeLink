@@ -33,3 +33,9 @@ The workflow prefers KVM because it is much faster. If a runner does not expose 
 ## Screenshot reliability
 
 Hosted emulators are slow, and two things were seen failing transiently right after boot: `Context.getExternalFilesDir()` returned `null` while the emulated shared-storage volume was still mounting (the screenshot then targeted a relative path on a read-only filesystem), and the first `UiAutomation` screenshot returned `null`. `VisualEvidence.capture()` retries and writes into app-private storage. The workflow extracts those PNGs with `adb exec-out run-as` before the emulator is torn down. If a required screenshot cannot be saved, the instrumentation test fails.
+
+## Emulator DNS preflight
+
+The Android emulator has its own guest network. A successful host-side DNS lookup or HTTP request is not evidence that MapLibre inside the emulator can resolve the tile host. The visual workflow therefore passes an explicit comma-separated resolver list to the emulator's `-dns-server` option (public resolvers first, with the runner's upstream DNS as a fallback) and probes `tiles.openfreemap.org` from the guest before running instrumentation. The guest probe is uploaded with the visual artifacts so a network/DNS failure is distinguishable from an app rendering regression. The live MapLibre render assertion remains strict; this preflight does not skip or relax it.
+
+Android reference: [Configure emulator DNS settings](https://developer.android.com/studio/run/emulator-networking-dns) (the emulator reads host DNS at startup and supports explicit resolver lists through `-dns-server`).
