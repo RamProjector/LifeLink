@@ -10,7 +10,6 @@ import com.lifelink.app.core.location.MapLibreMapCallbacks
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
-import java.util.concurrent.CopyOnWriteArrayList
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -18,6 +17,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.maplibre.android.RenderingEngine
 import org.maplibre.android.tile.TileOperation
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Verifies the production OpenFreeMap style on a real MapLibre view.
