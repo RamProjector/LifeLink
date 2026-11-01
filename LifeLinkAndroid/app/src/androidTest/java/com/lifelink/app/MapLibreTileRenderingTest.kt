@@ -49,10 +49,16 @@ class MapLibreTileRenderingTest {
             }
         }
 
-        composeRule.waitUntil(timeoutMillis = 90_000) {
+        composeRule.waitUntil(timeoutMillis = 70_000) {
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
-                .fetchSemanticsNodes().isNotEmpty() &&
-                tileActions.contains(TileOperation.LoadFromNetwork) &&
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue(
+            "OpenFreeMap tile-render screenshot could not be captured",
+            VisualEvidence.capture("lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"),
+        )
+        composeRule.waitUntil(timeoutMillis = 30_000) {
+            tileActions.contains(TileOperation.LoadFromNetwork) &&
                 tileActions.contains(TileOperation.EndParse)
         }
 
@@ -65,11 +71,6 @@ class MapLibreTileRenderingTest {
             "LifeLinkMapTiles",
             "renderer=$renderer networkRequested=$networkRequests networkLoaded=$networkLoads parsed=$parsedTiles errors=$tileErrors",
         )
-        assertTrue(
-            "OpenFreeMap tile-render screenshot could not be captured",
-            VisualEvidence.capture("lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"),
-        )
-
         assertEquals(
             "The CI emulator should select MapLibre Vulkan so OpenFreeMap text/symbol layers render",
             RenderingEngine.Type.VULKAN,
