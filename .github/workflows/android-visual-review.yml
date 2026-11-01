@@ -71,9 +71,13 @@ jobs:
           mkdir -p ../visual-artifacts
           cat /etc/resolv.conf > ../visual-artifacts/runner-resolv.conf 2>&1 || true
           resolvectl status --no-pager > ../visual-artifacts/runner-resolvectl-status.txt 2>&1 || true
-          dns_servers="$(resolvectl dns 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | grep -v '^127\.' | sort -u | paste -sd, -)"
-          if [[ -z "$dns_servers" ]]; then
-            dns_servers="8.8.8.8,1.1.1.1"
+          host_dns_server="$(resolvectl dns 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | grep -v '^127\.' | head -1 || true)"
+          # Android's emulator does not use the host's 127.0.0.53 stub resolver.
+          # Give the guest public resolvers first, then the runner's upstream as
+          # a fallback. Keep the list within the emulator's four-server limit.
+          dns_servers="8.8.8.8,8.8.4.4,1.1.1.1"
+          if [[ -n "$host_dns_server" && "$host_dns_server" != "8.8.8.8" && "$host_dns_server" != "8.8.4.4" && "$host_dns_server" != "1.1.1.1" ]]; then
+            dns_servers="$dns_servers,$host_dns_server"
           fi
           echo "dns_servers=$dns_servers" >> "$GITHUB_OUTPUT"
           echo "$dns_servers" > ../visual-artifacts/emulator-dns-servers.txt
@@ -164,6 +168,15 @@ jobs:
             adb devices -l || true
             echo "::error::Emulator did not become ready within 600 seconds after the emulator action returned."
             exit 2
+          fi
+          # Host-side curl is not proof that the Android guest can resolve the
+          # same host. Fail early with a saved probe instead of spending the
+          # remaining instrumentation time on a guaranteed MapLibre failure.
+          dns_probe="$(timeout 15s adb -s "$device_serial" shell ping -c 1 -W 5 tiles.openfreemap.org 2>&1 || true)"
+          printf '%s\n' "$dns_probe" > "$GITHUB_WORKSPACE/visual-artifacts/emulator-openfreemap-dns-probe.txt"
+          if ! grep -Eq 'PING .*\([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\)' "$GITHUB_WORKSPACE/visual-artifacts/emulator-openfreemap-dns-probe.txt"; then
+            echo "::error::Android emulator cannot resolve tiles.openfreemap.org. See emulator-openfreemap-dns-probe.txt and emulator connectivity diagnostics."
+            exit 10
           fi
           # The cached AVD snapshot may already contain the app installed by a
           # previous run, signed with that runner's debug keystore. The freshly
