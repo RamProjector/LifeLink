@@ -325,9 +325,10 @@ open class ConversationNavigationTest {
 
         composeRule.onNodeWithContentDescription("Hide map filters").performClick()
         composeRule.onNodeWithText("Clear filters", substring = false).performClick()
-        composeRule.onNodeWithText("2 matching areas", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area B").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("2 matching areas", substring = false).assertIsDisplayed()
         assertTrue(VisualEvidence.capture("lifelink-phone-light-donor-map-synthetic-filters-cleared.png"))
     }
 
