@@ -61,6 +61,15 @@ private const val MAP_LOAD_TIMEOUT_MS = 30_000L
 private const val MAP_RENDER_TIMEOUT_MS = 25_000L
 
 /**
+ * Optional observation hooks for a privacy-safe donor map. Tile callbacks expose
+ * operation categories only; tile coordinates and source identifiers stay private.
+ */
+data class MapLibreMapCallbacks(
+    val onAreaSelected: (DonorMapArea) -> Unit = {},
+    val onTileAction: (TileOperation) -> Unit = {},
+)
+
+/**
  * Supplies a deterministic local MapLibre style to previews and instrumentation tests.
  * Production uses the OpenFreeMap style when no override is provided.
  */
@@ -352,13 +361,12 @@ fun MapLibrePrivacySafeDonorMap(
     areas: List<DonorMapArea> = emptyList(),
     modifier: Modifier = Modifier,
     fullScreen: Boolean = false,
-    onAreaSelected: (DonorMapArea) -> Unit = {},
+    callbacks: MapLibreMapCallbacks = MapLibreMapCallbacks(),
     styleJson: String? = null,
-    onTileAction: (TileOperation) -> Unit = {},
 ) {
     val context = LocalContext.current
-    val latestOnAreaSelected by rememberUpdatedState(onAreaSelected)
-    val latestOnTileAction = rememberUpdatedState(onTileAction)
+    val latestOnAreaSelected by rememberUpdatedState(callbacks.onAreaSelected)
+    val latestOnTileAction = rememberUpdatedState(callbacks.onTileAction)
     val markerAreas = remember { mutableMapOf<Long, DonorMapArea>() }
     val onMarkerClick: (Marker) -> Boolean = { marker ->
         markerAreas[marker.id]?.let(latestOnAreaSelected)
