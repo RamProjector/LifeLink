@@ -28,7 +28,7 @@ env:
   AVD_PROFILE: pixel_2
   # MapLibre 11.8.0 uses OpenGL ES; disabling guest Vulkan avoids the software-renderer
   # color-buffer startup failure observed on Linux runners without KVM.
-  # Bump after changing the guest architecture or emulator options to invalidate stale snapshots.
+  # Bump after changing the guest architecture or system-image selection.
   AVD_CACHE_VERSION: v5
 
 jobs:
@@ -309,48 +309,17 @@ jobs:
           EOF
           chmod +x "$RUNNER_TEMP/lifelink-visual-test.sh"
 
-      # Cache the AVD (including its boot snapshot) and the downloaded system
-      # image. On a cache hit the emulator boots from the snapshot instead of
-      # cold-booting, which removes most of the emulator startup cost.
-      #
-      # Credential hygiene: PR caches are restorable by base-branch runs, so
-      # never cache anything that can hold secrets. We deliberately cache only
-      # the AVD definition/snapshot and the SDK system image. The ADB key pair
-      # (~/.android/adbkey, adbkey.pub) is NOT cached: it is a per-runner
-      # credential, and a cached private key would be readable by other runs.
-      # The emulator regenerates it on first use, which is harmless here.
-      - name: Cache AVD snapshot and system image
-        id: avd-cache
+      # Cache only the Android system image. The visual run intentionally
+      # cold-boots a fresh AVD and disables snapshot loading/saving so screenshots
+      # are deterministic; an AVD snapshot would add a boot that is never reused.
+      # Never cache the ADB key pair (~/.android/adbkey, adbkey.pub): it is a
+      # per-runner credential and must not be shared between PR/base-branch runs.
+      - name: Cache Android emulator system image
         if: steps.kvm.outputs.available == 'true'
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.android/avd/*
-            /usr/local/lib/android/sdk/system-images
-          key: avd-${{ env.API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_PROFILE }}-${{ env.AVD_CACHE_VERSION }}
-
-      # On a cache miss, boot the emulator once and let it save a snapshot that
-      # the cache step above persists for the next run.
-      - name: Create AVD and generate snapshot for caching
-        if: steps.kvm.outputs.available == 'true' && steps.avd-cache.outputs.cache-hit != 'true'
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: ${{ env.API_LEVEL }}
-          target: ${{ env.AVD_TARGET }}
-          arch: ${{ env.AVD_ARCH }}
-          profile: ${{ env.AVD_PROFILE }}
-          force-avd-creation: false
-          # No -no-snapshot here: the emulator must be allowed to save a snapshot
-          # on exit so the cache step can persist it.
-          emulator-options: -no-window -no-audio -no-boot-anim -no-metrics -camera-back none -camera-front none -netfast -dns-server ${{ steps.map-network.outputs.dns_servers }} -gpu swiftshader_indirect -feature -Vulkan
-          cores: 4
-          ram-size: 4096M
-          heap-size: 512M
-          disk-size: 4096M
-          emulator-boot-timeout: 300
-          disable-spellchecker: true
-          disable-animations: true
-          script: echo "Generated AVD snapshot for caching."
+          path: /usr/local/lib/android/sdk/system-images
+          key: android-system-image-${{ env.API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_CACHE_VERSION }}
 
       - name: Run visual smoke test on emulator
         uses: reactivecircus/android-emulator-runner@v2
@@ -359,12 +328,10 @@ jobs:
           target: ${{ env.AVD_TARGET }}
           arch: ${{ env.AVD_ARCH }}
           profile: ${{ env.AVD_PROFILE }}
-          force-avd-creation: false
-          # Avoid loading a cached guest snapshot for the visual run. A stale or
-          # partially saved Android snapshot can leave ADB connected while Android
-          # never completes boot. Rebuild the guest state each run; cache still
-          # accelerates SDK/system-image downloads, but screenshots must come from
-          # a clean boot. Keep rendering deterministic on headless Linux runners.
+          force-avd-creation: true
+          # Always create and cold-boot a fresh guest. Only the SDK system image
+          # is cached; no prior emulator state or snapshot is reused. This keeps
+          # instrumentation and screenshots deterministic on headless Linux runners.
           emulator-options: >-
             -no-snapshot-load -no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics
             -camera-back none -camera-front none -netfast -dns-server ${{ steps.map-network.outputs.dns_servers }} -gpu swiftshader_indirect -feature -Vulkan
