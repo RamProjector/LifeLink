@@ -20,7 +20,7 @@ The following feedback-system slice has been added to PR #153:
 - [x] Added ViewModel regression coverage for restoring a saved draft and deleting the local draft after a successful submission.
 - [x] Added Compose instrumentation tests for visible error copy, retry callback behavior, and a success state without an action.
 - [ ] The broader message catalog and adoption across requester submission, chat, session recovery, and web remain follow-up work. Donor availability has a first Android integration slice below; the overall acceptance task is not yet validated.
-- [ ] These new tests and the full emulator visual evidence must pass on the final head commit before the feature batch can be called validated.
+- [x] The donor GPS recovery fixtures and automated visual review passed on code head `ba5950b`; this validates that slice only, not the broader feedback batch.
 
 ### Donor availability feedback — 1 November 2026
 
@@ -35,7 +35,7 @@ The following feedback-system slice has been added to PR #153:
 - Donor onboarding now checks device location settings before requesting a fix. When Google Play Services can resolve disabled settings, the system resolution prompt is launched; if that cannot resolve the issue or is cancelled, a separate action opens device location settings. Denied precise permission continues to offer the distinct app-settings path.
 - A missing recent GPS fix now has its own retry-oriented message rather than suggesting that location services are off. GPS feedback uses severity-aware color and screen-reader announcement behavior.
 - Added deterministic Compose instrumentation fixtures for permission denial/app settings, disabled device location/device settings, missing recent fix/retry, and successful capture accuracy. Added the cases to the hosted visual-review suite.
-- **Validation pending:** local `spotlessCheck` and `detekt` pass. This sandbox has no Android SDK, so Android compilation and instrumentation execution must be confirmed by hosted CI on the pushed head. No manual emulator run was performed; task 3 remains unchecked until hosted validation and the remaining acceptance states are verified.
+- **Validation on code head `ba5950b`:** local `spotlessCheck` and `detekt` passed; hosted [Build Android APKs](https://github.com/RamProjector/LifeLink/actions/runs/41423500930), [Android quality gate](https://github.com/RamProjector/LifeLink/actions/runs/41423501064), and [Android visual review](https://github.com/RamProjector/LifeLink/actions/runs/41423500781) passed. The visual suite executed all four GPS feedback cases. [CodeQL](https://github.com/RamProjector/LifeLink/actions/runs/41423501003), [security scan](https://github.com/RamProjector/LifeLink/actions/runs/41423500852), and [fake-backend UI APK](https://github.com/RamProjector/LifeLink/actions/runs/41423500815) also passed. No manual emulator run was performed. The broader feedback catalog and cross-feature adoption remain open as noted above.
 
 ## Purpose
 
