@@ -7,7 +7,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -44,7 +44,9 @@ class DonorGpsFeedbackCardTest {
 
         composeRule.onNodeWithTag("donor-gps-message")
             .assertIsDisplayed()
-            .assertTextContains("Precise location permission is required", substringMatching = true)
+            .assertTextEquals(
+                "Precise location permission is required to register as a donor. Enable it in app settings to continue.",
+            )
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Assertive))
         composeRule.onNodeWithTag("donor-gps-settings").performClick()
 
@@ -66,7 +68,7 @@ class DonorGpsFeedbackCardTest {
 
         composeRule.onNodeWithTag("donor-gps-message")
             .assertIsDisplayed()
-            .assertTextContains("Device location services are unavailable", substringMatching = true)
+            .assertTextEquals("Device location services are unavailable. Open location settings and try again.")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
         composeRule.onNodeWithTag("donor-gps-location-settings").performClick()
 
@@ -87,7 +89,7 @@ class DonorGpsFeedbackCardTest {
 
         composeRule.onNodeWithTag("donor-gps-message")
             .assertIsDisplayed()
-            .assertTextContains("No recent GPS fix was available", substringMatching = true)
+            .assertTextEquals("No recent GPS fix was available. Move to an open area and try again.")
         composeRule.onNodeWithTag("capture-donor-gps").performClick()
 
         assertEquals(1, retryCount)
@@ -107,7 +109,7 @@ class DonorGpsFeedbackCardTest {
 
         composeRule.onNodeWithTag("donor-gps-message")
             .assertIsDisplayed()
-            .assertTextContains("±25 m accuracy", substringMatching = true)
+            .assertTextEquals("Current GPS captured (about ±25 m accuracy).")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
     }
 
