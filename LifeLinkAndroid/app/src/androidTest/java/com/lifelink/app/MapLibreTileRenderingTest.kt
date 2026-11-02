@@ -3,9 +3,11 @@ package com.lifelink.app
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.location.MapLibreMapCallbacks
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
@@ -41,6 +43,7 @@ class MapLibreTileRenderingTest {
                         latitude = 51.5074,
                         longitude = -0.1278,
                         areas = emptyList(),
+                        fullScreen = true,
                         callbacks = MapLibreMapCallbacks(
                             onTileAction = { operation ->
                                 tileActions.add(operation)
@@ -85,6 +88,8 @@ class MapLibreTileRenderingTest {
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
                 .fetchSemanticsNodes().isNotEmpty(),
         )
+        composeRule.onAllNodesWithContentDescription("Donor map rendered")
+            .assertHeightIsAtLeast(500.dp)
         assertTrue(
             "OpenFreeMap tile-render screenshot could not be captured",
             VisualEvidence.capture("lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"),
