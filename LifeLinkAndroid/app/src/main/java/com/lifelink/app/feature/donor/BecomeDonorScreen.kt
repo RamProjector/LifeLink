@@ -1,6 +1,7 @@
 package com.lifelink.app.feature.donor
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -8,6 +9,8 @@ import android.net.Uri
 import android.os.SystemClock
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,7 +40,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,17 +53,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.core.ui.LifeLinkFeedbackCard
+import com.lifelink.app.core.ui.LifeLinkFeedbackLevel
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
@@ -378,48 +378,62 @@ private fun GpsLocationCapture(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var loading by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
-    var showAppSettings by remember { mutableStateOf(false) }
+    val provider = remember(context) { LocationProvider(context.applicationContext) }
+    var cardState by remember { mutableStateOf(GpsLocationCardState()) }
+    val readState = { cardState }
+    val setState: (GpsLocationCardState) -> Unit = { cardState = it }
+
     val captureCurrentGps: () -> Unit = {
         launchGpsCapture(
             scope = scope,
-            context = context,
-            setLoading = { loading = it },
+            provider = provider,
             onCaptureStateChanged = onCaptureStateChanged,
-            setMessage = { message = it },
             onLocationCaptured = onLocationCaptured,
+            readState = readState,
+            setState = setState,
         )
+    }
+
+    val settingsResolutionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        handleLocationSettingsResolution(result.resultCode, captureCurrentGps, readState, setState)
+    }
+
+    val checkLocationSettings: () -> Unit = {
+        checkDeviceLocationSettings(provider, settingsResolutionLauncher, captureCurrentGps, readState, setState)
     }
 
     val requestCurrentGps = rememberGpsPermissionRequest(
         context = context,
         onGranted = {
-            showAppSettings = false
-            captureCurrentGps()
+            checkLocationSettings()
         },
         onDenied = {
             onCaptureStateChanged(false)
-            showAppSettings = true
-            message =
-                "Precise location permission is required to register as a donor. " +
-                "Enable it in app settings to continue."
+            setState(
+                readState().copy(
+                    message = "Precise location permission is required to register as a donor. " +
+                        "Enable it in app settings to continue.",
+                    messageLevel = LifeLinkFeedbackLevel.Error,
+                    settingsAction = GpsSettingsAction.APP_PERMISSION,
+                ),
+            )
         },
     )
 
-    GpsLocationCard(
+    val cardUiState = cardState.copy(
         latitude = latitude,
         longitude = longitude,
         capturedThisSession = capturedThisSession,
-        loading = loading,
-        message = message,
-        onRequestCurrentGps = requestCurrentGps,
-        onOpenAppSettings = if (showAppSettings) {
-            { openAppSettings(context) }
-        } else {
-            null
-        },
     )
+    GpsLocationCard(cardUiState, requestCurrentGps) {
+        when (cardUiState.settingsAction) {
+            GpsSettingsAction.APP_PERMISSION -> openAppSettings(context)
+            GpsSettingsAction.DEVICE_LOCATION -> openLocationSettings(context)
+            null -> Unit
+        }
+    }
 }
 
 @Composable
@@ -442,35 +456,118 @@ private fun rememberGpsPermissionRequest(
     }
 }
 
+private fun handleLocationSettingsResolution(
+    resultCode: Int,
+    onReady: () -> Unit,
+    readState: () -> GpsLocationCardState,
+    setState: (GpsLocationCardState) -> Unit,
+) {
+    if (resultCode == Activity.RESULT_OK) {
+        onReady()
+    } else {
+        setState(
+            readState().copy(
+                message = "Device location is still off. Turn it on in location settings, then try again.",
+                messageLevel = LifeLinkFeedbackLevel.Warning,
+                settingsAction = GpsSettingsAction.DEVICE_LOCATION,
+            ),
+        )
+    }
+}
+
+private fun checkDeviceLocationSettings(
+    provider: LocationProvider,
+    resolutionLauncher: ActivityResultLauncher<IntentSenderRequest>,
+    onReady: () -> Unit,
+    readState: () -> GpsLocationCardState,
+    setState: (GpsLocationCardState) -> Unit,
+) {
+    setState(
+        readState().copy(
+            message = "Checking device location settings…",
+            messageLevel = LifeLinkFeedbackLevel.Info,
+            settingsAction = null,
+        ),
+    )
+    provider.checkLocationSettings(
+        onReady = onReady,
+        onNeedsResolution = { error ->
+            setState(
+                readState().copy(
+                    message = "Turn on device location to capture a current GPS fix.",
+                    messageLevel = LifeLinkFeedbackLevel.Warning,
+                    settingsAction = GpsSettingsAction.DEVICE_LOCATION,
+                ),
+            )
+            runCatching {
+                resolutionLauncher.launch(IntentSenderRequest.Builder(error.resolution).build())
+            }.onFailure {
+                setState(
+                    readState().copy(
+                        message = "Device location settings could not be opened. Use the button below and try again.",
+                        messageLevel = LifeLinkFeedbackLevel.Error,
+                        settingsAction = GpsSettingsAction.DEVICE_LOCATION,
+                    ),
+                )
+            }
+        },
+        onFailure = {
+            setState(
+                readState().copy(
+                    message = "Device location services are unavailable. Open location settings and try again.",
+                    messageLevel = LifeLinkFeedbackLevel.Warning,
+                    settingsAction = GpsSettingsAction.DEVICE_LOCATION,
+                ),
+            )
+        },
+    )
+}
+
 private fun launchGpsCapture(
     scope: CoroutineScope,
-    context: Context,
-    setLoading: (Boolean) -> Unit,
+    provider: LocationProvider,
     onCaptureStateChanged: (Boolean) -> Unit,
-    setMessage: (String?) -> Unit,
     onLocationCaptured: (Double, Double, Int) -> Unit,
+    readState: () -> GpsLocationCardState,
+    setState: (GpsLocationCardState) -> Unit,
 ) {
     scope.launch {
-        setLoading(true)
+        setState(
+            readState().copy(
+                loading = true,
+                message = null,
+                messageLevel = LifeLinkFeedbackLevel.Info,
+                settingsAction = null,
+            ),
+        )
         onCaptureStateChanged(false)
-        setMessage(null)
         try {
             val location = try {
-                LocationProvider(context).currentLocation()
+                provider.currentLocation()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
                 null
             }
             if (location == null) {
-                setMessage("Could not get a current GPS fix. Turn on device location and try again.")
+                setState(
+                    readState().copy(
+                        message = "No recent GPS fix was available. Move to an open area and try again.",
+                        messageLevel = LifeLinkFeedbackLevel.Error,
+                    ),
+                )
             } else {
                 onLocationCaptured(location.latitude, location.longitude, location.precisionMeters)
                 onCaptureStateChanged(true)
-                setMessage("Current GPS captured (about ±${location.precisionMeters} m accuracy).")
+                setState(
+                    readState().copy(
+                        message = "Current GPS captured (about ±${location.precisionMeters} m accuracy).",
+                        messageLevel = LifeLinkFeedbackLevel.Success,
+                    ),
+                )
             }
         } finally {
-            setLoading(false)
+            setState(readState().copy(loading = false))
         }
     }
 }
@@ -484,68 +581,10 @@ private fun openAppSettings(context: Context) {
     )
 }
 
-@Composable
-private fun GpsLocationCard(
-    latitude: Double?,
-    longitude: Double?,
-    capturedThisSession: Boolean,
-    loading: Boolean,
-    message: String?,
-    onRequestCurrentGps: () -> Unit,
-    onOpenAppSettings: (() -> Unit)?,
-) {
-    Card(
-        Modifier.fillMaxWidth().testTag("donor-gps-location"),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Required GPS location", fontWeight = FontWeight.SemiBold)
-            Text(
-                when {
-                    capturedThisSession -> "A current device location has been captured for this session."
-                    latitude != null && longitude != null ->
-                        "A saved location exists, but it must be refreshed from device GPS before saving."
-                    else -> "Capture your device's current GPS location before saving your donor profile."
-                },
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Button(
-                onClick = onRequestCurrentGps,
-                enabled = !loading,
-                modifier = Modifier.fillMaxWidth().testTag("capture-donor-gps"),
-            ) {
-                Text(
-                    when {
-                        loading -> "Getting GPS location…"
-                        capturedThisSession -> "Refresh current GPS location"
-                        else -> "Use current GPS location"
-                    },
-                )
-            }
-            message?.let {
-                Text(
-                    it,
-                    color = if (capturedThisSession) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.error
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.testTag("donor-gps-message").semantics {
-                        liveRegion = if (capturedThisSession) LiveRegionMode.Polite else LiveRegionMode.Assertive
-                        if (!capturedThisSession) error(it)
-                    },
-                )
-            }
-            if (onOpenAppSettings != null) {
-                TextButton(
-                    onClick = onOpenAppSettings,
-                    modifier = Modifier.testTag("donor-gps-settings"),
-                ) { Text("Open app settings") }
-            }
-        }
-    }
+private fun openLocationSettings(context: Context) {
+    context.startActivity(
+        Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+    )
 }
 
 /** Notification preference for matching requests. */

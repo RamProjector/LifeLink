@@ -18,5 +18,6 @@ import org.junit.runners.Suite
     ConversationNavigationSmokeTest::class,
     DebugFileLoggerTest::class,
     LifeLinkFeedbackCardTest::class,
+    DonorGpsFeedbackCardTest::class,
 )
 class LifeLinkVisualReviewSuite

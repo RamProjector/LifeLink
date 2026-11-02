@@ -262,6 +262,13 @@ jobs:
                 exit 9
               fi
             done
+            for expected_test in "DonorGpsFeedbackCardTest" "permission_denial_announces_error_and_offers_app_settings" "disabled_device_location_offers_a_distinct_settings_action" "missing_recent_fix_has_retry_without_misleading_settings_action" "successful_capture_feedback_is_polite_and_includes_accuracy"; do
+              if ! grep -R -Fq "$expected_test" "$test_results_dir"; then
+                echo "::error::Instrumentation result is missing donor GPS recovery coverage: $expected_test"
+                find "$test_results_dir" -type f -maxdepth 5 -print 2>/dev/null | sort || true
+                exit 9
+              fi
+            done
           fi
           if [[ "$test_exit" != "0" ]]; then
             echo "::error::Android instrumentation failed with exit code $test_exit. Inspect the uploaded test-results and logcat artifacts."
