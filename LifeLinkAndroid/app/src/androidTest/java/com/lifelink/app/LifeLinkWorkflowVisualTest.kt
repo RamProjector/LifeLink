@@ -497,7 +497,9 @@ open class LifeLinkWorkflowVisualTest {
             "The real OpenFreeMap style and visible tiles must render in the emulator; inspect MapLibre logcat if unavailable.",
             mapUnavailable,
         )
-        composeRule.onNodeWithContentDescription("Donor map rendered").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Donor map rendered")
+            .assertIsDisplayed()
+            .assertHeightIsAtLeast(500.dp)
     }
 
     private fun verifyDonorMapFilters() {
