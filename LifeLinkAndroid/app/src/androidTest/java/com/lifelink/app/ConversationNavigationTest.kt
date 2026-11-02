@@ -303,6 +303,7 @@ open class ConversationNavigationTest {
 
         composeRule.onNodeWithContentDescription("Show map filters").performClick()
         composeRule.onNodeWithText("O+", substring = false).performClick()
+        composeRule.onNodeWithContentDescription("Hide map filters, 1 active filter").assertIsDisplayed()
         composeRule.onNodeWithText("1 matching area", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area A").assertIsDisplayed()
         composeRule.onNodeWithText("Synthetic Test Area B").assertDoesNotExist()
