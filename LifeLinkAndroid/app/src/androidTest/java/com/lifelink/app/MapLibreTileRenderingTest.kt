@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.lifelink.app.core.location.MapLibreMapCallbacks
@@ -88,7 +89,7 @@ class MapLibreTileRenderingTest {
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
                 .fetchSemanticsNodes().isNotEmpty(),
         )
-        composeRule.onAllNodesWithContentDescription("Donor map rendered")
+        composeRule.onNodeWithContentDescription("Donor map rendered")
             .assertHeightIsAtLeast(500.dp)
         assertTrue(
             "OpenFreeMap tile-render screenshot could not be captured",
