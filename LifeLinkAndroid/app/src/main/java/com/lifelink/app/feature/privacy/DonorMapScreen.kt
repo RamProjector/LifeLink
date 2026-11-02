@@ -349,10 +349,11 @@ fun DonorMapScreen(
             ) {
                 IconButton(onClick = { filtersOpen = !filtersOpen }) {
                     val filterAction = if (filtersOpen) "Hide map filters" else "Show map filters"
+                    val activeFilterLabel = if (activeFilterCount == 1) "active filter" else "active filters"
                     val filterDescription = if (activeFilterCount == 0) {
                         filterAction
                     } else {
-                        "$filterAction, $activeFilterCount active filters"
+                        "$filterAction, $activeFilterCount $activeFilterLabel"
                     }
                     Icon(Icons.Default.FilterList, contentDescription = filterDescription)
                 }
