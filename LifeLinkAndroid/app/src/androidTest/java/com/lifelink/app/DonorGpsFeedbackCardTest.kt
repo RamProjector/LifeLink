@@ -44,7 +44,7 @@ class DonorGpsFeedbackCardTest {
 
         composeRule.onNodeWithTag("donor-gps-message")
             .assertIsDisplayed()
-            .assertTextContains("Precise location permission is required")
+            .assertTextContains("Precise location permission is required", substringMatching = true)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Assertive))
         composeRule.onNodeWithTag("donor-gps-settings").performClick()
 
@@ -66,7 +66,7 @@ class DonorGpsFeedbackCardTest {
 
         composeRule.onNodeWithTag("donor-gps-message")
             .assertIsDisplayed()
-            .assertTextContains("Device location services are unavailable")
+            .assertTextContains("Device location services are unavailable", substringMatching = true)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
         composeRule.onNodeWithTag("donor-gps-location-settings").performClick()
 
@@ -87,7 +87,7 @@ class DonorGpsFeedbackCardTest {
 
         composeRule.onNodeWithTag("donor-gps-message")
             .assertIsDisplayed()
-            .assertTextContains("No recent GPS fix was available")
+            .assertTextContains("No recent GPS fix was available", substringMatching = true)
         composeRule.onNodeWithTag("capture-donor-gps").performClick()
 
         assertEquals(1, retryCount)
@@ -107,7 +107,7 @@ class DonorGpsFeedbackCardTest {
 
         composeRule.onNodeWithTag("donor-gps-message")
             .assertIsDisplayed()
-            .assertTextContains("±25 m accuracy")
+            .assertTextContains("±25 m accuracy", substringMatching = true)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
     }
 
