@@ -45,6 +45,7 @@ import com.lifelink.app.R
 import com.lifelink.app.core.auth.RoleSwitcher
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.auth.UserRoleStore
+import com.lifelink.app.core.errors.userFacingError
 import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.notifications.RequestNotificationPermissionIfNeeded
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
@@ -405,9 +406,17 @@ class MainActivity : ComponentActivity() {
                                         displayName = saved.body()?.displayName.orEmpty()
                                         profileMessage = "Profile saved"
                                     } else {
-                                        profileMessage = "Profile could not be saved (${saved.code()})."
+                                        profileMessage = userFacingError(
+                                            IllegalStateException("Profile save failed (${saved.code()})"),
+                                            "Profile could not be saved. Please try again.",
+                                        )
                                     }
-                                }.onFailure { error -> profileMessage = error.message ?: "Profile could not be saved." }
+                                }.onFailure { error ->
+                                    profileMessage = userFacingError(
+                                        error,
+                                        "Profile could not be saved. Check your connection and try again.",
+                                    )
+                                }
                             profileSaving = false
                         }
                     },
@@ -425,7 +434,14 @@ class MainActivity : ComponentActivity() {
                                 app.authRepository
                                     .requestPasswordReset(email)
                                     .onSuccess { showMessage("Reset link sent. Check your inbox.") }
-                                    .onFailure { showMessage(it.message ?: "Could not send the reset link.") }
+                                    .onFailure {
+                                        showMessage(
+                                            userFacingError(
+                                                it,
+                                                "Could not send the reset link. Check your connection and try again.",
+                                            ),
+                                        )
+                                    }
                             }
                         }
                     },
