@@ -61,7 +61,7 @@ prefetch "$SDK35_RUNTIME_VERSION" "$SDK35_RUNTIME_SHA256"
 verify_runtime() {
     local artifact_name="$1"
     local expected_sha256="$2"
-    local artifact_path="\${OUTPUT_DIR}/\${artifact_name}"
+    local artifact_path="${OUTPUT_DIR}/${artifact_name}"
 
     if [[ ! -s "$artifact_path" ]]; then
         echo "ERROR: Required Robolectric runtime is missing or empty: $artifact_path" >&2
