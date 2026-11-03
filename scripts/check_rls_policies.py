@@ -47,6 +47,7 @@ BACKEND_ONLY_TABLES: dict[str, str] = {
     "donor_location_shares": "Exact-location shares; the API re-verifies the (request, donor) match on every read.",
     "conversations": "Chat threads; the API enforces participant membership.",
     "messages": "Chat messages; the API enforces participant membership.",
+    "saved_messages": "Private bookmarks; the API enforces both conversation participation and the saving user's identity.",
     "contact_shares": "Explicit contact disclosures; the API enforces participant membership.",
     "conversation_blocks": "Block state; the API enforces participant membership.",
     "rate_limit_counters": "Rate-limit counters; internal API state, never queried by a client role.",

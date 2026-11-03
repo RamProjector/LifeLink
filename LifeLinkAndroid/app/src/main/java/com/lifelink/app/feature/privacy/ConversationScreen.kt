@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -135,41 +136,16 @@ fun ConversationScreen(
             )
         }
 
-        LazyColumn(
-            Modifier.weight(1f).fillMaxWidth(),
-            state = listState,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (state.chatLoading) {
-                item {
-                    Column(
-                        Modifier.fillMaxWidth().padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        CircularProgressIndicator(Modifier.size(28.dp))
-                        Text("Loading conversation…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            } else if (state.conversationId == null) {
-                item {
-                    LifeLinkEmptyState(
-                        icon = Icons.AutoMirrored.Filled.Chat,
-                        title = "Conversation unavailable",
-                        body = "This conversation could not be opened. Go back and try again.",
-                    )
-                }
-            } else if (state.messages.isEmpty()) {
-                item {
-                    LifeLinkEmptyState(
-                        icon = Icons.AutoMirrored.Filled.Chat,
-                        title = "No messages yet",
-                        body = "Say hello to start the conversation.",
-                    )
-                }
-            }
-            items(state.messages, key = { it.messageId }) { message -> MessageBubble(message, message.senderId == currentUserId) }
-        }
+        ConversationMessagesList(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            listState = listState,
+            state = state,
+            currentUserId = currentUserId,
+            chatReady = chatReady,
+            onAction = onAction,
+        )
+
+        if (state.savedMessages.isNotEmpty()) SavedMessagesCard(state.savedMessages)
 
         if (state.contactShares.isNotEmpty()) {
             SharedContactsCard(shares = state.contactShares)
@@ -258,6 +234,61 @@ fun ConversationScreen(
     }
 }
 
+@Composable
+private fun ConversationMessagesList(
+    modifier: Modifier,
+    listState: LazyListState,
+    state: PrivacyUiState,
+    currentUserId: String,
+    chatReady: Boolean,
+    onAction: (PrivacyAction) -> Unit,
+) {
+    LazyColumn(modifier, state = listState, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (state.chatLoading) {
+            item {
+                Column(
+                    Modifier.fillMaxWidth().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CircularProgressIndicator(Modifier.size(28.dp))
+                    Text("Loading conversation…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        } else if (state.conversationId == null) {
+            item {
+                LifeLinkEmptyState(
+                    icon = Icons.AutoMirrored.Filled.Chat,
+                    title = "Conversation unavailable",
+                    body = "This conversation could not be opened. Go back and try again.",
+                )
+            }
+        } else if (state.messages.isEmpty()) {
+            item {
+                LifeLinkEmptyState(
+                    icon = Icons.AutoMirrored.Filled.Chat,
+                    title = "No messages yet",
+                    body = "Say hello to start the conversation.",
+                )
+            }
+        }
+        items(state.messages, key = { it.messageId }) { message ->
+            Column(
+                Modifier.fillMaxWidth(),
+                horizontalAlignment = if (message.senderId == currentUserId) Alignment.End else Alignment.Start,
+            ) {
+                MessageBubble(message, message.senderId == currentUserId)
+                TextButton(
+                    onClick = { onAction(PrivacyAction.ToggleSavedMessage(message.messageId)) },
+                    enabled = chatReady,
+                ) {
+                    Text(if (message.isSaved) "Remove saved message" else "Save message")
+                }
+            }
+        }
+    }
+}
+
 // Field length limits for the message composer and the contact-share input.
 private const val MAX_MESSAGE_LENGTH = 2000
 private const val MAX_CONTACT_VALUE_LENGTH = 320
@@ -277,6 +308,20 @@ private fun SharedContactsCard(shares: List<ContactShare>) {
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+        }
+    }
+}
+
+/** Displays this participant's server-owned saved messages in the open conversation. */
+@Composable
+private fun SavedMessagesCard(messages: List<ChatMessage>) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+        Column(
+            Modifier.padding(12.dp).heightIn(max = 140.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("Saved messages", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+            messages.forEach { message -> Text(message.body, style = MaterialTheme.typography.bodySmall) }
         }
     }
 }

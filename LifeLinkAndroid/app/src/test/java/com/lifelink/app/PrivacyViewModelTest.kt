@@ -289,6 +289,20 @@ class PrivacyViewModelTest {
         assertFalse(viewModel.state.value.chatLoading)
     }
 
+    /** Persists a saved-message toggle through the repository and refreshes authoritative server state. */
+    @Test
+    fun saved_message_toggle_calls_remote_repository_and_updates_saved_list() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+        val message = repository.loadedMessages.first()
+        repository.loadedSavedMessages = listOf(message.copy(isSaved = true))
+
+        viewModel.onAction(PrivacyAction.ToggleSavedMessage(message.messageId))
+
+        assertEquals(listOf("chat-old" to message.messageId), repository.savedWrites)
+        assertEquals(listOf(message.copy(isSaved = true)), viewModel.state.value.savedMessages)
+        assertTrue(viewModel.state.value.messages.first().isSaved)
+    }
+
     /** Asserts that the conversation ID, messages, and contact shares have all been cleared. */
     private fun assertNoConversationContent() {
         assertNull(viewModel.state.value.conversationId)
@@ -301,6 +315,8 @@ private class ConversationRepositoryFake : PrivacyRepository {
     val opens = mutableListOf<Pair<String, String>>()
     val messageReads = mutableListOf<String>()
     val shareReads = mutableListOf<String>()
+    val savedReads = mutableListOf<String>()
+    val savedWrites = mutableListOf<Pair<String, String>>()
     val sends = mutableListOf<Pair<String, String>>()
     val shares = mutableListOf<Triple<String, String, String>>()
     var map: suspend () -> Result<DonorMap> = { error("Unexpected map request") }
@@ -309,6 +325,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
     }
     var loadedMessages = listOf(chatMessage("chat-old"))
     var loadedShares = listOf(contactShare("chat-old"))
+    var loadedSavedMessages = emptyList<ChatMessage>()
     var failHistory = false
     var sendFailure: Throwable? = null
     var open: suspend (String, String) -> Result<Conversation> = { requestId, donorId ->
@@ -340,6 +357,26 @@ private class ConversationRepositoryFake : PrivacyRepository {
         sends += conversationId to body
         sendFailure?.let { return Result.failure(it) }
         return Result.success(chatMessage(conversationId).copy(body = body))
+    }
+
+    override suspend fun savedMessages(conversationId: String): Result<List<ChatMessage>> {
+        savedReads += conversationId
+        return Result.success(loadedSavedMessages)
+    }
+
+    override suspend fun saveMessage(conversationId: String, messageId: String): Result<Unit> {
+        savedWrites += conversationId to messageId
+        val target = loadedMessages.firstOrNull { it.messageId == messageId }
+        if (target != null) loadedSavedMessages = (loadedSavedMessages + target.copy(isSaved = true)).distinctBy { it.messageId }
+        loadedMessages = loadedMessages.map { if (it.messageId == messageId) it.copy(isSaved = true) else it }
+        return Result.success(Unit)
+    }
+
+    override suspend fun unsaveMessage(conversationId: String, messageId: String): Result<Unit> {
+        savedWrites += conversationId to messageId
+        loadedSavedMessages = loadedSavedMessages.filterNot { it.messageId == messageId }
+        loadedMessages = loadedMessages.map { if (it.messageId == messageId) it.copy(isSaved = false) else it }
+        return Result.success(Unit)
     }
 
     /** Records the destination and contact field, then returns a synthetic share with those values. */

@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db_models import (
@@ -23,6 +24,7 @@ from .db_models import (
     DonorLocationShare,
     Message,
     RequestMatch,
+    SavedMessage,
 )
 from .db_models import (
     Donor as DonorRow,
@@ -508,6 +510,94 @@ class SqlAlchemyPrivacyStore:
         conversation.updated_at = now
         await self.session.commit()
         return message
+
+    async def saved_message_ids(self, user_id: str, conversation_id: str) -> set[str]:
+        """Return saved message IDs for this user and conversation only."""
+        rows = await self.session.scalars(
+            select(SavedMessage.message_id).where(
+                SavedMessage.user_id == user_id,
+                SavedMessage.conversation_id == conversation_id,
+            )
+        )
+        return set(rows.all())
+
+    async def save_message(self, user_id: str, conversation_id: str, message_id: str) -> SavedMessage:
+        """Save a message idempotently after its conversation has been authorized."""
+        message = await self.session.scalar(
+            select(Message).where(
+                Message.id == message_id,
+                Message.conversation_id == conversation_id,
+            )
+        )
+        if message is None:
+            raise KeyError(message_id)
+        existing = await self.session.scalar(
+            select(SavedMessage).where(
+                SavedMessage.user_id == user_id,
+                SavedMessage.message_id == message_id,
+            )
+        )
+        if existing is not None:
+            return existing
+        saved = SavedMessage(
+            id=f"saved_{uuid4().hex}",
+            user_id=user_id,
+            conversation_id=conversation_id,
+            message_id=message_id,
+        )
+        self.session.add(saved)
+        try:
+            await self.session.commit()
+        except IntegrityError:
+            # Two retried taps can race after both observe no existing row. The
+            # unique constraint is authoritative; recover the winning bookmark.
+            await self.session.rollback()
+            existing = await self.session.scalar(
+                select(SavedMessage).where(
+                    SavedMessage.user_id == user_id,
+                    SavedMessage.message_id == message_id,
+                )
+            )
+            if existing is None:
+                raise
+            return existing
+        return saved
+
+    async def unsave_message(self, user_id: str, conversation_id: str, message_id: str) -> bool:
+        """Remove this user's bookmark; return false if the message is not in the conversation."""
+        message = await self.session.scalar(
+            select(Message).where(
+                Message.id == message_id,
+                Message.conversation_id == conversation_id,
+            )
+        )
+        if message is None:
+            return False
+        saved = await self.session.scalar(
+            select(SavedMessage).where(
+                SavedMessage.user_id == user_id,
+                SavedMessage.conversation_id == conversation_id,
+                SavedMessage.message_id == message_id,
+            )
+        )
+        if saved is not None:
+            await self.session.delete(saved)
+            await self.session.commit()
+        return True
+
+    async def list_saved_messages(self, user_id: str, conversation_id: str) -> list[tuple[SavedMessage, Message]]:
+        """List only this participant's saved messages in an authorized conversation."""
+        rows = await self.session.execute(
+            select(SavedMessage, Message)
+            .join(Message, Message.id == SavedMessage.message_id)
+            .where(
+                SavedMessage.user_id == user_id,
+                SavedMessage.conversation_id == conversation_id,
+                Message.conversation_id == conversation_id,
+            )
+            .order_by(SavedMessage.saved_at.desc())
+        )
+        return list(rows.all())
 
     # -------------------------------------------------------- contact shares
     async def add_contact_share(

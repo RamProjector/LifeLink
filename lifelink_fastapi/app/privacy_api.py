@@ -104,6 +104,16 @@ class MessageOut(BaseModel):
     sender_id: str
     body: str
     created_at: datetime
+    saved_by_me: bool = False
+
+
+class SavedMessageOut(BaseModel):
+    message_id: str
+    conversation_id: str
+    sender_id: str
+    body: str
+    created_at: datetime
+    saved_at: datetime
 
 
 class ContactShareIn(BaseModel):

@@ -29,6 +29,7 @@ data class PrivacyUiState(
     val conversationsLoading: Boolean = false,
     val conversationsError: String? = null,
     val messages: List<ChatMessage> = emptyList(),
+    val savedMessages: List<ChatMessage> = emptyList(),
     val contactShares: List<ContactShare> = emptyList(),
     val chatLoading: Boolean = false,
     val sending: Boolean = false,
@@ -53,6 +54,8 @@ sealed interface PrivacyAction {
     data object LoadConversations : PrivacyAction
 
     data class SendMessage(val body: String) : PrivacyAction
+
+    data class ToggleSavedMessage(val messageId: String) : PrivacyAction
 
     data class ShareContact(val field: String, val value: String) : PrivacyAction
 
@@ -93,10 +96,18 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
             PrivacyAction.RefreshConversation -> refreshCurrentConversation()
             PrivacyAction.LoadConversations -> loadConversations()
             is PrivacyAction.SendMessage -> sendMessage(action.body)
+            is PrivacyAction.ToggleSavedMessage -> toggleSavedMessage(action.messageId)
             is PrivacyAction.ShareContact -> shareContact(action.field, action.value)
+            is PrivacyAction.ReportParticipant, is PrivacyAction.BlockParticipant -> handleModerationAction(action)
+            PrivacyAction.ClearMessage -> _state.value = _state.value.copy(message = null)
+        }
+    }
+
+    private fun handleModerationAction(action: PrivacyAction) {
+        when (action) {
             is PrivacyAction.ReportParticipant -> reportParticipant(action.conversationId, action.reason)
             is PrivacyAction.BlockParticipant -> blockParticipant(action.conversationId)
-            PrivacyAction.ClearMessage -> _state.value = _state.value.copy(message = null)
+            else -> Unit
         }
     }
 
@@ -237,6 +248,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     message = null,
                     conversationId = null,
                     messages = emptyList(),
+                    savedMessages = emptyList(),
                     contactShares = emptyList(),
                 )
             repository
@@ -266,8 +278,39 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
         conversationRefreshJob = viewModelScope.launch {
             val messages = repository.messages(conversationId).getOrDefault(emptyList())
             val shares = repository.contactShares(conversationId).getOrDefault(emptyList())
+            val savedMessages = repository.savedMessages(conversationId).getOrDefault(_state.value.savedMessages)
             if (generation != conversationGeneration) return@launch
-            _state.value = _state.value.copy(messages = messages, contactShares = shares, chatLoading = false)
+            _state.value = _state.value.copy(
+                messages = messages,
+                savedMessages = savedMessages,
+                contactShares = shares,
+                chatLoading = false,
+            )
+        }
+    }
+
+    private fun toggleSavedMessage(messageId: String) {
+        val conversationId = _state.value.conversationId ?: return
+        val target = _state.value.messages.firstOrNull { it.messageId == messageId } ?: return
+        val generation = conversationGeneration
+        viewModelScope.launch {
+            val result = if (target.isSaved) {
+                repository.unsaveMessage(conversationId, messageId)
+            } else {
+                repository.saveMessage(conversationId, messageId)
+            }
+            result.onSuccess {
+                if (generation != conversationGeneration) return@onSuccess
+                _state.value = _state.value.copy(
+                    message = if (target.isSaved) "Message removed from saved messages." else "Message saved.",
+                )
+                refreshConversation(conversationId, generation)
+            }.onFailure { error ->
+                if (generation != conversationGeneration) return@onFailure
+                _state.value = _state.value.copy(
+                    message = userFacingError(error, "Saved messages could not be updated."),
+                )
+            }
         }
     }
 
