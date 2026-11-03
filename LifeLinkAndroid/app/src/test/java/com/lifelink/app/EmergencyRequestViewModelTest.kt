@@ -6,6 +6,7 @@ import com.lifelink.app.domain.DiscoveredDonor
 import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.EmergencyRequestRepository
 import com.lifelink.app.domain.Facility
+import com.lifelink.app.domain.NearbyFacility
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.domain.RequesterContact
 import com.lifelink.app.domain.SubmitResult
@@ -589,6 +590,24 @@ class EmergencyRequestViewModelTest {
             viewModel.uiState.value.draft.id != draftBeforeCancel,
         )
     }
+
+    @Test
+    fun nearby_facilities_are_sorted_and_selected_facility_is_marked_as_map_data() = runTest {
+        val repository = FakeRepository().apply {
+            nearbyFacilities = listOf(
+                NearbyFacility("far", "Far Hospital", "hospital", 14.62, 121.04, 8.2),
+                NearbyFacility("near", "Near Clinic", "clinic", 14.61, 121.04, 1.4),
+            )
+        }
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(EmergencyRequestAction.LoadNearbyFacilities(14.60, 121.04))
+        advanceUntilIdle()
+
+        assertEquals(listOf("near", "far"), viewModel.uiState.value.nearbyFacilities.map { it.id })
+        viewModel.onAction(EmergencyRequestAction.SelectNearbyFacility(viewModel.uiState.value.nearbyFacilities.first()))
+        assertEquals("near", viewModel.uiState.value.draft.facility?.id)
+        assertTrue(viewModel.uiState.value.draft.facility?.verified == false)
+    }
 }
 
 private class FakeRepository(private val submitResult: SubmitResult = SubmitResult.OfflineQueued("draft-1")) : EmergencyRequestRepository {
@@ -611,6 +630,7 @@ private class FakeRepository(private val submitResult: SubmitResult = SubmitResu
     var activeRequest: ActiveRequestSnapshot? = null
     var lastRefreshedActiveRequestId: String? = null
     var contacts: List<RequesterContact> = emptyList()
+    var nearbyFacilities: List<NearbyFacility> = emptyList()
 
     override suspend fun saveDraft(draft: EmergencyRequestDraft) {
         savedDrafts++
@@ -665,6 +685,7 @@ private class FakeRepository(private val submitResult: SubmitResult = SubmitResu
         lastMatchesRequestId = requestId
         return matches
     }
+    override suspend fun findNearbyFacilities(latitude: Double, longitude: Double): List<NearbyFacility> = nearbyFacilities
 
     override suspend fun updateContactStatus(requestId: String, donorId: String, status: String): RequesterContact = RequesterContact(
         donorId,

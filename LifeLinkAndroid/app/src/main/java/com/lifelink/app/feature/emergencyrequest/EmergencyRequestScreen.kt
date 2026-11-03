@@ -100,6 +100,7 @@ import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.ContactMethod
 import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.Facility
+import com.lifelink.app.domain.NearbyFacility
 import com.lifelink.app.domain.RequestStep
 import com.lifelink.app.domain.Urgency
 import kotlinx.coroutines.launch
@@ -217,7 +218,14 @@ fun EmergencyRequestScreen(
                 when (state.step) {
                     RequestStep.BLOOD_NEED -> BloodNeedStep(state.draft, onAction)
                     RequestStep.URGENCY -> UrgencyStep(state.draft, onAction)
-                    RequestStep.LOCATION -> LocationStep(state.draft, onAction)
+                    RequestStep.LOCATION ->
+                        LocationStep(
+                            draft = state.draft,
+                            nearbyFacilities = state.nearbyFacilities,
+                            nearbyFacilitiesLoading = state.nearbyFacilitiesLoading,
+                            nearbyFacilitiesError = state.nearbyFacilitiesError,
+                            onAction = onAction,
+                        )
                     RequestStep.CONTACT -> ContactStep(state.draft, onAction)
                     RequestStep.REVIEW -> ReviewStep(state.draft, onAction)
                     RequestStep.RESULTS -> DonorPicker(state, onAction, onOpenConversation)
@@ -858,8 +866,15 @@ private fun LocationMapPicker(
 
 /** Captures or edits request coordinates using device location, map selection, or manual input. */
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
 @Composable
-private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyRequestAction) -> Unit) {
+private fun LocationStep(
+    draft: EmergencyRequestDraft,
+    nearbyFacilities: List<NearbyFacility>,
+    nearbyFacilitiesLoading: Boolean,
+    nearbyFacilitiesError: String?,
+    onAction: (EmergencyRequestAction) -> Unit,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var locationCaptureRequest by remember { mutableStateOf(0) }
@@ -926,6 +941,13 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
             onFailure = { locationMessage = "Device location is unavailable. Choose a location manually." },
         )
     }
+    LaunchedEffect(draft.requesterLatitude, draft.requesterLongitude) {
+        val latitude = draft.requesterLatitude
+        val longitude = draft.requesterLongitude
+        if (latitude != null && longitude != null && nearbyFacilities.isEmpty() && nearbyFacilitiesError == null) {
+            onAction(EmergencyRequestAction.LoadNearbyFacilities(latitude, longitude))
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
         Heading("Approximate location", "Used to find nearby potential donors. Your exact location stays private.")
         locationMessage?.let {
@@ -962,6 +984,25 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
                 "$source · accuracy about ${draft.locationPrecisionMeters} m",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
+            val latitude = draft.requesterLatitude!!
+            val longitude = draft.requesterLongitude!!
+            NearbyFacilitiesSection(
+                facilities = nearbyFacilities,
+                selectedFacilityId = draft.facility?.id,
+                loading = nearbyFacilitiesLoading,
+                error = nearbyFacilitiesError,
+                onRetry = {
+                    onAction(
+                        EmergencyRequestAction.LoadNearbyFacilities(
+                            latitude,
+                            longitude,
+                        ),
+                    )
+                },
+                onSelect = { onAction(EmergencyRequestAction.SelectNearbyFacility(it)) },
             )
         }
         OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { fullMapVisible = true }) {
@@ -1294,6 +1335,81 @@ private fun LocationStep(draft: EmergencyRequestDraft, onAction: (EmergencyReque
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, fontWeight = FontWeight.SemiBold)
             Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun NearbyFacilitiesSection(
+    facilities: List<NearbyFacility>,
+    selectedFacilityId: String?,
+    loading: Boolean,
+    error: String?,
+    onRetry: () -> Unit,
+    onSelect: (NearbyFacility) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Text("Nearby health facilities", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+        Text(
+            "Sorted by distance from your approximate location. Map data is for discovery; confirm availability directly.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        when {
+            loading -> {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Text("Finding nearby facilities…", Modifier.padding(start = 10.dp))
+                }
+            }
+            error != null -> {
+                InfoCard("Facilities unavailable", error, MaterialTheme.colorScheme.secondary)
+                OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Text("Retry facility search") }
+            }
+            facilities.isEmpty() -> {
+                InfoCard(
+                    "No facilities found nearby",
+                    "You can continue with your approximate location and still request donor matches.",
+                    MaterialTheme.colorScheme.secondary,
+                )
+            }
+            else -> facilities.forEach { facility ->
+                NearbyFacilityRow(facility, selected = facility.id == selectedFacilityId) { onSelect(facility) }
+            }
+        }
+        Text(
+            "© OpenStreetMap contributors",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun NearbyFacilityRow(facility: NearbyFacility, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline),
+    ) {
+        Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.LocationOn, "Facility location", tint = MaterialTheme.colorScheme.secondary)
+            Column(Modifier.padding(start = 10.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(facility.name, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "${facility.category.replaceFirstChar { it.uppercase() }} · ${"%.1f".format(facility.distanceKm)} km",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                facility.area?.let {
+                    Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                }
+                Text("Map data · tap to select", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+            }
+            if (selected) Icon(Icons.Default.Check, "Selected facility", tint = MaterialTheme.colorScheme.secondary)
         }
     }
 }

@@ -24,6 +24,20 @@ enum class RequestStep(val index: Int) { BLOOD_NEED(0), URGENCY(1), LOCATION(2),
 
 data class Facility(val id: String, val name: String, val area: String, val verified: Boolean = true)
 
+data class NearbyFacility(
+    val id: String,
+    val name: String,
+    val category: String,
+    val latitude: Double,
+    val longitude: Double,
+    val distanceKm: Double,
+    val area: String? = null,
+    val phone: String? = null,
+    val website: String? = null,
+    val source: String = "OpenStreetMap",
+    val sourceAttribution: String = "© OpenStreetMap contributors",
+)
+
 data class EmergencyRequestDraft(
     val id: String = UUID.randomUUID().toString(),
     val bloodType: BloodType? = null,
@@ -96,6 +110,7 @@ interface EmergencyRequestRepository {
     suspend fun submit(draft: EmergencyRequestDraft): SubmitResult
     suspend fun contactSelectedDonors(requestId: String, donorIds: List<String>): SubmitResult
     suspend fun refreshMatches(requestId: String): List<DiscoveredDonor>
+    suspend fun findNearbyFacilities(latitude: Double, longitude: Double): List<NearbyFacility> = emptyList()
     suspend fun refreshContacts(requestId: String): List<RequesterContact>
     suspend fun updateContactStatus(requestId: String, donorId: String, status: String): RequesterContact
     suspend fun reportContact(requestId: String, donorId: String, reason: String): String
