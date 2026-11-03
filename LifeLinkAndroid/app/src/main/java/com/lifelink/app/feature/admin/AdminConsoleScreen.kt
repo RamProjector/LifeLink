@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.google.gson.JsonParseException
+import com.lifelink.app.core.errors.userFacingError
 import com.lifelink.app.data.remote.AdminAuditEvent
 import com.lifelink.app.data.remote.AdminDashboardResponse
 import com.lifelink.app.data.remote.AdminUser
@@ -172,9 +173,9 @@ private suspend fun loadAdminPage(
         AdminPage.ERRORS -> loadEvents(api, page, offsets.errors, onEvents)
     }
 } catch (failure: IOException) {
-    failure.message ?: "Network error while loading admin data."
+    userFacingError(failure, "Admin data could not be loaded. Check your connection and try again.")
 } catch (failure: JsonParseException) {
-    failure.message ?: "The server returned unreadable admin data."
+    userFacingError(failure, "The server returned unreadable admin data. Please try again.")
 }
 
 private suspend fun loadDashboard(
