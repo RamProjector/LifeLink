@@ -54,6 +54,7 @@ import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.ActiveRequestStatus
+import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.domain.RequesterContact
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
@@ -64,8 +65,10 @@ import com.lifelink.app.feature.emergencyrequest.EmergencyRequestUiState
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Suppress("LongMethod")
 fun ActiveRequestScreen(
     state: EmergencyRequestUiState,
+    requestDetails: RequestHistoryItem? = null,
     onAction: (EmergencyRequestAction) -> Unit,
     onBack: () -> Unit,
     onReviewContacts: () -> Unit,
@@ -106,6 +109,7 @@ fun ActiveRequestScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             StatusCard(active)
+            requestDetails?.let { RequestDetailsCard(it) }
             ProgressCard(active)
             ContactActivityCard(state, active, onAction, onReviewContacts)
             if (active.status == ActiveRequestStatus.MANUAL_BROADCAST) {
@@ -149,6 +153,32 @@ fun ActiveRequestScreen(
             },
             dismissButton = { TextButton(onClick = { showCancelConfirmation = false }) { Text("Keep active") } },
         )
+    }
+}
+
+/** Shows the requester's own blood need and facility details alongside live status. */
+@Composable
+private fun RequestDetailsCard(request: RequestHistoryItem) {
+    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Request details", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+            request.bloodType?.let { DetailRow("Blood type", it) }
+            request.units?.let { DetailRow("Units", "$it") }
+            request.urgency?.let { DetailRow("Urgency", it) }
+            request.facilityName?.let { DetailRow("Facility", it) }
+            request.area?.let { DetailRow("Area", it) }
+            if (request.bloodType == null && request.facilityName == null) {
+                Text("Detailed request information is still loading.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 16.dp))
     }
 }
 
