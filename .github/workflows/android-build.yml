@@ -28,9 +28,10 @@ permissions:
 
 env:
   API_BASE_URL: ${{ inputs.api_base_url || 'https://lifelink-api-uzje.onrender.com/' }}
-  SUPABASE_URL_VALUE: ${{ inputs.supabase_url || secrets.SUPABASE_URL }}
+  SAFE_PR_BUILD: ${{ github.event_name == 'pull_request' && (github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork == true) }}
+  SUPABASE_URL_VALUE: ${{ inputs.supabase_url || secrets.SUPABASE_URL || ((github.event_name == 'pull_request' && (github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork == true)) && 'https://example.invalid') }}
   # Publishable client key: safe to bundle into a mobile application.
-  SUPABASE_KEY_VALUE: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+  SUPABASE_KEY_VALUE: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || ((github.event_name == 'pull_request' && (github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork == true)) && 'dependabot-build-only-placeholder') }}
   LIFELINK_DEBUG_KEYSTORE_BASE64: ${{ secrets.LIFELINK_DEBUG_KEYSTORE_BASE64 }}
   LIFELINK_DEBUG_STORE_PASSWORD: ${{ secrets.LIFELINK_DEBUG_STORE_PASSWORD }}
   LIFELINK_DEBUG_KEY_ALIAS: ${{ secrets.LIFELINK_DEBUG_KEY_ALIAS }}
@@ -67,6 +68,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Validate LifeLink build configuration
+        if: ${{ env.SAFE_PR_BUILD != 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -86,11 +88,13 @@ jobs:
         run: ./gradlew assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug -PversionCode="${{ github.run_number }}" -PlifelinkApiBaseUrl="$API_BASE_URL" -PsupabaseUrl="$SUPABASE_URL_VALUE" -PsupabasePublishableKey="$SUPABASE_KEY_VALUE" --no-daemon --stacktrace
 
       - name: Rename APKs
+        if: ${{ env.SAFE_PR_BUILD != 'true' }}
         run: |
           mkdir -p ../android-artifacts
           cp app/build/outputs/apk/debug/app-debug.apk ../android-artifacts/lifelink-debug.apk
 
       - name: Upload APK artifacts
+        if: ${{ env.SAFE_PR_BUILD != 'true' }}
         uses: actions/upload-artifact@v7
         with:
           name: lifelink-android-apks-${{ github.sha }}
