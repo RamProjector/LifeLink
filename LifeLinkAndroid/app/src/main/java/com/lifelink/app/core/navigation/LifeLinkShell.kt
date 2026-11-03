@@ -1,5 +1,9 @@
 package com.lifelink.app.core.navigation
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -119,16 +123,24 @@ import com.lifelink.app.feature.privacy.MessagingScreen
 import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
 import com.lifelink.app.feature.updates.UpdatesScreen
+import androidx.compose.material.icons.filled.Settings as SettingsIcon
 
 private enum class ShellTab(val label: String) {
     HOME("Home"),
     REQUESTS("Requests"),
     MAP("Donors"),
     MESSAGING("Messages"),
-    PROFILE("Profile"),
+    SETTINGS("Settings"),
 }
 
-private enum class SettingsSection { PROFILE, LEGAL, THEME, SECURITY }
+private enum class SettingsSection(val label: String) {
+    ACCOUNT("Account"),
+    NOTIFICATIONS("Notifications"),
+    PRIVACY("Privacy"),
+    LEGAL("Legal"),
+    THEME("Theme"),
+    SECURITY("Security"),
+}
 
 /**
  * Renders account navigation and routes requester and donor actions to their screens.
@@ -376,10 +388,10 @@ fun LifeLinkShell(
                             }
                         }
                         IconButton(
-                            onClick = { tab = ShellTab.PROFILE },
-                            modifier = Modifier.testTag("open-profile"),
+                            onClick = { tab = ShellTab.SETTINGS },
+                            modifier = Modifier.testTag("open-settings"),
                         ) {
-                            Icon(Icons.Default.Person, contentDescription = "Profile")
+                            Icon(SettingsIcon, contentDescription = "Settings")
                         }
                     }
                 }
@@ -452,7 +464,7 @@ fun LifeLinkShell(
                                         ?.takeIf { it.startsWith("conversation:") }
                                         ?.substringAfter("|"),
                                 )
-                            ShellTab.PROFILE ->
+                            ShellTab.SETTINGS ->
                                 SettingsContent(
                                     role,
                                     accountEmail,
@@ -527,7 +539,7 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
             ShellTab.REQUESTS -> Icons.AutoMirrored.Filled.Assignment
             ShellTab.MAP -> Icons.Default.Map
             ShellTab.MESSAGING -> Icons.Default.ChatBubbleOutline
-            ShellTab.PROFILE -> Icons.Default.Person
+            ShellTab.SETTINGS -> SettingsIcon
         }
     Icon(icon, contentDescription = null, modifier = Modifier.size(size))
 }
@@ -1044,7 +1056,7 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
     }
 }
 
-/** Routes the selected settings section to profile, appearance, security, or guidance content. */
+/** Routes the selected settings section to account, notifications, privacy, appearance, or guidance. */
 @Composable private fun SettingsContent(
     role: UserRole,
     accountEmail: String,
@@ -1060,34 +1072,40 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
     onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
 ) {
-    var section by rememberSaveable { mutableStateOf(SettingsSection.PROFILE) }
+    var section by rememberSaveable { mutableStateOf(SettingsSection.ACCOUNT) }
     val sections =
         listOf(
-            SettingsSection.PROFILE,
+            SettingsSection.ACCOUNT,
+            SettingsSection.NOTIFICATIONS,
+            SettingsSection.PRIVACY,
             SettingsSection.LEGAL,
             SettingsSection.THEME,
             SettingsSection.SECURITY,
         )
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Profile", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+            Text("Settings", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
             Text(
-                "Account, privacy, and LifeLink information.",
+                "Account, notifications, privacy, and app preferences.",
                 color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        ScrollableTabRow(selectedTabIndex = sections.indexOf(section), edgePadding = 12.dp) {
+        ScrollableTabRow(
+            selectedTabIndex = sections.indexOf(section),
+            edgePadding = 12.dp,
+            modifier = Modifier.testTag("settings-tabs"),
+        ) {
             sections.forEach { item ->
                 Tab(
                     modifier = Modifier.testTag("settings-${item.name}"),
                     selected = section == item,
                     onClick = { section = item },
-                    text = { Text(item.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                    text = { Text(item.label) },
                 )
             }
         }
         when (section) {
-            SettingsSection.PROFILE ->
+            SettingsSection.ACCOUNT ->
                 ProfileContent(
                     role,
                     accountEmail,
@@ -1100,9 +1118,91 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
                     onBecomeDonor,
                     onSignOut,
                 )
+            SettingsSection.NOTIFICATIONS -> NotificationSettingsContent()
+            SettingsSection.PRIVACY -> PrivacySettingsContent()
             SettingsSection.LEGAL -> LegalContent()
             SettingsSection.THEME -> ThemeContent(themeMode, onThemeModeChange)
             SettingsSection.SECURITY -> SecurityContent(onRequestPasswordReset)
+        }
+    }
+}
+
+/** Opens Android's app-notification controls rather than storing a duplicate permission preference. */
+@Composable
+private fun NotificationSettingsContent() {
+    val context = LocalContext.current
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "Notifications",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.semantics { heading() },
+        )
+        Text(
+            "Choose whether LifeLink can send notifications from Android app settings. " +
+                "Emergency request notifications use the device's notification permission and channel controls.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(
+            onClick = {
+                val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                } else {
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", context.packageName, null),
+                    )
+                }
+                context.startActivity(intent)
+            },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+        ) {
+            Text("Manage device notifications")
+        }
+        Text(
+            "In-app activity remains available from the bell at the top of Home.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Summarizes existing privacy boundaries without implying controls the app does not yet expose here. */
+@Composable
+private fun PrivacySettingsContent() {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "Privacy",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.semantics { heading() },
+        )
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Donor locations", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "The donor map shows approximate areas, not exact coordinates. " +
+                        "Exact location sharing is request-scoped and requires donor consent.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Chat history", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Messages are stored on LifeLink servers and are readable by the two participants in that conversation. " +
+                        "Offline message history and saved-message bookmarks are not currently available.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
