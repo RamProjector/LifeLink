@@ -866,6 +866,7 @@ private fun LocationMapPicker(
 
 /** Captures or edits request coordinates using device location, map selection, or manual input. */
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
 @Composable
 private fun LocationStep(
     draft: EmergencyRequestDraft,

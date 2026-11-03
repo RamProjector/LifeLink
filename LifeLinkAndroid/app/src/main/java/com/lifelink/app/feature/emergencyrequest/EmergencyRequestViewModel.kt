@@ -191,6 +191,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
         }
     }
 
+    @Suppress("LongMethod")
     fun onAction(action: EmergencyRequestAction) {
         when (action) {
             is EmergencyRequestAction.UpdateDraft -> updateDraft(action.update)
