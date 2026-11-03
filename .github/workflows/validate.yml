@@ -69,6 +69,13 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
+      - name: Restore Robolectric runtime cache
+        uses: actions/cache@v4
+        with:
+          path: LifeLinkAndroid/robolectric-jars/preinstrumented
+          key: ${{ runner.os }}-robolectric-4.14.1-${{ hashFiles('tools/prepare_robolectric_runtime.sh') }}
+      - name: Prefetch and verify Robolectric runtime
+        run: ../tools/prepare_robolectric_runtime.sh
       - uses: android-actions/setup-android@v4
         with:
           packages: 'platforms;android-37.2 build-tools;37.0.0'
@@ -80,7 +87,7 @@ jobs:
         # Mirrors the committed pre-push hook (.githooks/pre-push) so a local
         # pass means a CI pass. `lint` covers debug + release; detekt and
         # spotlessCheck are the static-analysis/format gates.
-        run: ./gradlew lint detekt spotlessCheck testDebugUnitTest assembleDebug --no-daemon --stacktrace
+        run: ./gradlew lint detekt spotlessCheck testDebugUnitTest assembleDebug -ProbolectricDependencyDir="$GITHUB_WORKSPACE/LifeLinkAndroid/robolectric-jars/preinstrumented" --no-daemon --stacktrace
       - name: Upload Android validation reports
         if: always()
         uses: actions/upload-artifact@v7

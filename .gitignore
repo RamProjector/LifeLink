@@ -17,6 +17,9 @@ node_modules/
 artifacts/*.apk
 *.apk
 
+# Robolectric runtime JARs are downloaded and checksum-verified by CI.
+LifeLinkAndroid/robolectric-jars/
+
 # Signing material — NEVER commit a keystore or its credentials.
 # The production keystore is supplied at build time through the
 # LIFELINK_RELEASE_* environment variables or lifelinkRelease* Gradle
