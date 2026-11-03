@@ -10,6 +10,6 @@ CREATE TABLE IF NOT EXISTS saved_messages (
 );
 
 CREATE INDEX IF NOT EXISTS ix_saved_messages_user_saved_at
-    ON saved_messages (user_id, saved_at DESC);
+    ON saved_messages (user_id, saved_at);
 CREATE INDEX IF NOT EXISTS ix_saved_messages_conversation_user
     ON saved_messages (conversation_id, user_id);

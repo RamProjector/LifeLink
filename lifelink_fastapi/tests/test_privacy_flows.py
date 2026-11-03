@@ -1064,7 +1064,13 @@ def test_migration_013_saved_messages_applies_cleanly(pg_url):
     async def main():
         engine = create_async_engine(pg_url)
         async with engine.begin() as conn:
-            await conn.run_sync(db_models.Base.metadata.create_all)
+            await conn.execute(text("DROP TABLE IF EXISTS saved_messages CASCADE"))
+            prerequisite_tables = [
+                table for table in db_models.Base.metadata.sorted_tables if table.name != "saved_messages"
+            ]
+            await conn.run_sync(
+                lambda sync_conn: db_models.Base.metadata.create_all(sync_conn, tables=prerequisite_tables)
+            )
         sql = (Path(__file__).resolve().parents[1] / "sql" / "013_saved_messages.sql").read_text()
         async with engine.begin() as conn:
             for statement in [statement.strip() for statement in sql.split(";") if statement.strip()]:
@@ -1074,6 +1080,18 @@ def test_migration_013_saved_messages_applies_cleanly(pg_url):
             )
             assert {row[0] for row in columns.all()} >= {
                 "id", "user_id", "conversation_id", "message_id", "saved_at"
+            }
+            constraints = await conn.execute(
+                text("SELECT constraint_name, constraint_type FROM information_schema.table_constraints WHERE table_name = 'saved_messages'")
+            )
+            constraint_rows = set(constraints.all())
+            assert ("uq_saved_messages_user_message", "UNIQUE") in constraint_rows
+            assert sum(kind == "FOREIGN KEY" for _, kind in constraint_rows) == 2
+            indexes = await conn.execute(
+                text("SELECT indexname FROM pg_indexes WHERE tablename = 'saved_messages'")
+            )
+            assert {row[0] for row in indexes.all()} >= {
+                "ix_saved_messages_user_saved_at", "ix_saved_messages_conversation_user"
             }
         await engine.dispose()
 

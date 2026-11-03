@@ -98,9 +98,16 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
             is PrivacyAction.SendMessage -> sendMessage(action.body)
             is PrivacyAction.ToggleSavedMessage -> toggleSavedMessage(action.messageId)
             is PrivacyAction.ShareContact -> shareContact(action.field, action.value)
+            is PrivacyAction.ReportParticipant, is PrivacyAction.BlockParticipant -> handleModerationAction(action)
+            PrivacyAction.ClearMessage -> _state.value = _state.value.copy(message = null)
+        }
+    }
+
+    private fun handleModerationAction(action: PrivacyAction) {
+        when (action) {
             is PrivacyAction.ReportParticipant -> reportParticipant(action.conversationId, action.reason)
             is PrivacyAction.BlockParticipant -> blockParticipant(action.conversationId)
-            PrivacyAction.ClearMessage -> _state.value = _state.value.copy(message = null)
+            else -> Unit
         }
     }
 
