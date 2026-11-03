@@ -6,10 +6,10 @@ set -euo pipefail
 readonly OUTPUT_DIR="${ROBOLECTRIC_DEPENDENCY_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../LifeLinkAndroid" && pwd)/robolectric-jars/preinstrumented}"
 readonly MAVEN_BASE="https://repo.maven.apache.org/maven2/org/robolectric/android-all-instrumented"
 
-readonly API_28_VERSION="9-robolectric-4913185-2-i7"
-readonly API_28_SHA256="dbb1c88987b54cef3132695a1b4d2f4851ba06286a6fa7d15772f98fd1f0cdf7"
-readonly API_35_VERSION="15-robolectric-12650502-i7"
-readonly API_35_SHA256="33c2d7cc4186d4605269d5d411fa1818972c5b30a9f70bfbbd3d430b076af52f"
+readonly SDK28_RUNTIME_VERSION="9-robolectric-4913185-2-i7"
+readonly SDK28_RUNTIME_SHA256="dbb1c88987b54cef3132695a1b4d2f4851ba06286a6fa7d15772f98fd1f0cdf7"
+readonly SDK35_RUNTIME_VERSION="15-robolectric-12650502-i7"
+readonly SDK35_RUNTIME_SHA256="33c2d7cc4186d4605269d5d411fa1818972c5b30a9f70bfbbd3d430b076af52f"
 
 mkdir -p "$OUTPUT_DIR"
 
@@ -45,5 +45,5 @@ prefetch() {
     echo "Verified Robolectric runtime: $output_file"
 }
 
-prefetch "$API_28_VERSION" "$API_28_SHA256"
-prefetch "$API_35_VERSION" "$API_35_SHA256"
+prefetch "$SDK28_RUNTIME_VERSION" "$SDK28_RUNTIME_SHA256"
+prefetch "$SDK35_RUNTIME_VERSION" "$SDK35_RUNTIME_SHA256"
