@@ -24,6 +24,10 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v7
         with:
+          # Scan the exact PR head SHA, not GitHub's potentially stale synthetic
+          # merge ref. Rapid successive commits can otherwise make Gitleaks compare
+          # a newer event SHA against an older checked-out merge commit.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           # Full history so the scan covers every commit, not just the tip.
           fetch-depth: 0
 
