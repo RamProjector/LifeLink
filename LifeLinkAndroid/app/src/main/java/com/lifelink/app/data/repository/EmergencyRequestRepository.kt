@@ -31,6 +31,7 @@ import com.lifelink.app.domain.DonorRepository
 import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.EmergencyRequestRepository
 import com.lifelink.app.domain.Facility
+import com.lifelink.app.domain.NearbyFacility
 import com.lifelink.app.domain.PrivacyRepository
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.domain.RequesterContact
@@ -241,6 +242,29 @@ class EmergencyRequestRepositoryImpl(
         val body = response.body() ?: throw IOException("Matching results returned an empty response.")
         body.matches.map { it.toDiscoveredDonor() }
     }
+
+    override suspend fun findNearbyFacilities(latitude: Double, longitude: Double): List<NearbyFacility> =
+        withContext(Dispatchers.IO) {
+            val response = api.nearbyHealthFacilities(latitude, longitude)
+            if (!response.isSuccessful) {
+                throw IOException("Nearby health facilities could not be loaded (${response.code()}).")
+            }
+            response.body()?.facilities.orEmpty().map { facility ->
+                NearbyFacility(
+                    id = facility.id,
+                    name = facility.name,
+                    category = facility.category,
+                    latitude = facility.latitude,
+                    longitude = facility.longitude,
+                    distanceKm = facility.distanceKm,
+                    area = facility.area,
+                    phone = facility.phone,
+                    website = facility.website,
+                    source = facility.source,
+                    sourceAttribution = facility.sourceAttribution,
+                )
+            }.sortedBy { it.distanceKm }
+        }
 
     override suspend fun refreshContacts(requestId: String): List<RequesterContact> = withContext(Dispatchers.IO) {
         val response = api.requesterContacts(requestId)

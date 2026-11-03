@@ -7,6 +7,8 @@ import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.DiscoveredDonor
 import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.EmergencyRequestRepository
+import com.lifelink.app.domain.Facility
+import com.lifelink.app.domain.NearbyFacility
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.domain.RequestStep
 import com.lifelink.app.domain.RequesterContact
@@ -61,6 +63,9 @@ data class EmergencyRequestUiState(
     val historyRefreshing: Boolean = false,
     val historyError: String? = null,
     val cancelCompleted: Boolean = false,
+    val nearbyFacilities: List<NearbyFacility> = emptyList(),
+    val nearbyFacilitiesLoading: Boolean = false,
+    val nearbyFacilitiesError: String? = null,
 )
 
 sealed interface EmergencyRequestAction {
@@ -113,6 +118,10 @@ sealed interface EmergencyRequestAction {
     data class BlockContact(val donorId: String) : EmergencyRequestAction
 
     data class SetGpsLocation(val latitude: Double, val longitude: Double, val precisionMeters: Int) : EmergencyRequestAction
+
+    data class LoadNearbyFacilities(val latitude: Double, val longitude: Double) : EmergencyRequestAction
+
+    data class SelectNearbyFacility(val facility: NearbyFacility) : EmergencyRequestAction
 }
 
 class EmergencyRequestViewModel(private val repository: EmergencyRequestRepository, private val enablePolling: Boolean = true) :
@@ -122,6 +131,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
     private var draftSaveJob: Job? = null
     private var historyRefreshJob: Job? = null
     private var pollJob: Job? = null
+    private var nearbyFacilitiesJob: Job? = null
 
     /**
      * Wires up the active-request/history observers and, when [enablePolling] is
@@ -216,13 +226,27 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
                 moderateContact(
                     action.donorId,
                 ) { requestId, donorId -> repository.blockContact(requestId, donorId) }
-            is EmergencyRequestAction.SetGpsLocation ->
+            is EmergencyRequestAction.SetGpsLocation -> {
+                _uiState.update { it.copy(nearbyFacilities = emptyList(), nearbyFacilitiesError = null) }
                 updateDraft {
                     it.copy(
                         requesterLatitude = action.latitude,
                         requesterLongitude = action.longitude,
                         locationPrecisionMeters = action.precisionMeters,
                         facility = null,
+                    )
+                }
+            }
+            is EmergencyRequestAction.LoadNearbyFacilities -> loadNearbyFacilities(action.latitude, action.longitude)
+            is EmergencyRequestAction.SelectNearbyFacility ->
+                updateDraft {
+                    it.copy(
+                        facility = Facility(
+                            id = action.facility.id,
+                            name = action.facility.name,
+                            area = action.facility.area ?: "Nearby area",
+                            verified = false,
+                        ),
                     )
                 }
         }
@@ -248,6 +272,32 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
 
     private fun isDraftLocked(): Boolean =
         _uiState.value.submission.let { it is SubmissionState.Submitting || it is SubmissionState.QueuedOffline }
+
+    private fun loadNearbyFacilities(latitude: Double, longitude: Double) {
+        nearbyFacilitiesJob?.cancel()
+        nearbyFacilitiesJob =
+            viewModelScope.launch {
+                _uiState.update { it.copy(nearbyFacilitiesLoading = true, nearbyFacilitiesError = null) }
+                runCatching { repository.findNearbyFacilities(latitude, longitude) }
+                    .onSuccess { facilities ->
+                        _uiState.update {
+                            it.copy(
+                                nearbyFacilities = facilities.sortedBy { facility -> facility.distanceKm },
+                                nearbyFacilitiesLoading = false,
+                            )
+                        }
+                    }.onFailure { error ->
+                        if (error is CancellationException) throw error
+                        _uiState.update {
+                            it.copy(
+                                nearbyFacilitiesLoading = false,
+                                nearbyFacilitiesError =
+                                "Nearby facilities could not be loaded. You can retry or continue without selecting one.",
+                            )
+                        }
+                    }
+            }
+    }
 
     private fun continueStep() {
         val state = _uiState.value
