@@ -50,6 +50,8 @@ class SelectedMethodsRunner(testClass: Class<*>) : Runner() {
     "emptyDonorMapKeepsMapVisibleAndOffersRefresh",
     "selectingDonorAreaOpensPrivacySafeDetailsAndReturnsToMap",
     "syntheticMapMarkerTapSelectsTheMatchingApproximateAreaWithoutNetwork",
+    "primaryNavigationUsesClearDestinationLabels",
+    "homeLinksOpenRequestsAndActivity",
 )
 class LifeLinkVisualSmokeTest : LifeLinkWorkflowVisualTest()
 

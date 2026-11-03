@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -606,6 +607,23 @@ open class LifeLinkWorkflowVisualTest {
     }
 
     @Test
+    fun primaryNavigationUsesClearDestinationLabels() {
+        render()
+
+        composeRule.onNodeWithTag("nav-MAP")
+            .assertIsDisplayed()
+            .assert(hasText("Donors", substring = false))
+            .performClick()
+        composeRule.onNodeWithTag("nav-MAP").assertIsSelected()
+
+        composeRule.onNodeWithTag("nav-MESSAGING")
+            .assert(hasText("Messages", substring = false))
+            .performClick()
+        composeRule.onNodeWithTag("nav-MESSAGING").assertIsSelected()
+        capture("navigation-messages-selected")
+    }
+
+    @Test
     fun homeOpensRequestFormDirectly() {
         render()
         composeRule.onNodeWithText("Create emergency request").performScrollTo().performClick()
@@ -632,6 +650,9 @@ open class LifeLinkWorkflowVisualTest {
                 ),
             ),
         )
+        composeRule.onNodeWithText("Unread", substring = false).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("home-update-visual-update").assertIsDisplayed().assertHasClickAction()
+        capture("home-activity-unread-preview")
         composeRule.onNodeWithText("A donor responded").performScrollTo().performClick()
         assertVisible("Activity")
         assertVisible("A donor responded")

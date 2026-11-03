@@ -444,3 +444,14 @@ This batch hardens the existing requester flow without redesigning the screen or
 - OWASP MASVS-PRIVACY-1 requires minimizing sensitive data exposure across the app's data flows: https://mas.owasp.org/MASVS/controls/MASVS-PRIVACY-1/.
 
 **Validation:** The code and instrumentation changes are on this PR's existing branch. CI must pass on the final head before this work is marked verified.
+
+## Navigation and Home activity clarity (3 November 2026)
+
+- [x] Keep the five existing task destinations and adaptive bar/rail structure, but clarify the map and conversation destinations with the short labels “Donors” and “Messages.”
+- [x] Make unread Home activity explicit with a visible “Unread” label, show relative recency alongside each preview, and give each row a title-specific accessible action label.
+- [x] Add instrumentation coverage for the destination labels/selected states and the visible unread state/clickable preview.
+- [ ] Verify compact-width and enlarged-font layouts plus TalkBack announcements in hosted visual evidence; this change remains pending until current-head CI completes.
+
+**Research basis:** Material 3 recommends three to five persistent top-level destinations with short, meaningful labels and warns against label truncation. The current five destinations stay in place; the renamed labels explain what those destinations do without adding navigation choices: https://m3.material.io/components/navigation-bar/guidelines. Android accessibility guidance recommends that controls be understandable and interactive elements have at least 48 dp touch targets: https://developer.android.com/guide/topics/ui/accessibility/apps. A cognitive task analysis of one national mobile personal-health-record application found that mental operators accounted for 73%–76% of modeled task time; this is specific to that study, but supports reducing unnecessary search and recall in a health-related interface. The Home preview now exposes unread state and recency in text instead of relying on a dot and font weight alone: https://pmc.ncbi.nlm.nih.gov/articles/PMC10651402/.
+
+**Validation:** Local formatting/static checks and hosted Android quality/visual-review workflows must pass on the final PR head. The text also remains available in the full Activity screen, where older or longer items can be read without the Home preview’s two-line summary.

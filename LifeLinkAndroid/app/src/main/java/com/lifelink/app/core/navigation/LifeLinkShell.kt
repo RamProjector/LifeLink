@@ -1,5 +1,6 @@
 package com.lifelink.app.core.navigation
 
+import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -122,8 +123,8 @@ import com.lifelink.app.feature.updates.UpdatesScreen
 private enum class ShellTab(val label: String) {
     HOME("Home"),
     REQUESTS("Requests"),
-    MAP("Map"),
-    MESSAGING("Chat"),
+    MAP("Donors"),
+    MESSAGING("Messages"),
     PROFILE("Profile"),
 }
 
@@ -818,7 +819,30 @@ private fun HomeContent(
                                     fontWeight = if (update.isRead) FontWeight.Normal else FontWeight.SemiBold,
                                 )
                             },
-                            supportingContent = { Text(update.body, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                            supportingContent = {
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(update.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        DateUtils.getRelativeTimeSpanString(
+                                            update.createdAtEpochMillis,
+                                            System.currentTimeMillis(),
+                                            DateUtils.MINUTE_IN_MILLIS,
+                                        ).toString(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
+                            trailingContent = {
+                                if (!update.isRead) {
+                                    Text(
+                                        "Unread",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            },
                             leadingContent = {
                                 Surface(
                                     modifier = Modifier.size(8.dp),
@@ -826,7 +850,14 @@ private fun HomeContent(
                                     color = if (update.isRead) Color.Transparent else MaterialTheme.colorScheme.primary,
                                 ) {}
                             },
-                            modifier = Modifier.fillMaxWidth().clickable(onClickLabel = "Open updates", onClick = onUpdates),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    onClickLabel = "Open update: ${update.title}",
+                                    role = Role.Button,
+                                    onClick = onUpdates,
+                                )
+                                .testTag("home-update-${update.id}"),
                         )
                     }
                 }
