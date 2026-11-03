@@ -391,7 +391,7 @@ fun LifeLinkShell(
                             onClick = { tab = ShellTab.SETTINGS },
                             modifier = Modifier.testTag("open-settings"),
                         ) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                            Icon(Icons.Filled.Settings, contentDescription = "Open settings")
                         }
                     }
                 }
