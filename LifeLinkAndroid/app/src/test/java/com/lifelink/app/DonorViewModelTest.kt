@@ -1,6 +1,7 @@
 package com.lifelink.app
 
 import androidx.lifecycle.ViewModelStore
+import com.lifelink.app.core.ui.LifeLinkFeedbackLevel
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfile
@@ -25,6 +26,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -96,6 +98,68 @@ class DonorViewModelTest {
     }
 
     @Test
+    fun availability_pause_and_resume_messages_follow_saved_state() = runTest {
+        val persisted = MutableStateFlow(
+            DonorProfile(
+                displayName = "Alex Donor",
+                bloodType = BloodType.O_POS,
+                availability = DonorAvailability.AVAILABLE,
+                verified = true,
+            ),
+        )
+        val viewModel = DonorViewModel(FakeDonorRepository(persisted), enablePolling = false)
+
+        viewModel.onAction(DonorAction.SetAvailability(DonorAvailability.PAUSED))
+
+        assertEquals(DonorAvailability.PAUSED, viewModel.state.value.profile.availability)
+        assertEquals(LifeLinkFeedbackLevel.Success, viewModel.state.value.messageLevel)
+        assertTrue(viewModel.state.value.message!!.contains("will not receive new matching requests until you resume"))
+
+        viewModel.onAction(DonorAction.SetAvailability(DonorAvailability.AVAILABLE))
+
+        assertEquals(DonorAvailability.AVAILABLE, viewModel.state.value.profile.availability)
+        assertTrue(viewModel.state.value.message!!.contains("Matching also requires a recent location"))
+    }
+
+    @Test
+    fun availability_failure_uses_safe_copy_and_error_severity() = runTest {
+        val repository = FakeDonorRepository(
+            persisted = MutableStateFlow(DonorProfile()),
+            availabilityFailure = IllegalStateException("private backend SQL and access token"),
+        )
+        val viewModel = DonorViewModel(repository, enablePolling = false)
+
+        viewModel.onAction(DonorAction.SetAvailability(DonorAvailability.PAUSED))
+
+        assertEquals(LifeLinkFeedbackLevel.Error, viewModel.state.value.messageLevel)
+        assertEquals(
+            "Availability could not be updated. Check your connection and try again.",
+            viewModel.state.value.message,
+        )
+        assertFalse(viewModel.state.value.message!!.contains("access token"))
+    }
+
+    @Test
+    fun availability_feedback_does_not_claim_unsaved_visibility_is_server_confirmed() = runTest {
+        val persisted = MutableStateFlow(
+            DonorProfile(
+                availability = DonorAvailability.PAUSED,
+                verified = true,
+                profileVisible = true,
+            ),
+        )
+        val viewModel = DonorViewModel(FakeDonorRepository(persisted), enablePolling = false)
+
+        viewModel.onAction(DonorAction.UpdateDraft { it.copy(profileVisible = false) })
+        viewModel.onAction(DonorAction.SetAvailability(DonorAvailability.AVAILABLE))
+
+        assertEquals(DonorAvailability.AVAILABLE, viewModel.state.value.profile.availability)
+        assertEquals(LifeLinkFeedbackLevel.Warning, viewModel.state.value.messageLevel)
+        assertTrue(viewModel.state.value.message!!.contains("Save your profile edits"))
+        assertFalse(viewModel.state.value.message!!.contains("your profile is hidden from matching"))
+    }
+
+    @Test
     fun accept_response_survives_view_model_store_being_cleared_mid_write() = runTest {
         val started = CompletableDeferred<Unit>()
         val releaseWrite = CompletableDeferred<Unit>()
@@ -147,11 +211,17 @@ private class SlowRespondDonorRepository(
     }
 }
 
-private class FakeDonorRepository(private val persisted: MutableStateFlow<DonorProfile>) : DonorRepository {
+private class FakeDonorRepository(
+    private val persisted: MutableStateFlow<DonorProfile>,
+    private val availabilityFailure: Throwable? = null,
+) : DonorRepository {
     override fun observeProfile(): Flow<DonorProfile> = persisted
     override fun observeRequests(): Flow<List<DonorRequest>> = flowOf(emptyList())
     override suspend fun saveProfile(profile: DonorProfile) = Unit
-    override suspend fun setAvailability(availability: DonorAvailability) = Unit
+    override suspend fun setAvailability(availability: DonorAvailability) {
+        availabilityFailure?.let { throw it }
+        persisted.value = persisted.value.copy(availability = availability)
+    }
     override suspend fun refresh() = Unit
     override suspend fun respond(requestId: String, response: DonorResponse): Result<Unit> = Result.success(Unit)
 }

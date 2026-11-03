@@ -55,6 +55,12 @@ class _FakeConnection:
     async def execute(self, statement, *args, **kwargs):
         self.statements.append(str(statement))
 
+    async def scalar(self, statement, *args, **kwargs):
+        self.statements.append(str(statement))
+        # This unit fixture models an already-migrated schema. Dedicated
+        # PostgreSQL tests cover the first-start backfill path.
+        return True
+
 
 class _FakeEngine:
     def __init__(self, connection):

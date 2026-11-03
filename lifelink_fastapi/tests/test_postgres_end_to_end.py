@@ -67,7 +67,10 @@ def run_scenario(pg_url: str, scenario):
 
                 async def run_sql(statement: str):
                     async with engine.begin() as conn:
-                        await conn.execute(text(statement))
+                        result = await conn.execute(text(statement))
+                        if statement.lstrip().upper().startswith("SELECT"):
+                            return result.all()
+                        return None
 
                 await scenario(client, current, run_sql)
         finally:
@@ -131,6 +134,11 @@ async def setup_donor(
     if available:
         availability = await client.patch(f"/v1/donors/{donor_id}/availability", json={"availability": "available"})
         assert availability.status_code == 200, availability.text
+    presence = await client.post(
+        f"/v1/donors/{donor_id}/presence",
+        json={"latitude": 11.2440, "longitude": 125.0010, "precision_meters": 35},
+    )
+    assert presence.status_code == 200, presence.text
 
 
 async def submit_request(client, current, requester_id: str, **kwargs) -> dict:
@@ -184,6 +192,101 @@ def test_submit_does_not_broadcast_but_contact_does(pg_url, monkeypatch):
         assert contacted.status_code == 200, contacted.text
         assert pushes, "contacting a selected donor is the intended broadcast trigger"
         assert pushes[-1]["data"]["type"] == "contact_request"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_replaying_request_creation_is_idempotent_and_reports_no_notifications(pg_url):
+    """A retry after a lost response returns the same request without side effects.
+
+    Matches are candidates for requester review; they are not donor
+    notifications. Replaying the same idempotency key must not report them as
+    newly created notifications or insert a second request.
+    """
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        payload = request_payload(requester)
+        # Exercise the non-AI distance-only path: its strategy must survive
+        # database persistence and an idempotent replay.
+        payload["ai_matching_enabled"] = False
+
+        current["id"] = requester
+        first = await client.post("/v1/emergency-requests", json=payload)
+        assert first.status_code == 201, first.text
+        first_body = first.json()
+        assert [item["donor_id"] for item in first_body["matches"]] == [donor]
+        assert first_body["matching_version"] == "v1-distance-only"
+        assert first_body["notifications_created"] == 0
+
+        # Simulate the client retrying because the original response was lost.
+        replay = await client.post("/v1/emergency-requests", json=payload)
+        assert replay.status_code == 201, replay.text
+        replay_body = replay.json()
+        assert replay_body["request_id"] == first_body["request_id"]
+        assert replay_body["status"] == first_body["status"]
+        assert replay_body["matching_version"] == "v1-distance-only"
+        assert replay_body["notifications_created"] == 0
+
+        engine = create_async_engine(pg_url)
+        async with engine.connect() as connection:
+            count = await connection.scalar(
+                text("SELECT count(*) FROM emergency_requests WHERE idempotency_key = :key"),
+                {"key": payload["idempotency_key"]},
+            )
+        await engine.dispose()
+        assert count == 1, "replaying a create request must not insert a duplicate row"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_reusing_request_idempotency_key_with_changed_payload_is_rejected(pg_url):
+    """A key identifies one request intent; changing its payload must not replay it."""
+    async def scenario(client, current, run_sql):
+        requester = new_user("requester")
+        payload = request_payload(requester)
+        current["id"] = requester
+        first = await client.post("/v1/emergency-requests", json=payload)
+        assert first.status_code == 201, first.text
+
+        changed = dict(payload)
+        changed["units"] = payload["units"] + 1
+        replay = await client.post("/v1/emergency-requests", json=changed)
+        assert replay.status_code == 422, replay.text
+        assert "different emergency request" in replay.json()["detail"]
+
+        count = await run_sql(
+            "SELECT count(*) FROM emergency_requests "
+            f"WHERE idempotency_key = '{payload['idempotency_key']}'"
+        )
+        assert count == [(1,)], "a changed-payload retry must not create another request"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_concurrent_request_creation_with_same_key_returns_one_request(pg_url):
+    """Simultaneous retries serialize and converge on one durable request."""
+    async def scenario(client, current, run_sql):
+        requester = new_user("requester")
+        payload = request_payload(requester)
+        current["id"] = requester
+
+        first, second = await asyncio.gather(
+            client.post("/v1/emergency-requests", json=payload),
+            client.post("/v1/emergency-requests", json=payload),
+        )
+        assert first.status_code == 201, first.text
+        assert second.status_code == 201, second.text
+        first_body, second_body = first.json(), second.json()
+        assert first_body["request_id"] == second_body["request_id"]
+        assert first_body["notifications_created"] == 0
+        assert second_body["notifications_created"] == 0
+
+        count = await run_sql(
+            "SELECT count(*) FROM emergency_requests "
+            f"WHERE idempotency_key = '{payload['idempotency_key']}'"
+        )
+        assert count == [(1,)], "concurrent retries must persist exactly one request"
 
     run_scenario(pg_url, scenario)
 

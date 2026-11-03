@@ -57,8 +57,15 @@ class DonorProfileRepositoryTest {
                     """"display_name":"Alice","donor_note":"","preferred_contact_method":"in_app","profile_visible":true}""",
             ),
         )
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
         val saved = repository.save(
-            DonorProfileMe(bloodType = BloodType.O_POS, latitude = 11.24, longitude = 125.0, area = "Tacloban"),
+            DonorProfileMe(
+                bloodType = BloodType.O_POS,
+                latitude = 11.24,
+                longitude = 125.0,
+                locationPrecisionMeters = 35,
+                area = "Tacloban",
+            ),
         )
         val request = server.takeRequest()
         assertEquals("PUT", request.method)
@@ -66,6 +73,12 @@ class DonorProfileRepositoryTest {
         assertEquals(BloodType.O_POS, saved.bloodType)
         assertTrue(saved.verified)
         assertTrue(saved.isMatchable)
+        assertEquals(35, saved.locationPrecisionMeters)
+
+        val presence = server.takeRequest()
+        assertEquals("POST", presence.method)
+        assertEquals("/v1/donor-profile/presence", presence.path)
+        assertTrue(presence.body.readUtf8().contains("\"precision_meters\":35"))
     }
 
     @Test
@@ -93,5 +106,68 @@ class DonorProfileRepositoryTest {
         val request = server.takeRequest()
         assertEquals("DELETE", request.method)
         assertEquals("/v1/donor-profile", request.path)
+    }
+
+    @Test
+    fun save_reports_partial_success_when_location_confirmation_fails() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"user_id":"alice","donor_id":"alice","blood_type":"O+","latitude":11.24,"longitude":125.0,""" +
+                    """"area":"Tacloban","service_radius_km":15.0,"availability_status":"available",""" +
+                    """"last_donation_date":null,"verified":true,"notifications_enabled":true,""" +
+                    """"display_name":"Alice","donor_note":"","preferred_contact_method":"in_app","profile_visible":true}""",
+            ),
+        )
+        server.enqueue(
+            MockResponse().setResponseCode(500)
+                .setBody("""{"detail":"internal-secret-marker"}"""),
+        )
+
+        val result = runCatching {
+            repository.save(
+                DonorProfileMe(
+                    bloodType = BloodType.O_POS,
+                    latitude = 11.24,
+                    longitude = 125.0,
+                    locationPrecisionMeters = 35,
+                    area = "Tacloban",
+                ),
+            )
+        }
+
+        assertTrue(result.isFailure)
+        val message = result.exceptionOrNull()?.message.orEmpty()
+        assertTrue(message.contains("profile was saved"))
+        assertTrue(message.contains("500"))
+        assertFalse(message.contains("internal-secret-marker"))
+        assertEquals("/v1/donor-profile", server.takeRequest().path)
+        assertEquals("/v1/donor-profile/presence", server.takeRequest().path)
+    }
+
+    @Test
+    fun save_does_not_expose_raw_backend_error_details() = runBlocking {
+        val sensitiveDetail = "internal-secret-marker"
+        server.enqueue(
+            MockResponse().setResponseCode(500)
+                .setBody("""{"detail":"$sensitiveDetail"}"""),
+        )
+
+        val result = runCatching {
+            repository.save(
+                DonorProfileMe(
+                    bloodType = BloodType.O_POS,
+                    latitude = 11.24,
+                    longitude = 125.0,
+                    locationPrecisionMeters = 35,
+                    area = "Tacloban",
+                ),
+            )
+        }
+
+        assertTrue(result.isFailure)
+        val message = result.exceptionOrNull()?.message.orEmpty()
+        assertTrue(message.contains("500"))
+        assertFalse(message.contains(sensitiveDetail))
+        assertEquals("/v1/donor-profile", server.takeRequest().path)
     }
 }

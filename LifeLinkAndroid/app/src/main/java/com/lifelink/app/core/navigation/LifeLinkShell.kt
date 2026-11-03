@@ -1,5 +1,10 @@
 package com.lifelink.app.core.navigation
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,6 +44,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -72,6 +78,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -121,12 +128,19 @@ import com.lifelink.app.feature.updates.UpdatesScreen
 private enum class ShellTab(val label: String) {
     HOME("Home"),
     REQUESTS("Requests"),
-    MAP("Map"),
-    MESSAGING("Chat"),
-    PROFILE("Profile"),
+    MAP("Donors"),
+    MESSAGING("Messages"),
+    SETTINGS("Settings"),
 }
 
-private enum class SettingsSection { PROFILE, LEGAL, THEME, SECURITY }
+private enum class SettingsSection(val label: String) {
+    ACCOUNT("Account"),
+    NOTIFICATIONS("Notifications"),
+    PRIVACY("Privacy"),
+    LEGAL("Legal"),
+    THEME("Theme"),
+    SECURITY("Security"),
+}
 
 /**
  * Renders account navigation and routes requester and donor actions to their screens.
@@ -166,6 +180,7 @@ fun LifeLinkShell(
 ) {
     val context = LocalContext.current
     val welcomePrefs = context.getSharedPreferences("lifelink_welcome", 0)
+    val screenStateHolder = rememberSaveableStateHolder()
     var showRequest by rememberSaveable { mutableStateOf(false) }
     var showActive by rememberSaveable { mutableStateOf(false) }
     var showDonor by rememberSaveable { mutableStateOf(false) }
@@ -207,9 +222,24 @@ fun LifeLinkShell(
         )
     }
     var tab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
+    var donorSelectedTab by rememberSaveable(accountUserId) { mutableStateOf("HOME") }
     val markWelcomeSeen = {
         if (accountUserId.isNotBlank()) welcomePrefs.edit().putBoolean("seen_$accountUserId", true).apply()
         showStart = false
+    }
+    // Route changes must close any competing overlay. This keeps a stale request,
+    // notification, or conversation flag from masking the donor workspace.
+    val openDonorWorkspace = {
+        markWelcomeSeen()
+        showRequest = false
+        showActive = false
+        showBecomeDonor = false
+        showNotifications = false
+        showConversation = false
+        conversationOpenedFromDonor = false
+        conversationRequestId = ""
+        conversationDonorId = ""
+        showDonor = true
     }
     LaunchedEffect(notificationRequestId) {
         notificationRequestId?.takeIf { it.isNotBlank() }?.let { destination ->
@@ -246,10 +276,7 @@ fun LifeLinkShell(
                 markWelcomeSeen()
                 showRequest = true
             },
-            onOpenDonor = {
-                markWelcomeSeen()
-                showDonor = true
-            },
+            onOpenDonor = openDonorWorkspace,
         )
         return
     }
@@ -319,12 +346,16 @@ fun LifeLinkShell(
     }
     if (showDonor) {
         BackHandler { showDonor = false }
-        DonorScreen(
-            state = donorState,
-            onAction = onDonorAction,
-            onBack = { showDonor = false },
-            onOpenConversation = openDonorConversation,
-        )
+        screenStateHolder.SaveableStateProvider("donor-workspace") {
+            DonorScreen(
+                state = donorState,
+                onAction = onDonorAction,
+                onBack = { showDonor = false },
+                onOpenConversation = openDonorConversation,
+                selectedTabKey = donorSelectedTab,
+                onSelectedTabKeyChange = { donorSelectedTab = it },
+            )
+        }
         return
     }
     BackHandler(enabled = tab != ShellTab.HOME) { tab = ShellTab.HOME }
@@ -357,10 +388,10 @@ fun LifeLinkShell(
                             }
                         }
                         IconButton(
-                            onClick = { tab = ShellTab.PROFILE },
-                            modifier = Modifier.testTag("open-profile"),
+                            onClick = { tab = ShellTab.SETTINGS },
+                            modifier = Modifier.testTag("open-settings"),
                         ) {
-                            Icon(Icons.Default.Person, contentDescription = "Profile")
+                            Icon(Icons.Filled.Settings, contentDescription = "Open settings")
                         }
                     }
                 }
@@ -401,9 +432,7 @@ fun LifeLinkShell(
                                 HomeContent(state, donorState, role, onSwitchRole, onCreate = { showRequest = true }, onActive = {
                                     showActive =
                                         true
-                                }, onDonor = {
-                                    showDonor = true
-                                }, updates = updates, onRequests = {
+                                }, onDonor = openDonorWorkspace, updates = updates, onRequests = {
                                     tab =
                                         ShellTab.REQUESTS
                                 }, onUpdates = { showNotifications = true })
@@ -435,7 +464,7 @@ fun LifeLinkShell(
                                         ?.takeIf { it.startsWith("conversation:") }
                                         ?.substringAfter("|"),
                                 )
-                            ShellTab.PROFILE ->
+                            ShellTab.SETTINGS ->
                                 SettingsContent(
                                     role,
                                     accountEmail,
@@ -447,11 +476,7 @@ fun LifeLinkShell(
                                     themeMode,
                                     onThemeModeChange,
                                     onRequestPasswordReset,
-                                    onOpenDonor = {
-                                        showStart =
-                                            false
-                                        ; showDonor = true
-                                    },
+                                    onOpenDonor = openDonorWorkspace,
                                     onBecomeDonor = {
                                         showStart = false
                                         showBecomeDonor = true
@@ -514,7 +539,7 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
             ShellTab.REQUESTS -> Icons.AutoMirrored.Filled.Assignment
             ShellTab.MAP -> Icons.Default.Map
             ShellTab.MESSAGING -> Icons.Default.ChatBubbleOutline
-            ShellTab.PROFILE -> Icons.Default.Person
+            ShellTab.SETTINGS -> Icons.Filled.Settings
         }
     Icon(icon, contentDescription = null, modifier = Modifier.size(size))
 }
@@ -806,7 +831,30 @@ private fun HomeContent(
                                     fontWeight = if (update.isRead) FontWeight.Normal else FontWeight.SemiBold,
                                 )
                             },
-                            supportingContent = { Text(update.body, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                            supportingContent = {
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(update.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        DateUtils.getRelativeTimeSpanString(
+                                            update.createdAtEpochMillis,
+                                            System.currentTimeMillis(),
+                                            DateUtils.MINUTE_IN_MILLIS,
+                                        ).toString(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
+                            trailingContent = {
+                                if (!update.isRead) {
+                                    Text(
+                                        "Unread",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            },
                             leadingContent = {
                                 Surface(
                                     modifier = Modifier.size(8.dp),
@@ -814,7 +862,14 @@ private fun HomeContent(
                                     color = if (update.isRead) Color.Transparent else MaterialTheme.colorScheme.primary,
                                 ) {}
                             },
-                            modifier = Modifier.fillMaxWidth().clickable(onClickLabel = "Open updates", onClick = onUpdates),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    onClickLabel = "Open update: ${update.title}",
+                                    role = Role.Button,
+                                    onClick = onUpdates,
+                                )
+                                .testTag("home-update-${update.id}"),
                         )
                     }
                 }
@@ -1001,7 +1056,7 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
     }
 }
 
-/** Routes the selected settings section to profile, appearance, security, or guidance content. */
+/** Routes the selected settings section to account, notifications, privacy, appearance, or guidance. */
 @Composable private fun SettingsContent(
     role: UserRole,
     accountEmail: String,
@@ -1017,34 +1072,44 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
     onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
 ) {
-    var section by rememberSaveable { mutableStateOf(SettingsSection.PROFILE) }
+    var section by rememberSaveable { mutableStateOf(SettingsSection.ACCOUNT) }
     val sections =
         listOf(
-            SettingsSection.PROFILE,
+            SettingsSection.ACCOUNT,
+            SettingsSection.NOTIFICATIONS,
+            SettingsSection.PRIVACY,
             SettingsSection.LEGAL,
             SettingsSection.THEME,
             SettingsSection.SECURITY,
         )
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Profile", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
             Text(
-                "Account, privacy, and LifeLink information.",
+                "Settings",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.testTag("settings-screen-title").semantics { heading() },
+            )
+            Text(
+                "Account, notifications, privacy, and app preferences.",
                 color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        ScrollableTabRow(selectedTabIndex = sections.indexOf(section), edgePadding = 12.dp) {
+        ScrollableTabRow(
+            selectedTabIndex = sections.indexOf(section),
+            edgePadding = 12.dp,
+            modifier = Modifier.testTag("settings-tabs"),
+        ) {
             sections.forEach { item ->
                 Tab(
                     modifier = Modifier.testTag("settings-${item.name}"),
                     selected = section == item,
                     onClick = { section = item },
-                    text = { Text(item.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                    text = { Text(item.label) },
                 )
             }
         }
         when (section) {
-            SettingsSection.PROFILE ->
+            SettingsSection.ACCOUNT ->
                 ProfileContent(
                     role,
                     accountEmail,
@@ -1057,9 +1122,91 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
                     onBecomeDonor,
                     onSignOut,
                 )
+            SettingsSection.NOTIFICATIONS -> NotificationSettingsContent()
+            SettingsSection.PRIVACY -> PrivacySettingsContent()
             SettingsSection.LEGAL -> LegalContent()
             SettingsSection.THEME -> ThemeContent(themeMode, onThemeModeChange)
             SettingsSection.SECURITY -> SecurityContent(onRequestPasswordReset)
+        }
+    }
+}
+
+/** Opens Android's app-notification controls rather than storing a duplicate permission preference. */
+@Composable
+private fun NotificationSettingsContent() {
+    val context = LocalContext.current
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "Notifications",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.semantics { heading() },
+        )
+        Text(
+            "Choose whether LifeLink can send notifications from Android app settings. " +
+                "Emergency request notifications use the device's notification permission and channel controls.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(
+            onClick = {
+                val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                } else {
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", context.packageName, null),
+                    )
+                }
+                context.startActivity(intent)
+            },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+        ) {
+            Text("Manage device notifications")
+        }
+        Text(
+            "In-app activity remains available from the bell at the top of Home.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Summarizes existing privacy boundaries without implying controls the app does not yet expose here. */
+@Composable
+private fun PrivacySettingsContent() {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "Privacy",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.semantics { heading() },
+        )
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Donor locations", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "The donor map shows approximate areas, not exact coordinates. " +
+                        "Exact location sharing is request-scoped and requires donor consent.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Chat history", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Messages are stored on LifeLink servers and are readable by the two participants in that conversation. " +
+                        "Offline message history and saved-message bookmarks are not currently available.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -1309,7 +1456,10 @@ private fun LegalDocumentPicker(onSelect: (LegalDocument) -> Unit) {
                     color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (role == UserRole.DONOR) {
-                    OutlinedButton(onClick = onOpenDonor, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = onOpenDonor,
+                        modifier = Modifier.fillMaxWidth().testTag("open-donor-workspace"),
+                    ) {
                         Text("Open donor workspace")
                     }
                 } else {
