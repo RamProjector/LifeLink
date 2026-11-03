@@ -23,6 +23,18 @@ class UserFacingErrorTest {
             userFacingError(IOException("request failed (429)"), "fallback"),
         )
         assertEquals(
+            "The request timed out. Check your connection and try again.",
+            userFacingError(IOException("request failed (408)"), "fallback"),
+        )
+        assertEquals(
+            "This information changed on the server. Refresh and try again.",
+            userFacingError(IOException("request failed (409)"), "fallback"),
+        )
+        assertEquals(
+            "That information is no longer available.",
+            userFacingError(IOException("request failed (404)"), "fallback"),
+        )
+        assertEquals(
             "LifeLink is temporarily unavailable. Please try again shortly.",
             userFacingError(IOException("request failed (503)"), "fallback"),
         )
@@ -41,6 +53,10 @@ class UserFacingErrorTest {
         assertEquals(
             "The conversation could not be opened.",
             userFacingError(IllegalStateException(), "The conversation could not be opened."),
+        )
+        assertEquals(
+            "The conversation could not be opened.",
+            userFacingError(IllegalStateException("SQLSTATE=23505 secret backend detail"), "The conversation could not be opened."),
         )
     }
 

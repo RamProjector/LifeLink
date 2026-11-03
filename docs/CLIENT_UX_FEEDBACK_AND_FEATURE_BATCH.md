@@ -94,8 +94,8 @@ The following are acceptance tasks for this one integration PR. A checkbox is ma
 ### 1. Shared feedback components and message catalog
 - [ ] Standardize success, informational, warning, error, loading, offline, and empty states.
 - [ ] Reuse Material 3 colors and typography; include title, plain-language message, optional primary action, and appropriate accessibility semantics.
-- [ ] Add message keys or a centralized mapping for common network, session, permission, GPS, validation, and rate-limit failures.
-- [ ] Never surface raw backend exception messages directly.
+- [x] Add a centralized Android mapping for common network, session, permission, GPS, validation, conflict, not-found, timeout, and rate-limit failures; profile, admin, donor, and requester error paths use it where they present operation failures.
+- [x] Never surface raw backend exception messages directly in the audited Android profile, admin, donor, and requester operation paths; unknown failures use feature-safe fallback copy.
 
 **Acceptance:** same state has the same visual hierarchy and wording on Android; actions are reachable by TalkBack and keyboard; tests assert state text and action.
 
