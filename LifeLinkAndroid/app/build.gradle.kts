@@ -8,6 +8,11 @@ plugins {
     id("com.diffplug.spotless")
 }
 
+// CI prefetches the exact android-all-instrumented JAR required by the tests.
+// Keep the Maven fallback for ordinary local development when the prefetch task
+// has not been run.
+val robolectricDependencyDir = providers.gradleProperty("robolectricDependencyDir").orNull
+
 // --- Release signing inputs -------------------------------------------------
 // Resolved once, at the top level, so the signingConfig below and the
 // `verifyReleaseSigning` task share ONE definition of "signing is configured".
@@ -158,11 +163,16 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
         unitTests.all {
-            // Robolectric fetches android-all at test runtime outside Gradle's
-            // dependency resolver. Use Maven Central's canonical endpoint rather
-            // than repo1, which returned HTTP 429 in the hosted runner.
-            it.systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
-            it.systemProperty("robolectric.dependency.repo.id", "mavenCentral")
+            if (robolectricDependencyDir != null) {
+                it.systemProperty("robolectric.offline", "true")
+                it.systemProperty("robolectric.dependency.dir", robolectricDependencyDir)
+            } else {
+                // Robolectric fetches android-all at test runtime outside Gradle's
+                // dependency resolver. Use Maven Central's canonical endpoint rather
+                // than repo1, which returned HTTP 429 in the hosted runner.
+                it.systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
+                it.systemProperty("robolectric.dependency.repo.id", "mavenCentral")
+            }
         }
     }
     packaging {
