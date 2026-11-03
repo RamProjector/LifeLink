@@ -78,6 +78,7 @@ from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
 from .security import Principal, get_postgres_principal, require_verified_email
 from .rate_limit import enforce_rate_limit
 from .admin_api import _correlation_id, _write_audit, router as admin_router
+from .facility_api import NearbyFacilitiesOut, nearby_facilities, validate_nearby_query
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -435,6 +436,28 @@ async def register_push_token(
 async def health() -> dict[str, str]:
     """Liveness probe: the process is up and serving."""
     return {"status": "ok", "service": "lifelink-matching-postgres"}
+
+
+@app.get("/v1/health-facilities/nearby", response_model=NearbyFacilitiesOut)
+async def nearby_health_facilities(
+    latitude: float,
+    longitude: float,
+    radius_km: float = 10.0,
+    limit: int = 20,
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Find nearby hospitals and clinics from OpenStreetMap via Overpass.
+
+    Results are discovery aids only. The app must not treat an OSM facility as
+    clinically verified, and request submission continues to support an
+    approximate requester location when no facility is selected.
+    """
+    if principal.subject == "development-user":
+        raise HTTPException(status_code=401, detail="An authenticated user is required")
+    require_verified_email(principal)
+    validate_nearby_query(latitude, longitude, radius_km, limit)
+    await enforce_rate_limit(f"nearby-facilities:{principal.subject}", 20, 300)
+    return await nearby_facilities(latitude, longitude, radius_km, limit)
 
 
 @app.get("/health/ready")
