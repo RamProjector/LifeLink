@@ -5,6 +5,7 @@ on:
     paths:
       - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/location/**'
       - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/privacy/**'
+      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/**/Screen.kt'
       - 'LifeLinkAndroid/app/src/androidTest/**'
       - '.github/workflows/android-visual-review.yml'
   workflow_dispatch:

@@ -489,9 +489,17 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.waitUntil(timeoutMillis = 70_000) {
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
                 .fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithTag("maplibre-map-error")
+                    .fetchSemanticsNodes().isNotEmpty() ||
                 composeRule.onAllNodesWithContentDescription("Donor map unavailable")
                     .fetchSemanticsNodes().isNotEmpty()
         }
+        val mapRenderError = composeRule.onAllNodesWithTag("maplibre-map-error")
+            .fetchSemanticsNodes().isNotEmpty()
+        org.junit.Assert.assertFalse(
+            "MapLibre reported an error before donor-map tiles rendered.",
+            mapRenderError,
+        )
         val mapUnavailable = composeRule.onAllNodesWithContentDescription("Donor map unavailable")
             .fetchSemanticsNodes().isNotEmpty()
         org.junit.Assert.assertFalse(
