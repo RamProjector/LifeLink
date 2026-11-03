@@ -14,7 +14,7 @@
 The current implementation work is consolidated in [PR #153](https://github.com/RamProjector/LifeLink/pull/153). The donor-location and map/navigation items below have code changes and regression coverage in that PR; their status remains **pending final CI/review** until the final head passes all required checks.
 
 - **GPS source and permission:** both donor setup and the legacy donor workspace remove manual coordinates/map-pin editing, require precise location permission, and gate saving on a fresh GPS capture.
-- **Presence freshness:** the backend now separates `last_presence_at` from availability-toggle time, applies an additive startup migration/backfill, excludes stale location from matching/map/exact sharing, and expires stale operational presence. Foreground refresh only runs for verified donors who explicitly remain available.
+- **Presence freshness:** the backend now separates `last_presence_at` from availability-toggle time, applies an additive startup migration that leaves legacy GPS freshness unknown until an actual presence update, excludes stale location from matching/map/exact sharing, and expires stale operational presence. Foreground refresh only runs for verified donors who explicitly remain available.
 - **Donor map/details:** marker and list selection open a privacy-safe approximate-area details view; identity/contact details and exact coordinates are not exposed on the public map.
 - **Navigation and evidence:** donor tab selection is restored when returning from chat; MapLibre style/render readiness and emulator screenshot evidence are included.
 - **Security:** the embedded development API-token default is removed; default Retrofit clients send no authorization header.

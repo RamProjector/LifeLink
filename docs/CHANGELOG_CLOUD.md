@@ -159,7 +159,7 @@ These documentation changes were consolidated into [PR #153](https://github.com/
 ## 2026-10-28 — Consolidated donor GPS, privacy, and presence work (PR #153)
 
 - Removed manual donor latitude/longitude entry and map-pin editing from both donor setup and the legacy donor workspace. Saving donor coordinates requires a fresh precise device-GPS capture.
-- Added the separate `donors.last_presence_at` timestamp, an additive startup migration/backfill, and a periodic stale-presence sweep. Availability toggles no longer refresh location freshness.
+- Added the separate `donors.last_presence_at` timestamp, an additive startup migration that leaves legacy GPS freshness unknown until an actual presence update, and a periodic stale-presence sweep. Availability toggles no longer refresh location freshness.
 - Added a foreground-only Android presence heartbeat for verified donors who have explicitly opted into availability. Stale presence is excluded from matching, the public map, and exact-location sharing; a donor's explicit availability preference is retained so a fresh foreground update can reactivate matching.
 - Added marker/list-to-details navigation for privacy-safe approximate donor areas; the public map does not expose donor identity, contact details, or exact coordinates.
 - Consolidated MapLibre style/render readiness, donor workspace tab restoration through chat, emulator visual evidence, and the regression tests into one integration PR.

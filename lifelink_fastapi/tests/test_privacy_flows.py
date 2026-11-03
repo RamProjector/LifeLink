@@ -643,6 +643,25 @@ def test_map_visibility_off_revokes_live_share(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_map_visibility_response_does_not_fabricate_gps_freshness(pg_url):
+    async def scenario(client, current, run_sql):
+        donor = new_user("donor")
+        await setup_donor(client, current, donor, map_visible=False)
+        await run_sql(
+            f"UPDATE donors SET last_presence_at = NULL, availability_updated_at = now() WHERE id = '{donor}'"
+        )
+
+        current["id"] = donor
+        response = await client.put(
+            f"/v1/donors/{donor}/map-visibility",
+            json={"map_visible": True, "exact_location_sharing_enabled": False},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["freshness_at"] is None
+
+    run_scenario(pg_url, scenario)
+
+
 def test_legacy_donor_gps_presence_refreshes_stale_location(pg_url):
     async def scenario(client, current, run_sql):
         donor = new_user("donor")
@@ -1197,4 +1216,3 @@ def test_map_visibility_change_and_audit_are_atomic(pg_url):
         assert audit_rows == baseline_audit_rows
 
     run_scenario(pg_url, scenario)
-

@@ -1256,7 +1256,7 @@ async def set_donor_map_visibility(
         map_visible=row.map_visible,
         exact_location_sharing_enabled=row.exact_location_sharing_enabled,
         map_visibility_updated_at=row.map_visibility_updated_at,
-        freshness_at=row.last_presence_at or row.availability_updated_at,
+        freshness_at=row.last_presence_at,
     )
 
 

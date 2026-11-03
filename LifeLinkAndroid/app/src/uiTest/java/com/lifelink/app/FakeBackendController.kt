@@ -73,7 +73,7 @@ object FakeBackendController {
                             {
                                 "request_id": "demo-request-created",
                                 "status": "matching",
-                                "notifications_created": 2,
+                                "notifications_created": 0,
                                 "matches_responded": 0,
                                 "matches": []
                             }
@@ -208,8 +208,8 @@ object FakeBackendController {
         {
             "request_id": "$requestId",
             "status": "matching",
-            "notifications_created": 2,
-            "matches_responded": 1,
+            "notifications_created": 0,
+            "matches_responded": 0,
             "matches": []
         }
         """.trimIndent()

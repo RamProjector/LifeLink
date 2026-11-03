@@ -154,7 +154,7 @@ async def submit_request(client, current, requester_id: str, **kwargs) -> dict:
     return response.json()
 
 
-def test_presence_backfill_only_runs_when_column_is_added(pg_url, monkeypatch):
+def test_presence_migration_does_not_backfill_availability_timestamps(pg_url, monkeypatch):
     async def scenario():
         engine = create_async_engine(pg_url)
         monkeypatch.setattr(db, "engine", engine)
@@ -164,6 +164,7 @@ def test_presence_backfill_only_runs_when_column_is_added(pg_url, monkeypatch):
                 await connection.execute(text("CREATE SCHEMA public"))
                 await connection.run_sync(db_models.Base.metadata.create_all)
                 # Simulate a database from before last_presence_at was introduced.
+                # A recent availability timestamp does not prove a recent GPS fix.
                 await connection.execute(text("ALTER TABLE donors DROP COLUMN last_presence_at CASCADE"))
                 await connection.execute(text(
                     "INSERT INTO donors (id, user_id, display_name, blood_type, latitude, longitude, "
@@ -176,22 +177,22 @@ def test_presence_backfill_only_runs_when_column_is_added(pg_url, monkeypatch):
 
             await db.create_all_tables()
             async with engine.begin() as connection:
-                backfilled = await connection.scalar(text(
-                    "SELECT last_presence_at = availability_updated_at "
+                remains_unknown_after_migration = await connection.scalar(text(
+                    "SELECT last_presence_at IS NULL "
                     "FROM donors WHERE id = 'legacy-backfill-test'"
                 ))
                 await connection.execute(text(
-                    "UPDATE donors SET last_presence_at = NULL, availability_updated_at = now() "
+                    "UPDATE donors SET availability_updated_at = now() "
                     "WHERE id = 'legacy-backfill-test'"
                 ))
 
-            # A later startup must not reinterpret a recent availability change as a GPS fix.
+            # Later startups must not reinterpret a recent availability change as a GPS fix.
             await db.create_all_tables()
             async with engine.begin() as connection:
                 remains_null = await connection.scalar(text(
                     "SELECT last_presence_at IS NULL FROM donors WHERE id = 'legacy-backfill-test'"
                 ))
-            assert backfilled is True
+            assert remains_unknown_after_migration is True
             assert remains_null is True
         finally:
             await engine.dispose()
