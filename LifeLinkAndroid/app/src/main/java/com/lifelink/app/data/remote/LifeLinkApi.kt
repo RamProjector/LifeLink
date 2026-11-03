@@ -51,6 +51,14 @@ interface LifeLinkApi {
     @GET("health")
     suspend fun health(): Response<Map<String, String>>
 
+    @GET("v1/health-facilities/nearby")
+    suspend fun nearbyHealthFacilities(
+        @retrofit2.http.Query("latitude") latitude: Double,
+        @retrofit2.http.Query("longitude") longitude: Double,
+        @retrofit2.http.Query("radius_km") radiusKm: Double = 10.0,
+        @retrofit2.http.Query("limit") limit: Int = 20,
+    ): Response<NearbyFacilitiesResponse>
+
     @PUT("v1/profile")
     suspend fun upsertProfile(
         @Body profile: ProfileRequest,
@@ -634,3 +642,29 @@ data class AdminAuditEvent(
     @SerializedName("correlation_id") val correlationId: String? = null,
 )
 data class AdminAuditResponse(val items: List<AdminAuditEvent>, val limit: Int = 50, val offset: Int = 0)
+
+data class NearbyFacilitiesResponse(
+    val facilities: List<NearbyFacilityResponse>,
+    val latitude: Double,
+    val longitude: Double,
+    @SerializedName("radius_km") val radiusKm: Double,
+    val source: String,
+    @SerializedName("source_attribution") val sourceAttribution: String,
+    @SerializedName("retrieved_at") val retrievedAt: String,
+    val stale: Boolean = false,
+)
+
+data class NearbyFacilityResponse(
+    val id: String,
+    val name: String,
+    val category: String,
+    val latitude: Double,
+    val longitude: Double,
+    @SerializedName("distance_km") val distanceKm: Double,
+    val area: String? = null,
+    val phone: String? = null,
+    val website: String? = null,
+    val source: String = "OpenStreetMap",
+    @SerializedName("source_attribution") val sourceAttribution: String = "© OpenStreetMap contributors",
+    @SerializedName("source_updated_at") val sourceUpdatedAt: String? = null,
+)

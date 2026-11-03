@@ -70,6 +70,8 @@ uvicorn app.main_postgres:app --host 0.0.0.0 --port 8000
 
 The application converts `sslmode=require` to the `ssl=require` parameter expected by `asyncpg`. Use `.env.example` as a template, but keep the real `.env` file out of Git.
 
+Nearby hospital and clinic discovery is available through `GET /v1/health-facilities/nearby`. It queries OpenStreetMap through Overpass with a maximum 25 km radius, a maximum 50 results, a short-lived server cache, and a descriptive `User-Agent`. Set `LIFELINK_OVERPASS_URL` to a compliant provider or an organization-managed Overpass instance. Results are discovery aids, not clinical verification; the app must still direct users to licensed facilities and verify details independently.
+
 The database is cloud-hosted, but the FastAPI server still needs a reachable host. For a completely free development setup, run FastAPI on your own computer and connect it to Supabase. To make the API publicly reachable, deploy FastAPI to a hosting provider with a free tier or run it on your own server; availability and free-tier limits vary.
 
 **Important:** Supabase is the database provider, not the complete API hosting solution. The Android app needs the public URL of the FastAPI server, not the Supabase URL.
@@ -114,6 +116,7 @@ GET  /v1/emergency-requests/{request_id}
 POST /v1/emergency-requests/{request_id}/manual-broadcast
 POST /v1/emergency-requests/{request_id}/cancel
 POST /v1/emergency-requests/{request_id}/contact
+GET  /v1/health-facilities/nearby?latitude=14.5995&longitude=120.9842&radius_km=10&limit=20
 PUT  /v1/donors/{donor_id}
 PATCH /v1/donors/{donor_id}/availability
 GET  /v1/donors/{donor_id}/requests
