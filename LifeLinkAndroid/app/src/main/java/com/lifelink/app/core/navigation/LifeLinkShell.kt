@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -123,7 +124,6 @@ import com.lifelink.app.feature.privacy.MessagingScreen
 import com.lifelink.app.feature.privacy.PrivacyAction
 import com.lifelink.app.feature.privacy.PrivacyUiState
 import com.lifelink.app.feature.updates.UpdatesScreen
-import androidx.compose.material.icons.filled.Settings as SettingsIcon
 
 private enum class ShellTab(val label: String) {
     HOME("Home"),
@@ -391,7 +391,7 @@ fun LifeLinkShell(
                             onClick = { tab = ShellTab.SETTINGS },
                             modifier = Modifier.testTag("open-settings"),
                         ) {
-                            Icon(SettingsIcon, contentDescription = "Settings")
+                            Icon(Icons.Filled.Settings, contentDescription = "Settings")
                         }
                     }
                 }
@@ -539,7 +539,7 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
             ShellTab.REQUESTS -> Icons.AutoMirrored.Filled.Assignment
             ShellTab.MAP -> Icons.Default.Map
             ShellTab.MESSAGING -> Icons.Default.ChatBubbleOutline
-            ShellTab.SETTINGS -> SettingsIcon
+            ShellTab.SETTINGS -> Icons.Filled.Settings
         }
     Icon(icon, contentDescription = null, modifier = Modifier.size(size))
 }
