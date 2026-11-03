@@ -571,7 +571,7 @@ open class LifeLinkWorkflowVisualTest {
         assertVisible("Account, notifications, privacy, and app preferences.")
 
         tapTab("Settings")
-        assertVisible("Settings")
+        composeRule.onNodeWithTag("settings-screen-title").assertIsDisplayed()
         capture("workflow-settings-profile")
 
         tap("Notifications")

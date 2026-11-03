@@ -1084,7 +1084,11 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
         )
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Settings", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+            Text(
+                "Settings",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.testTag("settings-screen-title").semantics { heading() },
+            )
             Text(
                 "Account, notifications, privacy, and app preferences.",
                 color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
