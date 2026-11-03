@@ -387,6 +387,28 @@ class Message(Base):
     )
 
 
+class SavedMessage(Base):
+    """A participant's private bookmark of a message in their conversation."""
+
+    __tablename__ = "saved_messages"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    message_id: Mapped[str] = mapped_column(
+        ForeignKey("messages.id", ondelete="CASCADE"), nullable=False
+    )
+    saved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "message_id", name="uq_saved_messages_user_message"),
+        Index("ix_saved_messages_user_saved_at", "user_id", "saved_at"),
+        Index("ix_saved_messages_conversation_user", "conversation_id", "user_id"),
+    )
+
+
 class ContactShare(Base):
     """Explicit, audited phone/email disclosure inside a conversation."""
 

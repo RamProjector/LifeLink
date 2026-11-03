@@ -237,6 +237,23 @@ interface LifeLinkApi {
         @Body request: MessageRequest,
     ): Response<MessageResponse>
 
+    @GET("v1/conversations/{conversationId}/saved-messages")
+    suspend fun listSavedMessages(
+        @Path("conversationId") conversationId: String,
+    ): Response<List<SavedMessageResponse>>
+
+    @PUT("v1/conversations/{conversationId}/messages/{messageId}/saved")
+    suspend fun saveMessage(
+        @Path("conversationId") conversationId: String,
+        @Path("messageId") messageId: String,
+    ): Response<SavedMessageResponse>
+
+    @DELETE("v1/conversations/{conversationId}/messages/{messageId}/saved")
+    suspend fun unsaveMessage(
+        @Path("conversationId") conversationId: String,
+        @Path("messageId") messageId: String,
+    ): Response<Unit>
+
     @GET("v1/conversations/{conversationId}/contact-shares")
     suspend fun listContactShares(
         @Path("conversationId") conversationId: String,
@@ -580,6 +597,16 @@ data class MessageResponse(
     @SerializedName("sender_id") val senderId: String,
     val body: String,
     @SerializedName("created_at") val createdAt: String,
+    @SerializedName("saved_by_me") val savedByMe: Boolean = false,
+)
+
+data class SavedMessageResponse(
+    @SerializedName("message_id") val messageId: String,
+    @SerializedName("conversation_id") val conversationId: String,
+    @SerializedName("sender_id") val senderId: String,
+    val body: String,
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("saved_at") val savedAt: String,
 )
 
 data class ContactShareRequest(val field: String, val value: String)

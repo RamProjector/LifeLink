@@ -2,6 +2,10 @@
 
 This changelog lists the major release milestones. For the teaching-style explanation of what changed, why it changed, and how the pieces connect, read [HISTORY_CLOUD.md](HISTORY_CLOUD.md).
 
+## Participant-scoped saved messages
+
+Added server-authoritative bookmarks for conversation messages. Authenticated participants can save, list, and unsave messages only in conversations they belong to; each participant's saved state is independent, duplicate saves are idempotent, and records cascade with their conversation/message. The Android conversation UI exposes save/unsave controls and displays the caller's saved messages. Database schema: `lifelink_fastapi/sql/013_saved_messages.sql`.
+
 ## Project foundation
 
 Defined LifeLink as a GPS-assisted blood-donor discovery helper with requester/coordinator and donor roles. Planned the emergency-request journey, donor workflow, Material 3 interface, and external medical-screening boundary.

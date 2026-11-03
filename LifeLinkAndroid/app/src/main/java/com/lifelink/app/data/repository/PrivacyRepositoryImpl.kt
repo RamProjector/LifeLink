@@ -150,7 +150,7 @@ class PrivacyRepositoryImpl(private val api: LifeLinkApi, private val donorIdPro
                 val response = api.listMessages(conversationId)
                 check(response.isSuccessful) { "Messages could not be loaded (${response.code()})." }
                 checkNotNull(response.body()).map {
-                    ChatMessage(it.messageId, it.conversationId, it.senderId, it.body, it.createdAt)
+                    ChatMessage(it.messageId, it.conversationId, it.senderId, it.body, it.createdAt, it.savedByMe)
                 }
             }
         }
@@ -162,6 +162,33 @@ class PrivacyRepositoryImpl(private val api: LifeLinkApi, private val donorIdPro
                 check(response.isSuccessful) { "Message could not be sent (${response.code()})." }
                 val sent = checkNotNull(response.body()) { "The server returned an empty message." }
                 ChatMessage(sent.messageId, sent.conversationId, sent.senderId, sent.body, sent.createdAt)
+            }
+        }
+
+    override suspend fun savedMessages(conversationId: String): Result<List<ChatMessage>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response = api.listSavedMessages(conversationId)
+                check(response.isSuccessful) { "Saved messages could not be loaded (${response.code()})." }
+                checkNotNull(response.body()).map {
+                    ChatMessage(it.messageId, it.conversationId, it.senderId, it.body, it.createdAt, isSaved = true)
+                }
+            }
+        }
+
+    override suspend fun saveMessage(conversationId: String, messageId: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response = api.saveMessage(conversationId, messageId)
+                check(response.isSuccessful) { "Message could not be saved (${response.code()})." }
+            }
+        }
+
+    override suspend fun unsaveMessage(conversationId: String, messageId: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response = api.unsaveMessage(conversationId, messageId)
+                check(response.isSuccessful) { "Message could not be removed from saved messages (${response.code()})." }
             }
         }
 

@@ -168,8 +168,20 @@ fun ConversationScreen(
                     )
                 }
             }
-            items(state.messages, key = { it.messageId }) { message -> MessageBubble(message, message.senderId == currentUserId) }
+            items(state.messages, key = { it.messageId }) { message ->
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = if (message.senderId == currentUserId) Alignment.End else Alignment.Start) {
+                    MessageBubble(message, message.senderId == currentUserId)
+                    TextButton(
+                        onClick = { onAction(PrivacyAction.ToggleSavedMessage(message.messageId)) },
+                        enabled = chatReady,
+                    ) {
+                        Text(if (message.isSaved) "Remove saved message" else "Save message")
+                    }
+                }
+            }
         }
+
+        if (state.savedMessages.isNotEmpty()) SavedMessagesCard(state.savedMessages)
 
         if (state.contactShares.isNotEmpty()) {
             SharedContactsCard(shares = state.contactShares)
@@ -277,6 +289,20 @@ private fun SharedContactsCard(shares: List<ContactShare>) {
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+        }
+    }
+}
+
+/** Displays this participant's server-owned saved messages in the open conversation. */
+@Composable
+private fun SavedMessagesCard(messages: List<ChatMessage>) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+        Column(
+            Modifier.padding(12.dp).heightIn(max = 140.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("Saved messages", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+            messages.forEach { message -> Text(message.body, style = MaterialTheme.typography.bodySmall) }
         }
     }
 }

@@ -1058,6 +1058,28 @@ def test_migration_008_applies_cleanly(pg_url):
     asyncio.run(main())
 
 
+def test_migration_013_saved_messages_applies_cleanly(pg_url):
+    from pathlib import Path
+
+    async def main():
+        engine = create_async_engine(pg_url)
+        async with engine.begin() as conn:
+            await conn.run_sync(db_models.Base.metadata.create_all)
+        sql = (Path(__file__).resolve().parents[1] / "sql" / "013_saved_messages.sql").read_text()
+        async with engine.begin() as conn:
+            for statement in [statement.strip() for statement in sql.split(";") if statement.strip()]:
+                await conn.execute(text(statement))
+            columns = await conn.execute(
+                text("SELECT column_name FROM information_schema.columns WHERE table_name = 'saved_messages'")
+            )
+            assert {row[0] for row in columns.all()} >= {
+                "id", "user_id", "conversation_id", "message_id", "saved_at"
+            }
+        await engine.dispose()
+
+    asyncio.run(main())
+
+
 def test_block_is_one_way_and_does_not_silence_the_blocker(pg_url):
     """A block silences only the blocked participant.
 
@@ -1145,6 +1167,60 @@ def test_donor_with_distinct_user_id_can_use_the_conversation(pg_url):
             f"/v1/conversations/{conversation_id}/messages", json={"body": "hi"}
         )
         assert denied.status_code == 403, denied.text
+
+    run_scenario(pg_url, scenario)
+
+
+def test_saved_messages_are_private_per_participant_and_conversation(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester, outsider = new_user("donor"), new_user("requester"), new_user("outsider")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert opened.status_code == 200, opened.text
+        conversation_id = opened.json()["conversation_id"]
+        sent = await client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"body": "Bring the requested supplies."}
+        )
+        assert sent.status_code == 201, sent.text
+        message_id = sent.json()["message_id"]
+
+        saved = await client.put(f"/v1/conversations/{conversation_id}/messages/{message_id}/saved")
+        assert saved.status_code == 200, saved.text
+        assert saved.json()["message_id"] == message_id
+        # Repeated save is idempotent and does not create a second bookmark.
+        assert (await client.put(f"/v1/conversations/{conversation_id}/messages/{message_id}/saved")).status_code == 200
+        history = await client.get(f"/v1/conversations/{conversation_id}/messages")
+        assert history.status_code == 200
+        assert history.json()[0]["saved_by_me"] is True
+        listed = await client.get(f"/v1/conversations/{conversation_id}/saved-messages")
+        assert [item["message_id"] for item in listed.json()] == [message_id]
+
+        current["id"] = donor
+        donor_history = await client.get(f"/v1/conversations/{conversation_id}/messages")
+        assert donor_history.status_code == 200
+        assert donor_history.json()[0]["saved_by_me"] is False
+        assert (await client.get(f"/v1/conversations/{conversation_id}/saved-messages")).json() == []
+        # The other participant may independently save the same message.
+        assert (await client.put(f"/v1/conversations/{conversation_id}/messages/{message_id}/saved")).status_code == 200
+
+        current["id"] = outsider
+        assert (await client.get(f"/v1/conversations/{conversation_id}/saved-messages")).status_code == 403
+        assert (await client.put(f"/v1/conversations/{conversation_id}/messages/{message_id}/saved")).status_code == 403
+
+        current["id"] = requester
+        assert (await client.delete(f"/v1/conversations/{conversation_id}/messages/{message_id}/saved")).status_code == 204
+        assert (await client.get(f"/v1/conversations/{conversation_id}/saved-messages")).json() == []
+        current["id"] = donor
+        assert [
+            item["message_id"]
+            for item in (await client.get(f"/v1/conversations/{conversation_id}/saved-messages")).json()
+        ] == [message_id]
+        # A valid message ID cannot be saved through a different conversation path.
+        assert (await client.put(f"/v1/conversations/not-this-conversation/messages/{message_id}/saved")).status_code == 404
 
     run_scenario(pg_url, scenario)
 
