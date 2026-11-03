@@ -325,6 +325,7 @@ fun LifeLinkShell(
         BackHandler { showActive = false }
         ActiveRequestScreen(
             state = state,
+            requestDetails = state.requestHistory.firstOrNull { it.requestId == activeRequestId },
             onAction = onAction,
             onBack = { showActive = false },
             onReviewContacts = {
@@ -552,128 +553,150 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
     onOpen: () -> Unit,
     onActive: () -> Unit,
 ) {
-    LazyColumn(
-        Modifier.fillMaxSize().testTag("request-history"),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item { LifeLinkPageHeader("Requests") }
-        item {
-            if (state.step == com.lifelink.app.domain.RequestStep.RESULTS &&
-                state.submission is com.lifelink.app.feature.emergencyrequest.SubmissionState.Matching
-            ) {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            "Matching results ready",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.semantics { heading() },
-                        )
-                        Text("Review nearby donors and choose who to contact.")
-                        Button(onClick = onOpen, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Open matching results") }
-                    }
-                }
-            } else if (state.activeRequest != null) {
-                ActiveRequestSummary(state, onActive)
-            } else {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            if (state.historyRefreshing) {
-                                "Loading your requests…"
-                            } else if (state.historyError !=
-                                null
-                            ) {
-                                "Requests unavailable"
-                            } else {
-                                "No active request"
-                            },
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.semantics { heading() },
-                        )
-                        Text(
-                            if (state.historyRefreshing ||
-                                state.historyError != null
-                            ) {
-                                "Your saved requests will appear after they load."
-                            } else {
-                                "When you need blood, start with the type, amount, and location."
-                            },
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
-        item {
-            Button(onClick = onCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = MaterialTheme.shapes.medium) {
-                Icon(Icons.Default.Add, null, Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Create emergency request", fontWeight = FontWeight.SemiBold)
-            }
-        }
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Request history",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.weight(1f).semantics { heading() },
-                )
-                // The header action is always a refresh; the error card below owns the single
-                // "Retry" affordance so the screen never shows two identically-labelled actions.
-                TextButton(onClick = { onAction(EmergencyRequestAction.RefreshHistory) }, enabled = !state.historyRefreshing) {
-                    Text(if (state.historyRefreshing) "Refreshing…" else "Refresh")
-                }
-            }
-        }
-        state.historyError?.let { error ->
+    var selectedRequest by remember { mutableStateOf<RequestHistoryItem?>(null) }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            Modifier.fillMaxSize().testTag("request-history"),
+            contentPadding = PaddingValues(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item { LifeLinkPageHeader("Requests") }
             item {
-                Card(
-                    Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                if (state.step == com.lifelink.app.domain.RequestStep.RESULTS &&
+                    state.submission is com.lifelink.app.feature.emergencyrequest.SubmissionState.Matching
                 ) {
-                    Row(
-                        Modifier.padding(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            Icons.Default.Error,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Text(
-                            error,
-                            modifier = Modifier.weight(1f),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        TextButton(
-                            onClick = { onAction(EmergencyRequestAction.RefreshHistory) },
-                            enabled = !state.historyRefreshing,
-                        ) { Text("Retry") }
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                "Matching results ready",
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier.semantics { heading() },
+                            )
+                            Text("Review nearby donors and choose who to contact.")
+                            Button(
+                                onClick = onOpen,
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                            ) { Text("Open matching results") }
+                        }
+                    }
+                } else if (state.activeRequest != null) {
+                    ActiveRequestSummary(state, onActive)
+                } else {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                if (state.historyRefreshing) {
+                                    "Loading your requests…"
+                                } else if (state.historyError !=
+                                    null
+                                ) {
+                                    "Requests unavailable"
+                                } else {
+                                    "No active request"
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.semantics { heading() },
+                            )
+                            Text(
+                                if (state.historyRefreshing ||
+                                    state.historyError != null
+                                ) {
+                                    "Your saved requests will appear after they load."
+                                } else {
+                                    "When you need blood, start with the type, amount, and location."
+                                },
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
-        }
-        if (state.requestHistory.isEmpty() && !state.historyRefreshing && state.historyError == null) {
             item {
-                LifeLinkEmptyState(
-                    icon = Icons.AutoMirrored.Filled.Assignment,
-                    title = "No requests yet",
-                    body = "Your request history will appear here after you create your first request.",
-                )
+                Button(onClick = onCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = MaterialTheme.shapes.medium) {
+                    Icon(Icons.Default.Add, null, Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Create emergency request", fontWeight = FontWeight.SemiBold)
+                }
+            }
+            item {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Request history",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f).semantics { heading() },
+                    )
+                    // The header action is always a refresh; the error card below owns the single
+                    // "Retry" affordance so the screen never shows two identically-labelled actions.
+                    TextButton(onClick = { onAction(EmergencyRequestAction.RefreshHistory) }, enabled = !state.historyRefreshing) {
+                        Text(if (state.historyRefreshing) "Refreshing…" else "Refresh")
+                    }
+                }
+            }
+            state.historyError?.let { error ->
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    ) {
+                        Row(
+                            Modifier.padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Default.Error,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(
+                                error,
+                                modifier = Modifier.weight(1f),
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            TextButton(
+                                onClick = { onAction(EmergencyRequestAction.RefreshHistory) },
+                                enabled = !state.historyRefreshing,
+                            ) { Text("Retry") }
+                        }
+                    }
+                }
+            }
+            if (state.requestHistory.isEmpty() && !state.historyRefreshing && state.historyError == null) {
+                item {
+                    LifeLinkEmptyState(
+                        icon = Icons.AutoMirrored.Filled.Assignment,
+                        title = "No requests yet",
+                        body = "Your request history will appear here after you create your first request.",
+                    )
+                }
+            }
+            items(state.requestHistory, key = { it.requestId }) { request ->
+                RequestHistoryCard(request, onOpen = { selectedRequest = request })
             }
         }
-        items(state.requestHistory, key = { it.requestId }) { RequestHistoryCard(it) }
+        selectedRequest?.let { request ->
+            RequestHistoryDialog(request = request, onDismiss = { selectedRequest = null })
+        }
     }
 }
 
 /** Summarizes a saved request and labels terminal requests as past requests. */
 @Composable
-private fun RequestHistoryCard(request: RequestHistoryItem) {
-    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+@Suppress("LongMethod")
+private fun RequestHistoryCard(request: RequestHistoryItem, onOpen: () -> Unit) {
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClickLabel = "View request details", onClick = onOpen)
+            .testTag("request-history-${request.requestId}"),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(request.status.label, modifier = Modifier.weight(1f).padding(end = 12.dp), fontWeight = FontWeight.SemiBold)
@@ -700,7 +723,8 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
             )
             Text(
-                "${request.matchesResponded} donor response${if (request.matchesResponded == 1) "" else "s"} · ${request.notificationsCreated} notified",
+                "${request.matchesResponded} donor response${if (request.matchesResponded == 1) "" else "s"} · " +
+                    "${request.notificationsCreated} notified",
                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                 color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -719,7 +743,49 @@ private fun RequestHistoryCard(request: RequestHistoryItem) {
                     color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Text(
+                "View request details",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.labelLarge,
+            )
         }
+    }
+}
+
+@Composable
+private fun RequestHistoryDialog(request: RequestHistoryItem, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Request details") },
+        text = { RequestDetailsContent(request) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+    )
+}
+
+@Composable
+private fun RequestDetailsContent(request: RequestHistoryItem) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(request.status.label, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+        DetailRow("Request ID", request.requestId.take(16))
+        request.bloodType?.let { DetailRow("Blood type", it) }
+        request.units?.let { DetailRow("Units", "$it") }
+        request.urgency?.let { DetailRow("Urgency", it) }
+        request.facilityName?.let { DetailRow("Facility", it) }
+        request.area?.let { DetailRow("Area", it) }
+        DetailRow("Donors notified", request.notificationsCreated.toString())
+        DetailRow("Responses", request.matchesResponded.toString())
+        if (request.contactStatuses.isNotEmpty()) {
+            DetailRow("Contact status", request.contactStatuses.joinToString())
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -931,7 +997,11 @@ private fun DonorDashboardSummary(profile: com.lifelink.app.domain.DonorProfile,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
                     "Donor dashboard",
                     modifier = Modifier.weight(1f).padding(end = 12.dp).semantics { heading() },
@@ -1020,7 +1090,8 @@ private fun StartHeader(role: UserRole) {
             modifier = Modifier.semantics { heading() },
         )
         Text(
-            "Use approximate locations, consent-based contact, and clear request status. LifeLink supports coordination; hospitals and blood banks remain responsible for screening and care.",
+            "Use approximate locations, consent-based contact, and clear request status. " +
+                "LifeLink supports coordination; hospitals and blood banks remain responsible for screening and care.",
             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
         )
@@ -1266,7 +1337,10 @@ private fun PrivacySettingsContent() {
 @Composable private fun SecurityContent(onRequestPasswordReset: ((String) -> Unit) -> Unit) {
     var resetMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var showSessionHelp by rememberSaveable { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text(
             "Security",
             style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
@@ -1307,7 +1381,8 @@ private fun PrivacySettingsContent() {
             title = { Text("Session safety") },
             text = {
                 Text(
-                    "LifeLink refreshes your session when needed. Signing out clears the local session on this device. If you suspect unauthorized access, reset your password and sign out.",
+                    "LifeLink refreshes your session when needed. Signing out clears the local session on this device. " +
+                        "If you suspect unauthorized access, reset your password and sign out.",
                 )
             },
             confirmButton = { TextButton(onClick = { showSessionHelp = false }) { Text("Done") } },
@@ -1320,7 +1395,10 @@ private fun PrivacySettingsContent() {
 @Suppress("LongMethod")
 private fun LegalContent() {
     var legalDocument by remember { mutableStateOf<LegalDocument?>(null) }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text(
             "Legal Documents",
             style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
@@ -1451,7 +1529,8 @@ private fun LegalDocumentPicker(onSelect: (LegalDocument) -> Unit) {
                     if (role == UserRole.DONOR) {
                         "Manage your availability and donor profile."
                     } else {
-                        "You can request blood and offer to donate to other people. Your own requests will never appear as donor opportunities."
+                        "You can request blood and offer to donate to other people. " +
+                            "Your own requests will never appear as donor opportunities."
                     },
                     color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                 )
