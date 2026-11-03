@@ -1,5 +1,6 @@
 package com.lifelink.app.core.errors
 
+import kotlinx.coroutines.CancellationException
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -15,6 +16,7 @@ private const val HTTP_SERVER_ERROR_END = 599
 
 /** Converts transport and HTTP failures into stable, user-facing messages. */
 fun userFacingError(error: Throwable, fallback: String): String {
+    if (error is CancellationException) throw error
     val statusCode =
         Regex("\\b([45]\\d{2})\\b")
             .find(error.message.orEmpty())
