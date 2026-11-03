@@ -1,0 +1,10 @@
+# .mailmap — canonical identity mapping for this repository.
+#
+# Remaps historical commit-author metadata to the canonical owner identity.
+# Docs: https://git-scm.com/docs/gitmailmap
+#
+# Claude (AI contributor) commits -> repository owner RamProjector.
+# Affected commits: 5dbd02157ae4b99f502c94b54ed59aaf8ad6aa79,
+#                   9eb1a3e23a75027cd5f8f236a6b21462bc6ca2b0
+RamProjector <188533405+RamProjector@users.noreply.github.com> Claude <noreply@anthropic.com>
+RamProjector <188533405+RamProjector@users.noreply.github.com> <noreply@anthropic.com>

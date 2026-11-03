@@ -1,5 +1,6 @@
 package com.lifelink.app
 
+import com.lifelink.app.core.ui.LifeLinkFeedbackLevel
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfileMe
@@ -84,7 +85,8 @@ class BecomeDonorViewModelTest {
         )
         viewModel.onAction(BecomeDonorAction.Save)
 
-        assertTrue(viewModel.state.value.message!!.contains("verify"))
+        assertTrue(viewModel.state.value.message!!.contains("not appear in matching"))
+        assertEquals(LifeLinkFeedbackLevel.Warning, viewModel.state.value.messageLevel)
         assertFalse(viewModel.state.value.draft.isMatchable)
     }
 
@@ -102,6 +104,77 @@ class BecomeDonorViewModelTest {
         viewModel.onAction(BecomeDonorAction.SetAvailability(DonorAvailability.AVAILABLE))
 
         assertTrue(viewModel.state.value.draft.isMatchable)
+    }
+
+    @Test
+    fun pause_and_resume_feedback_reflects_the_saved_availability_and_matching_requirements() = runTest {
+        val repository = FakeDonorProfileRepository(
+            existing = DonorProfileMe(
+                bloodType = BloodType.O_POS,
+                latitude = 11.24,
+                longitude = 125.0,
+                availability = DonorAvailability.AVAILABLE,
+                verified = true,
+            ),
+            verified = true,
+        )
+        val viewModel = BecomeDonorViewModel(repository)
+
+        viewModel.onAction(BecomeDonorAction.SetAvailability(DonorAvailability.PAUSED))
+
+        assertEquals(DonorAvailability.PAUSED, viewModel.state.value.draft.availability)
+        assertEquals(LifeLinkFeedbackLevel.Success, viewModel.state.value.messageLevel)
+        assertTrue(viewModel.state.value.message!!.contains("will not receive new matching requests until you resume"))
+
+        viewModel.onAction(BecomeDonorAction.SetAvailability(DonorAvailability.AVAILABLE))
+
+        assertEquals(DonorAvailability.AVAILABLE, viewModel.state.value.draft.availability)
+        assertEquals(LifeLinkFeedbackLevel.Success, viewModel.state.value.messageLevel)
+        assertTrue(viewModel.state.value.message!!.contains("Matching also requires a recent location"))
+    }
+
+    @Test
+    fun available_but_hidden_profile_is_not_claimed_to_be_matchable() = runTest {
+        val repository = FakeDonorProfileRepository(
+            existing = DonorProfileMe(
+                bloodType = BloodType.O_POS,
+                latitude = 11.24,
+                longitude = 125.0,
+                availability = DonorAvailability.AVAILABLE,
+                verified = true,
+                profileVisible = false,
+            ),
+            verified = true,
+        )
+        val viewModel = BecomeDonorViewModel(repository)
+
+        viewModel.onAction(BecomeDonorAction.SetAvailability(DonorAvailability.AVAILABLE))
+
+        assertEquals(LifeLinkFeedbackLevel.Warning, viewModel.state.value.messageLevel)
+        assertTrue(viewModel.state.value.message!!.contains("your profile is hidden"))
+    }
+
+    @Test
+    fun failed_profile_save_shows_a_safe_error_instead_of_backend_details() = runTest {
+        val repository = FakeDonorProfileRepository(existing = null).apply {
+            saveFailure = IllegalStateException("private SQL statement and account token")
+        }
+        val viewModel = BecomeDonorViewModel(repository)
+
+        viewModel.onAction(
+            BecomeDonorAction.UpdateDraft {
+                it.copy(bloodType = BloodType.O_POS, latitude = 11.24, longitude = 125.0)
+            },
+        )
+        viewModel.onAction(BecomeDonorAction.Save)
+
+        assertEquals(LifeLinkFeedbackLevel.Error, viewModel.state.value.messageLevel)
+        assertEquals(
+            "Donor profile could not be saved. Check your connection and try again.",
+            viewModel.state.value.message,
+        )
+        assertFalse(viewModel.state.value.message!!.contains("private SQL"))
+        assertFalse(viewModel.state.value.message!!.contains("account token"))
     }
 
     @Test
@@ -123,12 +196,14 @@ private class FakeDonorProfileRepository(private val existing: DonorProfileMe?, 
     DonorProfileRepository {
     var saveCount = 0
     var optOutCount = 0
+    var saveFailure: Throwable? = null
     private var current: DonorProfileMe? = existing
 
     override suspend fun load(): DonorProfileMe? = current
 
     override suspend fun save(profile: DonorProfileMe): DonorProfileMe {
         saveCount++
+        saveFailure?.let { throw it }
         val saved = profile.copy(verified = verified)
         current = saved
         return saved

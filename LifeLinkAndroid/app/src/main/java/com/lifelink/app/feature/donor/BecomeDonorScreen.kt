@@ -1,20 +1,35 @@
 package com.lifelink.app.feature.donor
 
+import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.SystemClock
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -27,19 +42,35 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.core.location.LocationProvider
+import com.lifelink.app.core.ui.LifeLinkFeedbackCard
+import com.lifelink.app.core.ui.LifeLinkFeedbackLevel
+import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfileMe
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+
+private const val GPS_CAPTURE_MAX_AGE_MILLIS = 5 * 60 * 1000L
 
 /**
  * Separate donor-profile flow: opt in to donating after account creation.
@@ -51,11 +82,7 @@ import com.lifelink.app.domain.DonorProfileMe
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BecomeDonorScreen(
-    state: BecomeDonorUiState,
-    onAction: (BecomeDonorAction) -> Unit,
-    onBack: () -> Unit,
-) {
+fun BecomeDonorScreen(state: BecomeDonorUiState, onAction: (BecomeDonorAction) -> Unit, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -76,12 +103,8 @@ fun BecomeDonorScreen(
 
 @Composable
 private fun LoadingContent(padding: PaddingValues) {
-    Column(
-        Modifier.fillMaxSize().padding(padding),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        CircularProgressIndicator(Modifier.padding(24.dp))
-        Text("Loading your donor profile\u2026", Modifier.padding(horizontal = 24.dp))
+    Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+        LifeLinkLoadingIndicator(label = "Loading your donor profile\u2026")
     }
 }
 
@@ -96,6 +119,7 @@ private fun BecomeDonorContent(
             .fillMaxSize()
             .padding(padding)
             .verticalScroll(rememberScrollState())
+            .imePadding()
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -116,12 +140,12 @@ private fun BecomeDonorContent(
         }
         DonorDetailsCard(state, onAction)
         state.message?.let { message ->
-            Card(
-                Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-            ) {
-                Text(message, Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onSecondaryContainer)
-            }
+            LifeLinkFeedbackCard(
+                title = "Donor profile",
+                message = message,
+                level = state.messageLevel,
+                modifier = Modifier.testTag("donor-feedback"),
+            )
         }
         if (state.optedIn) {
             OutlinedButton(
@@ -141,12 +165,17 @@ private fun VerificationCard(profile: DonorProfileMe) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Matching status", fontWeight = FontWeight.Bold)
+            Text("Matching status", fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
             Text(
                 when {
-                    profile.isMatchable -> "You are verified and available. You can appear in matching results."
-                    !profile.verified -> "Waiting for verification. You will not appear in matching results until an admin verifies you."
-                    else -> "You are verified but not available. Set availability to Available to be matched."
+                    !profile.verified ->
+                        "Waiting for verification. You will not appear in matching results until an admin verifies you."
+                    !profile.profileVisible -> "Your profile is hidden from matching. Make it visible when you are ready to be found."
+                    profile.availability == DonorAvailability.AVAILABLE ->
+                        "You are verified and available. Matching still requires a recent location."
+                    profile.availability == DonorAvailability.PAUSED ->
+                        "You are verified but paused. You will not receive new matching requests until you resume."
+                    else -> "You are verified but offline. Set availability to Available when you are ready to receive matches."
                 },
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
@@ -159,9 +188,14 @@ private fun VerificationCard(profile: DonorProfileMe) {
 private fun AvailabilityCard(profile: DonorProfileMe, saving: Boolean, onAction: (BecomeDonorAction) -> Unit) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Availability", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Availability",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() },
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DonorAvailability.values().forEach { option ->
+                DonorAvailability.entries.forEach { option ->
                     FilterChip(
                         selected = profile.availability == option,
                         enabled = !saving,
@@ -171,6 +205,12 @@ private fun AvailabilityCard(profile: DonorProfileMe, saving: Boolean, onAction:
                     )
                 }
             }
+            Text(
+                "Only verified, available donors with a recent location are matched. " +
+                    "Keep LifeLink open to refresh your location; backgrounded donors may stop appearing after 15 minutes.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -180,55 +220,80 @@ private fun AvailabilityCard(profile: DonorProfileMe, saving: Boolean, onAction:
 private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAction) -> Unit) {
     val profile = state.draft
     var radius by rememberSaveable(profile.donorId) { mutableStateOf(profile.serviceRadiusKm.toString()) }
-    var latitude by rememberSaveable(profile.donorId) { mutableStateOf(profile.latitude?.toString().orEmpty()) }
-    var longitude by rememberSaveable(profile.donorId) { mutableStateOf(profile.longitude?.toString().orEmpty()) }
+    var gpsCapturedAtElapsedMillis by remember(profile.donorId) { mutableStateOf<Long?>(null) }
+    LaunchedEffect(gpsCapturedAtElapsedMillis) {
+        val capturedAt = gpsCapturedAtElapsedMillis ?: return@LaunchedEffect
+        val elapsedSinceCapture = SystemClock.elapsedRealtime() - capturedAt
+        val remainingMillis = (GPS_CAPTURE_MAX_AGE_MILLIS - elapsedSinceCapture).coerceAtLeast(0L)
+        kotlinx.coroutines.delay(remainingMillis)
+        if (gpsCapturedAtElapsedMillis == capturedAt) gpsCapturedAtElapsedMillis = null
+    }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Donor details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            OutlinedTextField(
-                value = profile.displayName,
-                onValueChange = { value -> onAction(BecomeDonorAction.UpdateDraft { it.copy(displayName = value) }) },
-                modifier = Modifier.fillMaxWidth().testTag("donor-display-name"),
-                label = { Text("Display name") },
-                singleLine = true,
+            Text(
+                "Donor details",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() },
             )
-            OutlinedTextField(
-                value = profile.area,
-                onValueChange = { value -> onAction(BecomeDonorAction.UpdateDraft { it.copy(area = value) }) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Area") },
-                singleLine = true,
-            )
+            DonorIdentityFields(profile, onAction)
             BloodTypePicker(profile.bloodType) { option ->
                 onAction(BecomeDonorAction.UpdateDraft { it.copy(bloodType = option) })
             }
-            LocationFields(
-                latitude = latitude,
-                longitude = longitude,
-                onLatitudeChange = { latitude = it },
-                onLongitudeChange = { longitude = it },
-                onApply = {
-                    val lat = latitude.toDoubleOrNull()
-                    val lng = longitude.toDoubleOrNull()
-                    if (isValidCoordinate(lat, lng)) {
-                        onAction(BecomeDonorAction.UpdateDraft { it.copy(latitude = lat, longitude = lng) })
-                    }
+            GpsLocationCapture(
+                latitude = profile.latitude,
+                longitude = profile.longitude,
+                capturedThisSession = gpsCapturedAtElapsedMillis != null,
+                onCaptureStateChanged = { captured ->
+                    gpsCapturedAtElapsedMillis = if (captured) SystemClock.elapsedRealtime() else null
+                },
+                onLocationCaptured = { latitude, longitude, precisionMeters ->
+                    onAction(
+                        BecomeDonorAction.UpdateDraft {
+                            it.copy(
+                                latitude = latitude,
+                                longitude = longitude,
+                                locationPrecisionMeters = precisionMeters,
+                            )
+                        },
+                    )
                 },
             )
-            OutlinedTextField(
-                value = radius,
-                onValueChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) radius = value },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Service radius (km)") },
-                singleLine = true,
+            RadiusAndSave(
+                state,
+                radius,
+                locationCaptured = gpsCapturedAtElapsedMillis?.let { capturedAt ->
+                    SystemClock.elapsedRealtime() - capturedAt < GPS_CAPTURE_MAX_AGE_MILLIS
+                } == true,
+                onRadiusChange = { radius = it },
+                onAction = onAction,
             )
-            NotificationToggle(profile.notificationsEnabled) { value ->
-                onAction(BecomeDonorAction.UpdateDraft { it.copy(notificationsEnabled = value) })
-            }
-            SaveButton(state, radius, onAction) { value ->
-                onAction(BecomeDonorAction.UpdateDraft { it.copy(serviceRadiusKm = value) })
-            }
         }
+    }
+}
+
+/** Service-radius field plus the save/become-a-donor action. */
+@Composable
+private fun RadiusAndSave(
+    state: BecomeDonorUiState,
+    radius: String,
+    locationCaptured: Boolean,
+    onRadiusChange: (String) -> Unit,
+    onAction: (BecomeDonorAction) -> Unit,
+) {
+    OutlinedTextField(
+        value = radius,
+        onValueChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) onRadiusChange(value) },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Service radius (km)") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+    )
+    NotificationToggle(state.draft.notificationsEnabled) { value ->
+        onAction(BecomeDonorAction.UpdateDraft { it.copy(notificationsEnabled = value) })
+    }
+    SaveButton(state, radius, locationCaptured, onAction) { value ->
+        onAction(BecomeDonorAction.UpdateDraft { it.copy(serviceRadiusKm = value) })
     }
 }
 
@@ -237,6 +302,7 @@ private fun DonorDetailsCard(state: BecomeDonorUiState, onAction: (BecomeDonorAc
 private fun SaveButton(
     state: BecomeDonorUiState,
     radius: String,
+    locationCaptured: Boolean,
     onAction: (BecomeDonorAction) -> Unit,
     onRadiusCommit: (Int) -> Unit,
 ) {
@@ -245,7 +311,7 @@ private fun SaveButton(
             radius.toIntOrNull()?.let(onRadiusCommit)
             onAction(BecomeDonorAction.Save)
         },
-        enabled = !state.saving,
+        enabled = !state.saving && locationCaptured,
         modifier = Modifier.fillMaxWidth().testTag("donor-save"),
     ) {
         Text(
@@ -263,7 +329,7 @@ private fun SaveButton(
 private fun BloodTypePicker(selected: BloodType?, onSelect: (BloodType) -> Unit) {
     Text("Blood type", fontWeight = FontWeight.SemiBold)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        BloodType.values().toList().chunked(4).forEach { rowOptions ->
+        BloodType.entries.chunked(4).forEach { rowOptions ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 rowOptions.forEach { option ->
                     FilterChip(
@@ -278,40 +344,258 @@ private fun BloodTypePicker(selected: BloodType?, onSelect: (BloodType) -> Unit)
     }
 }
 
-/** Manual latitude/longitude entry with an apply action. */
+/** Editable identity fields separated from the location and save controls. */
 @Composable
-private fun LocationFields(
-    latitude: String,
-    longitude: String,
-    onLatitudeChange: (String) -> Unit,
-    onLongitudeChange: (String) -> Unit,
-    onApply: () -> Unit,
+private fun DonorIdentityFields(profile: DonorProfileMe, onAction: (BecomeDonorAction) -> Unit) {
+    OutlinedTextField(
+        value = profile.displayName,
+        onValueChange = { value ->
+            onAction(BecomeDonorAction.UpdateDraft { it.copy(displayName = value) })
+        },
+        modifier = Modifier.fillMaxWidth().testTag("donor-display-name"),
+        label = { Text("Display name") },
+        singleLine = true,
+    )
+    OutlinedTextField(
+        value = profile.area,
+        onValueChange = { value ->
+            onAction(BecomeDonorAction.UpdateDraft { it.copy(area = value) })
+        },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Area") },
+        singleLine = true,
+    )
+}
+
+/** Requires a fresh device GPS fix; users cannot type or pin arbitrary coordinates. */
+@Composable
+private fun GpsLocationCapture(
+    latitude: Double?,
+    longitude: Double?,
+    capturedThisSession: Boolean,
+    onCaptureStateChanged: (Boolean) -> Unit,
+    onLocationCaptured: (Double, Double, Int) -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedTextField(
-            value = latitude,
-            onValueChange = onLatitudeChange,
-            modifier = Modifier.weight(1f),
-            label = { Text("Latitude") },
-            singleLine = true,
-        )
-        OutlinedTextField(
-            value = longitude,
-            onValueChange = onLongitudeChange,
-            modifier = Modifier.weight(1f),
-            label = { Text("Longitude") },
-            singleLine = true,
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val provider = remember(context) { LocationProvider(context.applicationContext) }
+    var cardState by remember { mutableStateOf(GpsLocationCardState()) }
+    val readState = { cardState }
+    val setState: (GpsLocationCardState) -> Unit = { cardState = it }
+
+    val captureCurrentGps: () -> Unit = {
+        launchGpsCapture(
+            scope = scope,
+            provider = provider,
+            onCaptureStateChanged = onCaptureStateChanged,
+            onLocationCaptured = onLocationCaptured,
+            readState = readState,
+            setState = setState,
         )
     }
-    OutlinedButton(onClick = onApply, modifier = Modifier.fillMaxWidth()) {
-        Text("Use this approximate location")
+
+    val settingsResolutionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        handleLocationSettingsResolution(result.resultCode, captureCurrentGps, readState, setState)
     }
+
+    val checkLocationSettings: () -> Unit = {
+        checkDeviceLocationSettings(provider, settingsResolutionLauncher, captureCurrentGps, readState, setState)
+    }
+
+    val requestCurrentGps = rememberGpsPermissionRequest(
+        context = context,
+        onGranted = {
+            checkLocationSettings()
+        },
+        onDenied = {
+            onCaptureStateChanged(false)
+            setState(
+                readState().copy(
+                    message = "Precise location permission is required to register as a donor. " +
+                        "Enable it in app settings to continue.",
+                    messageLevel = LifeLinkFeedbackLevel.Error,
+                    settingsAction = GpsSettingsAction.APP_PERMISSION,
+                ),
+            )
+        },
+    )
+
+    val cardUiState = cardState.copy(
+        latitude = latitude,
+        longitude = longitude,
+        capturedThisSession = capturedThisSession,
+    )
+    GpsLocationCard(cardUiState, requestCurrentGps) {
+        when (cardUiState.settingsAction) {
+            GpsSettingsAction.APP_PERMISSION -> openAppSettings(context)
+            GpsSettingsAction.DEVICE_LOCATION -> openLocationSettings(context)
+            null -> Unit
+        }
+    }
+}
+
+@Composable
+private fun rememberGpsPermissionRequest(
+    context: Context,
+    onGranted: () -> Unit,
+    onDenied: () -> Unit,
+): () -> Unit {
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        if (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true) onGranted() else onDenied()
+    }
+    return {
+        val fineGranted = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        if (fineGranted) {
+            onGranted()
+        } else {
+            launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        }
+    }
+}
+
+private fun handleLocationSettingsResolution(
+    resultCode: Int,
+    onReady: () -> Unit,
+    readState: () -> GpsLocationCardState,
+    setState: (GpsLocationCardState) -> Unit,
+) {
+    if (resultCode == Activity.RESULT_OK) {
+        onReady()
+    } else {
+        setState(
+            readState().copy(
+                message = "Device location is still off. Turn it on in location settings, then try again.",
+                messageLevel = LifeLinkFeedbackLevel.Warning,
+                settingsAction = GpsSettingsAction.DEVICE_LOCATION,
+            ),
+        )
+    }
+}
+
+private fun checkDeviceLocationSettings(
+    provider: LocationProvider,
+    resolutionLauncher: ActivityResultLauncher<IntentSenderRequest>,
+    onReady: () -> Unit,
+    readState: () -> GpsLocationCardState,
+    setState: (GpsLocationCardState) -> Unit,
+) {
+    setState(
+        readState().copy(
+            message = "Checking device location settings…",
+            messageLevel = LifeLinkFeedbackLevel.Info,
+            settingsAction = null,
+        ),
+    )
+    provider.checkLocationSettings(
+        onReady = onReady,
+        onNeedsResolution = { error ->
+            setState(
+                readState().copy(
+                    message = "Turn on device location to capture a current GPS fix.",
+                    messageLevel = LifeLinkFeedbackLevel.Warning,
+                    settingsAction = GpsSettingsAction.DEVICE_LOCATION,
+                ),
+            )
+            runCatching {
+                resolutionLauncher.launch(IntentSenderRequest.Builder(error.resolution).build())
+            }.onFailure {
+                setState(
+                    readState().copy(
+                        message = "Device location settings could not be opened. Use the button below and try again.",
+                        messageLevel = LifeLinkFeedbackLevel.Error,
+                        settingsAction = GpsSettingsAction.DEVICE_LOCATION,
+                    ),
+                )
+            }
+        },
+        onFailure = {
+            setState(
+                readState().copy(
+                    message = "Device location services are unavailable. Open location settings and try again.",
+                    messageLevel = LifeLinkFeedbackLevel.Warning,
+                    settingsAction = GpsSettingsAction.DEVICE_LOCATION,
+                ),
+            )
+        },
+    )
+}
+
+private fun launchGpsCapture(
+    scope: CoroutineScope,
+    provider: LocationProvider,
+    onCaptureStateChanged: (Boolean) -> Unit,
+    onLocationCaptured: (Double, Double, Int) -> Unit,
+    readState: () -> GpsLocationCardState,
+    setState: (GpsLocationCardState) -> Unit,
+) {
+    scope.launch {
+        setState(
+            readState().copy(
+                loading = true,
+                message = null,
+                messageLevel = LifeLinkFeedbackLevel.Info,
+                settingsAction = null,
+            ),
+        )
+        onCaptureStateChanged(false)
+        try {
+            val location = try {
+                provider.currentLocation()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
+            if (location == null) {
+                setState(
+                    readState().copy(
+                        message = "No recent GPS fix was available. Move to an open area and try again.",
+                        messageLevel = LifeLinkFeedbackLevel.Error,
+                    ),
+                )
+            } else {
+                onLocationCaptured(location.latitude, location.longitude, location.precisionMeters)
+                onCaptureStateChanged(true)
+                setState(
+                    readState().copy(
+                        message = "Current GPS captured (about ±${location.precisionMeters} m accuracy).",
+                        messageLevel = LifeLinkFeedbackLevel.Success,
+                    ),
+                )
+            }
+        } finally {
+            setState(readState().copy(loading = false))
+        }
+    }
+}
+
+private fun openAppSettings(context: Context) {
+    context.startActivity(
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", context.packageName, null)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        },
+    )
+}
+
+private fun openLocationSettings(context: Context) {
+    context.startActivity(
+        Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+    )
 }
 
 /** Notification preference for matching requests. */
 @Composable
 private fun NotificationToggle(enabled: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .toggleable(value = enabled, role = Role.Switch, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Column(Modifier.weight(1f)) {
             Text("Notify me about matching requests", fontWeight = FontWeight.SemiBold)
             Text(
@@ -322,19 +606,8 @@ private fun NotificationToggle(enabled: Boolean, onChange: (Boolean) -> Unit) {
         }
         Switch(
             checked = enabled,
-            onCheckedChange = onChange,
+            onCheckedChange = null,
             modifier = Modifier.testTag("donor-notifications"),
         )
     }
 }
-
-private const val MIN_LATITUDE = -90.0
-private const val MAX_LATITUDE = 90.0
-private const val MIN_LONGITUDE = -180.0
-private const val MAX_LONGITUDE = 180.0
-
-private fun isValidCoordinate(latitude: Double?, longitude: Double?): Boolean =
-    latitude != null && longitude != null && isInRange(latitude, longitude)
-
-private fun isInRange(latitude: Double, longitude: Double): Boolean =
-    latitude in MIN_LATITUDE..MAX_LATITUDE && longitude in MIN_LONGITUDE..MAX_LONGITUDE

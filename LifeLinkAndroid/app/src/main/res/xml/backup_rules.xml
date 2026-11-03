@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Session tokens must never be copied to another device or cloud backup. -->
+    <exclude domain="sharedpref" path="lifelink_auth.xml" />
+</full-backup-content>

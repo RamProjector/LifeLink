@@ -3,6 +3,8 @@ package com.lifelink.app.feature.donor
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.lifelink.app.core.errors.userFacingError
+import com.lifelink.app.core.ui.LifeLinkFeedbackLevel
 import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.DonorProfileMe
 import com.lifelink.app.domain.DonorProfileRepository
@@ -23,6 +25,7 @@ data class BecomeDonorUiState(
     val draft: DonorProfileMe = DonorProfileMe(),
     val saving: Boolean = false,
     val message: String? = null,
+    val messageLevel: LifeLinkFeedbackLevel = LifeLinkFeedbackLevel.Info,
 )
 
 sealed interface BecomeDonorAction {
@@ -56,12 +59,14 @@ class BecomeDonorViewModel(private val repository: DonorProfileRepository) : Vie
                         loading = false,
                         optedIn = profile != null,
                         draft = profile ?: DonorProfileMe(),
+                        messageLevel = LifeLinkFeedbackLevel.Info,
                     )
                 }
                 .onFailure { error ->
                     _state.value = _state.value.copy(
                         loading = false,
-                        message = error.message ?: "Your donor profile could not be loaded.",
+                        message = userFacingError(error, "Your donor profile could not be loaded. Check your connection and try again."),
+                        messageLevel = LifeLinkFeedbackLevel.Error,
                     )
                 }
         }
@@ -70,18 +75,25 @@ class BecomeDonorViewModel(private val repository: DonorProfileRepository) : Vie
     fun onAction(action: BecomeDonorAction) {
         when (action) {
             is BecomeDonorAction.UpdateDraft ->
-                _state.value = _state.value.copy(draft = action.update(_state.value.draft), message = null)
+                _state.value = _state.value.copy(
+                    draft = action.update(_state.value.draft),
+                    message = null,
+                    messageLevel = LifeLinkFeedbackLevel.Info,
+                )
             BecomeDonorAction.Save -> save()
             is BecomeDonorAction.SetAvailability -> setAvailability(action.availability)
             BecomeDonorAction.OptOut -> optOut()
-            BecomeDonorAction.ClearMessage -> _state.value = _state.value.copy(message = null)
+            BecomeDonorAction.ClearMessage -> _state.value = _state.value.copy(message = null, messageLevel = LifeLinkFeedbackLevel.Info)
         }
     }
 
     private fun save() {
         val draft = _state.value.draft
         if (!draft.isSetupComplete) {
-            _state.value = _state.value.copy(message = "Choose a blood type and location before saving.")
+            _state.value = _state.value.copy(
+                message = "Choose a blood type and location before saving.",
+                messageLevel = LifeLinkFeedbackLevel.Warning,
+            )
             return
         }
         viewModelScope.launch {
@@ -93,35 +105,45 @@ class BecomeDonorViewModel(private val repository: DonorProfileRepository) : Vie
                         optedIn = true,
                         draft = saved,
                         message = if (saved.verified) {
-                            "Donor profile saved"
+                            "Donor profile saved. Set availability to Available when you are ready to receive matching requests."
                         } else {
-                            "Donor profile saved. An admin must verify you before you appear in matching."
+                            "Donor profile saved. You will not appear in matching until an admin verifies your profile."
                         },
+                        messageLevel = if (saved.verified) LifeLinkFeedbackLevel.Success else LifeLinkFeedbackLevel.Warning,
                     )
                 }
                 .onFailure { error ->
-                    _state.value = _state.value.copy(saving = false, message = error.message ?: "Donor profile could not be saved.")
+                    _state.value = _state.value.copy(
+                        saving = false,
+                        message = userFacingError(error, "Donor profile could not be saved. Check your connection and try again."),
+                        messageLevel = LifeLinkFeedbackLevel.Error,
+                    )
                 }
         }
     }
 
     private fun setAvailability(availability: DonorAvailability) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(saving = true, message = null)
+            _state.value = _state.value.copy(
+                saving = true,
+                message = "Updating availability\u2026",
+                messageLevel = LifeLinkFeedbackLevel.Info,
+            )
             runCatching { repository.setAvailability(availability) }
                 .onSuccess { updated ->
                     _state.value = _state.value.copy(
                         saving = false,
                         draft = updated,
-                        message = if (availability == DonorAvailability.AVAILABLE && !updated.verified) {
-                            "Availability saved. You will be matched once an admin verifies you."
-                        } else {
-                            "Availability updated"
-                        },
+                        message = availabilityMessage(updated),
+                        messageLevel = availabilityMessageLevel(updated),
                     )
                 }
                 .onFailure { error ->
-                    _state.value = _state.value.copy(saving = false, message = error.message ?: "Availability could not be updated.")
+                    _state.value = _state.value.copy(
+                        saving = false,
+                        message = userFacingError(error, "Availability could not be updated. Check your connection and try again."),
+                        messageLevel = LifeLinkFeedbackLevel.Error,
+                    )
                 }
         }
     }
@@ -131,13 +153,41 @@ class BecomeDonorViewModel(private val repository: DonorProfileRepository) : Vie
             _state.value = _state.value.copy(saving = true, message = null)
             runCatching { repository.optOut() }
                 .onSuccess {
-                    _state.value = BecomeDonorUiState(loading = false, optedIn = false, message = "You are no longer a donor.")
+                    _state.value = BecomeDonorUiState(
+                        loading = false,
+                        optedIn = false,
+                        message = "Your donor profile was removed.",
+                        messageLevel = LifeLinkFeedbackLevel.Success,
+                    )
                 }
                 .onFailure { error ->
-                    _state.value = _state.value.copy(saving = false, message = error.message ?: "Donor profile could not be removed.")
+                    _state.value = _state.value.copy(
+                        saving = false,
+                        message = userFacingError(error, "Donor profile could not be removed. Check your connection and try again."),
+                        messageLevel = LifeLinkFeedbackLevel.Error,
+                    )
                 }
         }
     }
+
+    private fun availabilityMessage(profile: DonorProfileMe): String =
+        when (profile.availability) {
+            DonorAvailability.AVAILABLE -> when {
+                !profile.verified -> "Availability is Available, but you will not appear in matching until your profile is verified."
+                !profile.profileVisible -> "Availability is Available, but your profile is hidden from matching."
+                else -> "Availability set to Available. Matching also requires a recent location."
+            }
+            DonorAvailability.PAUSED -> "Availability paused. You will not receive new matching requests until you resume."
+            DonorAvailability.OFFLINE ->
+                "Availability set to Offline. You will not receive new matching requests until you choose Available."
+        }
+
+    private fun availabilityMessageLevel(profile: DonorProfileMe): LifeLinkFeedbackLevel =
+        when {
+            profile.availability == DonorAvailability.AVAILABLE && (!profile.verified || !profile.profileVisible) ->
+                LifeLinkFeedbackLevel.Warning
+            else -> LifeLinkFeedbackLevel.Success
+        }
 }
 
 class BecomeDonorViewModelFactory(private val repository: DonorProfileRepository) : ViewModelProvider.Factory {

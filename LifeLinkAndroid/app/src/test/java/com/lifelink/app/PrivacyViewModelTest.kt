@@ -47,6 +47,102 @@ class PrivacyViewModelTest {
         Dispatchers.resetMain()
     }
 
+    /** Prevents an older, slower map refresh from overwriting the latest successful result. */
+    @Test
+    fun stale_map_refresh_result_cannot_overwrite_newer_result() = runTest {
+        val olderResponse = CompletableDeferred<Result<DonorMap>>()
+        var mapCalls = 0
+        repository.map = {
+            mapCalls++
+            if (mapCalls == 1) {
+                olderResponse.await()
+            } else {
+                Result.success(DonorMap("new", approximateOnly = true, areas = emptyList()))
+            }
+        }
+
+        viewModel.onAction(PrivacyAction.LoadMap)
+        viewModel.onAction(PrivacyAction.LoadMap)
+
+        assertEquals("new", viewModel.state.value.map?.generatedAt)
+        assertFalse(viewModel.state.value.mapLoading)
+
+        olderResponse.complete(Result.success(DonorMap("stale", approximateOnly = true, areas = emptyList())))
+
+        assertEquals("new", viewModel.state.value.map?.generatedAt)
+        assertFalse(viewModel.state.value.mapLoading)
+        assertNull(viewModel.state.value.mapError)
+    }
+
+    /** Prevents a stale failed refresh from replacing a newer successful map with an error state. */
+    @Test
+    fun stale_map_refresh_failure_cannot_replace_newer_success() = runTest {
+        val olderResponse = CompletableDeferred<Result<DonorMap>>()
+        var mapCalls = 0
+        repository.map = {
+            mapCalls++
+            if (mapCalls == 1) {
+                olderResponse.await()
+            } else {
+                Result.success(DonorMap("new", approximateOnly = true, areas = emptyList()))
+            }
+        }
+
+        viewModel.onAction(PrivacyAction.LoadMap)
+        viewModel.onAction(PrivacyAction.LoadMap)
+        olderResponse.complete(Result.failure(IllegalStateException("Stale network failure")))
+
+        assertEquals("new", viewModel.state.value.map?.generatedAt)
+        assertFalse(viewModel.state.value.mapLoading)
+        assertNull(viewModel.state.value.mapError)
+    }
+
+    /** Removes old donor pins when the latest refresh fails instead of displaying stale locations. */
+    @Test
+    fun failed_map_refresh_clears_previously_loaded_donor_areas() = runTest {
+        repository.map = {
+            Result.success(DonorMap("previous", approximateOnly = true, areas = emptyList()))
+        }
+        viewModel.onAction(PrivacyAction.LoadMap)
+        assertEquals("previous", viewModel.state.value.map?.generatedAt)
+
+        repository.map = { Result.failure(IllegalStateException("Network unavailable")) }
+        viewModel.onAction(PrivacyAction.LoadMap)
+
+        assertNull(viewModel.state.value.map)
+        assertFalse(viewModel.state.value.mapLoading)
+        assertEquals("The donor map could not be loaded.", viewModel.state.value.mapError)
+    }
+
+    /** Clears the old donor map immediately and refreshes it after a donor opts out of visibility. */
+    @Test
+    fun hiding_donor_clears_stale_map_while_refreshing_and_then_loads_fresh_map() = runTest {
+        val previousMap = DonorMap("before-hide", approximateOnly = true, areas = emptyList())
+        repository.map = { Result.success(previousMap) }
+        viewModel.onAction(PrivacyAction.LoadMap)
+        assertEquals("before-hide", viewModel.state.value.map?.generatedAt)
+
+        val refreshedMap = CompletableDeferred<Result<DonorMap>>()
+        var mapCalls = 0
+        repository.map = {
+            mapCalls++
+            refreshedMap.await()
+        }
+
+        viewModel.onAction(PrivacyAction.SetMapVisibility(mapVisible = false, exactLocationSharingEnabled = false))
+
+        assertEquals(1, mapCalls)
+        assertNull(viewModel.state.value.map)
+        assertTrue(viewModel.state.value.mapLoading)
+        assertEquals(false, viewModel.state.value.visibility?.mapVisible)
+
+        refreshedMap.complete(Result.success(DonorMap("after-hide", approximateOnly = true, areas = emptyList())))
+
+        assertEquals("after-hide", viewModel.state.value.map?.generatedAt)
+        assertFalse(viewModel.state.value.mapLoading)
+        assertNull(viewModel.state.value.mapError)
+    }
+
     /** Verifies that opening a chat loads history and contact shares for the returned conversation ID. */
     @Test
     fun open_action_loads_the_requested_conversation_messages_and_contact_shares() = runTest {
@@ -101,7 +197,7 @@ class PrivacyViewModelTest {
 
         assertNoConversationContent()
         assertFalse(viewModel.state.value.chatLoading)
-        assertEquals("Access denied", viewModel.state.value.message)
+        assertEquals("The conversation could not be opened.", viewModel.state.value.message)
         assertTrue(repository.sends.isEmpty())
         assertTrue(repository.shares.isEmpty())
         assertEquals(listOf("chat-old"), repository.messageReads)
@@ -128,7 +224,7 @@ class PrivacyViewModelTest {
         viewModel.openConversation("request-old", "donor-old")
         repository.open = { _, _ -> Result.failure(IllegalStateException("Try again")) }
         viewModel.openConversation("request-new", "donor-new")
-        assertEquals("Try again", viewModel.state.value.message)
+        assertEquals("The conversation could not be opened.", viewModel.state.value.message)
         repository.open = { requestId, donorId -> Result.success(conversation("chat-new", requestId, donorId)) }
         repository.loadedMessages = listOf(chatMessage("chat-new"))
         repository.loadedShares = listOf(contactShare("chat-new"))
@@ -163,6 +259,36 @@ class PrivacyViewModelTest {
         assertEquals(listOf("chat-old", "chat-new"), repository.shareReads)
     }
 
+    /** Ensures a failed send stops the progress state and exposes a retry-safe error. */
+    @Test
+    fun failed_send_stops_progress_and_reports_the_failure() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+        repository.sendFailure = IllegalStateException("server rejected message")
+
+        viewModel.onAction(PrivacyAction.SendMessage("Hello"))
+
+        assertFalse(viewModel.state.value.sending)
+        assertEquals("Message could not be sent.", viewModel.state.value.message)
+        assertEquals(listOf("chat-old" to "Hello"), repository.sends)
+    }
+
+    /** Refreshes a visible conversation so messages sent by the other participant appear without reopening chat. */
+    @Test
+    fun refresh_action_reloads_current_conversation_messages_and_contact_shares() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+        val incomingMessage = chatMessage("chat-old").copy(messageId = "incoming-2", body = "New message from the other participant")
+        repository.loadedMessages = listOf(chatMessage("chat-old"), incomingMessage)
+        repository.loadedShares = listOf(contactShare("chat-old"), contactShare("chat-old").copy(shareId = "share-2"))
+
+        viewModel.onAction(PrivacyAction.RefreshConversation)
+
+        assertEquals(repository.loadedMessages, viewModel.state.value.messages)
+        assertEquals(repository.loadedShares, viewModel.state.value.contactShares)
+        assertEquals(listOf("chat-old", "chat-old"), repository.messageReads)
+        assertEquals(listOf("chat-old", "chat-old"), repository.shareReads)
+        assertFalse(viewModel.state.value.chatLoading)
+    }
+
     /** Asserts that the conversation ID, messages, and contact shares have all been cleared. */
     private fun assertNoConversationContent() {
         assertNull(viewModel.state.value.conversationId)
@@ -177,9 +303,14 @@ private class ConversationRepositoryFake : PrivacyRepository {
     val shareReads = mutableListOf<String>()
     val sends = mutableListOf<Pair<String, String>>()
     val shares = mutableListOf<Triple<String, String, String>>()
+    var map: suspend () -> Result<DonorMap> = { error("Unexpected map request") }
+    var visibility: suspend (Boolean, Boolean) -> Result<DonorMapVisibility> = { visible, exact ->
+        Result.success(DonorMapVisibility(mapVisible = visible, exactLocationSharingEnabled = exact))
+    }
     var loadedMessages = listOf(chatMessage("chat-old"))
     var loadedShares = listOf(contactShare("chat-old"))
     var failHistory = false
+    var sendFailure: Throwable? = null
     var open: suspend (String, String) -> Result<Conversation> = { requestId, donorId ->
         Result.success(conversation("chat-old", requestId, donorId))
     }
@@ -207,6 +338,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
     /** Records the destination and body, then returns a synthetic message for that conversation. */
     override suspend fun sendMessage(conversationId: String, body: String): Result<ChatMessage> {
         sends += conversationId to body
+        sendFailure?.let { return Result.failure(it) }
         return Result.success(chatMessage(conversationId).copy(body = body))
     }
 
@@ -216,12 +348,12 @@ private class ConversationRepositoryFake : PrivacyRepository {
         return Result.success(contactShare(conversationId).copy(field = field, value = value))
     }
 
-    /** Fails immediately if a conversation test unexpectedly requests the donor map. */
-    override suspend fun donorMap(): Result<DonorMap> = error("Unexpected map request")
+    /** Returns the configured map response for map-loading regression tests. */
+    override suspend fun donorMap(): Result<DonorMap> = map()
 
     /** Fails immediately if a conversation test unexpectedly changes map visibility. */
     override suspend fun setMapVisibility(mapVisible: Boolean, exactLocationSharingEnabled: Boolean): Result<DonorMapVisibility> =
-        error("Unexpected visibility change")
+        visibility(mapVisible, exactLocationSharingEnabled)
 
     /** Fails immediately if a conversation test unexpectedly activates location sharing. */
     override suspend fun activateLocationShare(requestId: String, donorId: String): Result<Unit> = error("Unexpected location share")

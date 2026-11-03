@@ -4,12 +4,14 @@ import asyncio
 import contextlib
 import os
 import logging
+from decimal import Decimal
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Annotated
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -47,6 +49,7 @@ from .donor_api import (
 from .donor_repositories import SqlAlchemyDonorStore
 from .donor_profile_api import (
     DonorAvailabilityToggleIn,
+    DonorPresenceIn,
     DonorProfileMeOut,
     DonorProfileUpsertIn,
 )
@@ -66,10 +69,15 @@ from .privacy_api import (
     MessageIn,
     MessageOut,
 )
-from .privacy_repositories import SqlAlchemyPrivacyStore
-from .expiry import ACTIVE_REQUEST_STATUSES
+from .privacy_repositories import (
+    LocationShareRevokedError,
+    LocationSharingDisabledError,
+    SqlAlchemyPrivacyStore,
+)
+from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
 from .security import Principal, get_postgres_principal, require_verified_email
 from .rate_limit import enforce_rate_limit
+from .admin_api import _correlation_id, _write_audit, router as admin_router
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -82,6 +90,7 @@ async def lifespan(_: FastAPI):
     await create_all_tables()
     sweepers = [
         asyncio.create_task(_expire_stale_location_shares_forever()),
+        asyncio.create_task(_expire_stale_donor_presence_forever()),
         asyncio.create_task(_expire_timed_out_requests_forever()),
     ]
     try:
@@ -92,6 +101,22 @@ async def lifespan(_: FastAPI):
         for sweeper in sweepers:
             with contextlib.suppress(asyncio.CancelledError):
                 await sweeper
+
+
+async def _expire_stale_donor_presence_forever() -> None:
+    """Automatically set stale, previously available donor profiles to offline."""
+    from .db import AsyncSessionLocal
+
+    interval = float(os.getenv("LIFELINK_DONOR_PRESENCE_SWEEP_SECONDS", "300"))
+    while True:
+        try:
+            async with AsyncSessionLocal() as session:
+                await SqlAlchemyDonorProfileStore(session).expire_stale_presence()
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # pragma: no cover - defensive; never kill the loop
+            logger.exception("Donor-presence sweep failed")
+        await asyncio.sleep(max(30.0, interval))
 
 
 async def _expire_stale_location_shares_forever() -> None:
@@ -150,8 +175,50 @@ async def _expire_timed_out_requests_forever() -> None:
         await asyncio.sleep(interval)
 
 
-app = FastAPI(title="LifeLink Matching Service — PostgreSQL", lifespan=lifespan)
+app = FastAPI(title="LifeLink Matching Service \u2014 PostgreSQL", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        origin.strip().rstrip("/")
+        for origin in os.getenv("LIFELINK_CORS_ORIGINS", "").split(",")
+        if origin.strip() and origin.strip() != "*"
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "PATCH", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Correlation-ID"],
+)
+app.include_router(admin_router)
 logger = logging.getLogger("lifelink.api")
+
+
+async def _record_api_error(request: Request, exc: Exception, outcome: str = "error") -> None:
+    """Best-effort operational audit record; never expose exception details to clients."""
+    try:
+        from .db import AsyncSessionLocal
+
+        route = request.scope.get("route")
+        route_path = getattr(route, "path", "unmatched")
+        async with AsyncSessionLocal() as session:
+            await _write_audit(
+                session,
+                "system",
+                "error.api",
+                outcome=outcome,
+                target_type="api_route",
+                target_id=str(route_path)[:128],
+                correlation_id=_correlation_id(request.headers.get("x-correlation-id")),
+                metadata={
+                    "error_type": type(exc).__name__[:120],
+                    "status_code": getattr(exc, "status_code", 500),
+                    "method": request.method,
+                },
+            )
+            await session.commit()
+    except Exception:
+        # Logging failure must not mask the original API response; operational
+        # logs still contain the exception class and route without request data.
+        logger.exception("Could not persist API error audit event")
+
 
 
 def enum_value(value):
@@ -169,16 +236,37 @@ def donor_setup_complete(row: DonorRow) -> bool:
     )
 
 
+@app.middleware("http")
+async def audit_admin_denials(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/v1/admin/") and response.status_code >= 400:
+        await _record_api_error(
+            request,
+            HTTPException(status_code=response.status_code),
+            outcome="denied" if response.status_code in {401, 403} else "error",
+        )
+    return response
+
+
 @app.exception_handler(IntegrityError)
 async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
-    logger.exception("Database constraint failure on %s", request.url.path)
+    logger.exception("Database constraint failure on %s", request.scope.get("route"))
+    await _record_api_error(request, exc)
     return JSONResponse(status_code=409, content={"detail": "This request conflicts with current server data. Refresh and submit again."})
 
 
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_error_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
-    logger.exception("Database failure on %s", request.url.path)
+    logger.exception("Database failure on %s", request.scope.get("route"))
+    await _record_api_error(request, exc)
     return JSONResponse(status_code=503, content={"detail": "LifeLink could not save the request right now. Please retry."})
+
+
+@app.exception_handler(Exception)
+async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled API failure on %s", request.scope.get("route"))
+    await _record_api_error(request, exc)
+    return JSONResponse(status_code=500, content={"detail": "LifeLink encountered an unexpected error. Please retry."})
 
 
 async def _push_recipients_for_donors(session: AsyncSession, donor_ids: list[str]) -> list[tuple[str, str]]:
@@ -384,6 +472,38 @@ async def auth_confirmed() -> str:
 </main><script>const target=document.getElementById('open-app');const recovery=new URLSearchParams(window.location.search).get('type')==='recovery';const path=recovery?'/recovery':'/confirm';target.href='lifelink://auth'+path+window.location.search+window.location.hash;</script></body></html>"""
 
 
+def _same_emergency_request_intent(
+    incoming: EmergencyRequestIn,
+    stored: EmergencyRequestIn,
+) -> bool:
+    """Compare fields durably persisted for an idempotent request.
+
+    Display-only facility labels/area/verification are intentionally excluded:
+    they can be hydrated from mutable facility data and are not stored as
+    requester-supplied values. Coordinates and precision are included.
+    """
+    def persisted_intent(payload: EmergencyRequestIn) -> tuple:
+        location = payload.location
+        return (
+            payload.requester_id,
+            payload.blood_type.value,
+            payload.units,
+            payload.urgency.value,
+            payload.response_deadline,
+            location.facility_id,
+            float(location.latitude),
+            float(location.longitude),
+            location.precision_meters,
+            payload.contact_method.value,
+            payload.note,
+            payload.genuine_request_confirmed,
+            payload.sharing_consent_confirmed,
+            payload.ai_matching_enabled,
+        )
+
+    return persisted_intent(incoming) == persisted_intent(stored)
+
+
 @app.post("/v1/emergency-requests", response_model=EmergencyRequestOut | ManualFallbackOut, status_code=201)
 async def create_emergency_request_postgres(
     payload: EmergencyRequestIn,
@@ -411,17 +531,34 @@ async def create_emergency_request_postgres(
                 "location": payload.location.model_copy(update={"facility_id": None, "verified": False})
             })
 
+    # Serialize creates for the same key across API workers. The
+    # transaction-scoped advisory lock is released automatically on commit or
+    # rollback, so the following lookup and insert behave as one check-and-act
+    # operation even when two retries arrive at the same time.
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"),
+        {"lock_key": f"lifelink:emergency-request:{payload.idempotency_key}"},
+    )
     store = SqlAlchemyRequestStore(session)
     existing = await store.get_by_idempotency_key_async(payload.idempotency_key)
     if existing:
+        if not _same_emergency_request_intent(payload, existing.payload):
+            raise HTTPException(
+                status_code=422,
+                detail="Idempotency key was already used for a different emergency request.",
+            )
         return EmergencyRequestOut(
             request_id=existing.request_id,
             status=existing.status,
             created_at=existing.created_at,
             expires_at=existing.expires_at,
             matches=existing.matches,
-            matching_version="v1-explainable-weighted",
-            notifications_created=len(existing.matches),
+            matching_version=(
+                "v1-explainable-weighted" if existing.payload.ai_matching_enabled else "v1-distance-only"
+            ),
+            # Matches are candidates for requester review, not notifications.
+            # Replaying a completed create must report zero new side effects.
+            notifications_created=0,
         )
 
     now = datetime.now(timezone.utc)
@@ -572,7 +709,13 @@ async def report_requester_contact(
     if not any(contact["donor_id"] == donor_id for contact in contacts):
         raise HTTPException(status_code=404, detail="Contact not found")
     await enforce_rate_limit(f"contact-report:{principal.subject}", 10, 300)
-    await store.record_audit_async(principal.subject, "contact_reported", request_id, donor_id, {"reason": payload.reason})
+    await store.record_audit_async(
+        principal.subject,
+        "contact_reported",
+        request_id,
+        donor_id,
+        {"reason_provided": bool(payload.reason.strip())},
+    )
     return ContactModerationOut(request_id=request_id, donor_id=donor_id, action="reported")
 
 
@@ -766,7 +909,7 @@ async def upsert_donor_profile(
     except SQLAlchemyError as exc:
         await session.rollback()
         logger.exception("Donor profile save database failure for operation donor_profile_upsert")
-        raise HTTPException(status_code=503, detail="donor_profile_save_database_failure") from exc
+        raise HTTPException(status_code=503, detail="Donor profile could not be saved right now. Please try again.") from exc
 
 
 @app.get("/v1/donor-profile", response_model=DonorProfileMeOut)
@@ -783,6 +926,27 @@ async def get_donor_profile(
     donor_row = await SqlAlchemyDonorStore(session).get_by_identity(principal.subject)
     display_name = donor_row.display_name if donor_row is not None else "LifeLink donor"
     return SqlAlchemyDonorProfileStore(session).to_out(row, display_name, None)
+
+
+@app.post("/v1/donor-profile/presence", response_model=DonorProfileMeOut)
+async def record_donor_presence(
+    payload: DonorPresenceIn,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Accept a fresh GPS observation from the authenticated donor.
+
+    The server stamps the observation time and preserves explicit donor
+    availability choices. This is freshness tracking, not GPS attestation.
+    """
+    if principal.subject == "development-user":
+        raise HTTPException(status_code=401, detail="An authenticated user is required")
+    require_verified_email(principal)
+    await enforce_rate_limit(f"donor-profile-presence:{principal.subject}", 60, 300)
+    try:
+        return await SqlAlchemyDonorProfileStore(session).record_presence(principal.subject, payload)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Donor profile not found") from None
 
 
 @app.patch("/v1/donor-profile/availability", response_model=DonorProfileMeOut)
@@ -894,11 +1058,60 @@ async def register_donor_postgres(
     except SQLAlchemyError as exc:
         await session.rollback()
         logger.exception("Donor profile save database failure for operation donor_profile_save")
-        raise HTTPException(status_code=503, detail="donor_profile_save_database_failure") from exc
+        raise HTTPException(status_code=503, detail="Donor profile could not be saved right now. Please try again.") from exc
     except Exception as exc:
         await session.rollback()
         logger.exception("Donor profile save application failure for operation donor_profile_save")
-        raise HTTPException(status_code=500, detail=f"donor_profile_save_application_failure:{type(exc).__name__}") from exc
+        raise HTTPException(status_code=500, detail="Donor profile could not be saved because of a temporary server problem.") from exc
+
+
+@app.post("/v1/donors/{donor_id}/presence", response_model=DonorProfileOut)
+async def record_legacy_donor_presence_postgres(
+    donor_id: str,
+    payload: DonorPresenceIn,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Record a fresh GPS observation for the authenticated legacy donor workspace."""
+    if principal.subject != "development-user" and principal.subject != donor_id:
+        raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
+    require_verified_email(principal)
+    await enforce_rate_limit(f"legacy-donor-presence:{principal.subject}", 60, 300)
+    store = SqlAlchemyDonorStore(session)
+    row = await store.get_by_identity(donor_id)
+    if row is None or not donor_setup_complete(row):
+        raise HTTPException(status_code=409, detail="Complete donor setup before refreshing GPS presence")
+    now = datetime.now(timezone.utc)
+    row.latitude = Decimal(str(payload.latitude))
+    row.longitude = Decimal(str(payload.longitude))
+    row.last_location_precision_meters = payload.precision_meters
+    row.last_presence_at = now
+    row.availability_updated_at = now
+    row.updated_at = now
+    try:
+        await session.commit()
+        await store.recompute_matches_for_donor(donor_id)
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        logger.exception("Legacy donor GPS presence update failed for operation donor_presence")
+        raise HTTPException(status_code=503, detail="GPS presence could not be updated right now. Please try again.") from exc
+    donor = Donor(
+        donor_id=row.id,
+        display_name=row.display_name,
+        blood_type=enum_value(row.blood_type),
+        latitude=float(row.latitude),
+        longitude=float(row.longitude),
+        available=row.available,
+        availability_updated_at=row.last_presence_at,
+        verified=row.verified,
+        service_radius_km=float(row.service_radius_km),
+        estimated_response_probability=float(row.estimated_response_probability),
+        donor_note=row.donor_note,
+        preferred_contact_method=row.preferred_contact_method,
+        pause_reason=row.pause_reason,
+        profile_visible=row.profile_visible,
+    )
+    return profile_to_out(donor, DonorAvailability.AVAILABLE if row.available else DonorAvailability.OFFLINE)
 
 
 @app.patch("/v1/donors/{donor_id}/availability", response_model=DonorProfileOut)
@@ -1043,7 +1256,7 @@ async def set_donor_map_visibility(
         map_visible=row.map_visible,
         exact_location_sharing_enabled=row.exact_location_sharing_enabled,
         map_visibility_updated_at=row.map_visibility_updated_at,
-        freshness_at=row.availability_updated_at,
+        freshness_at=row.last_presence_at,
     )
 
 
@@ -1077,9 +1290,36 @@ async def activate_location_share(
         raise HTTPException(status_code=403, detail="Donor is not matched to this request")
     if not donor.exact_location_sharing_enabled:
         raise HTTPException(status_code=409, detail="The donor has not enabled exact location sharing")
+    existing_share = await store.location_share_for_pair(request_id, donor.id)
+    if existing_share is not None and existing_share.status == "revoked":
+        # Revocation is final for this request. A requester must not be able to
+        # silently re-enable exact GPS after the donor explicitly withdrew it.
+        # A future matched request creates a separate consent scope.
+        raise HTTPException(
+            status_code=409,
+            detail="The donor revoked exact location sharing for this request",
+        )
     await enforce_rate_limit(f"location-share:{principal.subject}", 30, 300)
-    share = await store.ensure_location_share(request_id, donor.id, request.requester_id, request.response_deadline)
-    await store.record_audit_async(principal.subject, "location_share_activated", request_id, donor.id)
+    try:
+        share = await store.ensure_location_share(
+            request_id,
+            donor.id,
+            request.requester_id,
+            request.response_deadline,
+            actor_id=principal.subject,
+        )
+    except LocationShareRevokedError:
+        # The repository re-checks request-scoped consent after acquiring its lock.
+        raise HTTPException(
+            status_code=409,
+            detail="The donor revoked exact location sharing for this request",
+        ) from None
+    except LocationSharingDisabledError:
+        # A concurrent donor opt-out/map-hide must win over this activation.
+        raise HTTPException(
+            status_code=409,
+            detail="The donor has disabled exact location sharing or hidden their map",
+        ) from None
     # Tell the donor their exact location is now visible to the matched requester,
     # so the disclosure is never silent and they can revoke it.
     await send_push_safely(
@@ -1116,10 +1356,9 @@ async def revoke_location_share(
     if principal.subject != "development-user" and principal.subject != donor.id:
         raise HTTPException(status_code=403, detail="Only the donor can revoke this share")
     try:
-        share = await store.revoke_location_share(request_id, donor.id)
+        share = await store.revoke_location_share(request_id, donor.id, actor_id=principal.subject)
     except KeyError:
         raise HTTPException(status_code=404, detail="Location share not found") from None
-    await store.record_audit_async(principal.subject, "location_share_revoked", request_id, donor.id)
     return LocationShareOut(
         request_id=request_id,
         donor_id=donor.id,
@@ -1254,6 +1493,18 @@ async def send_conversation_message(
         raise HTTPException(status_code=404, detail="Conversation not found") from None
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
+    # A conversation is scoped to one request. Sending must respect the same
+    # request lifecycle guard as activate_location_share: once the request is no
+    # longer active (fulfilled, cancelled, expired) or its response deadline has
+    # passed, the conversation is read-only. Without this check a stale client
+    # could keep messaging after the request ended.
+    request = await session.get(EmergencyRequestRow, conversation.request_id)
+    if request is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if enum_value(request.status) not in ACTIVE_REQUEST_STATUSES:
+        raise HTTPException(status_code=409, detail="This request is no longer active")
+    if is_request_expired(enum_value(request.status), request.response_deadline):
+        raise HTTPException(status_code=409, detail="This request has expired")
     await enforce_rate_limit(f"message:{principal.subject}", 60, 300)
     # A block is enforceable state: a blocked participant cannot send messages,
     # and no push is delivered to the person who blocked them.
@@ -1387,7 +1638,11 @@ async def report_conversation_participant(
         "conversation_reported",
         conversation.request_id,
         conversation.donor_id,
-        {"conversation_id": conversation.id, "reported_id": other, "reason": (payload.reason if payload else "")},
+        {
+            "conversation_id": conversation.id,
+            "reported_id": other,
+            "reason_provided": bool(payload and payload.reason and payload.reason.strip()),
+        },
     )
     return ConversationModerationOut(conversation_id=conversation.id, action="reported")
 

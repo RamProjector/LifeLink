@@ -18,6 +18,36 @@ import java.util.Locale
 import java.util.TimeZone
 
 interface LifeLinkApi {
+    @GET("v1/admin/me")
+    suspend fun adminMe(): Response<AdminMeResponse>
+
+    @GET("v1/admin/dashboard")
+    suspend fun adminDashboard(): Response<AdminDashboardResponse>
+
+    @GET("v1/admin/users")
+    suspend fun adminUsers(
+        @retrofit2.http.Query("limit") limit: Int = 50,
+        @retrofit2.http.Query("offset") offset: Int = 0,
+    ): Response<AdminUsersResponse>
+
+    @PATCH("v1/admin/users/{userId}")
+    suspend fun adminUpdateUser(
+        @Path("userId") userId: String,
+        @Body request: AdminUserUpdateRequest,
+    ): Response<AdminUserUpdateResponse>
+
+    @GET("v1/admin/audit")
+    suspend fun adminAudit(
+        @retrofit2.http.Query("limit") limit: Int = 50,
+        @retrofit2.http.Query("offset") offset: Int = 0,
+    ): Response<AdminAuditResponse>
+
+    @GET("v1/admin/errors")
+    suspend fun adminErrors(
+        @retrofit2.http.Query("limit") limit: Int = 50,
+        @retrofit2.http.Query("offset") offset: Int = 0,
+    ): Response<AdminAuditResponse>
+
     @GET("health")
     suspend fun health(): Response<Map<String, String>>
 
@@ -100,6 +130,12 @@ interface LifeLinkApi {
         @Body profile: DonorProfileRequest,
     ): Response<DonorProfileResponse>
 
+    @POST("v1/donors/{donorId}/presence")
+    suspend fun recordLegacyDonorPresence(
+        @Path("donorId") donorId: String,
+        @Body request: DonorPresenceRequest,
+    ): Response<DonorProfileResponse>
+
     @GET("v1/donors/{donorId}")
     suspend fun getDonorProfile(
         @Path("donorId") donorId: String,
@@ -132,6 +168,11 @@ interface LifeLinkApi {
 
     @GET("v1/donor-profile")
     suspend fun getDonorProfileMe(): Response<DonorProfileMeResponse>
+
+    @POST("v1/donor-profile/presence")
+    suspend fun recordDonorPresence(
+        @Body request: DonorPresenceRequest,
+    ): Response<DonorProfileMeResponse>
 
     @PATCH("v1/donor-profile/availability")
     suspend fun toggleDonorProfileAvailability(
@@ -438,6 +479,8 @@ data class DonorProfileMeRequest(
     @SerializedName("profile_visible") val profileVisible: Boolean = true,
 )
 
+data class DonorPresenceRequest(val latitude: Double, val longitude: Double, @SerializedName("precision_meters") val precisionMeters: Int)
+
 data class DonorAvailabilityToggleRequest(@SerializedName("availability_status") val availabilityStatus: String)
 
 data class DonorProfileMeResponse(
@@ -549,3 +592,45 @@ data class ConversationModerationResponse(
     val action: String,
     val accepted: Boolean = true,
 )
+
+data class AdminMeResponse(@SerializedName("is_admin") val isAdmin: Boolean, val subject: String)
+data class AdminDashboardResponse(
+    val users: Int,
+    val donors: Int,
+    val requests: Int,
+    @SerializedName("generated_at") val generatedAt: String,
+    @SerializedName("correlation_id") val correlationId: String,
+)
+data class AdminUser(
+    @SerializedName("user_id") val userId: String,
+    val email: String,
+    val role: String,
+    @SerializedName("display_name") val displayName: String? = null,
+    @SerializedName("can_request") val canRequest: Boolean,
+    @SerializedName("can_donate") val canDonate: Boolean,
+    @SerializedName("created_at") val createdAt: String? = null,
+)
+data class AdminUsersResponse(val items: List<AdminUser>, val total: Int)
+data class AdminUserUpdateRequest(
+    val role: String,
+    @SerializedName("can_request") val canRequest: Boolean,
+    @SerializedName("can_donate") val canDonate: Boolean,
+)
+data class AdminUserUpdateResponse(
+    @SerializedName("user_id") val userId: String,
+    val role: String,
+    @SerializedName("can_request") val canRequest: Boolean,
+    @SerializedName("can_donate") val canDonate: Boolean,
+)
+data class AdminAuditEvent(
+    val id: String,
+    @SerializedName("actor_id") val actorId: String,
+    val action: String,
+    val metadata: Map<String, Any>? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    val outcome: String? = null,
+    @SerializedName("target_type") val targetType: String? = null,
+    @SerializedName("target_id") val targetId: String? = null,
+    @SerializedName("correlation_id") val correlationId: String? = null,
+)
+data class AdminAuditResponse(val items: List<AdminAuditEvent>, val limit: Int = 50, val offset: Int = 0)

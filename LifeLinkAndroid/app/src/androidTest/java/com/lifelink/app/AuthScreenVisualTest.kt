@@ -42,7 +42,10 @@ class AuthScreenVisualTest {
         composeRule.onNodeWithText("LifeLink").assertIsDisplayed()
         composeRule.onNodeWithText("Email address").assertIsDisplayed()
 
-        VisualEvidence.capture("lifelink-auth-screen.png")
+        org.junit.Assert.assertTrue(
+            "Required authentication screenshot capture failed",
+            VisualEvidence.capture("lifelink-auth-screen.png"),
+        )
 
         composeRule.onNodeWithText("Create an account").performScrollTo().performClick()
         composeRule.onNodeWithText("Confirm password").assertIsDisplayed()
@@ -50,7 +53,7 @@ class AuthScreenVisualTest {
         composeRule.onNodeWithText("Privacy Policy").performClick()
         composeRule.onNodeWithText("What this app does").assertIsDisplayed()
         composeRule.onNodeWithText("Close").performClick()
-        composeRule.onNodeWithText("Terms").performClick()
+        composeRule.onNodeWithText("Terms and Conditions").performClick()
         composeRule.onNodeWithText("Emergency and medical limitation").assertIsDisplayed()
         composeRule.onNodeWithText("Close").performClick()
         composeRule.onNodeWithText("Already have an account? Sign in").performScrollTo().performClick()

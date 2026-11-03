@@ -26,6 +26,9 @@ regexes = [
   '''idempotency-key-[0-9]+''',
   # Supabase publishable/anon keys are designed to be shipped in clients.
   '''SUPABASE_PUBLISHABLE_KEY''',
+  # Supabase sb_publishable_* keys are explicitly intended for client-side use.
+  # Keep this limited to the publishable-key prefix; never allowlist service-role keys.
+  '''sb_publishable_[A-Za-z0-9_-]+''',
   # Placeholder connection strings in examples and docs.
   '''postgresql://USER:PASSWORD@HOST''',
   '''postgresql://user:password@db\.example\.test''',

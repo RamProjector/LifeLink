@@ -1,25 +1,33 @@
 package com.lifelink.app.data
 
 import android.content.Context
-import androidx.work.ListenableWorker
-import com.google.gson.Gson
-import com.lifelink.app.domain.EmergencyRequestDraft
-import com.lifelink.app.domain.SubmitResult
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.ListenableWorker
+import com.google.gson.Gson
 import com.lifelink.app.core.auth.AuthSession
 import com.lifelink.app.core.auth.AuthSessionStore
-import com.lifelink.app.data.local.*
+import com.lifelink.app.data.local.DonorRequestEntity
+import com.lifelink.app.data.local.EmergencyRequestDraftEntity
+import com.lifelink.app.data.local.LifeLinkDatabase
+import com.lifelink.app.data.local.PendingSubmissionEntity
+import com.lifelink.app.data.local.PendingSubmissionProcessor
 import com.lifelink.app.data.repository.UpdatesRepository
+import com.lifelink.app.domain.EmergencyRequestDraft
+import com.lifelink.app.domain.SubmitResult
 import com.lifelink.app.domain.UpdateType
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.After
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,7 +44,9 @@ class AccountPersistenceTest {
             .allowMainThreadQueries().build()
     }
 
-    @After fun tearDown() { db.close() }
+    @After fun tearDown() {
+        db.close()
+    }
 
     @Test fun sameEventIdHasIndependentContentAndReadStatePerAccount() = runBlocking {
         val alice = UpdatesRepository(db.updateDao(), "alice")
@@ -66,6 +76,21 @@ class AccountPersistenceTest {
         db.pendingSubmissionDao().delete("alice", "draft")
         assertNotNull(db.emergencyRequestDraftDao().findById("bob", "draft"))
         assertNotNull(db.pendingSubmissionDao().findById("bob", "draft"))
+    }
+
+    @Test fun latestDraftLookupIsScopedAndUsesMostRecentSave() = runBlocking {
+        db.emergencyRequestDraftDao().upsert(draft("alice").copy(id = "alice-old", updatedAtEpochMillis = 1))
+        db.emergencyRequestDraftDao().upsert(draft("alice").copy(id = "alice-new", updatedAtEpochMillis = 2))
+        db.emergencyRequestDraftDao().upsert(draft("bob").copy(id = "bob-latest", updatedAtEpochMillis = 99))
+
+        assertEquals("alice-new", db.emergencyRequestDraftDao().findLatestUnqueued("alice")?.id)
+        assertEquals("bob-latest", db.emergencyRequestDraftDao().findLatestUnqueued("bob")?.id)
+        assertNull(db.emergencyRequestDraftDao().findLatestUnqueued("new-account"))
+
+        db.pendingSubmissionDao().upsert(PendingSubmissionEntity("alice", "alice-new", "queued-payload"))
+        assertEquals("alice-old", db.emergencyRequestDraftDao().findLatestUnqueued("alice")?.id)
+        db.pendingSubmissionDao().upsert(PendingSubmissionEntity("alice", "alice-old", "queued-payload"))
+        assertNull(db.emergencyRequestDraftDao().findLatestUnqueued("alice"))
     }
 
     @Test fun donorReplacementIsScopedAndPrioritizesCriticalRequests() = runBlocking {
@@ -159,8 +184,9 @@ class AccountPersistenceTest {
         for ((owner, id) in listOf("alice" to "oldest", "bob" to "target", "alice" to "target")) {
             dao.upsert(PendingSubmissionEntity(owner, id, Gson().toJson(EmergencyRequestDraft(id = id))))
         }
+        db.emergencyRequestDraftDao().upsert(draft("alice").copy(id = "target"))
         var submissions = 0
-        val processor = PendingSubmissionProcessor(dao, { "alice" }) { owner, draft ->
+        val processor = PendingSubmissionProcessor(dao, { "alice" }, draftDao = db.emergencyRequestDraftDao()) { owner, draft ->
             submissions++
             assertEquals("alice", owner)
             assertEquals("target", draft.id)
@@ -171,6 +197,7 @@ class AccountPersistenceTest {
         assertEquals(ListenableWorker.Result.success(), processor.process("alice", "target"))
         assertEquals(1, submissions)
         assertNull(dao.findById("alice", "target"))
+        assertNull(db.emergencyRequestDraftDao().findById("alice", "target"))
         assertNotNull(dao.findById("alice", "oldest"))
         assertNotNull(dao.findById("bob", "target"))
     }
@@ -194,6 +221,6 @@ class AccountPersistenceTest {
         facilityId = null, facilityName = null, facilityArea = null, facilityVerified = false,
         requesterLatitude = null, requesterLongitude = null, locationPrecisionMeters = 100,
         contactMethod = "IN_APP", genuineRequestConfirmed = true, sharingConsentConfirmed = true,
-        aiMatchingEnabled = true, updatedAtEpochMillis = 1
+        aiMatchingEnabled = true, updatedAtEpochMillis = 1,
     )
 }

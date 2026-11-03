@@ -128,6 +128,7 @@ class Donor(Base):
     location: Mapped[Any | None] = mapped_column(GeographyPoint(), nullable=True)
     available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     availability_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_presence_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     service_radius_km: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False, default=15)
     last_location_precision_meters: Mapped[int] = mapped_column(Integer, nullable=False, default=500)
@@ -155,6 +156,7 @@ class Donor(Base):
     __table_args__ = (
         Index("ix_donors_active_blood_type", "available", "verified", "blood_type"),
         Index("ix_donors_availability_updated_at", "availability_updated_at"),
+        Index("ix_donors_last_presence_at", "last_presence_at"),
     )
 
 

@@ -3,6 +3,7 @@ package com.lifelink.app.feature.privacy
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.lifelink.app.core.errors.userFacingError
 import com.lifelink.app.domain.ChatMessage
 import com.lifelink.app.domain.ContactShare
 import com.lifelink.app.domain.Conversation
@@ -47,6 +48,8 @@ sealed interface PrivacyAction {
 
     data class OpenConversation(val requestId: String, val donorId: String) : PrivacyAction
 
+    data object RefreshConversation : PrivacyAction
+
     data object LoadConversations : PrivacyAction
 
     data class SendMessage(val body: String) : PrivacyAction
@@ -76,6 +79,8 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
      * active conversation's id, messages, or contact shares.
      */
     private var conversationGeneration = 0
+    private var conversationRefreshJob: kotlinx.coroutines.Job? = null
+    private var mapLoadGeneration = 0
 
     fun onAction(action: PrivacyAction) {
         when (action) {
@@ -85,6 +90,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
             is PrivacyAction.ActivateLocationShare -> activateShare(action.requestId, action.donorId)
             is PrivacyAction.RevokeLocationShare -> revokeShare(action.requestId, action.donorId)
             is PrivacyAction.OpenConversation -> openConversation(action.requestId, action.donorId)
+            PrivacyAction.RefreshConversation -> refreshCurrentConversation()
             PrivacyAction.LoadConversations -> loadConversations()
             is PrivacyAction.SendMessage -> sendMessage(action.body)
             is PrivacyAction.ShareContact -> shareContact(action.field, action.value)
@@ -95,16 +101,25 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     }
 
     private fun loadMap() {
+        // Ignore stale responses when a refresh or visibility change starts a newer load.
+        val generation = ++mapLoadGeneration
         viewModelScope.launch {
             _state.value = _state.value.copy(mapLoading = true, mapError = null)
             repository
                 .donorMap()
-                .onSuccess { _state.value = _state.value.copy(map = it, mapLoading = false) }
+                .onSuccess { map ->
+                    if (generation != mapLoadGeneration) return@onSuccess
+                    _state.value = _state.value.copy(map = map, mapLoading = false, mapError = null)
+                }
                 .onFailure { error ->
+                    if (generation != mapLoadGeneration) return@onFailure
                     _state.value =
                         _state.value.copy(
+                            // Donor visibility and freshness may change between refreshes.
+                            // Do not keep old donor pins visible after a failed refresh.
+                            map = null,
                             mapLoading = false,
-                            mapError = error.message ?: "The donor map could not be loaded.",
+                            mapError = userFacingError(error, "The donor map could not be loaded."),
                         )
                 }
         }
@@ -120,7 +135,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     _state.value =
                         _state.value.copy(
                             conversationsLoading = false,
-                            conversationsError = error.message ?: "Messages could not be loaded.",
+                            conversationsError = userFacingError(error, "Messages could not be loaded."),
                         )
                 }
         }
@@ -138,12 +153,15 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                             visibilitySaving = false,
                             message = if (mapVisible) "You are visible on the donor map." else "You are hidden from the donor map.",
                         )
-                    if (mapVisible) loadMap()
+                    // Clear the previous map immediately when opting out; do not display the old area while refreshing.
+                    if (!mapVisible) _state.value = _state.value.copy(map = null)
+                    // Both enabling and disabling visibility can change the public donor map.
+                    loadMap()
                 }.onFailure { error ->
                     _state.value =
                         _state.value.copy(
                             visibilitySaving = false,
-                            message = error.message ?: "Map visibility could not be updated.",
+                            message = userFacingError(error, "Map visibility could not be updated."),
                         )
                 }
         }
@@ -162,7 +180,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                         _state.value.copy(
                             matchedLocation = null,
                             locationLoading = false,
-                            message = error.message ?: "Donor location could not be loaded.",
+                            message = userFacingError(error, "Donor location could not be loaded."),
                         )
                 }
         }
@@ -176,7 +194,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     _state.value = _state.value.copy(message = "Exact location sharing is active for this request.")
                     loadMatchedLocation(requestId, donorId)
                 }.onFailure { error ->
-                    _state.value = _state.value.copy(message = error.message ?: "Exact location sharing could not be activated.")
+                    _state.value = _state.value.copy(message = userFacingError(error, "Exact location sharing could not be activated."))
                 }
         }
     }
@@ -193,7 +211,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                             message = "Exact location sharing was revoked.",
                         )
                 }.onFailure { error ->
-                    _state.value = _state.value.copy(message = error.message ?: "Exact location sharing could not be revoked.")
+                    _state.value = _state.value.copy(message = userFacingError(error, "Exact location sharing could not be revoked."))
                 }
         }
     }
@@ -232,14 +250,20 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     _state.value =
                         _state.value.copy(
                             chatLoading = false,
-                            message = error.message ?: "The conversation could not be opened.",
+                            message = userFacingError(error, "The conversation could not be opened."),
                         )
                 }
         }
     }
 
+    private fun refreshCurrentConversation() {
+        val conversationId = _state.value.conversationId ?: return
+        refreshConversation(conversationId, conversationGeneration)
+    }
+
     private fun refreshConversation(conversationId: String, generation: Int) {
-        viewModelScope.launch {
+        conversationRefreshJob?.cancel()
+        conversationRefreshJob = viewModelScope.launch {
             val messages = repository.messages(conversationId).getOrDefault(emptyList())
             val shares = repository.contactShares(conversationId).getOrDefault(emptyList())
             if (generation != conversationGeneration) return@launch
@@ -261,7 +285,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     refreshConversation(conversationId, generation)
                 }.onFailure { error ->
                     if (generation != conversationGeneration) return@onFailure
-                    _state.value = _state.value.copy(sending = false, message = error.message ?: "Message could not be sent.")
+                    _state.value = _state.value.copy(sending = false, message = userFacingError(error, "Message could not be sent."))
                 }
         }
     }
@@ -279,7 +303,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     refreshConversation(conversationId, generation)
                 }.onFailure { error ->
                     if (generation != conversationGeneration) return@onFailure
-                    _state.value = _state.value.copy(message = error.message ?: "Contact details could not be shared.")
+                    _state.value = _state.value.copy(message = userFacingError(error, "Contact details could not be shared."))
                 }
         }
     }
@@ -290,7 +314,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
             repository
                 .reportParticipant(conversationId, reason)
                 .onSuccess { _state.value = _state.value.copy(message = "Report submitted. Our team will review it.") }
-                .onFailure { error -> _state.value = _state.value.copy(message = error.message ?: "Report could not be submitted.") }
+                .onFailure { error -> _state.value = _state.value.copy(message = userFacingError(error, "Report could not be submitted.")) }
         }
     }
 
@@ -300,7 +324,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
             repository
                 .blockParticipant(conversationId)
                 .onSuccess { _state.value = _state.value.copy(message = "This person is now blocked.") }
-                .onFailure { error -> _state.value = _state.value.copy(message = error.message ?: "Block could not be submitted.") }
+                .onFailure { error -> _state.value = _state.value.copy(message = userFacingError(error, "Block could not be submitted.")) }
         }
     }
 }

@@ -8,6 +8,8 @@
     <application
         android:name=".LifeLinkApplication"
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@drawable/lifelink_icon"
         android:label="LifeLink"
         android:networkSecurityConfig="@xml/network_security_config"

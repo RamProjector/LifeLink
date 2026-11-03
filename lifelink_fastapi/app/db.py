@@ -100,7 +100,13 @@ async def create_all_tables() -> None:
             "ADD COLUMN IF NOT EXISTS profile_visible BOOLEAN NOT NULL DEFAULT TRUE, "
             "ADD COLUMN IF NOT EXISTS map_visible BOOLEAN NOT NULL DEFAULT FALSE, "
             "ADD COLUMN IF NOT EXISTS map_visibility_updated_at TIMESTAMPTZ, "
-            "ADD COLUMN IF NOT EXISTS exact_location_sharing_enabled BOOLEAN NOT NULL DEFAULT FALSE"
+            "ADD COLUMN IF NOT EXISTS exact_location_sharing_enabled BOOLEAN NOT NULL DEFAULT FALSE, "
+            "ADD COLUMN IF NOT EXISTS last_presence_at TIMESTAMPTZ"
+        ))
+        # Legacy availability timestamps are not evidence of a GPS fix. Keep
+        # last_presence_at NULL until the server records an actual presence update.
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_donors_last_presence_at ON donors (last_presence_at)"
         ))
         await connection.execute(text(
             "ALTER TABLE lifelink_profiles "
@@ -110,4 +116,22 @@ async def create_all_tables() -> None:
         ))
         await connection.execute(text(
             "UPDATE lifelink_profiles SET can_donate = TRUE WHERE role = 'donor' AND can_donate = FALSE"
+        ))
+        # Admin API audit queries require these additive columns. Keep this
+        # idempotent startup migration aligned with sql/011_admin_audit_metadata.sql
+        # because this service currently performs schema upgrades during startup.
+        await connection.execute(text(
+            "ALTER TABLE audit_events "
+            "ADD COLUMN IF NOT EXISTS outcome VARCHAR(16) NOT NULL DEFAULT 'success', "
+            "ADD COLUMN IF NOT EXISTS target_type VARCHAR(64), "
+            "ADD COLUMN IF NOT EXISTS target_id VARCHAR(128), "
+            "ADD COLUMN IF NOT EXISTS correlation_id VARCHAR(80)"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_audit_events_created_at "
+            "ON audit_events (created_at DESC)"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_audit_events_action_created_at "
+            "ON audit_events (action, created_at DESC)"
         ))

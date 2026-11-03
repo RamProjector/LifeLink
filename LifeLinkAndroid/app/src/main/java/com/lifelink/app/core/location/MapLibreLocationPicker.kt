@@ -6,14 +6,20 @@ import android.view.MotionEvent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,23 +30,54 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.lifelink.app.domain.DonorMapArea
 import kotlinx.coroutines.delay
 import org.maplibre.android.MapLibre
 import org.maplibre.android.annotations.Marker
 import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.Style
+import org.maplibre.android.tile.TileOperation
 
 private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
 
 // If MapLibre never reports success or failure, the loading state must still end
 // so the picker does not spin forever.
 private const val MAP_LOAD_TIMEOUT_MS = 30_000L
+private const val MAP_RENDER_TIMEOUT_MS = 25_000L
+
+/**
+ * Optional observation hooks for a privacy-safe donor map. Tile callbacks expose
+ * operation categories only; tile coordinates and source identifiers stay private.
+ */
+data class MapLibreMapCallbacks(val onAreaSelected: (DonorMapArea) -> Unit = {}, val onTileAction: (TileOperation) -> Unit = {})
+
+/**
+ * Supplies a deterministic local MapLibre style to previews and instrumentation tests.
+ * Production uses the OpenFreeMap style when no override is provided.
+ */
+val LocalMapLibreStyleJson = staticCompositionLocalOf<String?> { null }
+
+private fun donorMapStyle(styleJson: String?): Style.Builder =
+    if (styleJson.isNullOrBlank()) {
+        Style.Builder().fromUri(OPEN_FREE_MAP_STYLE)
+    } else {
+        Style.Builder().fromJson(styleJson)
+    }
 
 /**
  * Real native MapLibre map. No WebView or JavaScript is used. OpenFreeMap
@@ -67,7 +104,11 @@ fun MapLibreLocationPicker(
     var appliedRecenterRequest by remember { mutableStateOf(-1) }
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf<String?>(null) }
+    var styleReady by remember { mutableStateOf(false) }
+    var mapRendered by remember { mutableStateOf(false) }
     var retryRequest by remember { mutableStateOf(0) }
+    var recenterBump by remember { mutableStateOf(0) }
+    val effectiveRecenterRequest = recenterRequest + recenterBump
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
         MapView(context).also { it.onCreate(null) }
@@ -83,29 +124,56 @@ fun MapLibreLocationPicker(
         }
     }
 
-    // A stalled style load (no success and no failure callback) would otherwise
-    // leave the loading UI visible indefinitely. End it with a retryable error.
-    LaunchedEffect(mapLoading) {
-        if (!mapLoading) return@LaunchedEffect
+    // Style JSON loading and visible tile rendering are separate milestones.
+    // Keep the loading state until MapLibre reports a fully rendered frame.
+    LaunchedEffect(mapLoading, styleReady, retryRequest) {
+        if (!mapLoading || styleReady) return@LaunchedEffect
         delay(MAP_LOAD_TIMEOUT_MS)
-        if (mapLoading) {
+        if (mapLoading && !styleReady) {
             mapLoading = false
             mapError = "The map is taking too long to load. You can enter coordinates manually or retry the map."
             onLoadingChanged(false)
-            onMapError("Map tiles could not be loaded. You can enter coordinates manually or retry the map.")
+            onMapError("Map style could not be loaded. You can enter coordinates manually or retry the map.")
+        }
+    }
+    LaunchedEffect(styleReady, mapRendered, mapError, retryRequest) {
+        if (!styleReady || mapRendered || mapError != null) return@LaunchedEffect
+        delay(MAP_RENDER_TIMEOUT_MS)
+        if (styleReady && !mapRendered && mapError == null) {
+            mapLoading = false
+            mapError = "The map tiles are taking too long to render. You can retry the map."
+            onLoadingChanged(false)
+            onMapError("Map tiles could not be rendered. You can retry the map.")
         }
     }
 
     Box(modifier.fillMaxWidth().heightIn(min = 260.dp)) {
         AndroidView(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp).semantics {
+                contentDescription = when {
+                    mapError != null -> "Location map unavailable"
+                    mapRendered -> "Location map rendered"
+                    mapLoading -> "Location map loading"
+                    else -> "Location map waiting for tiles"
+                }
+            },
             factory = {
                 mapView.apply {
                     addOnDidFailLoadingMapListener {
+                        styleReady = false
+                        mapRendered = false
                         mapLoading = false
                         mapError = "Map preview unavailable. You can enter coordinates manually or retry the map."
                         onLoadingChanged(false)
                         onMapError("Map tiles could not be loaded. You can enter coordinates manually or retry the map.")
+                    }
+                    addOnDidFinishRenderingMapListener { fully ->
+                        if (fully && styleReady) {
+                            mapRendered = true
+                            mapLoading = false
+                            mapError = null
+                            onLoadingChanged(false)
+                        }
                     }
                     setOnTouchListener { view, event ->
                         when (event.actionMasked) {
@@ -116,12 +184,13 @@ fun MapLibreLocationPicker(
                     }
                     getMapAsync { map ->
                         mapLoading = true
+                        styleReady = false
+                        mapRendered = false
                         mapError = null
                         onLoadingChanged(true)
                         map.setStyle(OPEN_FREE_MAP_STYLE) {
-                            mapLoading = false
+                            styleReady = true
                             mapError = null
-                            onLoadingChanged(false)
                             val currentPosition = latestLatitude?.let { lat -> latestLongitude?.let { lon -> LatLng(lat, lon) } }
                             currentPosition?.let { position ->
                                 map.cameraPosition = CameraPosition.Builder()
@@ -131,7 +200,7 @@ fun MapLibreLocationPicker(
                             }
                             appliedLatitude = latestLatitude
                             appliedLongitude = latestLongitude
-                            appliedRecenterRequest = recenterRequest
+                            appliedRecenterRequest = effectiveRecenterRequest
                             marker = currentPosition?.let {
                                 map.addMarker(MarkerOptions().position(it).title("Selected approximate location"))
                             }
@@ -167,42 +236,84 @@ fun MapLibreLocationPicker(
                     val target = latitude?.let { lat -> longitude?.let { lon -> LatLng(lat, lon) } }
                     if (retryRequest > 0) {
                         mapLoading = true
+                        styleReady = false
+                        mapRendered = false
                         mapError = null
-                        map.setStyle(OPEN_FREE_MAP_STYLE) { mapLoading = false }
-                        retryRequest = 0
-                    }
-                    if (target != null &&
-                        (appliedLatitude != latitude || appliedLongitude != longitude || appliedRecenterRequest != recenterRequest)
-                    ) {
-                        appliedLatitude = latitude
-                        appliedLongitude = longitude
-                        appliedRecenterRequest = recenterRequest
-                        marker?.let {
-                            it.position = target
-                            map.updateMarker(it)
+                        onLoadingChanged(true)
+                        map.setStyle(OPEN_FREE_MAP_STYLE) {
+                            styleReady = true
+                            mapError = null
+                            val currentPosition = latestLatitude?.let { lat ->
+                                latestLongitude?.let { lon -> LatLng(lat, lon) }
+                            }
+                            marker = currentPosition?.let { position ->
+                                map.addMarker(
+                                    MarkerOptions().position(position).title("Selected approximate location"),
+                                )
+                            }
+                            appliedLatitude = latestLatitude
+                            appliedLongitude = latestLongitude
+                            appliedRecenterRequest = effectiveRecenterRequest
+                            currentPosition?.let { position ->
+                                map.cameraPosition = CameraPosition.Builder().target(position).zoom(15.0).build()
+                            }
                         }
-                        map.cameraPosition = CameraPosition.Builder()
-                            .target(target)
-                            .zoom(map.cameraPosition.zoom.coerceAtLeast(12.0))
-                            .build()
+                        retryRequest = 0
+                        return@getMapAsync
+                    }
+                    if (target != null) {
+                        val targetChanged = appliedLatitude != latitude || appliedLongitude != longitude
+                        val recenterChanged = appliedRecenterRequest != effectiveRecenterRequest
+                        if (targetChanged || recenterChanged) {
+                            appliedLatitude = latitude
+                            appliedLongitude = longitude
+                            appliedRecenterRequest = effectiveRecenterRequest
+                            marker?.let {
+                                it.position = target
+                                map.updateMarker(it)
+                            }
+                            map.cameraPosition = CameraPosition.Builder()
+                                .target(target)
+                                .zoom(map.cameraPosition.zoom.coerceAtLeast(12.0))
+                                .build()
+                        }
                     }
                 }
             },
         )
         when {
             mapLoading -> Card(
-                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
                 RowLoading()
             }
             mapError != null -> Card(
-                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Assertive },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Map unavailable",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.semantics { heading() },
+                    )
                     Text(mapError.orEmpty(), color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
                     Button(onClick = { retryRequest++ }) { Text("Retry map") }
+                }
+            }
+        }
+
+        if (!mapLoading && mapError == null) {
+            if (latitude != null && longitude != null) {
+                IconButton(
+                    onClick = { recenterBump++ },
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(12.dp),
+                ) {
+                    Icon(Icons.Default.MyLocation, contentDescription = "Recenter map on selected location")
                 }
             }
         }
@@ -216,79 +327,238 @@ private fun RowLoading() {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
-        CircularProgressIndicator(Modifier.height(20.dp), strokeWidth = 2.dp)
+        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
         Text("Loading map preview…", style = MaterialTheme.typography.bodySmall)
     }
 }
 
-@Suppress("LongMethod")
+private fun addAreaMarkers(
+    map: MapLibreMap,
+    areas: List<DonorMapArea>,
+    markerAreas: MutableMap<Long, DonorMapArea>,
+) {
+    map.clear()
+    markerAreas.clear()
+    areas.forEach { area ->
+        val marker = map.addMarker(
+            MarkerOptions()
+                .position(LatLng(area.latitude, area.longitude))
+                .title("Donor pin · ${area.bloodType}")
+                .snippet("${area.availability} · Approximate location only"),
+        )
+        markerAreas[marker.id] = area
+    }
+}
+
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun MapLibrePrivacySafeDonorMap(
     latitude: Double,
     longitude: Double,
+    areas: List<DonorMapArea> = emptyList(),
     modifier: Modifier = Modifier,
+    fullScreen: Boolean = false,
+    callbacks: MapLibreMapCallbacks = MapLibreMapCallbacks(),
+    styleJson: String? = null,
 ) {
     val context = LocalContext.current
+    val latestOnAreaSelected by rememberUpdatedState(callbacks.onAreaSelected)
+    val latestOnTileAction = rememberUpdatedState(callbacks.onTileAction)
+    val markerAreas = remember { mutableMapOf<Long, DonorMapArea>() }
+    val onMarkerClick: (Marker) -> Boolean = { marker ->
+        markerAreas[marker.id]?.let(latestOnAreaSelected)
+        true
+    }
     val center = remember(latitude, longitude) { LatLng(latitude, longitude) }
     var mapLoading by remember { mutableStateOf(true) }
     var mapError by remember { mutableStateOf(false) }
+    var mapRendered by remember { mutableStateOf(false) }
+    var styleReady by remember { mutableStateOf(false) }
+    var retryRequest by remember { mutableStateOf(0) }
+    var recenterRequest by remember { mutableStateOf(0) }
+    var appliedRecenterRequest by remember { mutableStateOf(-1) }
+    var appliedCenter by remember { mutableStateOf<LatLng?>(null) }
+    var appliedAreas by remember { mutableStateOf<List<DonorMapArea>?>(null) }
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
         MapView(context).also { it.onCreate(null) }
     }
-    DisposableEffect(mapView) {
+    val tileActionListener = remember(mapView) {
+        MapView.OnTileActionListener { operation, _, _, _, _, _, _ ->
+            // Do not expose tile coordinates or source metadata: these can reveal
+            // the viewed area. Consumers receive only the operation category.
+            latestOnTileAction.value(operation)
+        }
+    }
+    DisposableEffect(mapView, tileActionListener) {
+        mapView.addOnTileActionListener(tileActionListener)
         mapView.onStart()
         mapView.onResume()
         onDispose {
+            mapView.removeOnTileActionListener(tileActionListener)
             mapView.onPause()
             mapView.onStop()
             mapView.onDestroy()
         }
     }
-    Box(modifier.fillMaxWidth().height(280.dp)) {
+    // Mirror the picker's guard: a stalled style load must not spin forever.
+    LaunchedEffect(mapLoading) {
+        if (!mapLoading) return@LaunchedEffect
+        delay(MAP_LOAD_TIMEOUT_MS)
+        if (mapLoading) {
+            mapLoading = false
+            mapError = true
+        }
+    }
+    // Style completion is not the same as visible tile rendering. Track MapLibre's
+    // fully-rendered callback so CI can detect a blank native map instead of passing
+    // after the style JSON alone has loaded.
+    LaunchedEffect(mapLoading, mapRendered, mapError, retryRequest) {
+        if (mapLoading || mapRendered || mapError) return@LaunchedEffect
+        delay(MAP_RENDER_TIMEOUT_MS)
+        if (!mapLoading && !mapRendered && !mapError) mapError = true
+    }
+    val mapRenderStatus = when {
+        mapError -> "Donor map unavailable"
+        mapLoading -> "Donor map loading"
+        mapRendered -> "Donor map rendered"
+        else -> "Donor map waiting for tiles"
+    }
+    val renderStateTag = when {
+        mapError -> "maplibre-map-error"
+        mapLoading -> "maplibre-map-loading"
+        mapRendered -> "maplibre-map-rendered"
+        else -> "maplibre-map-not-rendered"
+    }
+    val mapModifier = if (fullScreen) modifier.fillMaxSize() else modifier.fillMaxWidth().height(280.dp)
+    Box(mapModifier.testTag(renderStateTag)) {
         AndroidView(
-            modifier = Modifier.fillMaxWidth().height(280.dp),
+            modifier = Modifier.fillMaxSize().testTag("donor-map-native-view").semantics {
+                contentDescription = mapRenderStatus
+            },
             factory = {
                 mapView.apply {
                     addOnDidFailLoadingMapListener {
+                        styleReady = false
                         mapLoading = false
                         mapError = true
+                        mapRendered = false
+                    }
+                    addOnDidFinishRenderingMapListener { fully ->
+                        if (fully && styleReady) {
+                            mapRendered = true
+                            mapLoading = false
+                            mapError = false
+                        }
                     }
                     getMapAsync { map ->
+                        styleReady = false
                         mapLoading = true
-                        map.setStyle(OPEN_FREE_MAP_STYLE) {
+                        mapError = false
+                        mapRendered = false
+                        map.setStyle(donorMapStyle(styleJson)) {
+                            styleReady = true
                             mapLoading = false
                             mapError = false
                             map.cameraPosition = CameraPosition.Builder().target(center).zoom(12.0).build()
-                            map.addMarker(MarkerOptions().position(center).title("Your request location"))
+                            appliedCenter = center
+                            appliedRecenterRequest = recenterRequest
+                            addAreaMarkers(map, areas, markerAreas)
+                            appliedAreas = areas.toList()
+                            map.setOnMarkerClickListener { marker -> onMarkerClick(marker) }
                         }
                     }
                 }
             },
             update = { view ->
                 view.getMapAsync { map ->
-                    map.cameraPosition = CameraPosition.Builder()
-                        .target(LatLng(latitude, longitude))
-                        .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
-                        .build()
+                    if (retryRequest > 0) {
+                        styleReady = false
+                        mapLoading = true
+                        mapError = false
+                        mapRendered = false
+                        map.setStyle(donorMapStyle(styleJson)) {
+                            styleReady = true
+                            mapLoading = false
+                            mapError = false
+                            addAreaMarkers(map, areas, markerAreas)
+                            appliedAreas = areas.toList()
+                            appliedCenter = center
+                            appliedRecenterRequest = recenterRequest
+                            map.setOnMarkerClickListener { marker -> onMarkerClick(marker) }
+                        }
+                        retryRequest = 0
+                    }
+                    if (!styleReady) return@getMapAsync
+                    if (appliedAreas != areas) {
+                        // Update annotations in place. Reloading the whole style for a
+                        // blood-type/availability filter needlessly reloads map tiles.
+                        addAreaMarkers(map, areas, markerAreas)
+                        appliedAreas = areas.toList()
+                        map.setOnMarkerClickListener { marker -> onMarkerClick(marker) }
+                    }
+                    // Repeated Compose updates must not keep resetting the camera.
+                    // Unnecessary camera moves cancel vector-tile requests and make the map
+                    // feel broken while filters, loading state, or visibility controls change.
+                    if (appliedCenter != center) {
+                        mapError = false
+                        map.cameraPosition = CameraPosition.Builder()
+                            .target(center)
+                            .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
+                            .build()
+                        appliedCenter = center
+                    }
+                    if (appliedRecenterRequest != recenterRequest) {
+                        mapError = false
+                        map.cameraPosition = CameraPosition.Builder()
+                            .target(center)
+                            .zoom(map.cameraPosition.zoom.coerceAtLeast(10.0))
+                            .build()
+                        appliedRecenterRequest = recenterRequest
+                    }
                 }
             },
         )
         when {
             mapLoading -> Card(
-                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) { RowLoading() }
-            mapError -> Card(
-                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            !mapRendered && !mapError -> Card(
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
-                Text(
-                    "Map preview unavailable. Donor results remain available in the list.",
-                    Modifier.padding(14.dp),
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                RowLoading()
+            }
+            mapError -> Card(
+                Modifier.align(androidx.compose.ui.Alignment.Center).padding(16.dp).semantics { liveRegion = LiveRegionMode.Assertive },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "Map preview unavailable",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                    Text(
+                        "Donor results remain available in the list, so you can still review and select donors.",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Button(onClick = { retryRequest++ }) { Text("Retry map") }
+                }
+            }
+        }
+        if (!mapLoading && !mapError) {
+            IconButton(
+                onClick = { recenterRequest++ },
+                modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(12.dp),
+            ) {
+                Icon(Icons.Default.MyLocation, contentDescription = "Recenter map on request location")
             }
         }
     }
