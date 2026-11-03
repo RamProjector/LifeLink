@@ -1,38 +1,49 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# LifeLink's Robolectric tests target API 28 (Android 9 / P). Robolectric 4.14.1
-# resolves this preinstrumented framework outside Gradle's normal dependency graph.
-# Keep the coordinate and digest together so CI never silently accepts a different
-# runtime JAR after a Maven mirror or artifact is changed.
-readonly ARTIFACT_VERSION="9-robolectric-4913185-2-i7"
-readonly ARTIFACT_NAME="android-all-instrumented-${ARTIFACT_VERSION}.jar"
-readonly ARTIFACT_URL="https://repo.maven.apache.org/maven2/org/robolectric/android-all-instrumented/${ARTIFACT_VERSION}/${ARTIFACT_NAME}"
-readonly ARTIFACT_SHA256="dbb1c88987b54cef3132695a1b4d2f4851ba06286a6fa7d15772f98fd1f0cdf7"
+# Robolectric 4.14.1 initializes its default API 35 SDK before applying the
+# tests' explicit API 28 configuration. Keep both framework JARs pinned here.
 readonly OUTPUT_DIR="${ROBOLECTRIC_DEPENDENCY_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../LifeLinkAndroid" && pwd)/robolectric-jars/preinstrumented}"
-readonly OUTPUT_FILE="${OUTPUT_DIR}/${ARTIFACT_NAME}"
-readonly TEMP_FILE="${OUTPUT_FILE}.part"
+readonly MAVEN_BASE="https://repo.maven.apache.org/maven2/org/robolectric/android-all-instrumented"
+
+readonly API_28_VERSION="9-robolectric-4913185-2-i7"
+readonly API_28_SHA256="dbb1c88987b54cef3132695a1b4d2f4851ba06286a6fa7d15772f98fd1f0cdf7"
+readonly API_35_VERSION="15-robolectric-12650502-i7"
+readonly API_35_SHA256="33c2d7cc4186d4605269d5d411fa1818972c5b30a9f70bfbbd3d430b076af52f"
 
 mkdir -p "$OUTPUT_DIR"
-trap 'rm -f "$TEMP_FILE"' EXIT
 
-if [[ -f "$OUTPUT_FILE" ]]; then
-    printf '%s  %s\n' "$ARTIFACT_SHA256" "$OUTPUT_FILE" | sha256sum --check --status && {
-        echo "Robolectric runtime is already present and verified: $OUTPUT_FILE"
-        exit 0
-    }
-    echo "Existing Robolectric runtime failed checksum verification; replacing it." >&2
-    rm -f "$OUTPUT_FILE"
-fi
+prefetch() {
+    local version="$1"
+    local expected_sha256="$2"
+    local artifact_name="android-all-instrumented-${version}.jar"
+    local output_file="${OUTPUT_DIR}/${artifact_name}"
+    local temp_file="${output_file}.part"
+    local artifact_url="${MAVEN_BASE}/${version}/${artifact_name}"
 
-echo "Downloading pinned Robolectric runtime: $ARTIFACT_NAME"
-if ! curl --fail --location --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused \
-    --connect-timeout 15 --max-time 180 -o "$TEMP_FILE" "$ARTIFACT_URL"; then
-    echo "ERROR: Could not download $ARTIFACT_URL" >&2
-    echo "Diagnostics: $(curl --version | head -1)" >&2
-    exit 1
-fi
+    if [[ -f "$output_file" ]] && printf '%s  %s\n' "$expected_sha256" "$output_file" | sha256sum --check --status; then
+        echo "Robolectric runtime is already present and verified: $output_file"
+        return 0
+    fi
 
-printf '%s  %s\n' "$ARTIFACT_SHA256" "$TEMP_FILE" | sha256sum --check
-mv "$TEMP_FILE" "$OUTPUT_FILE"
-echo "Verified Robolectric runtime: $OUTPUT_FILE"
+    if [[ -f "$output_file" ]]; then
+        echo "Existing Robolectric runtime failed checksum verification; replacing it: $output_file" >&2
+        rm -f "$output_file"
+    fi
+
+    trap 'rm -f "$temp_file"' RETURN
+    echo "Downloading pinned Robolectric runtime: $artifact_name"
+    if ! curl --fail --location --silent --show-error --retry 5 --retry-delay 2 --retry-connrefused \
+        --connect-timeout 15 --max-time 300 -o "$temp_file" "$artifact_url"; then
+        echo "ERROR: Could not download $artifact_url" >&2
+        echo "Diagnostics: $(curl --version | head -1)" >&2
+        return 1
+    fi
+
+    printf '%s  %s\n' "$expected_sha256" "$temp_file" | sha256sum --check
+    mv "$temp_file" "$output_file"
+    echo "Verified Robolectric runtime: $output_file"
+}
+
+prefetch "$API_28_VERSION" "$API_28_SHA256"
+prefetch "$API_35_VERSION" "$API_35_SHA256"
