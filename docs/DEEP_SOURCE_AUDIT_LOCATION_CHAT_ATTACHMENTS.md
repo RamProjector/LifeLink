@@ -655,3 +655,92 @@ This creates a data-contract/UI gap: the response includes both participant IDs,
 5. Decide stale-data semantics explicitly across inbox, messages, contact shares, and location; do not conflate empty with failed read.
 6. Keep crash status unconfirmed until reproducing the actual user flow with exception details.
 
+
+
+## Finding 26 — Account sign-out clears auth state, but does not itself clear the messaging ViewModel
+
+**Sources inspected**
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/auth/AuthSessionStore.kt`
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/auth/SupabaseAuthRepository.kt`
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/privacy/PrivacyViewModel.kt`
+
+### Confirmed behavior
+- `AuthSessionStore.clear()` clears persisted auth preferences and publishes `session = null`; it schedules account cleanup through the injected `onAccountRemoved(ownerId)` callback.
+- `SupabaseAuthRepository.signOut()` delegates to `sessionStore.clear()`.
+- `PrivacyViewModel` stores inbox conversations, active conversation ID, messages, contact shares and location state in its own `StateFlow`. The ViewModel code inspected has no session/user identity field and no action that resets the entire privacy state when auth becomes null or changes owner.
+- `AuthSessionStore` defaults `onAccountRemoved` to a no-op callback. The actual production construction/wiring must be traced before concluding whether account cleanup is connected to this ViewModel.
+
+### Risk / what is not yet proven
+This is a **cross-account stale UI risk to verify**, not a confirmed cross-account data leak. If the shell retains the same `PrivacyViewModel` across sign-out/account switch and cleanup does not clear its state, the next account could momentarily see the previous account's inbox/chat state. Backend participant authorization still protects API reads/writes, but it does not automatically erase already-rendered local state. Need inspect DI/session observer and reproduce with two test accounts before calling it a vulnerability.
+
+### Recommended design
+- Make account identity an explicit boundary for account-scoped UI state (session user ID or a monotonically increasing auth epoch).
+- On sign-out and account replacement, synchronously clear inbox, active conversation, message list, contact shares, exact location, and any notification deep-link target before exposing the next account's UI.
+- Cancel account-scoped jobs and prevent their completion from publishing after the auth epoch changes. A ViewModel generation token alone is insufficient if the ViewModel survives and its token is not bumped at logout.
+- Keep server authorization as the security boundary; local reset is a privacy/UI hygiene and stale-state prevention measure, not a substitute for auth.
+
+### Regression cases
+1. Account A loads inbox and opens a conversation; sign out while requests are pending; verify all sensitive state disappears immediately.
+2. Sign in as B without process restart; verify A's conversation IDs/messages/contact shares are absent before B's inbox loads.
+3. Delay A's inbox/message response, sign out and sign in as B, then release A's response; verify it cannot mutate B's state.
+4. Confirm the actual `onAccountRemoved` wiring invokes cleanup and determine whether that cleanup includes `PrivacyViewModel` state or only persisted account rows.
+
+## Finding 27 — The HTTP auth interceptor uses a live token provider, but in-flight requests can outlive the session transition
+
+**Source:** `LifeLinkAndroid/app/src/main/java/com/lifelink/app/data/remote/RetrofitProvider.kt`
+
+### Confirmed behavior
+- `RetrofitProvider.create()` accepts a dynamic `tokenProvider` and adds a bearer token when the provider returns a nonblank value.
+- On a 401, the interceptor invokes an optional refresh callback, closes the original response, and retries the original request with the refreshed bearer token.
+- The interceptor does not attach an explicit account/session epoch to a request. The refresh callback and token provider are external dependencies, so their behavior during sign-out/account switch depends on the app's wiring.
+
+### Risk / verify before changing
+A request already sent with Account A's bearer token can still complete after A signs out. Likewise, a delayed 401 refresh/retry should not be allowed to revive A's token after B becomes active. The existing auth repository checks that refresh is based on the same current session and its `replace(expected, ...)` is compare-and-set, which is a useful safeguard; however, the API interceptor's broader request lifecycle still needs a test across sign-out and rapid account switching.
+
+### Recommendations
+- Bind each authenticated API operation to the session identity/epoch it started under; reject its result if the epoch changes before state publication.
+- Before retrying a 401, verify the original request's account/session is still current; never retry an old request using a newly signed-in different user's token.
+- Ensure a refresh failure or 401 during sign-out cannot set global session-expired state for a newly signed-in account.
+- Test token-provider invocation timing, refresh callback, request retry and response publication using a deterministic MockWebServer test.
+
+## Finding 28 — Conversation inbox query handles donor-row/user-ID aliases, but it has no pagination and does not filter blocked conversations
+
+**Source:** `lifelink_fastapi/app/privacy_repositories.py`, method `SqlAlchemyPrivacyStore.list_conversations_for_user`; route `GET /v1/conversations` in `lifelink_fastapi/app/main_postgres.py`.
+
+### Confirmed behavior
+- The backend resolves a donor by row ID or owning user ID, then lists rows where the requester ID matches or donor ID matches either identity alias.
+- Results are ordered by `Conversation.updated_at DESC` (newest activity first).
+- The method returns the full matching list; there is no limit/offset/cursor in the method or Android response contract inspected so far.
+- The list query does not join/filter `ConversationBlock`. Blocking is enforced separately through `is_blocked(conversation, sender_id)` for message/contact-share operations. Thus a blocked conversation can remain visible in the inbox; this may be intentional to preserve safety/report context, but the UX must distinguish “blocked / messaging disabled” rather than silently treating it as an ordinary active chat.
+
+### Scale and UX concerns
+- An indefinitely growing inbox is returned in one response and mapped into Android memory. This is a potential latency/payload problem for active deployments, not evidence of current performance failure.
+- Ordering uses `updated_at`, which is bumped when a message is added. Verify whether opening a conversation, sharing contact details, moderation, or status changes should affect “recent activity” ordering; currently the inspected message method explicitly updates activity on send, while contact-share insertion does not update the conversation timestamp.
+- Confirm database indexes for requester/donor identity and `updated_at` ordering before recommending migration/index changes. Do not add indexes blindly without inspecting model definitions and query plans.
+
+### Recommendations
+- Define inbox semantics for blocked, closed, cancelled, fulfilled, or expired request-linked conversations: hide, retain with a status badge, or archive—each needs explicit product/legal policy. Do not infer “blocked = delete/hide”.
+- Add cursor pagination only after measuring expected scale and confirming stable sort tie-breakers (e.g. `updated_at DESC, id DESC`).
+- Return a bounded, server-authorized summary for each row (safe participant display label, request reference, last-message preview/time and block status if policy permits); avoid phone/email/exact coordinates.
+- Add repository/API tests for donor row-ID versus user-ID alias cases, requester identity, block visibility policy, deterministic order ties, empty inbox and pagination boundaries.
+
+## Finding 29 — Inbox ordering can diverge from actual latest conversation activity
+
+**Source:** `lifelink_fastapi/app/privacy_repositories.py`, methods `add_message`, `add_contact_share`, `list_conversations_for_user`.
+
+### Confirmed behavior
+- Sending a message explicitly updates both `Conversation.last_message_at` and `Conversation.updated_at`.
+- Adding a contact share inserts a `ContactShare` and commits, but does not update the conversation's activity timestamp in the inspected implementation.
+- Inbox sorting is based on `Conversation.updated_at DESC`.
+
+### Product consequence
+A user who shares contact details in a conversation may not see that conversation move to the top of the inbox, even though a meaningful new event occurred. Whether this is a bug depends on the intended meaning of “recent”: latest message only versus latest conversation activity. The Android list currently lacks preview/event metadata, so the ordering may appear inexplicable to users.
+
+### Recommendation
+Specify and test the ordering contract explicitly. If “latest message” is intended, sort on `last_message_at` with deterministic fallback for conversations without messages. If “latest activity” is intended, update activity timestamps consistently for contact-share and other user-visible events, and return the event type/time for the inbox preview. Avoid changing sort semantics until product intent is documented.
+
+### Tests
+- Create conversation A, send message to B, share contact in A; assert the agreed order.
+- Test conversations with no messages and nullable `last_message_at`.
+- Test equal timestamps and stable ordering.
+- Verify client displays a matching preview (“message”, “contact shared”) and does not imply a new message when the event is a contact share.
