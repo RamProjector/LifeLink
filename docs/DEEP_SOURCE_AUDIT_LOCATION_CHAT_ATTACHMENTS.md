@@ -596,3 +596,62 @@ The existing tests are useful coverage, but they cannot establish that the repor
 - Android Developers, [Compose performance best practices](https://developer.android.com/develop/ui/compose/performance/bestpractices): stable lazy-list keys and efficient list item identity are important for predictable list behavior.
 
 These official documents support lifecycle and list design recommendations; they do not prove the reported crash's root cause.
+
+
+## Finding 23 — Inbox loading lacks the conversation-generation protection already used for active chat
+
+**Inspected source:** `PrivacyViewModel.kt`, `PrivacyRepositoryImpl.kt`, and FastAPI `GET /v1/conversations`.
+
+The active-chat path uses `conversationGeneration` to ignore responses from superseded conversation opens and refreshes. The inbox path does not have equivalent protection:
+
+- `loadConversations()` launches a new coroutine on every `LoadConversations` action.
+- It sets loading/error state, calls `repository.conversations()`, and applies success/failure directly to the shared StateFlow.
+- There is no inbox request generation token, cancellation/job replacement, or session/account identity check.
+- A slow older inbox response can therefore overwrite a newer inbox response if multiple loads overlap.
+- More seriously, if the same ViewModel survives an account/session transition, an in-flight response associated with the old identity could publish old account conversations after the identity changed, unless surrounding app/session architecture guarantees the ViewModel is destroyed/reset. That guarantee was not established by the inspected files, so treat it as a high-priority verification item—not a confirmed cross-account leak.
+
+The repository implementation simply calls `api.listConversations()`, checks HTTP success and non-null response body, and maps the returned records. It does not itself attach a user/session generation. The API request is expected to use the currently configured authenticated client; investigate whether token refresh/session replacement can occur while a request is in flight.
+
+### Backend authorization observation
+The FastAPI `GET /v1/conversations` route derives the principal from `get_postgres_principal` and passes `principal.subject` to `store.list_conversations_for_user`. This is a server-side account-scoped list query, which is the correct trust boundary. The route returns an empty list for the special `development-user` principal. No client-supplied user ID is used to select the inbox.
+
+**Important distinction:** server authorization of each response does not prevent a client from displaying a stale response after account switching. Server-side access control and client-side identity-bound state clearing are complementary protections.
+
+### Recommended fix direction (research, not implemented)
+- Add an inbox request generation/cancellation strategy; only the newest request should update loading/error/data state.
+- Bind the inbox state to authenticated account/session identity and clear it on identity change/sign-out. Do not rely on role switching alone to imply a new identity.
+- If session identity is available to the ViewModel, include it in request keys or pass an identity token to the state owner; never use a client-supplied ID as backend authorization.
+- Consider a single-flight refresh policy for rapid repeated tab entry/retry, while still allowing explicit refresh after a meaningful state change.
+- Define whether stale cached inbox content should remain visible during refresh failure. If retained, label it stale and never allow stale entries to bypass server authorization when opened.
+- Add tests where load A starts, load B starts and finishes first, then A finishes; verify A cannot overwrite B. Add a separate session-switch test with A's request pending when account B signs in.
+
+## Finding 24 — Inbox and active-chat failures currently have different stale-data semantics
+
+The inbox load failure path sets `conversationsError` and `conversationsLoading=false`, but leaves `conversations` unchanged. This preserves previously loaded list data while showing an error. That may be a useful stale-while-revalidate experience, but the UI currently prioritizes the error branch over the list, hiding the retained list until retry succeeds.
+
+By contrast, active conversation refresh uses `getOrDefault(emptyList())` for messages/contact shares, so a read failure can replace the previously visible messages or disclosures with an empty list. This is an inconsistency between inbox and thread semantics:
+- Inbox failure retains data in state, but error UI hides it.
+- Thread failure can erase data in state by interpreting a failed request as empty success.
+
+**Recommendation:** define explicit loading, fresh, stale-with-error, and empty states for both inbox and thread. Empty should mean a successful server response with zero records—not a network/auth/parse failure. For contact shares and exact location, apply stricter privacy rules if retaining stale disclosure data could display a revoked value; do not apply generic stale caching blindly. For ordinary chat history, decide whether last-known messages can remain visible with a prominent refresh-failed indicator, while preventing sends until authorization/session state is confirmed.
+
+## Finding 25 — The backend list is authorization-scoped, but inbox display needs a role-aware identity contract
+
+The backend list returns conversation IDs, request IDs, donor IDs, requester IDs, last-message time, and creation time. The Android `Conversation` domain model maps those fields directly. The current inbox UI uses only conversation ID, request ID, and last-message time.
+
+This creates a data-contract/UI gap: the response includes both participant IDs, but neither Android inbox nor the current endpoint response provides a display name or safe request label. Avoid making UI names by truncating IDs. Options for future design:
+- Add a minimal server-authorized participant summary (display name + stable role label), respecting profile privacy and account visibility settings.
+- Or resolve participant profile data through an authorized endpoint and cache only non-sensitive fields with account-scoped invalidation.
+- Provide a non-identifying fallback (“Requester” / “Matched responder”) and short request reference if profile names are unavailable.
+- Do not expose email, phone, exact location, or contact-share values merely to make inbox cards more informative.
+- Confirm how legacy donor ID vs donor user ID normalization affects display/profile lookup; use canonical IDs internally and avoid guessing identity from string formats.
+
+## Revised crash and privacy triage after endpoint inspection
+
+1. Check the actual crash stack trace first; the code reviewed so far has no obvious crash statement on the empty-list path itself.
+2. Add request-generation/session-bound protection to inbox loading as a correctness and privacy-hardening task, independent of whether it is the crash cause.
+3. Test backend list endpoint with authenticated requester, donor, no conversations, revoked/closed relationship, expired token, and development principal. Confirm expected status/empty behavior and no cross-user rows.
+4. Test overlapping inbox loads and account switch with a delayed fake repository.
+5. Decide stale-data semantics explicitly across inbox, messages, contact shares, and location; do not conflate empty with failed read.
+6. Keep crash status unconfirmed until reproducing the actual user flow with exception details.
+
