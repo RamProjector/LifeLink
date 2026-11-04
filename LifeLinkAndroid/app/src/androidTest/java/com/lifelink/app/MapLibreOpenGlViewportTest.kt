@@ -1,5 +1,6 @@
 package com.lifelink.app
 
+import android.content.Context
 import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -56,7 +57,7 @@ class MapLibreOpenGlViewportTest {
         captureAndAssertViewport(context.filesDir)
     }
 
-    private fun initializeOpenGl(context: android.content.Context) {
+    private fun initializeOpenGl(context: Context) {
         MapLibre.getInstance(
             context.applicationContext,
             null,
