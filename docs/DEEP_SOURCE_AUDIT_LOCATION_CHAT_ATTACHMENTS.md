@@ -365,3 +365,89 @@ Do not claim the crash fixed until a reproduction or relevant code path is verif
 4. **P1 identity compatibility:** cover donor-row/user-ID variants in conversation, block, and push tests.
 5. **P1 Android crash:** locate actual module files and obtain stack trace/reproduction; patch only after root cause is supported.
 6. **P2 media feature:** private image attachment MVP, separate implementation PR and storage configuration review.
+
+
+
+## Finding 14 — Android source tree is now located; the chat entry path is request-card driven
+
+A repository-tree inspection located the Android files that earlier filename guesses missed:
+
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/privacy/ConversationScreen.kt`
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/privacy/PrivacyViewModel.kt`
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/navigation/LifeLinkShell.kt`
+- `LifeLinkAndroid/app/src/androidTest/java/com/lifelink/app/ConversationNavigationTest.kt`
+- `LifeLinkAndroid/app/src/test/java/com/lifelink/app/PrivacyViewModelTest.kt`
+
+This is a useful correction to the earlier evidence boundary: source files and navigation tests do exist, so the next pass can trace concrete UI state. It still does **not** establish the user's crash root cause without reproducing it or inspecting relevant ViewModel branches and device logs.
+
+### What the screen currently does
+
+The inspected `ConversationScreen`:
+- opens the conversation through `PrivacyAction.OpenConversation(requestId, donorId)` from a `LaunchedEffect(requestId, donorId)`;
+- starts an 8-second refresh loop only while lifecycle is RESUMED, and cancels the loop when lifecycle leaves RESUMED;
+- scrolls to the latest message whenever message count changes;
+- enables the composer when loading is false and conversation ID is non-null;
+- clears the draft immediately after dispatching SendMessage, before a confirmed server success;
+- displays a generic “Conversation unavailable” empty state when conversationId is null;
+- displays report/block controls inside the conversation.
+
+### Specific UI-state risks to inspect, not yet proven crash causes
+
+1. **Draft loss on failed send.** The UI clears draft immediately after action dispatch. If request fails due to timeout, offline state, 401/403, 409, or backend error, user may lose the unsent message. Recommended UX: retain draft until ViewModel reports success; expose sending/failed/retry states and avoid duplicate sends on retry.
+2. **Open action accepts potentially blank identifiers.** The screen dispatches OpenConversation directly from requestId/donorId without local nonblank validation. Confirm upstream navigation always guarantees valid IDs; otherwise guard before dispatch and show a recoverable state. Backend authorization remains mandatory.
+3. **Refresh polling cadence and error handling.** Polling every 8 seconds is lifecycle-aware, but verify overlapping requests cannot accumulate if one refresh takes longer than 8 seconds, and ensure transient failures do not replace a valid thread with an unrecoverable error.
+4. **Auto-scroll behavior.** Every message-count change animates to the bottom. This may pull users away from older history while they are reading. Consider auto-scroll only when already near bottom or when the current user sends a message; provide a “new messages” affordance when scrolled up.
+5. **Safety action after closure/block.** The screen shows report/block and contact-share UI whenever the chat is ready. Server must determine whether those actions are allowed; UI visibility alone is not authorization. Ensure state reflects blocked/closed request and does not leave contact share enabled if backend rejects it.
+
+## Finding 15 — Existing Compose navigation tests cover entry points, but not the reported post-submit tab crash
+
+The Android instrumentation test `ConversationNavigationTest.kt` contains meaningful checks:
+- requester opens chat from a matched contact card;
+- donor opens chat from an accepted/arrived request;
+- state restoration causes conversation-open action to be dispatched again;
+- requester chat requires a request ID and uses the saved result ID over matching fallback;
+- message action visibility is tied to contact/request states;
+- map top-level navigation and loading/error/empty states are tested.
+
+These tests are **not evidence of the user's reported crash being covered**. The test currently opens chat through request/contact card actions, and its state-restoration assertion expects OpenConversation to be invoked twice after restoration. The reported scenario is different: send a request, then tap the Chat/messages destination/tab and crash.
+
+### Missing regression scenario to add after root cause is understood
+
+- Submit a requester emergency request successfully.
+- Transition through matching/loading/results with the exact returned request ID.
+- Navigate to Chat/messages tab (not only the contact-card Message button).
+- Exercise no-conversation, conversation-loading, failed-open, and successful-open states.
+- Repeat after process/activity restoration and account/role switch.
+- Assert no crash, no stale request/donor IDs, and a visible recoverable state.
+- Include backend error fixtures (401/403/404/409/5xx) and network timeout.
+- Prefer deterministic fake repository/state tests plus a small navigation integration test; do not make every PR depend on flaky external UI or live backend tests.
+
+### State-restoration caution
+
+Because the current Compose test deliberately verifies that restoring state triggers another OpenConversation action, inspect whether `PrivacyViewModel` makes opening idempotent and whether duplicate requests are deduplicated/cancelled. Restoration may legitimately re-fetch, but it should not create duplicate conversation rows or concurrent polling jobs.
+
+## Finding 16 — Screen behavior suggests a product/UI distinction: chat is request-scoped, not a universal inbox
+
+The inspected conversation screen requires both `requestId` and `donorId`, and the tests open it from matched requester contact cards or accepted donor requests. This supports a request-scoped conversation model. It does **not** establish that a generic fourth-tab inbox can safely navigate without a request/conversation identifier.
+
+Before moving Chat into a persistent bottom-navigation destination:
+- define whether it is a conversation list/inbox or a direct active-request chat destination;
+- if inbox, list conversations server-side for the authenticated account and navigate by opaque conversation ID (then backend resolves participants and request context);
+- if only active request chat, retain request/donor identity requirements and provide an empty/disabled state when no eligible request exists;
+- never manufacture a request ID from local selection or trust a client-supplied donor ID as authorization;
+- preserve role-specific navigation but keep the same server participant checks.
+
+This matters for the user's earlier request to replace the Alerts tab with Chat: simply pointing a global tab at the current ConversationScreen may cause missing-ID crashes or wrong-thread access. The proper UI depends on a real conversation-list endpoint/state model.
+
+## Updated Android evidence status
+
+| Evidence | Status |
+|---|---|
+| Conversation screen source | Located and partially inspected |
+| Compose entry/navigation tests | Located; tests request-card entry and state restoration |
+| Reported crash after request submit → Chat tab | Still not reproduced or traced |
+| PrivacyViewModel action/error handling | Next source inspection required |
+| Main shell tab route and saved state | Next source inspection required |
+| Android physical device crash logs | Not available in this research pass |
+
+**Next focused pass:** inspect `PrivacyViewModel.kt`, `LifeLinkShell.kt`, `PrivacyRepository.kt`, and the relevant `PrivacyViewModelTest.kt` cases around OpenConversation, request submission, and account switching. Then map the actual user-reported sequence to a missing state or exception. No crash fix should be claimed until this is done.
