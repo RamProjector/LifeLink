@@ -1105,3 +1105,98 @@ This directly relates to your earlier requirement: responders/drivers should upd
 - No acknowledgment; offline assigned member; two team members updating; duplicate status update; stale update; unauthorized role; failed response after commit; handoff; team goes off duty; assignment changes during status update.
 
 **Evidence level:** This is a workflow proposal aligned to your stated operational model. The precise current assignment/status implementation still needs a targeted backend+UI trace. No code changed.
+
+## Findings 41–46 — LifeLink requester/donor/admin cross-role what-if audit (4 Nov 2026)
+
+### Finding 41 — Correct LifeLink role model (correction to prior TACResQ mix-up)
+LifeLink's actual backend enum in `lifelink_fastapi/app/db_models.py` contains **REQUESTER** and **DONOR**. TACResQ-specific driver/dispatcher roles do not belong in LifeLink's role matrix. The admin console is a separate privileged capability surface, not a third ordinary enum role: `docs/ADMIN_CONSOLE.md` says user management handles requester/donor capabilities but cannot assign admin status, delete accounts, or disable authentication identities. Admin access uses a separate server-side verification/allowlist path.
+
+Also distinguish a profile's `can_request`/`can_donate` capabilities from its single `role` label. Public profile updates must never grant admin privilege. LifeLink's source/docs describe the blood-request/donation matching workflow, so the what-ifs below use that actual domain.
+
+**Sources:** `lifelink_fastapi/app/db_models.py` (`LifeLinkRoleEnum`); `lifelink_fastapi/app/main_postgres.py` profile upsert; `docs/ADMIN_CONSOLE.md`; `PROJECT_GUARDRAILS.md`.
+
+### Finding 42 — Donor availability has several independent eligibility gates
+Source trace:
+- `DonorAvailability` defines AVAILABLE, PAUSED, OFFLINE in `lifelink_fastapi/app/donor_api.py`.
+- `SqlAlchemyDonorStore.set_availability()` commits the availability change, then best-effort recomputes matches when going available. Recompute failure is logged but does not undo the saved availability.
+- New donor rows are initialized `verified=False`; client-supplied verification is not trusted. Profile save preserves server verification.
+- `DonorViewModel` explicitly warns that Available may still not match if edits are unsaved, donor is unverified, profile hidden, or location stale.
+- Donor profile edits and availability changes can trigger match recomputation.
+
+**Cross-role what-ifs:** donor taps Available with unsaved blood-type/location edits; available-but-unverified/hidden/stale donor does not appear; recompute fails after availability commit; donor changes blood type/radius after requester sees a match; donor pauses/offlines after an accepted contact.
+
+**Recommendation:** represent profile setup, verification, map visibility, availability, location freshness, match eligibility, and accepted contact separately. Explain the specific reason matching is unavailable. Do not equate pause/offline (stop new matching) with cancellation of an already accepted contact unless the policy explicitly says so.
+
+**Tests:** all combinations of availability × verification × visibility × freshness × unsaved edits; recompute failure after committed availability; profile change while matched; pause/offline with active contact.
+
+**Evidence:** source-confirmed state and UI messages; production recomputation timing/reliability unverified.
+
+### Finding 43 — Donor response versus requester cancellation/fulfillment is a cross-role race
+`SqlAlchemyDonorStore.respond()` loads donor match/request, rejects self-response, expires overdue requests, and rejects cancelled/expired/fulfilled request states. It maps accepted/arrived to CONFIRMED and declined to DECLINED, records response time, updates an existing donor-contact row, then commits. Push notification is sent afterward. Android donor response uses a durable-write callback to reduce cancellation on quick sign-out/ViewModel teardown.
+
+**What-ifs:** donor accepts while requester cancels on another device; requester cancels after acceptance but before push; request expires between inbox refresh and Accept; another donor fulfills while a second donor accepts; donor declines after prior acceptance; response commits but push fails/delays; delayed “accepted” push arrives after request closure; duplicate accept/retry after timeout.
+
+**Risk:** the method checks request state before writing. A read-then-write lifecycle check may race with concurrent cancel/fulfill unless transaction isolation, row locking, or conditional update makes it atomic. This is a **testable concurrency risk, not a confirmed bug**.
+
+**Recommendation:** terminal request state must win; stale response returns conflict/closed state and refreshes inbox; notification is a hint only; opening request reloads authoritative state. Decide explicitly whether accepted→declined/withdrawn is allowed (the request model accepting response strings does not prove the transition policy). If allowed, record reason/history and notify requester.
+
+**Tests:** simultaneous accept/cancel; accept/fulfill by another donor; duplicate accept; accept after expiry; decline after accept; push failure after commit; delayed push after terminal state; retry after client timeout.
+
+**Evidence:** source-confirmed state checks and write sequence; DB race behavior and transition policy unverified.
+
+### Finding 44 — Donor response is not contact consent or completed donation
+The helper `apply_donor_response_to_contact()` explicitly says acceptance must not be treated as contact disclosure. The lifecycle has distinct stages: match → donor response → contact relationship/consent → phone/email sharing and/or location sharing → meeting/appointment → fulfillment outcome.
+
+**What-ifs:** donor accepts but requester never initiates contact; requester shares phone/email but donor prefers in-app contact; donor accepts while exact-location sharing is off/revoked; donor arrives but requester cancels/no-shows; one donor fulfills only part of requested units; request marked fulfilled while another donor contact is still active; requester and donor disagree about meeting/fulfillment; accepted badge persists after terminal request or block/report.
+
+**Recommendation:** maintain distinct statuses/event history for match eligibility, donor response, contact consent, contact-detail sharing, exact-location sharing, meeting/appointment, donation outcome, and request-level completion. Do not imply medical eligibility, compatibility, or donation completion from an app response; facility/clinical process remains authoritative.
+
+**Tests:** acceptance without consent; consent revoked; location share disabled; partial fulfillment; terminal request with active contact; block/report after accept; conflicting fulfillment actions.
+
+**Evidence:** backend helper and entities support separation; exact end-to-end UI semantics need verification.
+
+### Finding 45 — Requester edits/cancel/fulfill must converge with donor inbox and cached cards
+This extends existing Findings 31–34 (request editing/multiple active requests) to the donor side:
+- requester corrects blood type, units, urgency, facility/location after donor match/acceptance;
+- requester cancels while donor inbox is cached;
+- requester changes location while donor is arranging contact;
+- request expires/fulfills while donor is offline, then donor opens an old card;
+- donor opens delayed notification and accepts stale details;
+- requester creates replacement request while old donor contacts remain.
+
+The donor inbox repository filters requests to active status and unexpired deadline server-side. Android `DonorViewModel` polls about every 30 seconds and wraps periodic refresh in `runCatching`, so an already-rendered card can remain stale until refreshed and periodic failures may not be visible.
+
+**Recommendation:** response action must revalidate request (the server method already does); stale/closed response should show a conflict and refresh. Notifications are best-effort only. Version critical request fields; if edits affect eligibility/commitment, either require donor reconfirmation or reject stale responses. Preserve old request/contact audit rather than silently mutating a prior commitment.
+
+**Tests:** cancel/edit while donor offline; edit after accept; stale notification; stale version response; partial fulfillment; new request after cancellation; restore/history/inbox reconciliation after sign-in.
+
+**Evidence:** source-confirmed server inbox filters and ~30-second Android polling; instant convergence/versioned edit behavior not verified.
+
+### Finding 46 — Admin intervention must not impersonate requester or donor
+Admin is not an ordinary profile role. Future verification, abuse report, donor restriction, or request moderation must be represented as a privileged action with its own actor and audit event.
+
+**Admin × requester/donor what-ifs:** admin verifies donor while profile/availability changes; admin suspends donor after match/acceptance; admin investigates conversation report; admin flags request without silently rewriting requester-submitted facts; audit storage fails; admin privilege revoked while console remains open; admin accesses exact location/contact unnecessarily; admin notification leaks sensitive information.
+
+**Recommendations:** use distinct admin actor/event types; define whether suspension blocks new matches, existing conversations, exact-location sharing, or all account access; enforce immediately server-side; minimize moderation evidence and audit metadata; re-check admin authorization on every request; clear console state on sign-out/revocation; audit sensitive reads as well as writes. Consider reversible/appealable controls for high-impact restrictions.
+
+**Tests:** profile API admin spoof; revoked admin token; concurrent verification/profile edit; suspension during accepted contact; audit failure; unauthorized sensitive read; admin action versus donor/requester update race.
+
+**Evidence:** role enum/admin docs establish separation; specific moderation impact on active contacts remains unverified/product policy.
+
+### Cross-role acceptance matrix
+| Actor / event | Other actor / timing | Required invariant |
+|---|---|---|
+| Requester cancels | Donor accepts concurrently | No new acceptance after terminal state; conflict + refresh |
+| Requester fulfills | Donor has stale inbox | Closed request cannot accept a response |
+| Donor pauses/offlines | Requester already has accepted contact | New matching stops; existing-contact policy remains explicit |
+| Donor changes blood type | Requester sees old match | Match re-evaluates; stale card cannot silently accept |
+| Donor accepts | No contact consent yet | Acceptance alone exposes no phone/email/exact location |
+| Donor revokes location | Requester is viewing pin | Subsequent reads deny; stale UI clears on refresh |
+| Requester edits critical fields | Donor accepted prior version | Reconfirm or reject stale response per explicit policy |
+| Admin suspends donor | Active relationship exists | Defined, immediate, server-enforced, audited policy |
+| Admin loses privilege | Console remains open | Next privileged API call denied |
+| Push is delayed | Request is cancelled/fulfilled | Push is a hint; opening reloads current state |
+
+**Priority:** exercise these as lifecycle/security integration tests before expanding attachments, notifications, or map work. Mock-only unit tests cannot prove transaction races.
+
+**Change log:** 2026-11-04 — corrected role confusion and added LifeLink-specific requester/donor/admin cross-role scenarios. Documentation only; no app code/deployment changes.
