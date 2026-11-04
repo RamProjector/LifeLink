@@ -451,3 +451,72 @@ This matters for the user's earlier request to replace the Alerts tab with Chat:
 | Android physical device crash logs | Not available in this research pass |
 
 **Next focused pass:** inspect `PrivacyViewModel.kt`, `LifeLinkShell.kt`, `PrivacyRepository.kt`, and the relevant `PrivacyViewModelTest.kt` cases around OpenConversation, request submission, and account switching. Then map the actual user-reported sequence to a missing state or exception. No crash fix should be claimed until this is done.
+
+
+## Finding 17 — ViewModel generation guards prevent stale chat responses, but open/refresh/send still have concurrency gaps worth testing
+
+The actual `PrivacyViewModel.kt` is now inspected. It has a `conversationGeneration` token and cancels the prior `conversationRefreshJob` when starting a refresh. Open results and several mutation results compare their captured generation before updating UI. This is a real safeguard against an old conversation response replacing a newly opened conversation.
+
+### Confirmed implementation strengths
+- Opening a new conversation increments the generation and clears old conversation ID/messages/contact shares before the request starts.
+- A failed open leaves conversation ID null rather than retaining the previous thread.
+- Message-send, saved-message, and contact-share responses check the captured generation before updating UI.
+- The refresh job is cancelled before a replacement refresh starts.
+- The ViewModel exposes a conversation list and loading/error state, which suggests a list/inbox capability exists at the state/repository level even though the inspected ConversationScreen itself is request-scoped.
+
+### Remaining race / state defects to investigate
+
+**A. OpenConversation can overlap with a prior refresh**
+The generation is incremented at the beginning of open, but the old `conversationRefreshJob` is only cancelled inside `refreshConversation()`, after the new openConversation request succeeds. An older refresh may continue doing network reads while a new open request is pending. The generation check prevents its final UI update, but it can waste network work and briefly complicate state transitions. Cancel the old refresh immediately when opening a different thread, and test open-A → open-B while A's message/share reads are blocked.
+
+**B. Refresh is sequential but partial failure is silently converted to empty lists**
+The refresh path uses `getOrDefault(emptyList())` for messages and contact shares, and a fallback for saved messages. If a transient messages endpoint failure occurs, the screen can replace a populated conversation with an empty list without displaying an error. This is a high-impact trust/UX defect: users may think their messages disappeared. Preserve last-known data on read failure and expose per-section refresh/error state; distinguish a legitimate empty response from failed retrieval. Add tests for message-read failure, contact-share failure, and saved-message failure separately.
+
+**C. send action is not guarded against duplicate taps in ViewModel**
+The screen exposes `sending`, but the ViewModel's `sendMessage()` does not reject a second send while `sending == true`. A fast double tap or duplicate action can create two server messages. Add an atomic/in-flight guard keyed to conversation generation and message operation, disable the composer while sending, and test double dispatch. Consider idempotency keys on the backend for retry/network ambiguity; UI guards alone cannot guarantee exactly-once delivery.
+
+**D. Refresh/send completion state race**
+Send success sets `sending=false` then triggers a refresh. A refresh can also be running from the periodic screen effect. Verify concurrent refreshes are deduplicated/cancelled consistently, especially if one is slow. Consider one shared refresh coordinator with a single-flight policy per conversation ID.
+
+**E. Cross-conversation operation state**
+The generation guards prevent old send results from updating the new thread, but the old request still runs until completion. Confirm opening a new thread immediately resets `sending` and any contact-share/report/block transient UI state; otherwise the composer may stay disabled or show a stale message while the new conversation is ready. Add open-A → send-A pending → open-B tests.
+
+## Finding 18 — Shell has a request-scoped conversation overlay and a separate Chat-history destination; these are not yet the same feature
+
+The inspected `LifeLinkShell.kt` maintains `showConversation`, `conversationRequestId`, `conversationDonorId`, and `conversationOpenedFromDonor` as saveable state. The request-specific conversation is opened only when both IDs are nonblank. The shell also includes a separate `ShellTab.MESSAGING` destination and text labeled “Chat history.”
+
+This corrects the earlier design assumption: there is a separate messaging/history destination in the shell, not just the request-scoped conversation screen. The remaining research task is to inspect its list content and click route. The reported “tap the message tab crashes after sending a request” could originate in that destination or its state restoration, rather than the request-scoped chat screen.
+
+### Important test targets for shell navigation
+- Messaging tab with zero conversations and no request ID.
+- Messaging tab with one or several conversations; click each row and verify it opens the matching request/donor thread.
+- Tab switch while a conversation is open; ensure the request-scoped overlay and tab selection do not conflict.
+- Send request → navigate to messaging tab → open chat, with submission states Idle/Saving/Submitting/Matching/ManualFallback/QueuedOffline/Error.
+- Back button from conversation returns to the exact originating workspace and selected tab.
+- Activity/process restoration with blank, stale, or partially restored conversation route fields.
+- Switch account/role while conversation is open; ensure no prior user’s conversation state or polling survives.
+- Rapid repeated tab clicks and repeated conversation-row clicks; verify one navigation and no duplicate OpenConversation requests.
+
+## Finding 19 — Android platform guidance reinforces a lifecycle/state separation, not a direct crash diagnosis
+
+Current Android guidance recommends keeping business/data logic in ViewModels, collecting state lifecycle-aware, and saving small navigation/UI identifiers through saved-state APIs when process recreation matters. Compose effects are tied to composition and should own work that belongs to that UI element. These are architecture principles, not evidence that LifeLink violates them in a specific crashing line.
+
+Sources:
+- Android Developers, [Compose and other libraries](https://developer.android.com/develop/ui/compose/libraries): ViewModel ownership/scoping and Compose effects.
+- Android Developers, [Lifecycle in Jetpack Compose](https://developer.android.google.cn/topic/libraries/architecture/lifecycle?hl=en): lifecycle-aware state collection and effect ownership.
+- Android Developers, [Save UI states](https://developer.android.google.cn/topic/libraries/architecture/saving-states?hl=en): distinguish ViewModel memory from state that survives process death.
+- Android Developers, [State hoisting](https://developer.android.com/develop/ui/compose/state-hoisting): keep state at the lowest common owner and expose immutable UI state/actions.
+
+### Applying this to LifeLink (research recommendation)
+- Persist only stable routing identifiers (conversation ID/request ID and source workspace/tab), not message lists or exact location data in saved instance state.
+- On restoration, re-authorize/re-fetch thread data from the server; never treat restored IDs as permission.
+- Make shell route state a single sealed destination or validated route object rather than multiple loosely coupled booleans/strings if inspection confirms contradictory combinations are possible.
+- Keep request-specific conversation and messaging inbox navigation distinct and explicit.
+- Do not use platform architecture guidance as a substitute for crash logs or reproducing the actual user sequence.
+
+## Updated next-step priority
+
+1. Inspect the full `ShellTab.MESSAGING` content and click handler; this is now the most relevant unexplored crash path.
+2. Add ViewModel tests for failed reads preserving last-known messages, double-send suppression, and open-A/send-A/open-B races.
+3. Reproduce the exact post-submit tab navigation with request states and capture Logcat exception + stack trace.
+4. Only then implement the narrowest correction, with manual UI validation and existing non-flaky regression tests.
