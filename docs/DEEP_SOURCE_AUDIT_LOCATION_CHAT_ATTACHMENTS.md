@@ -939,3 +939,169 @@ This does **not** prove data loss: the server history can still contain requests
 - Offline queued draft plus restored active request; preserve both concepts without conflating draft and server-active request.
 
 **Status:** Confirmed repository behavior; multi-active UX and server policy still require product decision. No code changed.
+
+
+## Finding 35 — Expiry sweeper delay, stale status, and “what if the request expires while the user is looking at it?”
+
+### Source-confirmed behavior
+- Backend request expiry is status/deadline based in `lifelink_fastapi/app/expiry.py`; active statuses are `matching`, `awaiting_responses`, `partially_fulfilled`, and `manual_broadcast`.
+- `main_postgres.py` starts a periodic expiry sweep (default interval 300 seconds, configurable), and lazy read paths also apply the expiry rule.
+- Android active-request status polling is periodic (30 seconds in the inspected ViewModel). A failed refresh can leave a previously displayed state available; exact user-visible stale duration depends on connectivity and the UI state path.
+- Therefore, do not describe the sweep interval as a guaranteed 5-minute stale window: a read can expire a request earlier, while network/app failure can delay the client learning the terminal state.
+
+### What-if cases
+1. Request deadline passes while requester is viewing Active Request.
+2. Request deadline passes while responder is accepting/responding.
+3. Request expires while app is backgrounded, killed, or offline.
+4. Sweeper is delayed, crashes, or has a backlog.
+5. Device clock is wrong or timezone changes; server deadline remains authoritative.
+6. User taps cancel/fulfill at the same moment as expiry.
+7. Request appears active from cache but backend already considers it expired.
+
+### Recommended behavior (proposal, not implemented)
+- Treat backend state and server time as authoritative for every mutation; client countdown is informational only.
+- Show a compact “last checked” / stale indicator when status cannot be refreshed; do not imply the request is currently active if status is unknown.
+- On a terminal response, immediately disable active-only actions and refresh request history.
+- On failed status refresh, distinguish “couldn’t verify status” from “no active request.”
+- Add operational monitoring for sweep duration, failures, backlog, and expired-row counts; alert on sustained failure instead of relying only on log messages.
+- Avoid queuing time-sensitive emergency actions offline for automatic replay. Android guidance distinguishes online-only writes for near-real-time transactions from queued writes for non-time-sensitive work; critical status transitions need explicit failure feedback and conflict handling. Source: Android Developers offline-first write strategies and synchronization guidance: <Cite refs={["turn260011search0","turn260011search3"]}/>
+
+### Regression scenarios
+- Expiry while active screen open; expiry while backgrounded; app relaunch after deadline.
+- Deadline immediately before/after cancel, fulfill, responder accept, and location-share creation.
+- Sweep disabled/failing/backlogged while a read occurs; confirm read-path expiry behavior.
+- Device clock skew, UTC/naive timestamps, timezone change, daylight-saving transition.
+- Status request timeout: cached request must become “unverified/stale,” not falsely “active.”
+- Verify terminal status prevents new active-only writes server-side, even if the client button is still visible.
+
+**Evidence level:** Expiry policy and periodic sweeper are source-confirmed. Specific stale UI behavior under all failure modes needs runtime verification. No code changed.
+
+## Finding 36 — “What if an emergency is cancelled, fulfilled, or expired but chat/contact/location actions still exist?”
+
+### Why this is a cross-feature edge case
+Request lifecycle, conversation lifecycle, contact sharing, and location sharing are separate capabilities. A terminal request should not automatically be assumed to revoke every capability unless each endpoint and client path explicitly enforces that policy.
+
+### What-if cases
+1. Requester cancels, but responders still see an active chat or can send messages.
+2. Request is fulfilled, but someone tries to share new contact details or exact location.
+3. Request expires while an accepted responder is offline and later reconnects.
+4. A notification arrives after cancellation/fulfillment and opens an obsolete conversation.
+5. User can still read prior chat but attempts a new message after request closure.
+6. A location share is revoked, but an old notification or cached UI still offers a location action.
+7. A late or duplicated request mutation races with cancellation.
+8. Non-participant guesses/obtains a request or conversation ID and tries to access it.
+
+### Recommended policy to decide explicitly
+- Define a per-capability matrix for request states: view request, view historical chat, send message, share/reveal contact, reveal exact location, cancel, fulfill, responder update.
+- Re-check authorization and request state on the server for every sensitive operation; UI hiding is not access control.
+- Decide whether terminal conversations are read-only, retained for a defined policy period, or closed. Preserve historical evidence only under a documented retention/privacy policy.
+- Revoke request-scoped exact-location shares promptly on terminal transitions; do not assume a previously displayed location can be “unseen.”
+- Notifications are navigation hints, never authorization. On open, re-fetch the request/conversation and show a safe closed-request fallback when unavailable.
+- For any late mutation, return a clear conflict/terminal result instead of silently succeeding or resurrecting the request.
+
+### Regression matrix
+- For each terminal status (cancelled, fulfilled, expired), test every action in the capability matrix.
+- Owner, assigned responder, unassigned responder, unrelated authenticated user, and signed-out user.
+- Direct API call after terminal status, not only button visibility.
+- Terminal event racing with message send, contact-share, location-share, and responder update.
+- Delayed notification after terminal transition; app process killed/restarted; stale inbox cache.
+- Repeated cancel/fulfill/expire and idempotent retry.
+- Verify location-share revocation is enforced server-side and does not rely solely on the UI/sweeper.
+
+**Evidence level:** The repository has request expiry and request-scoped location-share enforcement mechanisms, but I have not yet established that every chat/contact endpoint has identical terminal-state gates. Treat this as a high-priority audit question, not a confirmed vulnerability. No code changed.
+
+## Finding 37 — “What if the user submits twice because the first request looks stuck?”
+
+### Risk scenario
+A requester taps submit, sees a spinner/network error, taps again, or retries after app restart. The first submission may have reached the server even though the client never received its response. This can create duplicate emergency records or confusingly separate chats unless idempotency is consistent end-to-end.
+
+### Current source note
+- Android submission uses an `Idempotency-Key` header (confirmed in the inspected API path).
+- This is a positive safeguard, but the header alone does not prove server persistence, uniqueness scope, payload mismatch behavior, or that retries reuse the same key. Those must be verified in the backend route/store and tests.
+
+### Recommended safeguards
+- Generate one stable idempotency key per logical submit attempt and reuse it for network retries of that same submission; generate a new key only for a genuinely new incident.
+- Backend should atomically persist key + outcome, scoped to authenticated requester and operation; return the original outcome on replay.
+- If same key is reused with a materially different payload, reject as conflict rather than silently returning/overwriting.
+- UI should show “sending / submitted / unable to confirm” distinctly. A timeout is not proof the request failed.
+- Provide a recovery action to check whether the request exists before asking user to submit a second one.
+
+### Tests
+- Double tap; timeout after server commit; response lost; process killed after request reaches server; retry after reconnect; same key/same payload; same key/different payload; two devices submitting simultaneously; new incident with new key; account switch with pending submission.
+- Confirm duplicate submissions do not create multiple requests/conversations or notify responders twice.
+
+**Evidence level:** Client header is source-confirmed; backend idempotency semantics still need direct route/store and test inspection. No code changed.
+
+## Finding 38 — “What if the requester changes their mind about the emergency category, urgency, or location after dispatch has begun?”
+
+This expands the previously documented missing active-request edit flow into dispatch safety and concurrency.
+
+### What-if cases
+- User corrects a typo that has no dispatch impact.
+- User changes location, severity, emergency type, or callback details after responders have acted.
+- Responder is viewing old request data while requester submits a correction.
+- Two edits arrive from different devices, or an edit races with cancellation/fulfillment.
+- A correction makes the original assignment inappropriate or invalid.
+
+### Proposed design
+- Classify editable fields by dispatch impact: low-impact correction vs dispatch-critical change.
+- Keep same request ID and audit old/new values, actor, timestamp, and reason; never silently overwrite history.
+- Use server-side version/ETag optimistic concurrency to reject stale edits and ask the client to reload.
+- Dispatch-critical edits should trigger a prominent update to assigned responders and require an explicit acknowledgment when the operational workflow needs it.
+- Do not automatically change assignment/leader or invent a dispatcher role as part of request editing.
+- Terminal requests should not be editable; use a clearly linked follow-up/new request when reopening is not supported.
+- If a location is corrected, immediately make the new location authoritative while clearly marking old coordinates as superseded; avoid broadcasting old exact coordinates again.
+
+### Tests
+- Concurrent edits from two clients; stale version; location correction after responder acknowledgment; urgency correction; edit/cancel race; edit/fulfill race; edit after terminal state; notification delivery failure; audit privacy and redaction.
+
+**Evidence level:** Active requester edit is absent from the inspected Android requester API/screen path (previous findings 31/33). The impact classification and workflow are proposals requiring product/dispatch policy approval. No code changed.
+
+## Finding 39 — “What if the phone has GPS permission but location is inaccurate, stale, or unavailable?”
+
+### What-if cases
+- Permission granted but device location services disabled.
+- GPS fix is old, low accuracy, or from a different place than current.
+- Indoor/urban-canyon location is inaccurate; user is moving.
+- User manually pins a location but the app later overwrites it with GPS.
+- User denies precise location but wants to submit an emergency.
+- Map tiles/network fail while location coordinates are available.
+- User submits a request with a location that is not actually the emergency location (e.g., home/current phone location vs incident location).
+
+### Proposed safeguards
+- Separate “phone’s current location” from “emergency location”; label both concepts clearly.
+- Display accuracy and freshness where meaningful, plus a confirm/edit map preview before submit.
+- Never silently replace a user-confirmed pin with a later GPS fix.
+- Provide address/landmark/coordinate fallback and a clear “location unavailable” state; don’t block emergency submission solely because map tiles failed if the product supports a safe manual location path.
+- For stale or poor-quality fixes, ask the user to confirm rather than presenting them as precise.
+- Keep precise location disclosure scoped to the request and recipient policy; do not expose it in inbox previews or generic notifications.
+
+### Tests
+- GPS disabled, permission denied/approximate-only, stale fix, low accuracy, provider unavailable, map offline, manually selected pin then GPS refresh, app background/resume, coordinate/address mismatch, and location update after request submission.
+
+**Evidence level:** This is a product/system risk analysis. Specific current GPS freshness/accuracy handling requires a focused source pass through the Android location/map code. No code changed.
+
+## Finding 40 — “What if the responder is assigned but never acknowledges, loses connection, or goes off duty?”
+
+This directly relates to your earlier requirement: responders/drivers should update the status of the assigned request simply, without manually selecting a “leader” or pretending the team is scattered.
+
+### What-if cases
+- Request appears assigned but nobody acknowledges it.
+- Assigned responder goes offline or leaves duty mid-response.
+- Several responders are on duty together and one person updates status while another has stale UI.
+- A responder marks “en route” accidentally or prematurely.
+- Responder cannot complete the task but no clear handoff exists.
+- Status update reaches server but not requester; or UI says update failed after server accepted it.
+
+### Proposed workflow (for review, not implementation)
+- Model the operational unit/team assignment separately from an individual user’s account when the real-world workflow is team-based.
+- Keep status transitions simple and role-authorized; don’t require a “leader” selection unless the real dispatch process explicitly needs one.
+- Define acknowledgement and timeout behavior: unacknowledged assignment should be visibly pending and escalated/reassigned by an authorized dispatcher/team process—not silently treated as accepted.
+- Include actor/time/source in status history. Current status alone is insufficient to reconstruct who changed it.
+- Make status writes server-authoritative and idempotent; stale/offline updates must not overwrite a newer status.
+- Define allowed transitions (e.g., assigned → acknowledged → en route → on scene → completed, with explicit exception/cancel/unable-to-respond paths) according to actual emergency operations policy, not generic app assumptions.
+
+### Tests
+- No acknowledgment; offline assigned member; two team members updating; duplicate status update; stale update; unauthorized role; failed response after commit; handoff; team goes off duty; assignment changes during status update.
+
+**Evidence level:** This is a workflow proposal aligned to your stated operational model. The precise current assignment/status implementation still needs a targeted backend+UI trace. No code changed.
