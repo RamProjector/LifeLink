@@ -520,3 +520,79 @@ Sources:
 2. Add ViewModel tests for failed reads preserving last-known messages, double-send suppression, and open-A/send-A/open-B races.
 3. Reproduce the exact post-submit tab navigation with request states and capture Logcat exception + stack trace.
 4. Only then implement the narrowest correction, with manual UI validation and existing non-flaky regression tests.
+
+
+## Finding 20 — The Messaging inbox is a separate route with its own loading and notification-open effects
+
+**Inspected source:** `LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/privacy/MessagingScreen.kt` and the `ShellTab.MESSAGING` branch in `LifeLinkShell.kt`.
+
+The actual top-level Messages tab renders `MessagingScreen`; this is distinct from the request-scoped `ConversationScreen` overlay.
+
+Observed behavior:
+- `MessagingScreen` dispatches `PrivacyAction.LoadConversations` from `LaunchedEffect(Unit)` when the screen enters composition.
+- It supports loading, error/retry, empty inbox, and conversation-list states.
+- A notification target is transformed into a conversation ID plus event ID. The screen waits until loading ends and the matching conversation exists, then opens it by request ID/donor ID.
+- Selecting a list row also opens by request ID/donor ID; the row does not pass the conversation ID directly to the shell.
+- The screen's list key is `conversation.conversationId`, which is stable and appropriate for lazy-list identity.
+
+### Product/UI issues verified in source
+- Inbox rows display a truncated opaque conversation ID as the primary title and avatar initials, and a truncated request ID as secondary text. This is not a human-readable participant identity and gives users little context for selecting the correct thread.
+- The list displays only a raw last-message timestamp (or “No messages yet”); it does not show message preview, unread count/state, participant display name, or a meaningful request summary.
+- The header says messaging is with “matched donors and requesters,” while the empty-state copy says messaging becomes available after a “matched donor or requester accepts a contact request.” This terminology should be checked against the actual supported relationship states and role combinations; it risks teaching the wrong prerequisite.
+- A notification target that never matches a loaded conversation is silently ignored after loading ends. There is no explicit “conversation not found / access expired” feedback in this composable. The route should fail visibly and safely rather than leave the user on a seemingly unrelated inbox.
+- Inbox loading is initiated by a one-time composition effect. This is appropriate for entry-triggered loading, but refreshing after returning to the tab, after a new contact relationship becomes eligible, or after process restoration depends on whether the screen re-enters composition and whether the ViewModel owns refresh policy. This should be tested explicitly rather than assume every tab visit refreshes.
+
+**Recommendation:** improve inbox row identity using the authorized participant display name (or safe fallback), a short request label/reference, a message preview and timestamp, and a clear unread indicator only if the backend actually exposes unread state. Do not derive unread state from timestamps or fabricate it client-side. Add explicit handling for notification targets that cannot be resolved after a successful inbox load. Keep the list row opening request/donor identifiers only if that pair is the canonical server-authorized route.
+
+## Finding 21 — The inbox notification effect is state-driven, but “not found” and stale-target cases are untested
+
+In `MessagingScreen`, the notification effect keys on the notification key, the conversation list, and its loading flag. It records a target as handled only after finding a matching conversation. This makes it possible for the effect to retry as the list changes, which is good. However, after loading completes without a match, no user-visible outcome is produced.
+
+Risk cases to test:
+1. Notification points to a conversation deleted, closed, revoked, or no longer visible to this account.
+2. The target is valid but inbox loading fails; the existing error/retry UI should not accidentally open stale target data.
+3. User switches account/role while a notification target remains in shell state; ensure no previous account's conversation is opened.
+4. The same conversation ID receives two notification events; event ID should distinguish them if event-specific behavior is intended, without repeatedly navigating on unrelated recompositions.
+5. Notification destination changes while the inbox is already loaded.
+6. Notification target is malformed or has blank/missing components.
+
+**Recommendation:** define the notification destination contract centrally (typed destination or validated parser), clear/consume stale notification targets when account identity changes, and surface a safe fallback for an unresolved target. Re-authorize server-side on opening; a notification ID is a navigation hint, never an authorization credential.
+
+## Finding 22 — The current navigation tests prove contact-card chat entry, not the user's request-submit → Messages-tab sequence
+
+The existing `ConversationNavigationTest` covers requester contact-card entry, donor accepted-request entry, restoration, and back navigation. Its helper renders a synthetic accepted contact result and records `PrivacyAction.OpenConversation`. It does **not** exercise:
+- completing/submitting an emergency request and then selecting the top-level Messages tab;
+- inbox load success/error/empty transitions through the real shell;
+- the `MessagingScreen` row click through the shell overlay and back;
+- a stale or empty `PrivacyUiState` after request submission;
+- a notification-targeted inbox entry;
+- account identity changes while inbox/chat is retained;
+- crash/exception assertions or captured Logcat from the reported sequence.
+
+The existing tests are useful coverage, but they cannot establish that the reported crash is absent. The code path now narrows the likely investigation: shell navigation into `ShellTab.MESSAGING` → `MessagingScreen` composition → `LoadConversations` ViewModel action → repository conversation-list call and its state/error mapping → row selection/open conversation. The exact crash remains **unconfirmed** until an exception stack trace or reproducible failing test identifies the throwing line.
+
+### Proposed deterministic regression suite (no broad/flaky UI automation required)
+- ViewModel test: `LoadConversations` success populates inbox and clears prior error.
+- ViewModel test: failure preserves prior inbox data (if policy permits) and exposes a retryable error; do not silently replace real data with empty.
+- ViewModel test: account/session change invalidates pending inbox and chat completions.
+- Compose/shell test: request-submit completion → tap Messages → loading then empty/list state, with no crash.
+- Compose/shell test: inbox row → request-scoped conversation → back returns to Messages, not an unrelated request screen.
+- Compose/shell test: notification target missing from loaded inbox produces visible safe fallback.
+- Manual reproduction: capture the complete exception + stack trace and exact request status, role, tab sequence, and app build. Do not mark the bug fixed from a successful unrelated chat-entry test.
+
+## Research synthesis — revised crash triage order
+
+1. **Start at the actual Messages tab, not only ConversationScreen.** Confirm if the crash occurs before the inbox appears, while loading, or after tapping a row.
+2. Inspect the `LoadConversations` repository implementation and backend endpoint response shape/error mapping. Check empty, unauthorized, expired relationship, malformed response, and offline behavior.
+3. Check the shell's account/session transition and notification destination state for stale values.
+4. Add deterministic ViewModel tests first; add one narrow Compose shell test for the exact user path. Avoid relying on broad emulator visual tests to diagnose the exception.
+5. Capture Logcat for the user's exact sequence before proposing a code fix. Keep root-cause status “unconfirmed” until evidence identifies the fault.
+
+## Additional Android official guidance used for these findings
+
+- Android Developers, [Side-effects in Compose](https://developer.android.com/develop/ui/compose/side-effects): `LaunchedEffect` is tied to composition and its keys; effects cancel when leaving composition. Use effect keys deliberately and keep side effects controlled.
+- Android Developers, [Lifecycle of composables](https://developer.android.google.cn/develop/ui/compose/lifecycle?hl=en): composition entry/exit differs from recomposition; stable lazy-list keys help Compose identify items.
+- Android Developers, [Lifecycle in Jetpack Compose](https://developer.android.google.cn/topic/libraries/architecture/lifecycle?hl=en): use lifecycle-aware state collection and keep screen-scoped work tied to the appropriate lifecycle.
+- Android Developers, [Compose performance best practices](https://developer.android.com/develop/ui/compose/performance/bestpractices): stable lazy-list keys and efficient list item identity are important for predictable list behavior.
+
+These official documents support lifecycle and list design recommendations; they do not prove the reported crash's root cause.
