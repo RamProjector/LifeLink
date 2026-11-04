@@ -863,3 +863,79 @@ For the current app, make the second-submit decision explicit instead of silentl
 ### External workflow research
 - PagerDuty supports editing incident title/priority/urgency and merging duplicates, while keeping the incident open; this supports the principle that updates should be controlled and incident-centered rather than creating duplicate records for every correction. Its merge/edit workflow is not directly transferable to LifeLink's emergency request model. <Cite refs={["turn956053search2","turn153741search6"]}/>
 - Incident-management systems commonly preserve incident activity/timeline and record edits so responders can understand what changed during an active response. LifeLink should similarly make meaningful corrections visible and auditable rather than silently rewriting dispatch-critical data. <Cite refs={["turn153741search1","turn153741search10"]}/>
+
+
+## Finding 33 — Active-request edit capability is not currently present in the requester UI; draft editing must not be mistaken for incident editing
+
+**Source-level confirmation (Android):**
+- `ActiveRequestScreen.kt` renders the single active snapshot, status/details/contact activity, manual broadcast where applicable, fulfil and cancel. There is no Edit/Correct request action in the screen’s shown action set.
+- `EmergencyRequestViewModel.kt` exposes `UpdateDraft` and `EditStep`, which mutate the in-progress `EmergencyRequestDraft`; these are draft/form actions, not updates to a submitted server request.
+- The submitted request repository boundary exposes submit, refresh, history, contact, cancel/fulfil workflows; in the inspected requester repository API path there is no edit/update-existing-request method.
+- Therefore, **the app presently has draft editing, but no verified requester-facing active-request correction workflow**. This is stronger evidence than simply noting that a button is absent from one screen, but it is still scoped to the inspected Android and repository paths—not a claim that no admin/backend operation exists anywhere.
+
+### Design recommendation: explicit correction workflow, not arbitrary mutation
+Add a **“Correct request details”** entry on the active request details screen, only for editable fields and statuses. Treat the edit as a new, versioned update to the same request ID—not a new emergency request and not a destructive overwrite.
+
+Suggested interaction:
+1. Show current submitted values and a clear **Edit / Correct details** action.
+2. Let requester change only allowed fields (for example, contact instructions or location correction); revalidate required fields and GPS/address consistency.
+3. Before saving, summarize dispatch-relevant changes and ask for confirmation.
+4. Server authorizes the authenticated requester against the request owner; validates status and field allowlist; atomically updates the record and increments a version.
+5. Record an audit event containing actor, request ID, changed field names, timestamp, prior/new values where policy permits, and reason. Avoid copying sensitive contact details or exact coordinates into broadly visible logs.
+6. Notify the currently relevant responders/contacts that the request was corrected; require them to acknowledge or refresh if the change materially affects response (especially location/urgency).
+7. If the request is already fulfilled/cancelled/expired, show it as read-only and offer a **new request** instead of reopening it.
+8. If edit fails or times out, preserve the displayed server-confirmed version, show “update not confirmed,” and allow safe retry with an update idempotency key. Do not optimistically claim the responders received it.
+
+### Dispatch safety / concurrency requirements
+- Use server-side request versioning (e.g., expected version/ETag) to reject stale edits rather than silently overwrite a newer dispatcher/responder update.
+- Define which fields are requester-editable versus dispatcher-only. Do not let a requester rewrite responder assignment, fulfillment, dispatch status, or operational notes.
+- If location or urgency changes after responders have started acting, make the update high visibility and ensure notification delivery is tracked; merely updating the database is insufficient.
+- Preserve request ID, chat/contact history, and audit chronology across corrections. A correction should not orphan chat or create a parallel incident record.
+- Avoid editing immutable incident identity or terminal state; use a new linked request only if operations policy determines this is a genuinely separate incident.
+
+### External research / rationale
+- Official College of Policing professional-practice guidance says incident records should maintain a thorough, accessible audit trail covering activity and decisions, and should support command handovers and post-incident review. This supports preserving an auditable correction timeline rather than silently overwriting operationally meaningful fields. <Cite refs={["turn219804search0"]}/>
+- Dispatch software documentation describes active-call updates that can change call fields and dispatch targets, with operational logs and current personnel status. This illustrates that active incident edits should be designed as operational updates with downstream effects—not just a form save. This is a product example, not a universal standard. <Cite refs={["turn219804search5"]}/>
+- PagerDuty's audit-trail documentation exposes change date, actor, object/action, and detailed change records; this is a useful audit-field model, not an endorsement of its incident workflow for LifeLink. <Cite refs={["turn219804search9"]}/>
+
+### Test matrix before implementation
+- Request owner edits an allowed field while request is matching / awaiting response; same request ID remains, history/chat links remain.
+- Non-owner attempts edit; server rejects even if Android UI is bypassed.
+- Requester edits a field outside allowlist; reject and preserve original.
+- Dispatcher changes request concurrently; stale requester edit receives conflict and refreshes instead of overwriting.
+- Location correction after responder notification creates visible update/acknowledgment event; verify no old location remains the sole visible dispatch detail.
+- Edit request while offline, then reconnect; no duplicate update and no misleading success.
+- Edit request during submit/queued retry; prevent race between draft submit and active request correction.
+- Terminal request edit is rejected; UI offers a fresh request and retains old history.
+- Audit record captures actor/time/field-level change without leaking sensitive values into unrelated views.
+- Existing cancel/fulfil/refresh/contact workflows remain unchanged.
+
+**Status:** Source-confirmed absence of an Android requester active-edit action in inspected files; proposed workflow only. No implementation or runtime test performed.
+
+## Finding 34 — Single-active-request presentation creates a recovery and discoverability risk after account data restoration
+
+Finding 32 established that local active-request observation is intentionally single-item. Additional repository inspection reveals a related restore behavior:
+- `EmergencyRequestRepositoryImpl.observeActiveRequest()` maps `ActiveRequestDao.observeLatest(requesterId)`, so only the newest local row is exposed as the active snapshot.
+- `refreshRequestHistory()` fetches server history and, only when no local active row exists, selects the first nonterminal history item (or first history item if none are nonterminal) and upserts it as the active snapshot.
+- This restore path does not rebuild a list of all server-open requests. If multiple active requests exist, it can restore one request while the other(s) remain in history but not in the primary active-request surface. Which item is “first” depends on the API’s ordering; the inspected Android code does not sort the server response itself before selecting.
+
+### Risk and qualification
+This does **not** prove data loss: the server history can still contain requests and the local history DAO observes all local rows. The confirmed problem is the mismatch between a single-active presentation/restore path and a backend that may permit multiple open requests. This can lead to a request being hard to discover or manage, rather than necessarily deleted.
+
+### Recommendation
+- Product decision first: one active request per requester, or multiple concurrently.
+- If one active request is the intended policy, enforce it atomically on the backend (with clear duplicate-vs-separate-incident behavior), and make the UI offer “open existing request” rather than silently hiding a request.
+- If multiple active requests are valid, replace the single active-request projection with an active-request collection; restore all nonterminal requests, order by meaningful activity/status, and provide per-request status, chat, cancel, and details.
+- Do not pick an arbitrary “first” server history entry as the only active request without documenting and testing the API sort contract.
+- Keep terminal history separate from open requests. Do not fallback to showing a terminal request as active merely because the open set is empty.
+
+### Focused regression tests
+- Server returns 0, 1, and 2+ nonterminal requests; assert restore result and visible request count.
+- Server history ordering is newest-first, oldest-first, and unsorted; verify app does not depend on undocumented ordering.
+- Local active request exists while server history includes a newer open request; verify refresh reconciliation policy.
+- Local cache cleared on sign-out then account signs in again; restore all relevant requests for that owner without cross-account contamination.
+- One request terminal and another active; restore active one, not terminal fallback.
+- Two active requests with independent chats/contact updates; opening or cancelling one does not alter the other.
+- Offline queued draft plus restored active request; preserve both concepts without conflating draft and server-active request.
+
+**Status:** Confirmed repository behavior; multi-active UX and server policy still require product decision. No code changed.
