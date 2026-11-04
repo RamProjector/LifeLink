@@ -287,3 +287,81 @@ Source: OWASP File Upload Cheat Sheet https://cheatsheetseries.owasp.org/cheatsh
 | Media security | OWASP guidance reviewed | No LifeLink implementation exists to verify |
 
 **Next research target:** inspect `SqlAlchemyPrivacyStore.add_contact_share`, `conversation_for_participant`, `block_participant`, and message persistence transaction behavior; then inspect Android conversation API/ViewModel/navigation to correlate the user-reported crash after request submission. This should precede any code patch.
+
+
+## Finding 10 — Repository implementation confirms contact disclosure and audit are separate commits
+
+The repository implementation was inspected directly:
+
+- `add_contact_share()` inserts the contact disclosure and immediately commits it.
+- The API route then calls `record_audit_async()`, which inserts the audit event and commits separately.
+- Therefore, the disclosure can persist even if the later audit write fails. This is confirmed by the current code structure, not just a concern inferred from route order.
+
+**Recommended fix:** move contact-share insert and audit insert into one repository transaction, with notification sent only after commit. Add a failure-injection test that forces audit insertion to fail and verifies no ContactShare row remains. Ensure the endpoint returns success only after both disclosure and audit are committed.
+
+This is a meaningful privacy/audit consistency defect because the code comment describes the contact-share endpoint as always audit-recorded, but the two commits are not atomic.
+
+## Finding 11 — Blocking is one-way, but persistence and message checks are not serialized
+
+Repository inspection confirms:
+- `block_participant()` inserts a one-way block and commits.
+- `is_blocked()` checks whether the sender is the blocked party, correctly avoiding silencing the person who initiated the block.
+- `add_message()` inserts a message and updates conversation timestamps in its own commit.
+- The API checks `is_blocked()` before calling `add_message()`.
+
+This confirms the previously documented race: the block transaction and message transaction do not share a lock/serialization protocol. A send can pass its block check, then commit after the block.
+
+Suggested implementation research:
+1. Lock the conversation row for both block and send operations, in the same order.
+2. Re-read block state after acquiring the lock.
+3. Insert message / update activity timestamp while holding the lock.
+4. Commit; release lock.
+5. Add deterministic concurrency tests for requester-blocks-donor and donor-blocks-requester directions.
+
+Do not use a client-side “blocked” flag as enforcement. The server remains authoritative.
+
+## Finding 12 — Contact-share values are returned to both conversation participants
+
+The contact-share listing route returns every share's `value` after checking only that the caller is a conversation participant. This appears intentional (the disclosed contact is shared within the conversation), but it should be documented as a persistent disclosure: the sender's phone/email remains retrievable from the conversation history after request closure or a later block.
+
+Policy questions:
+- Does blocking prevent future contact disclosures only, or also hide already disclosed values?
+- Can a participant revoke/delete a prior phone/email disclosure?
+- Should account deletion redact contact values while preserving an audit event?
+- Is the retention period tied to emergency-request records or user account retention?
+
+Avoid treating “block” as a retroactive erasure of information already seen or copied. The app should explain that limitation clearly before sharing.
+
+## Finding 13 — Conversation participant helper accepts donor row ID and donor user ID
+
+The helper intentionally recognizes either the donor profile row ID or its owning user ID as donor identity. This supports older/legacy identity mappings, but it increases the number of identifier forms that must be consistently handled by:
+- conversation list filtering,
+- block creation and enforcement,
+- push recipient selection,
+- Android account/session switching,
+- authorization tests.
+
+Add tests where donor profile ID differs from authenticated donor user ID. Verify that both identity forms map to the same participant, but neither identity can access another donor's conversation. Specifically test block rows written with each supported identity form to ensure neither form bypasses a block.
+
+## Android crash follow-up — evidence boundary
+
+The repository searches performed in this pass did not locate Android conversation ViewModel/screen source using the searched class names, so I cannot claim to have traced the reported crash. The existing Android HCI roadmap does document the four primary destinations (Home, Requests, Chat, Profile), map navigation differences across compact/wide layouts, and the need to clear stale conversation state on account/role switches. This is useful design evidence but not a stack trace or crash reproduction.
+
+Next Android investigation should search the actual app module tree (rather than guessed filenames), then trace:
+- Request-submit success/navigation event and destination route arguments.
+- Chat tab selected while request ID/conversation ID is absent or stale.
+- Conversation list empty/loading/error states.
+- API 401/403/404/409 responses and token refresh.
+- Compose state restoration, saved-state keys, and account/role switch cleanup.
+- Crash logs/stack trace from the user's device or reproducible emulator scenario.
+
+Do not claim the crash fixed until a reproduction or relevant code path is verified.
+
+## Updated implementation order (risk-first)
+
+1. **P0 privacy audit integrity:** make contact-share row + audit event atomic; add rollback test.
+2. **P0 moderation consistency:** serialize block and message-send, or formally accept and document race with user-facing limitation.
+3. **P1 lifecycle policy:** decide closed-request history and contact disclosure behavior; apply consistent policy helpers and tests.
+4. **P1 identity compatibility:** cover donor-row/user-ID variants in conversation, block, and push tests.
+5. **P1 Android crash:** locate actual module files and obtain stack trace/reproduction; patch only after root cause is supported.
+6. **P2 media feature:** private image attachment MVP, separate implementation PR and storage configuration review.
