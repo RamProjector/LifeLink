@@ -744,3 +744,29 @@ Specify and test the ordering contract explicitly. If “latest message” is in
 - Test conversations with no messages and nullable `last_message_at`.
 - Test equal timestamps and stable ordering.
 - Verify client displays a matching preview (“message”, “contact shared”) and does not imply a new message when the event is a contact share.
+
+
+## Finding 30 — Correction to Finding 26: account-scoped ViewModel stores are explicitly keyed and cleared on sign-out/disposal
+
+**Files inspected in follow-up**
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/MainActivity.kt`
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/navigation/LifeLinkShell.kt`
+
+### Important correction
+Finding 26 correctly identified that `AuthSessionStore.clear()` itself does not directly reset `PrivacyViewModel`, but it overstated the uncertainty about app-level lifecycle wiring. The MainActivity code shows a stronger, account-scoped protection:
+
+- The account-specific ViewModel owner is obtained with key `account-models-$accountUserId`.
+- The privacy ViewModel is stored under that owner with key `privacy-$accountUserId` (along with similarly account-keyed request/donor/update ViewModels).
+- MainActivity installs a `DisposableEffect(accountModels)` that clears `accountModels.viewModelStore` when the owner leaves composition permanently, unless the Activity is undergoing a configuration change.
+- MainActivity renders the signed-out AuthScreen when auth state is not `SignedIn`, so sign-out normally removes the signed-in account workspace from composition and triggers this disposal path.
+
+**Revised assessment:** The code does not support the earlier broad claim that a single unkeyed privacy ViewModel is reused across users. It is explicitly account-scoped and its store is cleared on permanent disposal. The original stale-state concern is therefore substantially mitigated by existing code; it should not be reported as a confirmed cross-account leak.
+
+### Remaining edge cases worth testing (not confirmed bugs)
+1. Auth state transitions directly from signed-in Account A to signed-in Account B without an intermediate signed-out composition: verify Compose disposes A's accountModels owner and clears its store before B's shell can display.
+2. Configuration change: confirm the intended account store is retained for rotation, while the account ID key prevents a different user's state from being resolved from the same store.
+3. Sign-out while a privacy request is pending: store clearing should cancel ViewModel-owned work through ViewModel lifecycle; separately verify any repository/app-scoped coroutine launched outside `viewModelScope` cannot publish into a new account.
+4. Notification deep-link state and other shell-local `rememberSaveable` values should remain account-keyed or be reset when the account identity changes. In `LifeLinkShell.kt`, some conversation overlay flags use unkeyed `rememberSaveable`; verify whether the shell composition is fully recreated on account transition and whether restored state could ever cross account identity.
+
+### Recommended test emphasis
+Prefer a targeted MainActivity/Compose integration test or a deterministic lifecycle test proving owner disposal and `onCleared()`, rather than adding a blanket manual reset that duplicates the current account-keyed store lifecycle. Preserve rotation behavior.
