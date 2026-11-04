@@ -155,3 +155,32 @@ Next:
 6. Only then propose a focused implementation PR. Do not bundle attachment infrastructure with map precision changes.
 
 **Change log:** 2026-11-04 — source-level location/chat/storage audit and Supabase Storage security research; documentation only.
+
+
+## Finding 7 — New Supabase Storage security advisory needs version/config verification
+
+A current Supabase Storage advisory published October 14, 2026 reports a critical signed-resumable-upload authorization bypass affecting Storage API versions <= 1.80.1, fixed in 1.80.2. The reported path involved specially encoded/absolute request targets bypassing signed-upload token checks and reaching privileged DB access. This advisory is relevant only if LifeLink uses a self-hosted or otherwise affected Storage API version; it is **not evidence that LifeLink's hosted Supabase project is vulnerable**.
+
+Action before enabling resumable uploads:
+- Determine whether LifeLink uses Supabase-hosted Storage or self-hosted Storage, and record the actual managed service/version evidence available (do not infer version from the Android SDK).
+- If self-hosted, verify the Storage API is patched to 1.80.2 or later before exposing signed resumable upload routes.
+- Include signed-upload route abuse and overwrite attempts in the storage security test plan; test encoded paths, authorization failures, object overwrite policy, and upload token scope.
+- Avoid enabling resumable uploads merely to support chat videos until the service/version and server-side authorization model are verified.
+
+Source: Supabase Storage advisory GHSA-8rrf-w776-x75g, published October 14, 2026: https://github.com/supabase/storage/security/advisories/GHSA-8rrf-w776-x75g
+
+## Finding 8 — PostgreSQL API has background expiry sweepers, but they do not replace read-time authorization
+
+A fresh read of `lifelink_fastapi/app/main_postgres.py` confirms the app lifespan starts three async sweepers: stale location-share expiry, stale donor-presence expiry, and timed-out request expiry. The share sweeper defaults to 300 seconds between runs. This is useful defense-in-depth, but it creates a potential interval between a lifecycle event/deadline and cleanup. Therefore, exact-location and chat routes must deny access based on current state at read/write time; correctness must not depend on a sweeper having run already.
+
+The same file shows request creation uses an authenticated requester identity check, verified-email requirement, rate limit, and idempotency-key serialization. Selected-donor contact checks requester ownership and excludes contacting the requester's own donor profile. These are positive controls in the inspected routes, but they do not certify all endpoints or all lifecycle transitions.
+
+Audit follow-up:
+- Inspect every exact-location, conversation, message, moderation, contact-share and saved-message route individually; confirm current request/contact state is loaded and checked before read/write.
+- Test immediately after deadline/cancel/revoke, without waiting for the sweeper; assert denial on the first request.
+- Add race tests where a read/send starts concurrently with cancel, block, revoke, or expiry. Define whether transaction ordering allows a final message during the transition.
+- Ensure sweeper failures are observable through metrics/alerts; current loop catches exceptions and continues, which is resilient but may hide prolonged failure without monitoring.
+
+## Additional verification boundary
+
+The current source excerpt confirms sweeper setup and several request/contact authorization checks. It does **not** prove the exact-location/chat routes are correct, that the live Supabase service has any particular Storage version, or that Android currently has upload support. These remain open investigation items.
