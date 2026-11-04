@@ -1200,3 +1200,96 @@ Admin is not an ordinary profile role. Future verification, abuse report, donor 
 **Priority:** exercise these as lifecycle/security integration tests before expanding attachments, notifications, or map work. Mock-only unit tests cannot prove transaction races.
 
 **Change log:** 2026-11-04 — corrected role confusion and added LifeLink-specific requester/donor/admin cross-role scenarios. Documentation only; no app code/deployment changes.
+
+## Findings 47–51 — Cross-role contact, location, block/report, and lifecycle enforcement
+
+### Finding 47 — Exact-location access is evaluated live, not just at share creation
+Source trace in `lifelink_fastapi/app/privacy_repositories.py`:
+- Exact-location read checks the request/donor match, donor's `exact_location_sharing_enabled`, location freshness, and a live active share.
+- It returns `shared=false` with no coordinates when a check fails.
+- Location-share activation/revocation uses donor-row locking; revocation marks status/time and writes an audit event in the same transaction.
+- `set_map_visibility()` locks donor row; turning map visibility off **or** exact-location sharing off revokes all active shares and commits privacy change + revocations + audit together.
+- Request cancellation/expiry has explicit share-expiry paths; background sweep also expires shares when request ends or share window passes.
+
+**What-ifs across requester/donor:**
+1. Requester has exact pin open when donor revokes.
+2. Donor hides map while a requester is using the pin.
+3. Donor toggles exact sharing off but keeps approximate map visibility.
+4. Request expires while both apps remain foregrounded.
+5. Donor GPS freshness becomes stale while share is still nominally active.
+6. Requester caches coordinates and returns to screen after revocation.
+7. Request ID/donor ID are guessed by an unrelated account.
+8. A share is revoked but an audit write fails.
+
+**Assessment:** backend read policy is stronger than a UI-only hide: subsequent authorized reads should return no coordinates. However, a client that already received coordinates cannot be remotely “unshown” without refreshing/clearing local state. This is a residual client-cache/privacy UX risk, not evidence that the backend continues serving revoked coordinates.
+
+**Recommendations:** clear coordinates from in-memory/saved UI state on refresh failure, revoke event, request terminal state, sign-out, or participant change; avoid persisting exact coordinates in general local history; show share status/freshness; consider a short client cache lifetime and periodic refresh while the pin is visible. Never treat a previously successful response as permanent authorization.
+
+**Tests:** revoke while screen open; map hide; exact-share toggle; stale donor presence; expiry sweep; unrelated account access; cache restoration after sign-out; audit transaction failure.
+
+### Finding 48 — Donor opt-out is immediate server-side, but requester UI may be stale
+The backend combines opt-out with active-share revocation and audit transaction. Cross-role UX must still account for the requester’s already-rendered map/contact view.
+
+**What-ifs:** donor opts out while requester is viewing; requester taps “navigate/contact” from stale donor card; map screen survives app background/resume; stale coordinates are restored from navigation state; request remains active but donor’s location consent is withdrawn.
+
+**Recommendation:** differentiate “request still active” from “donor location unavailable”; preserve in-app conversation if allowed, but remove exact pin and disable directions based on that pin. Do not automatically cancel donor acceptance solely because location sharing was withdrawn. Re-query on screen resume and before any action that depends on exact coordinates.
+
+**Evidence level:** backend revocation semantics source-confirmed; Android cache/state-clearing behavior needs targeted UI trace.
+
+### Finding 49 — Conversation block/report needs clear bilateral consequences
+LifeLink has request-scoped requester-donor conversations and a `ConversationBlock` entity. The privacy API describes report/block as available to either participant. The repository should be audited for exact route behavior and every downstream operation’s enforcement; do not assume that “block” automatically revokes contact shares, location shares, donor matching, or request fulfillment unless code explicitly does so.
+
+**Cross-role what-ifs:**
+- Donor blocks requester after accepting; requester still sees accepted contact and exact location.
+- Requester blocks donor while contact/meeting is in progress.
+- One participant reports the other but chooses not to block.
+- Block happens while a message send is in flight.
+- Blocked user opens old notification or deep link.
+- Blocked pair remains eligible for new request matching.
+- Admin reviews report and needs evidence without exposing unrelated private data.
+
+**Recommendation:** document block/report separately:
+- block prevents future message delivery/read according to explicit policy;
+- report records moderation evidence and does not silently mean block;
+- define effects on existing contact details and exact-location share (revoke or retain with clear safety rationale);
+- define whether pair can match again on a future request;
+- re-check block state at message write and conversation read, not only when opening screen;
+- make blocked/deep-link behavior consistent and non-leaky.
+
+**Tests:** block each direction; report-only; send-vs-block race; read old messages after block; open notification after block; new request match after block; contact/location behavior; audit/report access permissions.
+
+**Evidence level:** model/API documents block/report and participant scope; full enforcement matrix across messages/contact/location/matching still requires endpoint-by-endpoint confirmation.
+
+### Finding 50 — Contact detail sharing is a disclosure event, not a mutable profile field
+Backend contact-share rows are conversation/request/donor/requester scoped, and `add_contact_share()` validates phone/email shape before recording explicit disclosure. This supports an audit trail, but a shared phone/email value is inherently copied by the recipient and cannot be reliably “unsent.”
+
+**What-ifs:** requester shares phone then regrets it; donor shares email then blocks; requester edits profile phone after sharing; contact share is sent to wrong conversation due stale screen; user deletes account but recipient already copied the detail; a contact detail appears in a notification or inbox preview.
+
+**Recommendations:** show recipient and exact field before confirmation; keep phone/email out of push payloads, logs, generic inbox previews, and unrelated request history; clearly state that revocation can stop future app access but cannot erase information already seen/copied. Do not claim a “revoke contact share” feature unless actual endpoint/data model supports it. Separate account profile edits from previously shared disclosure records.
+
+**Tests:** wrong request/conversation ID; stale conversation; profile phone changed after share; deletion/account closure; block after share; push/log privacy; explicit consent confirmation and audit event.
+
+**Evidence level:** API/store models and validation support scoped disclosure; revocation semantics for contact shares are not yet confirmed.
+
+### Finding 51 — Fulfillment and donor contact state can diverge; request-level completion needs clear semantics
+LifeLink has request statuses including `PARTIALLY_FULFILLED` and `FULFILLED`, and match statuses including `CONFIRMED`, `DECLINED`, and `WITHDRAWN`. These are separate entities/states, so tests should not assume that one donor’s accepted/arrived/fulfilled contact automatically completes the whole request.
+
+**What-ifs:**
+- Request requires multiple units/donors; one donor fulfills a portion.
+- Requester marks request fulfilled while another donor is confirmed or arranging contact.
+- Donor contact is withdrawn after partial fulfillment.
+- Requester cancels after a donation/meeting has already occurred.
+- Donor marks arrived but requester never confirms fulfillment.
+- Donor/requester disagree about completion; duplicate fulfillment from two clients.
+- A terminal request still has confirmed match rows or contact records.
+
+**Recommendation:** define request-level fulfillment separately from per-donor match/contact progress; record who confirmed each outcome and when; prevent terminal status from being silently reversed; preserve partial fulfillment and prior contact history. If requester can mark fulfilled, ensure server-side checks/authorization and a clear confirmation step. Don’t interpret “arrived” as “donated.”
+
+**Tests:** multi-donor partial fulfillment; terminal request with confirmed contacts; concurrent fulfill/cancel; duplicate completion; withdrawn donor after partial progress; reopen/rectify policy; request history and donor inbox after completion.
+
+**Evidence level:** enums establish distinct request and match states; exact reconciliation rules require a full route/store trace and product policy.
+
+### Next source trace required (not a claim of a bug)
+The next audit should enumerate every backend route for `conversation`, `contact-share`, `location-share`, `block/report`, and requester `contact status`, then map each to its exact store method, actor authorization, transaction boundary, and Android UI action. Current findings identify meaningful cross-role scenarios but do not certify every endpoint’s enforcement.
+
+**Change log:** 2026-11-04 — Findings 47–51 added from LifeLink privacy models/store and request/match enums. Documentation only; no application code changed.
