@@ -46,6 +46,17 @@ class MapLibreOpenGlViewportTest {
     @Test
     fun openGlRendererCoversMapViewportAndLoadsTiles() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
+        initializeOpenGl(context)
+        val tileActions = CopyOnWriteArrayList<TileOperation>()
+        renderPublicBasemap(tileActions)
+        awaitRenderedMapAndNetworkTiles(tileActions)
+        assertNetworkTileOperations(tileActions)
+        composeRule.onNodeWithContentDescription("Donor map rendered")
+            .assertHeightIsAtLeast(500.dp)
+        captureAndAssertViewport(context.filesDir)
+    }
+
+    private fun initializeOpenGl(context: android.content.Context) {
         MapLibre.getInstance(
             context.applicationContext,
             null,
@@ -53,8 +64,9 @@ class MapLibreOpenGlViewportTest {
             RenderingEngine.Type.OPENGL,
         )
         assertEquals(RenderingEngine.Type.OPENGL, RenderingEngine.getCurrentType())
+    }
 
-        val tileActions = CopyOnWriteArrayList<TileOperation>()
+    private fun renderPublicBasemap(tileActions: CopyOnWriteArrayList<TileOperation>) {
         composeRule.activity.runOnUiThread {
             composeRule.activity.setContent {
                 LifeLinkTheme(themeMode = ThemeMode.LIGHT) {
@@ -73,7 +85,9 @@ class MapLibreOpenGlViewportTest {
                 }
             }
         }
+    }
 
+    private fun awaitRenderedMapAndNetworkTiles(tileActions: List<TileOperation>) {
         composeRule.waitUntil(timeoutMillis = 70_000) {
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
                 .fetchSemanticsNodes().isNotEmpty()
@@ -83,7 +97,9 @@ class MapLibreOpenGlViewportTest {
                 tileActions.contains(TileOperation.LoadFromNetwork) &&
                 tileActions.contains(TileOperation.EndParse)
         }
+    }
 
+    private fun assertNetworkTileOperations(tileActions: List<TileOperation>) {
         val networkRequests = tileActions.count { it == TileOperation.RequestedFromNetwork }
         val networkLoads = tileActions.count { it == TileOperation.LoadFromNetwork }
         val parsedTiles = tileActions.count { it == TileOperation.EndParse }
@@ -97,15 +113,15 @@ class MapLibreOpenGlViewportTest {
         assertTrue("OpenGL did not load network tiles: $tileActions", networkLoads > 0)
         assertTrue("OpenGL did not parse tiles: $tileActions", parsedTiles > 0)
         assertEquals("OpenGL reported tile errors: $tileActions", 0, tileErrors)
-        composeRule.onNodeWithContentDescription("Donor map rendered")
-            .assertHeightIsAtLeast(500.dp)
+    }
 
+    private fun captureAndAssertViewport(filesDir: File) {
         val screenshotName = "lifelink-phone-light-donor-map-opengl-full-viewport.png"
         assertTrue(
             "OpenGL map screenshot could not be captured",
             VisualEvidence.capture(screenshotName),
         )
-        assertMapViewportCoverage(context.filesDir, screenshotName)
+        assertMapViewportCoverage(filesDir, screenshotName)
     }
 
     private fun assertMapViewportCoverage(filesDir: File, screenshotName: String) {
@@ -134,7 +150,10 @@ class MapLibreOpenGlViewportTest {
             if (colors.size >= MIN_DISTINCT_COLORS_PER_BAND) texturedBands += 1
         }
         image.recycle()
+        assertCoverageAcrossViewport(texturedBands, bandCounts)
+    }
 
+    private fun assertCoverageAcrossViewport(texturedBands: Int, bandCounts: List<Int>) {
         Log.i(
             "LifeLinkMapCoverage",
             "renderer=OPENGL texturedBands=$texturedBands/$VERTICAL_BANDS " +
