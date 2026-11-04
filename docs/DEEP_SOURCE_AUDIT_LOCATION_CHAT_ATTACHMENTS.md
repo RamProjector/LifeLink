@@ -184,3 +184,106 @@ Audit follow-up:
 ## Additional verification boundary
 
 The current source excerpt confirms sweeper setup and several request/contact authorization checks. It does **not** prove the exact-location/chat routes are correct, that the live Supabase service has any particular Storage version, or that Android currently has upload support. These remain open investigation items.
+
+
+## Finding 9 — Route-by-route review reveals specific lifecycle and consistency gaps to resolve
+
+I fetched the actual route section of `lifelink_fastapi/app/main_postgres.py` rather than relying on the previous plan alone. This narrows several earlier open questions.
+
+### Confirmed route protections
+
+- Donor-map visibility update checks donor identity against the authenticated subject (with a development-user bypass used in test/development paths).
+- Location-share activation loads the request, checks requester ownership, active request status, matched donor, donor opt-in, and refuses reactivation after request-scoped revocation. It rate-limits activation.
+- Exact-location read delegates to `exact_location_for_requester(request_id, donor_id, principal.subject)`; repository checks requester ownership, donor match, share state/expiry, request active/expiry, donor consent, and GPS freshness.
+- Share revoke checks authenticated donor identity and uses a per-donor row lock in the repository.
+- Conversation create checks requester or donor participant identity and then verifies donor match in repository.
+- Conversation list is scoped to the authenticated user; message read, saved-message read/save/unsave, contact-share read, report, and block routes call `conversation_for_participant`.
+- Message send checks participant membership, request active/deadline, rate limit, and block state before insert.
+- Contact-share create checks participant membership, rate limit, and block state; contact disclosure is audit-recorded.
+- Report/block endpoints require conversation participation and rate-limit actions.
+
+### Concrete issue A — message/block race is explicitly accepted in current code
+
+The message-send route comments document a TOCTOU window: block state is read before message insertion, so a block committed between the check and insert can allow one message through. This is a known accepted race, not an unobserved possibility.
+
+Decision needed:
+- If “block immediately prevents any later message” is a strict safety requirement, serialize block and message writes (for example, lock a shared conversation row or use a transaction/constraint design that both paths participate in).
+- Add a deterministic concurrency test: pause send after block check, commit block, resume insert, and assert the agreed outcome.
+- If retaining current behavior, document the one-message race in user-facing policy and acceptance criteria; do not describe blocking as instantaneous in all races.
+
+### Concrete issue B — message history is intentionally or accidentally readable after request closure?
+
+The message-list route checks participant membership but does not visibly apply the request active/deadline gate that message-send does. This may be intentional (participants retain their own history after an emergency request ends), but it needs an explicit privacy/product decision.
+
+Define:
+- Closed request: can both participants still read prior messages?
+- Blocked participant: can they still read old history, or should block hide/restrict the conversation?
+- Deleted/deactivated account: retention, redaction, and legal/audit behavior.
+- If history remains readable, make sure no new message/contact/location disclosure is allowed and attachment downloads follow the same retention policy.
+
+Do not “fix” by blindly hiding all closed-request history; that may harm emergency records and user continuity. Specify expected behavior first.
+
+### Concrete issue C — contact-share creation has no explicit request-status gate in the route
+
+The contact-share endpoint verifies participant and block state and records an audit event, but the route does not visibly check request active/deadline before creating a new disclosure. Unlike message sending, it may permit phone/email disclosure after a request is closed, depending on repository helper behavior.
+
+Recommended decision and test:
+- Should contact sharing be allowed only while request is active and both parties remain eligible?
+- Should a previously shared contact remain visible after request closure? That is distinct from allowing a *new* disclosure.
+- Add tests for closed, expired, cancelled, fulfilled, and blocked conversation states.
+- If policy requires active-only disclosure, add the lifecycle check in the service boundary and enforce it again in the repository transaction to reduce races.
+
+### Concrete issue D — conversation creation can be called by a donor after request closure unless repository state rejects it
+
+The route checks request existence and participant identity, then match status through repository. It does not visibly check request active/deadline before returning or creating the conversation. Sending is guarded later, but creating a conversation after closure may be unnecessary or confusing.
+
+Decide whether post-closure opening should:
+- return the existing read-only conversation for history, or
+- reject creation/opening if no conversation existed before closure.
+
+Implement consistent UI/API behavior after product decision. Avoid letting a closed request silently create a new communication channel.
+
+### Concrete issue E — contact-share audit is not in the same transaction as the disclosure in the route
+
+The route calls `add_contact_share(...)`, then separately calls `record_audit_async(...)`. Unlike location-share activation/revocation and map-visibility changes, which explicitly commit privacy state and audit together in the repository, this endpoint appears to perform contact-share persistence and audit in separate steps. Verify whether `add_contact_share` commits internally; if it does, a later audit failure could leave contact data disclosed without its audit record.
+
+Recommended:
+- Move contact-share insert + audit into one transaction/repository method.
+- Add failure-injection test for audit insert failure and assert disclosure rolls back.
+- Keep notification/push outside the transaction after successful commit; handle push failure as non-fatal.
+
+### Concrete issue F — request state guard and contact lifecycle need a shared policy helper
+
+The code repeats status/deadline checks in several routes, and the exact-location repository also checks state. Duplication can drift (message send checks expiry; conversation open/contact share may not).
+
+Recommended:
+- Define shared policy functions for “request can accept new communication”, “history can be read”, “location disclosure allowed”, and “contact disclosure allowed”.
+- Keep route-level HTTP mapping and repository-level enforcement for state-changing sensitive actions.
+- Add table-driven tests across statuses (active, fulfilled, cancelled, expired) and deadline boundaries.
+- Do not treat donor match alone as proof that requester/donor contact exchange remains permitted.
+
+## Attachment-specific security design (OWASP refinement)
+
+OWASP's File Upload Cheat Sheet says extension and Content-Type checks are insufficient alone; uploads need an allowlist, server-side size controls, generated storage names, content/signature validation, safe private storage, authorization, and malware scanning where feasible. For LifeLink, the practical feature scope should start with **photos only**, then add video after limits and UX are validated.
+
+Suggested staged scope:
+1. **Phase 1 (image-only):** JPEG/PNG/WebP allowlist; server verifies actual decodable image type, size and dimensions; strip EXIF/location metadata by decode/re-encode where possible; random object key; private bucket; conversation membership + request state check on upload/download; no arbitrary client path.
+2. **Phase 2 (video):** only after product sets maximum size/duration, upload strategy, quota, playback compatibility, and abuse/reporting flow. Do not assume resumable uploads are needed on day one.
+3. **All phases:** validate upload and download permissions separately; block cross-conversation object ID substitution; prevent storage path traversal; never expose service-role credentials; use short signed URL TTL; provide report/delete/retention workflow; log metadata only, not media or signed URLs.
+4. **Do not upload sensitive request evidence to a public bucket.** A “hard-to-guess” URL is not authorization.
+
+Source: OWASP File Upload Cheat Sheet https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html
+
+## Updated verification table
+
+| Area | Source-confirmed | Still unresolved |
+|---|---|---|
+| Exact location | Requester ownership, matched donor, share/consent/freshness checks in repository | Live deployment parity; freshness/expiry edge and race tests |
+| Chat participant access | Participant helper on read/write and moderation endpoints | Whether helper rechecks request state; closed-history policy |
+| Message send | active/deadline check, block check, rate limit | Documented block/message race |
+| Contact share | participant/block checks, audit call, rate limit | Closed-request disclosure policy; audit transaction atomicity |
+| Conversation open | participant and donor-match checks | Whether post-closure create/open should be permitted |
+| Attachments | No attachment API/entity found in inspected route/model/migration | Full repo search for alternate implementation; Android integration; bucket/policy |
+| Media security | OWASP guidance reviewed | No LifeLink implementation exists to verify |
+
+**Next research target:** inspect `SqlAlchemyPrivacyStore.add_contact_share`, `conversation_for_participant`, `block_participant`, and message persistence transaction behavior; then inspect Android conversation API/ViewModel/navigation to correlate the user-reported crash after request submission. This should precede any code patch.
