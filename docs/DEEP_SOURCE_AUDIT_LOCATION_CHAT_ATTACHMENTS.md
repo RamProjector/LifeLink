@@ -770,3 +770,96 @@ Finding 26 correctly identified that `AuthSessionStore.clear()` itself does not 
 
 ### Recommended test emphasis
 Prefer a targeted MainActivity/Compose integration test or a deterministic lifecycle test proving owner disposal and `onCleared()`, rather than adding a blanket manual reset that duplicates the current account-keyed store lifecycle. Preserve rotation behavior.
+
+
+## Finding 31 — Active requests are status-managed, not editable after submission
+
+**Files inspected**
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestViewModel.kt`
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/activeRequest/ActiveRequestScreen.kt`
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/data/repository/EmergencyRequestRepository.kt`
+- `lifelink_fastapi/app/main_postgres.py`
+- `lifelink_fastapi/app/db_models.py`
+
+### Confirmed Android behavior
+- The request wizard supports editing the local `EmergencyRequestDraft` through `UpdateDraft` while the draft is unlocked.
+- Once submitted successfully, the ViewModel moves to `RESULTS`, stores the submitted request ID in `resultsRequestId`, and shows matching/contact results. The submitted draft is deleted locally.
+- The Active Request screen currently exposes status refresh, contact review, manual broadcast (when applicable), mark fulfilled, and cancel. It does **not** expose an edit action or load the submitted request fields back into an editable form.
+- `ActiveRequestSnapshot` contains request ID, status, counters, reason and timestamp—not the full submitted request payload. The local active-request UI therefore cannot edit a submitted request using its current snapshot alone.
+
+### Confirmed backend behavior from the inspected PostgreSQL API/model
+- The request API provides create (`POST /v1/emergency-requests`), read status/history, contact/status operations, manual broadcast, cancel and fulfillment-related actions.
+- The inspected request routes contain no requester-facing `PATCH`/`PUT` endpoint for editing the request's core fields after submission.
+- The SQLAlchemy `EmergencyRequest` row stores the request's submitted payload fields and status. It has an idempotency-key uniqueness constraint and requester/created-time index, but no version/history model for edits was found in the inspected schema.
+- Existing idempotency is **not editing**: reusing the same key/payload returns the same request; using the same key with a different payload is rejected. A new draft ID/key can create a different request.
+
+### Conclusion
+**Today, the user can edit a draft before submission, but there is no verified in-app/API workflow to edit the core details of an already-submitted active request.** The active request screen is for monitoring and lifecycle actions. Do not tell users that “Edit active request” exists until a real endpoint, UI, authorization rule, and regression tests are added.
+
+### Safe product recommendation
+Add a clearly named **“Correct request details”** action only after designing the backend transaction and audit behavior. Do not silently mutate the request in the Android client or resubmit with the same idempotency key.
+
+Separate fields into impact tiers:
+- **Low-impact clarification** (for example, correcting a non-sensitive note/description): may be editable with a versioned, server-side update and visible “updated” timestamp, after product/privacy review.
+- **Matching/dispatch-critical fields** (need/type, quantity, urgency, location, deadline, eligibility constraints): require a server-authorized atomic update, validation, rematching, and a clear update event for anyone already contacted/notified. Revoke or supersede stale matches/contact invitations where appropriate; do not leave old location/need details active.
+- **Terminal requests** (cancelled, fulfilled, expired): should not be silently edited back into active state. Use a new linked/follow-up request or a separately authorized reopen workflow with a reason and audit history.
+
+### Required implementation safeguards (future work, not implemented)
+1. Use authenticated requester ownership on the update route; never accept requester identity from the body as authorization.
+2. Require optimistic concurrency/version (or `updated_at`/ETag) to avoid overwriting a responder's or another device's newer update.
+3. Persist before/after field-level change audit without logging sensitive exact coordinates or contact details unnecessarily.
+4. Recompute match eligibility when matching-critical fields change; ensure old matches and contacted donors cannot act on obsolete data.
+5. Notify affected participants of material updates; do not re-send broad notifications without explicit policy.
+6. Revalidate expiry, consent, location precision and request status inside the transaction.
+7. Add API tests for owner/non-owner, concurrent edits, update after cancel/fulfil/expiry, rematching, contact state, and idempotent retry; add Android tests for draft-vs-active edit affordances and stale response handling.
+
+## Finding 32 — Multiple open requests are not clearly prevented server-side, but Android exposes only one “active request” snapshot
+
+**Sources inspected**
+- `lifelink_fastapi/app/db_models.py` — `EmergencyRequest` schema
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/data/local/ActiveRequestEntity.kt` (DAO found via repository search)
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/data/repository/EmergencyRequestRepository.kt`
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/emergencyrequest/EmergencyRequestViewModel.kt`
+- `LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/activeRequest/ActiveRequestScreen.kt`
+- `lifelink_fastapi/app/expiry.py`
+
+### Confirmed data/UI mismatch
+- The database has a requester index and created-time index, plus unique idempotency key; the inspected schema does not impose a one-open-request-per-requester constraint.
+- The active-request DAO query is `SELECT ... WHERE ownerId = :ownerId ORDER BY lastUpdatedEpochMillis DESC LIMIT 1`: it deliberately returns only one local snapshot.
+- The Android request state has one `activeRequest` property, and the Active Request screen renders that single snapshot.
+- The backend's active status set includes `matching`, `awaiting_responses`, `partially_fulfilled`, and `manual_broadcast`. Expiry is status/deadline-based; it does not by itself establish that a requester may have only one active request.
+- Request history is a list, but history and the single “active request” screen are not equivalent to a multi-active-request management UI.
+
+### What happens if a requester starts a second request?
+**The current implementation does not provide a clear user-facing rule.** A second draft with a new idempotency key may create another request if backend business rules accept it; no one-active-request enforcement was found in the inspected database schema. Yet Android's active-request UI/DAO shows only the latest local active snapshot. Therefore multiple server-active requests could become difficult to find/manage from the current single-active screen. This is a potential workflow/visibility defect, not proof that every second submission succeeds in every backend deployment.
+
+Do not use the same draft/idempotency key to represent a different emergency: that key intentionally identifies one submission and can return the prior request or reject changed payloads.
+
+### Recommended policy: distinguish “same incident update” from “new incident”
+For the current app, make the second-submit decision explicit instead of silently creating a duplicate:
+
+**When the user taps “Create request” and an open request exists:**
+1. Show the existing request card first (status, short reference, created time, and deadline; avoid exposing precise location in the prompt).
+2. Offer **“View/update existing request”** as the primary path for the same incident.
+3. Offer **“Create a separate request”** only when the user confirms it is a distinct incident/need—not merely a correction or duplicate tap.
+4. If product/operations chooses a strict one-active-request policy, block second creation and explain how to update/cancel the current request. This is simpler for the single-active UI, but must not trap a user with a genuinely separate urgent need.
+5. If multiple simultaneous requests are allowed, replace the single-active screen/DAO assumption with an **Active requests list** and per-request detail/status/chat/cancel controls. Do not rely on “latest request” to represent all open incidents.
+
+### Recommended default (safer and clearer)
+- **Same emergency / changed details:** update the existing request through the audited update flow (Finding 31), never create a second record just to change the address, quantity, urgency, or note.
+- **Separate emergency:** allow a distinct request only after an explicit confirmation and after the app can display/manage all active requests. If multi-active UI is not yet ready, warn and provide a clear way back to the existing request rather than silently losing track of it.
+- **Before server acceptance / retry state:** prevent duplicate submit taps and use the existing idempotency key for safe retry. A retry is not a new request.
+- **Cancelled/fulfilled/expired:** allow a new request with a fresh draft/key; keep the prior request in history. Do not resurrect terminal requests by reusing their old key.
+
+### Tests and open questions
+- Backend: same requester submits two distinct keys while first request is active; confirm whether both persist and whether matching/contact flows remain separate.
+- Backend: same key + identical payload returns the same request; same key + altered payload rejects as expected.
+- Android: create A, navigate away, create B; verify A remains discoverable and its status/contact/chat remains linked to A.
+- Android: active A plus draft B offline/queued; prevent B from accidentally replacing A in the active-request UI.
+- Android: cancelling A then creating B with a fresh key works (existing regression test: `test_cancel_resets_request_and_allows_a_new_one`).
+- Verify whether the real product wants **one active request per requester** or **multiple active requests per requester** before choosing a DB constraint or UX restriction. This is a product/dispatch policy decision, not something to infer from the single-active DAO.
+- Check how request-level chat/contact shares and donor notifications should behave when a request is edited, superseded, cancelled, or duplicated.
+
+### External workflow research
+- PagerDuty supports editing incident title/priority/urgency and merging duplicates, while keeping the incident open; this supports the principle that updates should be controlled and incident-centered rather than creating duplicate records for every correction. Its merge/edit workflow is not directly transferable to LifeLink's emergency request model. <Cite refs={["turn956053search2","turn153741search6"]}/>
+- Incident-management systems commonly preserve incident activity/timeline and record edits so responders can understand what changed during an active response. LifeLink should similarly make meaningful corrections visible and auditable rather than silently rewriting dispatch-critical data. <Cite refs={["turn153741search1","turn153741search10"]}/>
