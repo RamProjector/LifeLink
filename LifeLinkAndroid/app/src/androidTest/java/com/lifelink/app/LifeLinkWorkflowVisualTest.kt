@@ -574,7 +574,7 @@ open class LifeLinkWorkflowVisualTest {
     }
 
     private fun verifyProfileSettings() {
-        composeRule.onNodeWithTag("open-settings").performClick()
+        composeRule.onNodeWithTag("open-profile").performClick()
         composeRule.waitForIdle()
         assertVisible("Profile, notifications, privacy, safety, and app preferences.")
 
@@ -587,8 +587,9 @@ open class LifeLinkWorkflowVisualTest {
         capture("workflow-settings-notifications")
 
         tap("Privacy")
-        assertVisible("Donor locations")
-        assertVisible("Chat history")
+        assertVisible("Privacy Center")
+        assertVisible("Consent required")
+        assertVisible("Not available in-app yet")
         capture("workflow-settings-privacy")
 
         tap("Legal")
