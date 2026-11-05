@@ -134,7 +134,7 @@ private enum class ShellTab(val label: String) {
 private enum class SettingsSection(val label: String) {
     ACCOUNT("Account"),
     NOTIFICATIONS("Notifications"),
-    PRIVACY("Privacy & safety"),
+    PRIVACY("Privacy Center"),
     LEGAL("Legal"),
     THEME("Theme"),
     SECURITY("Security"),
@@ -580,7 +580,7 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
 }
 
 /** Shows request history with actions to create, resume, or view the current request. */
-@Suppress("CyclomaticComplexMethod")
+@Suppress("CyclomaticComplexMethod", "LongMethod")
 @Composable
 private fun RequestsContent(
     state: EmergencyRequestUiState,
@@ -1269,7 +1269,7 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
 }
 
 /** Routes the selected settings section to account, notifications, privacy, appearance, or guidance. */
-@Suppress("LongParameterList")
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 private fun SettingsContent(
     role: UserRole,
@@ -1367,15 +1367,21 @@ private fun HelpFaqContent() {
     val faqs =
         listOf(
             "Is LifeLink an emergency service?" to
-                "No. Call your local emergency number for immediate medical help. LifeLink helps coordinate requests and donor connections; it does not replace clinicians or emergency services.",
+                "No. Call your local emergency number for immediate medical help. " +
+                "LifeLink helps coordinate requests and donor connections; it does not replace " +
+                "clinicians or emergency services.",
             "How does donor location privacy work?" to
-                "The donor map uses approximate areas. Exact location is shared only in an authorized, consent-based request flow and should never be treated as a public pin.",
+                "The donor map uses approximate areas. Exact location is shared only in an authorized, " +
+                "consent-based request flow and should never be treated as a public pin.",
             "When can I message another person?" to
-                "Messaging is tied to a request and its connection state. Share phone or email details only when you are comfortable and only through the available consent action.",
+                "Messaging is tied to a request and its connection state. Share phone or email details only " +
+                "when you are comfortable and only through the available consent action.",
             "Why did I not receive a notification?" to
-                "Check Android notification permission and device notification settings. Open Updates in LifeLink to review durable activity even when a system notification was dismissed.",
+                "Check Android notification permission and device notification settings. Open Updates in " +
+                "LifeLink to review durable activity even when a system notification was dismissed.",
             "How do I recover my account?" to
-                "Use the password-reset action in Privacy & safety or Security. If you still cannot access the account, contact the support channel provided by your deployment administrator.",
+                "Use the password-reset action in Privacy Center or Security. If you still cannot access " +
+                "the account, contact the support channel provided by your deployment administrator.",
         )
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -1493,13 +1499,13 @@ private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> U
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            "Privacy & safety",
+            "Privacy Center",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.semantics { heading() },
         )
         Text(
-            "Understand how LifeLink protects location, conversations, account access, and legal rights.",
+            "Review what LifeLink shares, what you control, and which privacy requests still need support processing.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Card(Modifier.fillMaxWidth()) {
@@ -1527,6 +1533,34 @@ private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> U
                 )
             }
         }
+        PrivacyCapabilityCard(
+            title = "Contact sharing",
+            status = "Consent required",
+            body =
+            "Phone numbers and email addresses are not public donor-profile fields. Share contact details " +
+                "only after you choose the available consent action with a matched participant.",
+        )
+        PrivacyCapabilityCard(
+            title = "Notifications",
+            status = "Controlled by Android",
+            body =
+            "LifeLink may send request and conversation updates when Android notification permission and " +
+                "device settings allow it. In-app Updates remains the source of durable activity history.",
+        )
+        PrivacyCapabilityCard(
+            title = "Retention summary",
+            status = "Server policy required",
+            body =
+            "This build does not claim a user-configurable retention schedule. Request, profile, and message " +
+                "retention enforcement must be defined and operated on the server before we describe a deletion date.",
+        )
+        PrivacyCapabilityCard(
+            title = "Privacy requests",
+            status = "Not available in-app yet",
+            body =
+            "Consent history, data export, account deletion requests, request status, and DPO processing are " +
+                "not implemented in this build. Contact the support or privacy address supplied by your deployment administrator.",
+        )
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Account security", fontWeight = FontWeight.SemiBold)
@@ -1558,6 +1592,19 @@ private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> U
     }
     legalDocument?.let { document ->
         LegalDocumentDialog(document = document, onDismiss = { legalDocument = null })
+    }
+}
+
+@Composable
+private fun PrivacyCapabilityCard(title: String, status: String, body: String) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(title, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                Text(status, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+            }
+            Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

@@ -28,6 +28,7 @@ class RequesterRequestDetailsTest {
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
+    @Suppress("LongMethod")
     fun requesterCanOpenSavedRequestDetails() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.getSharedPreferences("lifelink_welcome", 0)
