@@ -3,6 +3,9 @@ package com.lifelink.app
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
@@ -92,8 +95,8 @@ open class ConversationNavigationTest {
     @Test
     fun donor_can_open_chat_and_system_back_returns_to_the_donor_workspace() {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
-        composeRule.onNodeWithTag("open-settings").assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("Account, notifications, privacy, and app preferences.").assertIsDisplayed()
+        composeRule.onNodeWithTag("open-profile").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Profile, notifications, privacy, safety, and app preferences.").assertIsDisplayed()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithTag("open-donor-workspace").fetchSemanticsNodes().isNotEmpty()
         }
@@ -251,6 +254,29 @@ open class ConversationNavigationTest {
 
         composeRule.onNodeWithTag("nav-HOME").performClick()
         composeRule.onNodeWithText("LifeLink", substring = false).assertIsDisplayed()
+    }
+
+    /** Verifies that request-history filters expose their active count and can be cleared together. */
+    @Test
+    fun request_history_filter_summary_can_clear_filter_and_search() {
+        renderShell(StateRestorationTester(composeRule), UserRole.REQUESTER)
+        composeRule.onNodeWithTag("nav-REQUESTS").performClick()
+        composeRule.onNodeWithTag("request-history-filters")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, "Request history filters"))
+        composeRule.onNodeWithTag("request-history-result-count")
+            .assertIsDisplayed()
+            .assertTextContains("0 requests found")
+        composeRule.onNodeWithTag("request-filter-active").performClick()
+        composeRule.onNodeWithTag("request-history-filter-summary")
+            .assertIsDisplayed()
+            .assertTextContains("1 active filter")
+        composeRule.onNodeWithTag("request-history-search").performTextReplacement("hospital")
+        composeRule.onNodeWithTag("request-history-filter-summary")
+            .assertTextContains("2 active filters")
+        composeRule.onNodeWithText("No requests match these filters", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+        composeRule.onNodeWithTag("request-history-filter-summary").assertDoesNotExist()
+        composeRule.onNodeWithTag("request-history-search").assertTextContains("")
     }
 
     /** Verifies that map loading, errors, and empty results are mutually exclusive and truthful. */
