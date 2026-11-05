@@ -720,6 +720,33 @@ private fun RequestsContent(
                     }
                 }
             }
+            val activeFilterCount =
+                (if (historyFilter != "All") 1 else 0) +
+                    (if (searchQuery.isNotBlank()) 1 else 0)
+            if (activeFilterCount > 0) {
+                item {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "$activeFilterCount active ${if (activeFilterCount == 1) "filter" else "filters"}",
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("request-history-filter-summary")
+                                .semantics { liveRegion = LiveRegionMode.Polite },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        TextButton(
+                            onClick = {
+                                historyFilter = "All"
+                                searchQuery = ""
+                            },
+                        ) { Text("Clear filters") }
+                    }
+                }
+            }
             state.historyError?.let { error ->
                 item {
                     Card(

@@ -253,6 +253,23 @@ open class ConversationNavigationTest {
         composeRule.onNodeWithText("LifeLink", substring = false).assertIsDisplayed()
     }
 
+    /** Verifies that request-history filters expose their active count and can be cleared together. */
+    @Test
+    fun request_history_filter_summary_can_clear_filter_and_search() {
+        renderShell(StateRestorationTester(composeRule), UserRole.REQUESTER)
+        composeRule.onNodeWithTag("nav-REQUESTS").performClick()
+        composeRule.onNodeWithTag("request-filter-active").performClick()
+        composeRule.onNodeWithTag("request-history-filter-summary")
+            .assertIsDisplayed()
+            .assertTextContains("1 active filter")
+        composeRule.onNodeWithTag("request-history-search").performTextReplacement("hospital")
+        composeRule.onNodeWithTag("request-history-filter-summary")
+            .assertTextContains("2 active filters")
+        composeRule.onNodeWithText("Clear filters", substring = false).performClick()
+        composeRule.onNodeWithTag("request-history-filter-summary").assertDoesNotExist()
+        composeRule.onNodeWithTag("request-history-search").assertTextContains("")
+    }
+
     /** Verifies that map loading, errors, and empty results are mutually exclusive and truthful. */
     @Test
     fun donor_map_shows_the_correct_loading_error_and_empty_state() {
