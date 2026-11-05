@@ -576,7 +576,7 @@ open class LifeLinkWorkflowVisualTest {
     private fun verifyProfileSettings() {
         composeRule.onNodeWithTag("open-settings").performClick()
         composeRule.waitForIdle()
-        assertVisible("Account, notifications, privacy, and app preferences.")
+        assertVisible("Profile, notifications, privacy, safety, and app preferences.")
 
         tapTab("Settings")
         composeRule.onNodeWithTag("settings-screen-title").assertIsDisplayed()
@@ -707,7 +707,6 @@ open class LifeLinkWorkflowVisualTest {
     }
 
     private fun tap(label: String) {
-        composeRule.onNodeWithTag("settings-tabs").performScrollToNode(hasText(label, substring = false))
         composeRule.onNodeWithTag("settings-${label.uppercase()}").performClick()
         composeRule.waitForIdle()
     }

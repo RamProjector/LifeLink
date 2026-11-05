@@ -64,9 +64,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
@@ -568,7 +566,8 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
 
 /** Shows request history with actions to create, resume, or view the current request. */
 @Suppress("CyclomaticComplexMethod")
-@Composable private fun RequestsContent(
+@Composable
+private fun RequestsContent(
     state: EmergencyRequestUiState,
     onAction: (EmergencyRequestAction) -> Unit,
     onCreate: () -> Unit,
@@ -587,14 +586,15 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
     }
     val visibleHistory = state.requestHistory.filter { request ->
         val query = searchQuery.trim().lowercase()
-        val matchesQuery = query.isBlank() || listOfNotNull(
-            request.requestId,
-            request.bloodType,
-            request.urgency,
-            request.facilityName,
-            request.area,
-            request.status.label,
-        ).any { it.lowercase().contains(query) }
+        val matchesQuery = query.isBlank() ||
+            listOfNotNull(
+                request.requestId,
+                request.bloodType,
+                request.urgency,
+                request.facilityName,
+                request.area,
+                request.status.label,
+            ).any { it.lowercase().contains(query) }
         val matchesFilter = when (historyFilter) {
             "Active" -> request.status !in terminalStatuses
             "Past" -> request.status in terminalStatuses
@@ -1200,7 +1200,8 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
 
 /** Routes the selected settings section to account, notifications, privacy, appearance, or guidance. */
 @Suppress("LongParameterList")
-@Composable private fun SettingsContent(
+@Composable
+private fun SettingsContent(
     role: UserRole,
     accountEmail: String,
     accountUserId: String,
@@ -1236,18 +1237,30 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
                 color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        ScrollableTabRow(
-            selectedTabIndex = sections.indexOf(section),
-            edgePadding = 12.dp,
-            modifier = Modifier.testTag("settings-tabs"),
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .testTag("settings-sections"),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            Text(
+                "Profile sections",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             sections.forEach { item ->
-                Tab(
-                    modifier = Modifier.testTag("settings-${item.name}"),
-                    selected = section == item,
-                    onClick = { section = item },
-                    text = { Text(item.label) },
-                )
+                if (section == item) {
+                    Button(
+                        onClick = { section = item },
+                        modifier = Modifier.fillMaxWidth().testTag("settings-${item.name}"),
+                    ) { Text(item.label) }
+                } else {
+                    OutlinedButton(
+                        onClick = { section = item },
+                        modifier = Modifier.fillMaxWidth().testTag("settings-${item.name}"),
+                    ) { Text(item.label) }
+                }
             }
         }
         when (section) {
@@ -1484,7 +1497,8 @@ private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> U
 
 /** Requests a password-reset link and shows the callback result alongside session-safety guidance. */
 @Suppress("UnusedPrivateMember")
-@Composable private fun SecurityContent(onRequestPasswordReset: ((String) -> Unit) -> Unit) {
+@Composable
+private fun SecurityContent(onRequestPasswordReset: ((String) -> Unit) -> Unit) {
     var resetMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var showSessionHelp by rememberSaveable { mutableStateOf(false) }
     Column(
@@ -1581,7 +1595,8 @@ private fun LegalDocumentPicker(onSelect: (LegalDocument) -> Unit) {
  * Donors invoke [onOpenDonor] to open their workspace; other roles invoke [onBecomeDonor] to start setup.
  */
 @Suppress("LongParameterList", "LongMethod")
-@Composable private fun ProfileContent(
+@Composable
+private fun ProfileContent(
     role: UserRole,
     accountEmail: String,
     accountUserId: String,
