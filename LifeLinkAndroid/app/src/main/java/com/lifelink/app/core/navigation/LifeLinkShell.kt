@@ -137,6 +137,7 @@ private enum class SettingsSection(val label: String) {
     LEGAL("Legal"),
     THEME("Theme"),
     SECURITY("Security"),
+    HELP("Help & FAQ"),
 }
 
 /**
@@ -1239,6 +1240,7 @@ private fun SettingsContent(
             SettingsSection.LEGAL,
             SettingsSection.THEME,
             SettingsSection.SECURITY,
+            SettingsSection.HELP,
         )
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1298,6 +1300,48 @@ private fun SettingsContent(
             SettingsSection.LEGAL -> LegalContent()
             SettingsSection.THEME -> ThemeContent(themeMode, onThemeModeChange)
             SettingsSection.SECURITY -> SecurityContent(onRequestPasswordReset)
+            SettingsSection.HELP -> HelpFaqContent()
+        }
+    }
+}
+
+/** Answers common safety, matching, notification, and account-recovery questions. */
+@Composable
+private fun HelpFaqContent() {
+    val faqs =
+        listOf(
+            "Is LifeLink an emergency service?" to
+                "No. Call your local emergency number for immediate medical help. LifeLink helps coordinate requests and donor connections; it does not replace clinicians or emergency services.",
+            "How does donor location privacy work?" to
+                "The donor map uses approximate areas. Exact location is shared only in an authorized, consent-based request flow and should never be treated as a public pin.",
+            "When can I message another person?" to
+                "Messaging is tied to a request and its connection state. Share phone or email details only when you are comfortable and only through the available consent action.",
+            "Why did I not receive a notification?" to
+                "Check Android notification permission and device notification settings. Open Updates in LifeLink to review durable activity even when a system notification was dismissed.",
+            "How do I recover my account?" to
+                "Use the password-reset action in Privacy & safety or Security. If you still cannot access the account, contact the support channel provided by your deployment administrator.",
+        )
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "Help & FAQ",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.semantics { heading() },
+        )
+        Text(
+            "Quick guidance for safer use of LifeLink.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        faqs.forEach { (question, answer) ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(question, fontWeight = FontWeight.SemiBold)
+                    Text(answer, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
     }
 }

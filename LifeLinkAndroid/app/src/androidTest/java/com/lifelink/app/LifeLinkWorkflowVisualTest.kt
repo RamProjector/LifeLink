@@ -607,6 +607,11 @@ open class LifeLinkWorkflowVisualTest {
         tap("Security")
         assertVisible("Reset password")
         capture("workflow-settings-security")
+
+        tap("Help & FAQ")
+        assertVisible("Help & FAQ")
+        assertVisible("Is LifeLink an emergency service?")
+        capture("workflow-settings-help")
     }
 
     @Test
