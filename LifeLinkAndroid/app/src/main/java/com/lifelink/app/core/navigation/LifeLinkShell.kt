@@ -44,13 +44,13 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -130,16 +130,14 @@ private enum class ShellTab(val label: String) {
     REQUESTS("Requests"),
     MAP("Donors"),
     MESSAGING("Messages"),
-    SETTINGS("Settings"),
+    SETTINGS("Profile"),
 }
 
 private enum class SettingsSection(val label: String) {
     ACCOUNT("Account"),
     NOTIFICATIONS("Notifications"),
-    PRIVACY("Privacy"),
-    LEGAL("Legal"),
+    PRIVACY("Privacy & safety"),
     THEME("Theme"),
-    SECURITY("Security"),
 }
 
 /**
@@ -305,6 +303,7 @@ fun LifeLinkShell(
                 }
             },
             onMarkAllRead = onMarkAllUpdatesRead,
+            onBack = { showNotifications = false },
         )
         return
     }
@@ -371,8 +370,29 @@ fun LifeLinkShell(
                 if (tab != ShellTab.MAP) {
                     Row(
                         Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        Surface(
+                            modifier = Modifier.size(36.dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.Favorite,
+                                    contentDescription = "LifeLink",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        }
+                        Text(
+                            "LifeLink",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                        Spacer(Modifier.weight(1f))
                         IconButton(
                             onClick = { showNotifications = true },
                             modifier = Modifier.testTag("open-notifications"),
@@ -390,9 +410,9 @@ fun LifeLinkShell(
                         }
                         IconButton(
                             onClick = { tab = ShellTab.SETTINGS },
-                            modifier = Modifier.testTag("open-settings"),
+                            modifier = Modifier.testTag("open-profile"),
                         ) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Open settings")
+                            Icon(Icons.Default.Person, contentDescription = "Open profile")
                         }
                     }
                 }
@@ -430,7 +450,7 @@ fun LifeLinkShell(
                     Surface(Modifier.widthIn(max = 840.dp).fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                         when (tab) {
                             ShellTab.HOME ->
-                                HomeContent(state, donorState, role, onSwitchRole, onCreate = { showRequest = true }, onActive = {
+                                HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = {
                                     showActive =
                                         true
                                 }, onDonor = openDonorWorkspace, updates = updates, onRequests = {
@@ -477,6 +497,7 @@ fun LifeLinkShell(
                                     themeMode,
                                     onThemeModeChange,
                                     onRequestPasswordReset,
+                                    onSwitchRole,
                                     onOpenDonor = openDonorWorkspace,
                                     onBecomeDonor = {
                                         showStart = false
@@ -540,7 +561,7 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
             ShellTab.REQUESTS -> Icons.AutoMirrored.Filled.Assignment
             ShellTab.MAP -> Icons.Default.Map
             ShellTab.MESSAGING -> Icons.Default.ChatBubbleOutline
-            ShellTab.SETTINGS -> Icons.Filled.Settings
+            ShellTab.SETTINGS -> Icons.Default.Person
         }
     Icon(icon, contentDescription = null, modifier = Modifier.size(size))
 }
@@ -554,6 +575,32 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
     onActive: () -> Unit,
 ) {
     var selectedRequest by remember { mutableStateOf<RequestHistoryItem?>(null) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var historyFilter by rememberSaveable { mutableStateOf("All") }
+    val terminalStatuses = remember {
+        setOf(
+            com.lifelink.app.domain.ActiveRequestStatus.FULFILLED,
+            com.lifelink.app.domain.ActiveRequestStatus.EXPIRED,
+            com.lifelink.app.domain.ActiveRequestStatus.CANCELLED,
+        )
+    }
+    val visibleHistory = state.requestHistory.filter { request ->
+        val query = searchQuery.trim().lowercase()
+        val matchesQuery = query.isBlank() || listOfNotNull(
+            request.requestId,
+            request.bloodType,
+            request.urgency,
+            request.facilityName,
+            request.area,
+            request.status.label,
+        ).any { it.lowercase().contains(query) }
+        val matchesFilter = when (historyFilter) {
+            "Active" -> request.status !in terminalStatuses
+            "Past" -> request.status in terminalStatuses
+            else -> true
+        }
+        matchesQuery && matchesFilter
+    }
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.fillMaxSize().testTag("request-history"),
@@ -636,6 +683,28 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
                     }
                 }
             }
+            item {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth().testTag("request-history-search"),
+                    label = { Text("Search requests") },
+                    placeholder = { Text("Blood type, facility, status, or ID") },
+                    singleLine = true,
+                )
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("All", "Active", "Past").forEach { filter ->
+                        FilterChip(
+                            selected = historyFilter == filter,
+                            onClick = { historyFilter = filter },
+                            label = { Text(filter) },
+                            modifier = Modifier.testTag("request-filter-${filter.lowercase()}"),
+                        )
+                    }
+                }
+            }
             state.historyError?.let { error ->
                 item {
                     Card(
@@ -667,16 +736,20 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
                     }
                 }
             }
-            if (state.requestHistory.isEmpty() && !state.historyRefreshing && state.historyError == null) {
+            if (visibleHistory.isEmpty() && !state.historyRefreshing && state.historyError == null) {
                 item {
                     LifeLinkEmptyState(
                         icon = Icons.AutoMirrored.Filled.Assignment,
-                        title = "No requests yet",
-                        body = "Your request history will appear here after you create your first request.",
+                        title = if (state.requestHistory.isEmpty()) "No requests yet" else "No matching requests",
+                        body = if (state.requestHistory.isEmpty()) {
+                            "Your request history will appear here after you create your first request."
+                        } else {
+                            "Try a different search term or filter."
+                        },
                     )
                 }
             }
-            items(state.requestHistory, key = { it.requestId }) { request ->
+            items(visibleHistory, key = { it.requestId }) { request ->
                 RequestHistoryCard(request, onOpen = { selectedRequest = request })
             }
         }
@@ -796,7 +869,6 @@ private fun HomeContent(
     state: EmergencyRequestUiState,
     donorState: DonorUiState,
     role: UserRole,
-    onSwitchRole: () -> Unit,
     onCreate: () -> Unit,
     onActive: () -> Unit,
     onDonor: () -> Unit,
@@ -809,15 +881,7 @@ private fun HomeContent(
             Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            LifeLinkPageHeader("LifeLink")
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = onSwitchRole, modifier = Modifier.testTag("role-switcher").widthIn(max = 200.dp)) {
-                Text(
-                    if (role == UserRole.DONOR) "Switch to requester" else "Switch to donor",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            LifeLinkPageHeader("Home")
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Column(
@@ -827,50 +891,56 @@ private fun HomeContent(
             if (role == UserRole.DONOR) {
                 DonorDashboardSummary(donorState.profile, donorState.requests.size, onDonor)
             }
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "Your requests",
-                        Modifier.weight(1f).semantics { heading() },
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    TextButton(onClick = onRequests) { Text("View all") }
-                }
-                if (state.activeRequest != null) {
-                    ActiveRequestSummary(state, onActive)
-                } else {
-                    Card(
-                        Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                    ) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                if (state.historyRefreshing) {
-                                    "Loading your requests…"
-                                } else if (state.historyError != null) {
-                                    "Requests unavailable"
-                                } else {
-                                    "No active request"
-                                },
-                                style = MaterialTheme.typography.titleSmall,
-                            )
-                            Text(
-                                state.historyError
-                                    ?: if (state.historyRefreshing) {
-                                        "Checking your account for saved requests."
+            if (role == UserRole.REQUESTER) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Your requests",
+                            Modifier.weight(1f).semantics { heading() },
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        TextButton(onClick = onRequests) { Text("View all") }
+                    }
+                    if (state.activeRequest != null) {
+                        ActiveRequestSummary(state, onActive)
+                    } else {
+                        Card(
+                            Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        ) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    if (state.historyRefreshing) {
+                                        "Loading your requests…"
+                                    } else if (state.historyError != null) {
+                                        "Requests unavailable"
                                     } else {
-                                        "Create a request to find nearby blood donors."
+                                        "No active request"
                                     },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                                Text(
+                                    state.historyError
+                                        ?: if (state.historyRefreshing) {
+                                            "Checking your account for saved requests."
+                                        } else {
+                                            "Create a request to find nearby blood donors."
+                                        },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
-                }
-                Button(onClick = onCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = MaterialTheme.shapes.medium) {
-                    Icon(Icons.Default.Add, null, Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Create emergency request", fontWeight = FontWeight.SemiBold)
+                    Button(
+                        onClick = onCreate,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Icon(Icons.Default.Add, null, Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Create emergency request", fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -1139,6 +1209,7 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
+    onSwitchRole: () -> Unit,
     onOpenDonor: () -> Unit,
     onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
@@ -1149,19 +1220,17 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
             SettingsSection.ACCOUNT,
             SettingsSection.NOTIFICATIONS,
             SettingsSection.PRIVACY,
-            SettingsSection.LEGAL,
             SettingsSection.THEME,
-            SettingsSection.SECURITY,
         )
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                "Settings",
+                "Profile",
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.testTag("settings-screen-title").semantics { heading() },
             )
             Text(
-                "Account, notifications, privacy, and app preferences.",
+                "Profile, notifications, privacy, safety, and app preferences.",
                 color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -1189,15 +1258,14 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
                     profileSaving,
                     profileMessage,
                     onSaveProfile,
+                    onSwitchRole,
                     onOpenDonor,
                     onBecomeDonor,
                     onSignOut,
                 )
             SettingsSection.NOTIFICATIONS -> NotificationSettingsContent()
-            SettingsSection.PRIVACY -> PrivacySettingsContent()
-            SettingsSection.LEGAL -> LegalContent()
+            SettingsSection.PRIVACY -> PrivacySafetyContent(onRequestPasswordReset)
             SettingsSection.THEME -> ThemeContent(themeMode, onThemeModeChange)
-            SettingsSection.SECURITY -> SecurityContent(onRequestPasswordReset)
         }
     }
 }
@@ -1279,6 +1347,83 @@ private fun PrivacySettingsContent() {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> Unit) {
+    var legalDocument by remember { mutableStateOf<LegalDocument?>(null) }
+    var resetMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "Privacy & safety",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.semantics { heading() },
+        )
+        Text(
+            "Understand how LifeLink protects location, conversations, account access, and legal rights.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Location and matching", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "The map uses approximate areas. Exact location and identity details are shared only " +
+                        "in a consent-based request flow. " +
+                        "Availability does not guarantee eligibility or a successful connection.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(
+                Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("Messages and data", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Messages are visible to the participants in the conversation. " +
+                        "Do not share passwords, payment details, or medical records in chat. " +
+                        "Use the report and block actions when a connection is unsafe.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Account security", fontWeight = FontWeight.SemiBold)
+                OutlinedButton(
+                    onClick = { onRequestPasswordReset { message -> resetMessage = message } },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Send password reset link") }
+                resetMessage?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Legal documents", fontWeight = FontWeight.SemiBold)
+                LegalDocumentPicker(onSelect = { legalDocument = it })
+            }
+        }
+        Text(
+            "Need help? Contact the LifeLink support or privacy contact listed by your deployment administrator. " +
+                "LifeLink is not a substitute for emergency medical services.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    legalDocument?.let { document ->
+        LegalDocumentDialog(document = document, onDismiss = { legalDocument = null })
     }
 }
 
@@ -1437,6 +1582,7 @@ private fun LegalDocumentPicker(onSelect: (LegalDocument) -> Unit) {
     profileSaving: Boolean,
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
+    onSwitchRole: () -> Unit,
     onOpenDonor: () -> Unit,
     onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
@@ -1549,6 +1695,12 @@ private fun LegalDocumentPicker(onSelect: (LegalDocument) -> Unit) {
                     ) { Text("Become a donor") }
                 }
             }
+        }
+        OutlinedButton(
+            onClick = onSwitchRole,
+            modifier = Modifier.fillMaxWidth().testTag("profile-role-switcher"),
+        ) {
+            Text(if (role == UserRole.DONOR) "Switch to requester mode" else "Switch to donor mode")
         }
         androidx.compose.material3.OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
     }
