@@ -633,11 +633,11 @@ open class LifeLinkWorkflowVisualTest {
             .performClick()
         composeRule.onNodeWithTag("nav-MAP").assertIsSelected()
 
-        composeRule.onNodeWithTag("nav-MESSAGING")
-            .assert(hasText("Messages", substring = false))
+        composeRule.onNodeWithTag("nav-UPDATES")
+            .assert(hasText("Updates", substring = false))
             .performClick()
-        composeRule.onNodeWithTag("nav-MESSAGING").assertIsSelected()
-        capture("navigation-messages-selected")
+        composeRule.onNodeWithTag("nav-UPDATES").assertIsSelected()
+        capture("navigation-updates-selected")
     }
 
     @Test
