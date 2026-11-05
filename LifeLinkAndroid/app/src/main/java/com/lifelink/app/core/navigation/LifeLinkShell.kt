@@ -852,6 +852,12 @@ private fun RequestHistoryCard(request: RequestHistoryItem, onOpen: () -> Unit) 
                 )
             }
             Text("Request ${request.requestId.take(12)}", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            request.createdAt?.takeIf { it.isNotBlank() }?.let {
+                Text("Created $it", style = MaterialTheme.typography.bodySmall)
+            }
+            request.expiresAt?.takeIf { it.isNotBlank() }?.let {
+                Text("Response deadline $it", style = MaterialTheme.typography.bodySmall)
+            }
             Text(
                 "${request.bloodType ?: "Request"} · ${request.units?.let {
                     "$it unit${if (it == 1) "" else "s"}"
@@ -904,6 +910,8 @@ private fun RequestDetailsContent(request: RequestHistoryItem) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(request.status.label, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
         DetailRow("Request ID", request.requestId.take(16))
+        request.createdAt?.takeIf { it.isNotBlank() }?.let { DetailRow("Created", it) }
+        request.expiresAt?.takeIf { it.isNotBlank() }?.let { DetailRow("Response deadline", it) }
         request.bloodType?.let { DetailRow("Blood type", it) }
         request.units?.let { DetailRow("Units", "$it") }
         request.urgency?.let { DetailRow("Urgency", it) }

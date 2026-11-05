@@ -42,6 +42,8 @@ class RequesterRequestDetailsTest {
                             RequestHistoryItem(
                                 requestId = "request-details-1",
                                 status = ActiveRequestStatus.FULFILLED,
+                                createdAt = "2026-11-05T08:00:00Z",
+                                expiresAt = "2026-11-05T12:00:00Z",
                                 bloodType = "O+",
                                 units = 2,
                                 urgency = "Urgent",
@@ -81,6 +83,8 @@ class RequesterRequestDetailsTest {
         composeRule.onNodeWithTag("nav-REQUESTS").performClick()
         composeRule.onNodeWithTag("request-history-request-details-1").performClick()
         composeRule.onNodeWithText("Request details").assertIsDisplayed()
+        composeRule.onNodeWithText("Created").assertIsDisplayed()
+        composeRule.onNodeWithText("Response deadline").assertIsDisplayed()
         composeRule.onNodeWithText("O+").assertIsDisplayed()
         composeRule.onNodeWithText("Manila General Hospital").assertIsDisplayed()
         composeRule.onNodeWithText("Quezon City").assertIsDisplayed()
