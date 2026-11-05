@@ -782,11 +782,15 @@ private fun RequestsContent(
                 item {
                     LifeLinkEmptyState(
                         icon = Icons.AutoMirrored.Filled.Assignment,
-                        title = if (state.requestHistory.isEmpty()) "No requests yet" else "No matching requests",
-                        body = if (state.requestHistory.isEmpty()) {
+                        title = if (state.requestHistory.isEmpty() && activeFilterCount == 0) {
+                            "No requests yet"
+                        } else {
+                            "No requests match these filters"
+                        },
+                        body = if (state.requestHistory.isEmpty() && activeFilterCount == 0) {
                             "Your request history will appear here after you create your first request."
                         } else {
-                            "Try a different search term or filter."
+                            "Clear the active filters or try a different search term."
                         },
                     )
                 }

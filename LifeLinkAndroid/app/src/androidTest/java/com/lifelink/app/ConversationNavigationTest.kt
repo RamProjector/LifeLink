@@ -265,6 +265,7 @@ open class ConversationNavigationTest {
         composeRule.onNodeWithTag("request-history-search").performTextReplacement("hospital")
         composeRule.onNodeWithTag("request-history-filter-summary")
             .assertTextContains("2 active filters")
+        composeRule.onNodeWithText("No requests match these filters", substring = false).assertIsDisplayed()
         composeRule.onNodeWithText("Clear filters", substring = false).performClick()
         composeRule.onNodeWithTag("request-history-filter-summary").assertDoesNotExist()
         composeRule.onNodeWithTag("request-history-search").assertTextContains("")
