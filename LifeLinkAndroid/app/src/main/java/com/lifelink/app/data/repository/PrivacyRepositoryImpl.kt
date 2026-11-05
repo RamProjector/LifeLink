@@ -13,6 +13,7 @@ import com.lifelink.app.domain.DonorMapArea
 import com.lifelink.app.domain.DonorMapVisibility
 import com.lifelink.app.domain.MatchedDonorLocation
 import com.lifelink.app.domain.PrivacyRepository
+import com.lifelink.app.domain.SavedChatMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -162,6 +163,49 @@ class PrivacyRepositoryImpl(private val api: LifeLinkApi, private val donorIdPro
                 check(response.isSuccessful) { "Message could not be sent (${response.code()})." }
                 val sent = checkNotNull(response.body()) { "The server returned an empty message." }
                 ChatMessage(sent.messageId, sent.conversationId, sent.senderId, sent.body, sent.createdAt)
+            }
+        }
+
+    override suspend fun savedMessages(conversationId: String): Result<List<SavedChatMessage>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response = api.listSavedMessages(conversationId)
+                check(response.isSuccessful) { "Saved messages could not be loaded (${response.code()})." }
+                checkNotNull(response.body()).map {
+                    SavedChatMessage(
+                        messageId = it.messageId,
+                        conversationId = it.conversationId,
+                        senderId = it.senderId,
+                        body = it.body,
+                        messageCreatedAt = it.messageCreatedAt,
+                        savedAt = it.savedAt,
+                    )
+                }
+            }
+        }
+
+    override suspend fun saveMessage(conversationId: String, messageId: String): Result<SavedChatMessage> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response = api.saveMessage(conversationId, messageId)
+                check(response.isSuccessful) { "Message could not be saved (${response.code()})." }
+                val saved = checkNotNull(response.body()) { "The server returned an empty saved message." }
+                SavedChatMessage(
+                    saved.messageId,
+                    saved.conversationId,
+                    saved.senderId,
+                    saved.body,
+                    saved.messageCreatedAt,
+                    saved.savedAt,
+                )
+            }
+        }
+
+    override suspend fun unsaveMessage(conversationId: String, messageId: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response = api.unsaveMessage(conversationId, messageId)
+                check(response.isSuccessful) { "Saved message could not be removed (${response.code()})." }
             }
         }
 

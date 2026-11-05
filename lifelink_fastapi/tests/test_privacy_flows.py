@@ -798,6 +798,43 @@ def test_blank_message_is_rejected(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_saved_messages_persist_and_are_private_to_each_participant(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert opened.status_code == 200, opened.text
+        conversation_id = opened.json()["conversation_id"]
+        sent = await client.post(
+            f"/v1/conversations/{conversation_id}/messages",
+            json={"body": "Bring O positive units."},
+        )
+        assert sent.status_code == 201, sent.text
+        message_id = sent.json()["message_id"]
+
+        saved = await client.post(f"/v1/conversations/{conversation_id}/messages/{message_id}/save")
+        assert saved.status_code == 201, saved.text
+        assert saved.json()["body"] == "Bring O positive units."
+        listed = await client.get(f"/v1/conversations/{conversation_id}/saved-messages")
+        assert [item["message_id"] for item in listed.json()] == [message_id]
+
+        current["id"] = donor
+        donor_list = await client.get(f"/v1/conversations/{conversation_id}/saved-messages")
+        assert donor_list.status_code == 200
+        assert donor_list.json() == []
+
+        current["id"] = requester
+        removed = await client.delete(f"/v1/conversations/{conversation_id}/messages/{message_id}/save")
+        assert removed.status_code == 204, removed.text
+        assert (await client.get(f"/v1/conversations/{conversation_id}/saved-messages")).json() == []
+
+    run_scenario(pg_url, scenario)
+
+
 def test_location_share_cannot_be_activated_on_an_inactive_request(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")

@@ -168,7 +168,37 @@ fun ConversationScreen(
                     )
                 }
             }
-            items(state.messages, key = { it.messageId }) { message -> MessageBubble(message, message.senderId == currentUserId) }
+            items(state.messages, key = { it.messageId }) { message ->
+                MessageBubble(
+                    message = message,
+                    mine = message.senderId == currentUserId,
+                    saved = state.savedMessages.any { it.messageId == message.messageId },
+                    onToggleSaved = {
+                        onAction(
+                            if (state.savedMessages.any { it.messageId == message.messageId }) {
+                                PrivacyAction.UnsaveMessage(message.messageId)
+                            } else {
+                                PrivacyAction.SaveMessage(message.messageId)
+                            },
+                        )
+                    },
+                )
+            }
+        }
+
+        if (state.savedMessages.isNotEmpty()) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Saved messages", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+                    state.savedMessages.forEach { saved ->
+                        Text(
+                            saved.body,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 2,
+                        )
+                    }
+                }
+            }
         }
 
         if (state.contactShares.isNotEmpty()) {
@@ -360,7 +390,7 @@ private fun ShareContactCard(
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage, mine: Boolean) {
+private fun MessageBubble(message: ChatMessage, mine: Boolean, saved: Boolean, onToggleSaved: () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
         Card(
             modifier = Modifier.widthIn(max = 300.dp),
@@ -377,6 +407,9 @@ private fun MessageBubble(message: ChatMessage, mine: Boolean) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(message.body)
                 Text(message.createdAt, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = onToggleSaved, modifier = Modifier.align(Alignment.End)) {
+                    Text(if (saved) "Saved" else "Save")
+                }
             }
         }
     }

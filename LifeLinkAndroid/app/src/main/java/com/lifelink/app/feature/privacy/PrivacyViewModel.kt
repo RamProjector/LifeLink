@@ -29,6 +29,7 @@ data class PrivacyUiState(
     val conversationsLoading: Boolean = false,
     val conversationsError: String? = null,
     val messages: List<ChatMessage> = emptyList(),
+    val savedMessages: List<com.lifelink.app.domain.SavedChatMessage> = emptyList(),
     val contactShares: List<ContactShare> = emptyList(),
     val chatLoading: Boolean = false,
     val sending: Boolean = false,
@@ -53,6 +54,10 @@ sealed interface PrivacyAction {
     data object LoadConversations : PrivacyAction
 
     data class SendMessage(val body: String) : PrivacyAction
+
+    data class SaveMessage(val messageId: String) : PrivacyAction
+
+    data class UnsaveMessage(val messageId: String) : PrivacyAction
 
     data class ShareContact(val field: String, val value: String) : PrivacyAction
 
@@ -93,6 +98,8 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
             PrivacyAction.RefreshConversation -> refreshCurrentConversation()
             PrivacyAction.LoadConversations -> loadConversations()
             is PrivacyAction.SendMessage -> sendMessage(action.body)
+            is PrivacyAction.SaveMessage -> saveMessage(action.messageId)
+            is PrivacyAction.UnsaveMessage -> unsaveMessage(action.messageId)
             is PrivacyAction.ShareContact -> shareContact(action.field, action.value)
             is PrivacyAction.ReportParticipant -> reportParticipant(action.conversationId, action.reason)
             is PrivacyAction.BlockParticipant -> blockParticipant(action.conversationId)
@@ -237,6 +244,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     message = null,
                     conversationId = null,
                     messages = emptyList(),
+                    savedMessages = emptyList(),
                     contactShares = emptyList(),
                 )
             repository
@@ -265,9 +273,15 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
         conversationRefreshJob?.cancel()
         conversationRefreshJob = viewModelScope.launch {
             val messages = repository.messages(conversationId).getOrDefault(emptyList())
+            val savedMessages = repository.savedMessages(conversationId).getOrDefault(emptyList())
             val shares = repository.contactShares(conversationId).getOrDefault(emptyList())
             if (generation != conversationGeneration) return@launch
-            _state.value = _state.value.copy(messages = messages, contactShares = shares, chatLoading = false)
+            _state.value = _state.value.copy(
+                messages = messages,
+                savedMessages = savedMessages,
+                contactShares = shares,
+                chatLoading = false,
+            )
         }
     }
 
@@ -286,6 +300,46 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                 }.onFailure { error ->
                     if (generation != conversationGeneration) return@onFailure
                     _state.value = _state.value.copy(sending = false, message = userFacingError(error, "Message could not be sent."))
+                }
+        }
+    }
+
+    private fun saveMessage(messageId: String) {
+        val conversationId = _state.value.conversationId ?: return
+        val generation = conversationGeneration
+        viewModelScope.launch {
+            repository.saveMessage(conversationId, messageId)
+                .onSuccess { saved ->
+                    if (generation != conversationGeneration) return@onSuccess
+                    _state.value = _state.value.copy(
+                        savedMessages = _state.value.savedMessages.filterNot { it.messageId == saved.messageId } + saved,
+                        message = "Message saved.",
+                    )
+                }
+                .onFailure { error ->
+                    if (generation == conversationGeneration) {
+                        _state.value = _state.value.copy(message = userFacingError(error, "Message could not be saved."))
+                    }
+                }
+        }
+    }
+
+    private fun unsaveMessage(messageId: String) {
+        val conversationId = _state.value.conversationId ?: return
+        val generation = conversationGeneration
+        viewModelScope.launch {
+            repository.unsaveMessage(conversationId, messageId)
+                .onSuccess {
+                    if (generation != conversationGeneration) return@onSuccess
+                    _state.value = _state.value.copy(
+                        savedMessages = _state.value.savedMessages.filterNot { it.messageId == messageId },
+                        message = "Message removed from saved messages.",
+                    )
+                }
+                .onFailure { error ->
+                    if (generation == conversationGeneration) {
+                        _state.value = _state.value.copy(message = userFacingError(error, "Saved message could not be removed."))
+                    }
                 }
         }
     }

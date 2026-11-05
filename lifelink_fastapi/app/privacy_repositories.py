@@ -23,6 +23,7 @@ from .db_models import (
     DonorLocationShare,
     Message,
     RequestMatch,
+    SavedMessage,
 )
 from .db_models import (
     Donor as DonorRow,
@@ -508,6 +509,56 @@ class SqlAlchemyPrivacyStore:
         conversation.updated_at = now
         await self.session.commit()
         return message
+
+    async def list_saved_messages(self, conversation_id: str, user_id: str) -> list[SavedMessage]:
+        """List only the caller's saved messages in one authorized conversation."""
+        rows = await self.session.scalars(
+            select(SavedMessage)
+            .where(
+                SavedMessage.conversation_id == conversation_id,
+                SavedMessage.user_id == user_id,
+            )
+            .order_by(SavedMessage.saved_at.desc())
+        )
+        return list(rows.all())
+
+    async def save_message(self, conversation: Conversation, user_id: str, message_id: str) -> SavedMessage:
+        """Save one message privately for one participant, idempotently."""
+        message = await self.session.get(Message, message_id)
+        if message is None or message.conversation_id != conversation.id:
+            raise KeyError(message_id)
+        existing = await self.session.scalar(
+            select(SavedMessage).where(
+                SavedMessage.message_id == message_id,
+                SavedMessage.user_id == user_id,
+            )
+        )
+        if existing is not None:
+            return existing
+        saved = SavedMessage(
+            id=f"saved_{uuid4().hex}",
+            message_id=message.id,
+            conversation_id=conversation.id,
+            user_id=user_id,
+        )
+        self.session.add(saved)
+        await self.session.commit()
+        return saved
+
+    async def unsave_message(self, conversation: Conversation, user_id: str, message_id: str) -> bool:
+        """Remove the caller's private bookmark; repeated removal is harmless."""
+        saved = await self.session.scalar(
+            select(SavedMessage).where(
+                SavedMessage.conversation_id == conversation.id,
+                SavedMessage.message_id == message_id,
+                SavedMessage.user_id == user_id,
+            )
+        )
+        if saved is None:
+            return False
+        await self.session.delete(saved)
+        await self.session.commit()
+        return True
 
     # -------------------------------------------------------- contact shares
     async def add_contact_share(

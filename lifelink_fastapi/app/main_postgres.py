@@ -20,7 +20,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import create_all_tables, get_db_session
-from .db_models import Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum
+from .db_models import (
+    Conversation,
+    Donor as DonorRow,
+    EmergencyRequest as EmergencyRequestRow,
+    Facility,
+    LifeLinkProfile,
+    LifeLinkRoleEnum,
+    Message,
+)
 from .fcm import send_push_safely
 from .main import (
     EmergencyRequestIn,
@@ -68,6 +76,7 @@ from .privacy_api import (
     LocationShareOut,
     MessageIn,
     MessageOut,
+    SavedMessageOut,
 )
 from .privacy_repositories import (
     LocationShareRevokedError,
@@ -1499,6 +1508,90 @@ async def list_conversation_messages(
         )
         for message in await store.list_messages(conversation_id)
     ]
+
+
+@app.get("/v1/conversations/{conversation_id}/saved-messages", response_model=list[SavedMessageOut])
+async def list_saved_conversation_messages(
+    conversation_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """List only the authenticated participant's private message bookmarks."""
+    store = SqlAlchemyPrivacyStore(session)
+    try:
+        await store.conversation_for_participant(conversation_id, principal.subject)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Conversation not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
+    saved_messages = await store.list_saved_messages(conversation_id, principal.subject)
+    result = []
+    for saved in saved_messages:
+        message = await session.get(Message, saved.message_id)
+        if message is not None:
+            result.append(
+                SavedMessageOut(
+                    message_id=message.id,
+                    conversation_id=message.conversation_id,
+                    sender_id=message.sender_id,
+                    body=message.body,
+                    message_created_at=message.created_at,
+                    saved_at=saved.saved_at,
+                )
+            )
+    return result
+
+
+@app.post(
+    "/v1/conversations/{conversation_id}/messages/{message_id}/save",
+    response_model=SavedMessageOut,
+    status_code=201,
+)
+async def save_conversation_message(
+    conversation_id: str,
+    message_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Privately save one message for the authenticated conversation participant."""
+    store = SqlAlchemyPrivacyStore(session)
+    try:
+        conversation = await store.conversation_for_participant(conversation_id, principal.subject)
+        saved = await store.save_message(conversation, principal.subject, message_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Message not found in this conversation") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
+    message = await session.get(Message, saved.message_id)
+    if message is None:
+        raise HTTPException(status_code=404, detail="Message not found in this conversation")
+    return SavedMessageOut(
+        message_id=message.id,
+        conversation_id=message.conversation_id,
+        sender_id=message.sender_id,
+        body=message.body,
+        message_created_at=message.created_at,
+        saved_at=saved.saved_at,
+    )
+
+
+@app.delete("/v1/conversations/{conversation_id}/messages/{message_id}/save", status_code=204)
+async def unsave_conversation_message(
+    conversation_id: str,
+    message_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(get_postgres_principal),
+):
+    """Remove the authenticated participant's private bookmark idempotently."""
+    store = SqlAlchemyPrivacyStore(session)
+    try:
+        conversation = await store.conversation_for_participant(conversation_id, principal.subject)
+        await store.unsave_message(conversation, principal.subject, message_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Conversation not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
+    return None
 
 
 @app.post("/v1/conversations/{conversation_id}/messages", response_model=MessageOut, status_code=201)

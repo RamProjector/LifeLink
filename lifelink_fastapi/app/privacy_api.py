@@ -106,6 +106,15 @@ class MessageOut(BaseModel):
     created_at: datetime
 
 
+class SavedMessageOut(BaseModel):
+    message_id: str
+    conversation_id: str
+    sender_id: str
+    body: str
+    message_created_at: datetime
+    saved_at: datetime
+
+
 class ContactShareIn(BaseModel):
     field: str = Field(pattern="^(phone|email)$")
     value: str = Field(min_length=3, max_length=320)

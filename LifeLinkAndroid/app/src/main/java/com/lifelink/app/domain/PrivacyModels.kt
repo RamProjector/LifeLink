@@ -52,6 +52,15 @@ data class Conversation(
 
 data class ChatMessage(val messageId: String, val conversationId: String, val senderId: String, val body: String, val createdAt: String)
 
+data class SavedChatMessage(
+    val messageId: String,
+    val conversationId: String,
+    val senderId: String,
+    val body: String,
+    val messageCreatedAt: String,
+    val savedAt: String,
+)
+
 data class ContactShare(
     val shareId: String,
     val conversationId: String,
@@ -79,6 +88,12 @@ interface PrivacyRepository {
     suspend fun messages(conversationId: String): Result<List<ChatMessage>>
 
     suspend fun sendMessage(conversationId: String, body: String): Result<ChatMessage>
+
+    suspend fun savedMessages(conversationId: String): Result<List<SavedChatMessage>>
+
+    suspend fun saveMessage(conversationId: String, messageId: String): Result<SavedChatMessage>
+
+    suspend fun unsaveMessage(conversationId: String, messageId: String): Result<Unit>
 
     suspend fun contactShares(conversationId: String): Result<List<ContactShare>>
 
