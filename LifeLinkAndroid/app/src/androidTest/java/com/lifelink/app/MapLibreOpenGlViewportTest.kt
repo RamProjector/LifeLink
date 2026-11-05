@@ -58,13 +58,21 @@ class MapLibreOpenGlViewportTest {
     }
 
     private fun initializeOpenGl(context: Context) {
-        MapLibre.getInstance(
-            context.applicationContext,
-            null,
-            WellKnownTileServer.MapLibre,
-            RenderingEngine.Type.OPENGL,
-        )
-        assertEquals(RenderingEngine.Type.OPENGL, RenderingEngine.getCurrentType())
+        var selectedRenderer: RenderingEngine.Type? = null
+        // MapLibre's global initialization is UI-thread-only. Instrumentation
+        // methods run on the test thread, so use runOnMainSync rather than
+        // Activity.runOnUiThread (which would post asynchronously and race the
+        // renderer assertion).
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            MapLibre.getInstance(
+                context.applicationContext,
+                null,
+                WellKnownTileServer.MapLibre,
+                RenderingEngine.Type.OPENGL,
+            )
+            selectedRenderer = RenderingEngine.getCurrentType()
+        }
+        assertEquals(RenderingEngine.Type.OPENGL, selectedRenderer)
     }
 
     private fun renderPublicBasemap(tileActions: CopyOnWriteArrayList<TileOperation>) {
