@@ -93,7 +93,7 @@ open class ConversationNavigationTest {
     fun donor_can_open_chat_and_system_back_returns_to_the_donor_workspace() {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
         composeRule.onNodeWithTag("open-settings").assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("Account, notifications, privacy, and app preferences.").assertIsDisplayed()
+        composeRule.onNodeWithText("Profile, notifications, privacy, safety, and app preferences.").assertIsDisplayed()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithTag("open-donor-workspace").fetchSemanticsNodes().isNotEmpty()
         }

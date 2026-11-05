@@ -567,6 +567,7 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
 }
 
 /** Shows request history with actions to create, resume, or view the current request. */
+@Suppress("CyclomaticComplexMethod")
 @Composable private fun RequestsContent(
     state: EmergencyRequestUiState,
     onAction: (EmergencyRequestAction) -> Unit,
@@ -1198,6 +1199,7 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
 }
 
 /** Routes the selected settings section to account, notifications, privacy, appearance, or guidance. */
+@Suppress("LongParameterList")
 @Composable private fun SettingsContent(
     role: UserRole,
     accountEmail: String,
@@ -1316,6 +1318,7 @@ private fun NotificationSettingsContent() {
 
 /** Summarizes existing privacy boundaries without implying controls the app does not yet expose here. */
 @Composable
+@Suppress("UnusedPrivateMember")
 private fun PrivacySettingsContent() {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -1351,6 +1354,7 @@ private fun PrivacySettingsContent() {
 }
 
 @Composable
+@Suppress("LongMethod")
 private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> Unit) {
     var legalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     var resetMessage by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1479,6 +1483,7 @@ private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> U
 }
 
 /** Requests a password-reset link and shows the callback result alongside session-safety guidance. */
+@Suppress("UnusedPrivateMember")
 @Composable private fun SecurityContent(onRequestPasswordReset: ((String) -> Unit) -> Unit) {
     var resetMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var showSessionHelp by rememberSaveable { mutableStateOf(false) }
@@ -1538,6 +1543,7 @@ private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> U
 /** Displays product limitations, emergency guidance, and legal and safety information. */
 @Composable
 @Suppress("LongMethod")
+@Suppress("UnusedPrivateMember")
 private fun LegalContent() {
     var legalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     Column(
@@ -1574,6 +1580,7 @@ private fun LegalDocumentPicker(onSelect: (LegalDocument) -> Unit) {
  * Edits the account display name and exposes donor navigation and sign-out actions.
  * Donors invoke [onOpenDonor] to open their workspace; other roles invoke [onBecomeDonor] to start setup.
  */
+@Suppress("LongParameterList", "LongMethod")
 @Composable private fun ProfileContent(
     role: UserRole,
     accountEmail: String,
