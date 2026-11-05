@@ -1,5 +1,8 @@
 package com.lifelink.app.data.repository
 
+import com.lifelink.app.data.local.ChatCacheDao
+import com.lifelink.app.data.local.ChatMessageEntity
+import com.lifelink.app.data.local.SavedChatMessageEntity
 import com.lifelink.app.data.remote.ContactShareRequest
 import com.lifelink.app.data.remote.ConversationModerationRequest
 import com.lifelink.app.data.remote.DonorMapVisibilityRequest
@@ -17,13 +20,27 @@ import com.lifelink.app.domain.SavedChatMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+private fun ChatMessage.toEntity(ownerId: String) = ChatMessageEntity(ownerId, conversationId, messageId, senderId, body, createdAt)
+private fun ChatMessageEntity.toDomain() = ChatMessage(messageId, conversationId, senderId, body, createdAt)
+private fun SavedChatMessage.toEntity(ownerId: String) =
+    SavedChatMessageEntity(ownerId, conversationId, messageId, senderId, body, messageCreatedAt, savedAt)
+private fun SavedChatMessageEntity.toDomain() =
+    SavedChatMessage(messageId, conversationId, senderId, body, messageCreatedAt, savedAt)
+
 /**
  * Remote-only repository for the privacy features. Nothing here caches exact
  * coordinates: every read re-asks the server, which re-checks the live share.
  */
-class PrivacyRepositoryImpl(private val api: LifeLinkApi, private val donorIdProvider: () -> String? = { null }) : PrivacyRepository {
+class PrivacyRepositoryImpl(
+    private val api: LifeLinkApi,
+    private val donorIdProvider: () -> String? = { null },
+    private val chatCacheDao: ChatCacheDao? = null,
+) : PrivacyRepository {
     private fun donorId(): String =
         donorIdProvider()?.takeIf { it.isNotBlank() } ?: error("Sign in before using donor mode.")
+
+    private fun ownerId(): String =
+        donorIdProvider()?.takeIf { it.isNotBlank() } ?: error("Sign in before using chat.")
 
     override suspend fun donorMap(): Result<DonorMap> =
         withContext(Dispatchers.IO) {
@@ -147,12 +164,19 @@ class PrivacyRepositoryImpl(private val api: LifeLinkApi, private val donorIdPro
 
     override suspend fun messages(conversationId: String): Result<List<ChatMessage>> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            val remote = runCatching {
                 val response = api.listMessages(conversationId)
                 check(response.isSuccessful) { "Messages could not be loaded (${response.code()})." }
                 checkNotNull(response.body()).map {
                     ChatMessage(it.messageId, it.conversationId, it.senderId, it.body, it.createdAt)
                 }
+            }
+            remote.onSuccess { messages ->
+                chatCacheDao?.upsertMessages(messages.map { it.toEntity(ownerId()) })
+            }
+            remote.recoverCatching {
+                chatCacheDao?.messages(ownerId(), conversationId)?.map { it.toDomain() }
+                    ?: throw remote.exceptionOrNull()!!
             }
         }
 
@@ -162,13 +186,15 @@ class PrivacyRepositoryImpl(private val api: LifeLinkApi, private val donorIdPro
                 val response = api.sendMessage(conversationId, MessageRequest(body.trim()))
                 check(response.isSuccessful) { "Message could not be sent (${response.code()})." }
                 val sent = checkNotNull(response.body()) { "The server returned an empty message." }
-                ChatMessage(sent.messageId, sent.conversationId, sent.senderId, sent.body, sent.createdAt)
+                ChatMessage(sent.messageId, sent.conversationId, sent.senderId, sent.body, sent.createdAt).also {
+                    chatCacheDao?.upsertMessage(it.toEntity(ownerId()))
+                }
             }
         }
 
     override suspend fun savedMessages(conversationId: String): Result<List<SavedChatMessage>> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            val remote = runCatching {
                 val response = api.listSavedMessages(conversationId)
                 check(response.isSuccessful) { "Saved messages could not be loaded (${response.code()})." }
                 checkNotNull(response.body()).map {
@@ -181,6 +207,14 @@ class PrivacyRepositoryImpl(private val api: LifeLinkApi, private val donorIdPro
                         savedAt = it.savedAt,
                     )
                 }
+            }
+            remote.onSuccess { messages ->
+                chatCacheDao?.clearSavedMessages(ownerId(), conversationId)
+                messages.forEach { chatCacheDao?.upsertSavedMessage(it.toEntity(ownerId())) }
+            }
+            remote.recoverCatching {
+                chatCacheDao?.savedMessages(ownerId(), conversationId)?.map { it.toDomain() }
+                    ?: throw remote.exceptionOrNull()!!
             }
         }
 
@@ -197,7 +231,7 @@ class PrivacyRepositoryImpl(private val api: LifeLinkApi, private val donorIdPro
                     saved.body,
                     saved.messageCreatedAt,
                     saved.savedAt,
-                )
+                ).also { chatCacheDao?.upsertSavedMessage(it.toEntity(ownerId())) }
             }
         }
 
@@ -206,6 +240,7 @@ class PrivacyRepositoryImpl(private val api: LifeLinkApi, private val donorIdPro
             runCatching {
                 val response = api.unsaveMessage(conversationId, messageId)
                 check(response.isSuccessful) { "Saved message could not be removed (${response.code()})." }
+                chatCacheDao?.deleteSavedMessage(ownerId(), conversationId, messageId)
             }
         }
 
