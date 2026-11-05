@@ -128,6 +128,7 @@ class DatabaseMigrationTest {
                 LifeLinkDatabase.migration6To7,
                 LifeLinkDatabase.migration7To8,
                 LifeLinkDatabase.migration8To9,
+                LifeLinkDatabase.migration9To10,
             )
             .allowMainThreadQueries()
             .build()

@@ -266,7 +266,7 @@ class LifeLinkApplication : Application() {
             donorRepository = DonorRepositoryImpl(database.donorDao(), api, { ownerId }),
             donorProfileRepository = DonorProfileRepositoryImpl(api),
             updatesRepository = UpdatesRepository(database.updateDao(), ownerId),
-            privacyRepository = PrivacyRepositoryImpl(api, { ownerId }),
+            privacyRepository = PrivacyRepositoryImpl(api, { ownerId }, database.chatCacheDao()),
         )
     }
 }

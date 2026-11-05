@@ -52,8 +52,10 @@ interface EmergencyRequestDraftDao {
         DonorProfileEntity::class,
         DonorRequestEntity::class,
         UpdateEntity::class,
+        ChatMessageEntity::class,
+        SavedChatMessageEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 abstract class LifeLinkDatabase : RoomDatabase() {
@@ -62,6 +64,7 @@ abstract class LifeLinkDatabase : RoomDatabase() {
     abstract fun activeRequestDao(): ActiveRequestDao
     abstract fun donorDao(): DonorDao
     abstract fun updateDao(): UpdateDao
+    abstract fun chatCacheDao(): ChatCacheDao
 
     suspend fun clearLocalAccountData(ownerId: String) = withTransaction {
         emergencyRequestDraftDao().clearAll(ownerId)
@@ -69,6 +72,8 @@ abstract class LifeLinkDatabase : RoomDatabase() {
         activeRequestDao().clearAll(ownerId)
         donorDao().clearAll(ownerId)
         updateDao().clearAll(ownerId)
+        chatCacheDao().clearMessages(ownerId)
+        chatCacheDao().clearSavedMessages(ownerId)
     }
 
     companion object {
@@ -84,6 +89,7 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                     migration6To7,
                     migration7To8,
                     migration8To9,
+                    migration9To10,
                 ).fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5).build().also {
                     instance =
                         it
@@ -134,6 +140,38 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                 for (table in listOf("emergency_request_drafts", "pending_submissions", "updates")) {
                     migrateOwnedTable(database, table)
                 }
+            }
+        }
+
+        internal val migration9To10 = object : Migration(9, 10) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS chat_messages (
+                        ownerId TEXT NOT NULL,
+                        conversationId TEXT NOT NULL,
+                        messageId TEXT NOT NULL,
+                        senderId TEXT NOT NULL,
+                        body TEXT NOT NULL,
+                        createdAt TEXT NOT NULL,
+                        PRIMARY KEY(ownerId, conversationId, messageId)
+                    )
+                    """.trimIndent(),
+                )
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS saved_chat_messages (
+                        ownerId TEXT NOT NULL,
+                        conversationId TEXT NOT NULL,
+                        messageId TEXT NOT NULL,
+                        senderId TEXT NOT NULL,
+                        body TEXT NOT NULL,
+                        messageCreatedAt TEXT NOT NULL,
+                        savedAt TEXT NOT NULL,
+                        PRIMARY KEY(ownerId, conversationId, messageId)
+                    )
+                    """.trimIndent(),
+                )
             }
         }
 
