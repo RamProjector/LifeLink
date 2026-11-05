@@ -87,6 +87,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -709,7 +710,12 @@ private fun RequestsContent(
                 )
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    Modifier
+                        .testTag("request-history-filters")
+                        .semantics { paneTitle = "Request history filters" },
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     listOf("All", "Active", "Past").forEach { filter ->
                         FilterChip(
                             selected = historyFilter == filter,

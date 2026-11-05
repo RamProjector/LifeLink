@@ -3,6 +3,8 @@ package com.lifelink.app
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
@@ -258,6 +260,8 @@ open class ConversationNavigationTest {
     fun request_history_filter_summary_can_clear_filter_and_search() {
         renderShell(StateRestorationTester(composeRule), UserRole.REQUESTER)
         composeRule.onNodeWithTag("nav-REQUESTS").performClick()
+        composeRule.onNodeWithTag("request-history-filters")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, "Request history filters"))
         composeRule.onNodeWithTag("request-history-result-count")
             .assertIsDisplayed()
             .assertTextContains("0 requests found")
