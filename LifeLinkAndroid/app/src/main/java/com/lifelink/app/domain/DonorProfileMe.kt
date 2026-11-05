@@ -19,6 +19,8 @@ data class DonorProfileMe(
     val availability: DonorAvailability = DonorAvailability.OFFLINE,
     val lastDonationDate: String? = null,
     val verified: Boolean = false,
+    val matchable: Boolean = false,
+    val matchabilityReason: String = "Pending server verification",
     val notificationsEnabled: Boolean = true,
     val displayName: String = "",
     val donorNote: String = "",
@@ -29,9 +31,9 @@ data class DonorProfileMe(
     val isSetupComplete: Boolean
         get() = bloodType != null && latitude != null && longitude != null && serviceRadiusKm in 1..500
 
-    /** The gating rule: only a verified, available profile can be matched. */
+    /** Server-owned result; the client does not decide whether this profile can match. */
     val isMatchable: Boolean
-        get() = verified && availability == DonorAvailability.AVAILABLE
+        get() = matchable
 }
 
 /** Reads and writes the current user's donor profile through the API. */

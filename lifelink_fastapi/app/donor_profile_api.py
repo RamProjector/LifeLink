@@ -58,6 +58,8 @@ class DonorProfileMeOut(BaseModel):
     availability_status: DonorAvailability
     last_donation_date: date | None = None
     verified: bool
+    matchable: bool
+    matchability_reason: str
     notifications_enabled: bool
     display_name: str
     donor_note: str

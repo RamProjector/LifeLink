@@ -154,6 +154,26 @@ async def submit_request(client, current, requester_id: str, **kwargs) -> dict:
     return response.json()
 
 
+def test_donor_profile_reports_server_authoritative_matchability(pg_url):
+    async def scenario(client, current, run_sql):
+        donor = new_user("matchability")
+        await create_account(client, current, donor)
+        initial = await opt_in_donor(client, current, donor, availability="available")
+        assert initial["verified"] is False
+        assert initial["matchable"] is False
+        assert initial["matchability_reason"] == "Pending server verification"
+
+        await run_sql(f"UPDATE donor_profiles SET verified = TRUE WHERE user_id = '{donor}'")
+        current["id"] = donor
+        verified = await client.get("/v1/donor-profile")
+        assert verified.status_code == 200, verified.text
+        assert verified.json()["verified"] is True
+        assert verified.json()["matchable"] is True
+        assert verified.json()["matchability_reason"] == "Eligible for matching"
+
+    run_scenario(pg_url, scenario)
+
+
 def test_presence_migration_does_not_backfill_availability_timestamps(pg_url, monkeypatch):
     async def scenario():
         engine = create_async_engine(pg_url)
