@@ -135,7 +135,9 @@ private enum class SettingsSection(val label: String) {
     ACCOUNT("Account"),
     NOTIFICATIONS("Notifications"),
     PRIVACY("Privacy & safety"),
+    LEGAL("Legal"),
     THEME("Theme"),
+    SECURITY("Security"),
 }
 
 /**
@@ -1223,7 +1225,9 @@ private fun SettingsContent(
             SettingsSection.ACCOUNT,
             SettingsSection.NOTIFICATIONS,
             SettingsSection.PRIVACY,
+            SettingsSection.LEGAL,
             SettingsSection.THEME,
+            SettingsSection.SECURITY,
         )
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1280,7 +1284,9 @@ private fun SettingsContent(
                 )
             SettingsSection.NOTIFICATIONS -> NotificationSettingsContent()
             SettingsSection.PRIVACY -> PrivacySafetyContent(onRequestPasswordReset)
+            SettingsSection.LEGAL -> LegalContent()
             SettingsSection.THEME -> ThemeContent(themeMode, onThemeModeChange)
+            SettingsSection.SECURITY -> SecurityContent(onRequestPasswordReset)
         }
     }
 }
@@ -1496,7 +1502,6 @@ private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> U
 }
 
 /** Requests a password-reset link and shows the callback result alongside session-safety guidance. */
-@Suppress("UnusedPrivateMember")
 @Composable
 private fun SecurityContent(onRequestPasswordReset: ((String) -> Unit) -> Unit) {
     var resetMessage by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1557,7 +1562,6 @@ private fun SecurityContent(onRequestPasswordReset: ((String) -> Unit) -> Unit) 
 /** Displays product limitations, emergency guidance, and legal and safety information. */
 @Composable
 @Suppress("LongMethod")
-@Suppress("UnusedPrivateMember")
 private fun LegalContent() {
     var legalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     Column(
