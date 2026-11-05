@@ -55,14 +55,24 @@ fun MessagingScreen(
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadConversations) }
     var handledNotificationKey by remember { mutableStateOf<String?>(null) }
+    var notificationRouteMessage by remember { mutableStateOf<String?>(null) }
     val notificationKey = targetConversationId?.let { conversationId ->
         "$conversationId|${targetConversationEventId.orEmpty()}"
     }
     LaunchedEffect(notificationKey, state.conversations, state.conversationsLoading) {
-        if (notificationKey != null && notificationKey != handledNotificationKey && !state.conversationsLoading) {
+        if (
+            notificationKey != null &&
+                notificationKey != handledNotificationKey &&
+                !state.conversationsLoading &&
+                state.conversationsError == null
+        ) {
             state.conversations.firstOrNull { it.conversationId == targetConversationId }?.let { conversation ->
                 handledNotificationKey = notificationKey
+                notificationRouteMessage = null
                 onOpenConversation(conversation.requestId, conversation.donorId)
+            } ?: run {
+                handledNotificationKey = notificationKey
+                notificationRouteMessage = "That conversation is no longer available. Refresh Messaging to try again."
             }
         }
     }
@@ -78,6 +88,18 @@ fun MessagingScreen(
                     "Chat with matched donors and requesters. Contact details remain private until shared.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                notificationRouteMessage?.let { message ->
+                    Card(
+                        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    ) {
+                        Text(
+                            message,
+                            Modifier.padding(12.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
+                }
             }
         }
         when {
