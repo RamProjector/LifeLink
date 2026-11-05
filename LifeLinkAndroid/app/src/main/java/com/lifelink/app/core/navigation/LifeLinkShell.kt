@@ -747,6 +747,17 @@ private fun RequestsContent(
                     }
                 }
             }
+            item {
+                Text(
+                    "${visibleHistory.size} ${if (visibleHistory.size == 1) "request" else "requests"} found",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("request-history-result-count")
+                        .semantics { liveRegion = LiveRegionMode.Polite },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             state.historyError?.let { error ->
                 item {
                     Card(

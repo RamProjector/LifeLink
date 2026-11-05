@@ -258,6 +258,9 @@ open class ConversationNavigationTest {
     fun request_history_filter_summary_can_clear_filter_and_search() {
         renderShell(StateRestorationTester(composeRule), UserRole.REQUESTER)
         composeRule.onNodeWithTag("nav-REQUESTS").performClick()
+        composeRule.onNodeWithTag("request-history-result-count")
+            .assertIsDisplayed()
+            .assertTextContains("0 requests found")
         composeRule.onNodeWithTag("request-filter-active").performClick()
         composeRule.onNodeWithTag("request-history-filter-summary")
             .assertIsDisplayed()
