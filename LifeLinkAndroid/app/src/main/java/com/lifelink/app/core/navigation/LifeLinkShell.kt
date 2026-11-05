@@ -1274,7 +1274,8 @@ private fun PrivacySettingsContent() {
                 Text("Chat history", fontWeight = FontWeight.SemiBold)
                 Text(
                     "Messages are stored on LifeLink servers and are readable by the two participants in that conversation. " +
-                        "Offline message history and saved-message bookmarks are not currently available.",
+                        "The last synchronized conversation and saved-message state are also kept on this device for offline viewing. " +
+                        "This cache is separated by account and cleared when you sign out.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
