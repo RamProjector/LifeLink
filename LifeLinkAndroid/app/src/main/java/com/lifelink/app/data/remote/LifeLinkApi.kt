@@ -519,6 +519,8 @@ data class DonorProfileMeResponse(
     @SerializedName("availability_status") val availabilityStatus: String = "offline",
     @SerializedName("last_donation_date") val lastDonationDate: String? = null,
     val verified: Boolean = false,
+    val matchable: Boolean = false,
+    @SerializedName("matchability_reason") val matchabilityReason: String = "Pending server verification",
     @SerializedName("notifications_enabled") val notificationsEnabled: Boolean = true,
     @SerializedName("display_name") val displayName: String = "",
     @SerializedName("donor_note") val donorNote: String = "",

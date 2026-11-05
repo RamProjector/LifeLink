@@ -97,6 +97,8 @@ private fun DonorProfileMeResponse.toDomain() = DonorProfileMe(
         .getOrDefault(DonorAvailability.OFFLINE),
     lastDonationDate = lastDonationDate,
     verified = verified,
+    matchable = matchable,
+    matchabilityReason = matchabilityReason,
     notificationsEnabled = notificationsEnabled,
     displayName = displayName,
     donorNote = donorNote,

@@ -48,6 +48,15 @@ def effective_available(availability_status: str, verified: bool) -> bool:
     return availability_status == DonorAvailability.AVAILABLE.value and bool(verified)
 
 
+def matchability_reason(availability_status: str, verified: bool) -> str:
+    """Explain the server-owned gating state without exposing internal details."""
+    if not verified:
+        return "Pending server verification"
+    if availability_status != DonorAvailability.AVAILABLE.value:
+        return "Set availability to Available"
+    return "Eligible for matching"
+
+
 class SqlAlchemyDonorProfileStore:
     """Persistence for the donor-profile flow and its operational donor row."""
 
@@ -286,6 +295,8 @@ class SqlAlchemyDonorProfileStore:
             availability_status=row.availability_status,
             last_donation_date=row.last_donation_date,
             verified=bool(row.verified),
+            matchable=effective_available(row.availability_status, bool(row.verified)),
+            matchability_reason=matchability_reason(row.availability_status, bool(row.verified)),
             notifications_enabled=bool(row.notifications_enabled),
             display_name=display_name,
             donor_note=payload.donor_note if payload is not None else "",
