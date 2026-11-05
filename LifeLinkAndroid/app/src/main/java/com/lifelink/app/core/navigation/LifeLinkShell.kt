@@ -1049,7 +1049,7 @@ private fun ActiveRequestSummary(state: EmergencyRequestUiState, onOpen: () -> U
 @Preview(name = "Home · dark", widthDp = 360, heightDp = 820, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun HomePreview() {
-    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, {}, emptyList(), {}, {}) }
+    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, emptyList(), {}, {}) }
 }
 
 /** Summarizes donor availability and request count with an action to open donor mode. */
