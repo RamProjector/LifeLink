@@ -79,7 +79,6 @@ class MapLibreOpenGlViewportTest {
         assertEquals(RenderingEngine.Type.OPENGL, selectedRenderer)
     }
 
-
     /**
      * The Vulkan suite runs first and can warm MapLibre's shared ambient tile
      * cache. Clear only that cache in this disposable emulator before the
