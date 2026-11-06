@@ -25,9 +25,12 @@ import org.junit.runner.RunWith
 import org.maplibre.android.MapLibre
 import org.maplibre.android.RenderingEngine
 import org.maplibre.android.WellKnownTileServer
+import org.maplibre.android.offline.OfflineManager
 import org.maplibre.android.tile.TileOperation
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * Isolated OpenGL compatibility probe for the MapLibre native SurfaceView.
@@ -48,6 +51,7 @@ class MapLibreOpenGlViewportTest {
     fun openGlRendererCoversMapViewportAndLoadsTiles() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         initializeOpenGl(context)
+        clearAmbientCache(context)
         val tileActions = CopyOnWriteArrayList<TileOperation>()
         renderPublicBasemap(tileActions)
         awaitRenderedMapAndNetworkTiles(tileActions)
@@ -73,6 +77,42 @@ class MapLibreOpenGlViewportTest {
             selectedRenderer = RenderingEngine.getCurrentType()
         }
         assertEquals(RenderingEngine.Type.OPENGL, selectedRenderer)
+    }
+
+
+    /**
+     * The Vulkan suite runs first and can warm MapLibre's shared ambient tile
+     * cache. Clear only that cache in this disposable emulator before the
+     * OpenGL probe, so LoadFromNetwork is deterministic rather than depending
+     * on whichever tiles the previous test happened to cache. Offline regions
+     * and app/account data are not touched.
+     */
+    private fun clearAmbientCache(context: Context) {
+        val completed = CountDownLatch(1)
+        var succeeded = false
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            OfflineManager.getInstance(context.applicationContext).clearAmbientCache(
+                object : OfflineManager.FileSourceCallback {
+                    override fun onSuccess() {
+                        succeeded = true
+                        completed.countDown()
+                    }
+
+                    override fun onError(message: String) {
+                        Log.e("LifeLinkMapTilesOpenGL", "Ambient tile cache clear failed.")
+                        completed.countDown()
+                    }
+                },
+            )
+        }
+        assertTrue(
+            "MapLibre ambient cache clear did not complete within 30 seconds",
+            completed.await(30, TimeUnit.SECONDS),
+        )
+        assertTrue(
+            "MapLibre ambient cache could not be cleared; fresh network tile loading cannot be verified",
+            succeeded,
+        )
     }
 
     private fun renderPublicBasemap(tileActions: CopyOnWriteArrayList<TileOperation>) {
