@@ -26,8 +26,9 @@ env:
   AVD_TARGET: google_apis
   AVD_ARCH: x86_64
   AVD_PROFILE: pixel_2
-  # Force the emulator's software Vulkan ICD. MapLibre's dual-backend artifact
-  # selects Vulkan when the guest advertises support, with OpenGL as device fallback.
+  # Keep the software Vulkan ICD available for emulator diagnostics. LifeLink
+  # explicitly selects OpenGL ES for MapView after the blank Vulkan screenshot
+  # reproduced in CI; this setting does not change the app's renderer choice.
   ANDROID_EMU_VK_ICD: swiftshader
   # Bump after changing the guest architecture or system-image selection.
   AVD_CACHE_VERSION: v6
@@ -284,15 +285,15 @@ jobs:
               2>/dev/null | head -240 || true
           fi
           if [[ "$test_exit" == "0" ]]; then
-            # Preserve the main Vulkan visual-suite reports before running a
-            # second, isolated process. MapLibre chooses its renderer once per
-            # process, so OpenGL must be initialized in a fresh target process.
-            mkdir -p "$GITHUB_WORKSPACE/visual-artifacts/vulkan-suite-test-results"
+            # Preserve the main production-map visual suite before running a
+            # second isolated process. MapLibre chooses its renderer once per
+            # process; both LifeLink map entry points explicitly select OpenGL.
+            mkdir -p "$GITHUB_WORKSPACE/visual-artifacts/production-map-suite-test-results"
             cp -R "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results/." \
-              "$GITHUB_WORKSPACE/visual-artifacts/vulkan-suite-test-results/" 2>/dev/null || true
+              "$GITHUB_WORKSPACE/visual-artifacts/production-map-suite-test-results/" 2>/dev/null || true
             if [[ -d "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/reports/androidTests/connected" ]]; then
               cp -R "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/reports/androidTests/connected" \
-                "$GITHUB_WORKSPACE/visual-artifacts/vulkan-suite-report" || true
+                "$GITHUB_WORKSPACE/visual-artifacts/production-map-suite-report" || true
             fi
             echo "Starting isolated MapLibre OpenGL viewport compatibility test."
             timeout 20s adb -s "$device_serial" shell am force-stop com.lifelink.app >/dev/null 2>&1 || true
