@@ -35,9 +35,10 @@ import java.util.concurrent.TimeUnit
 /**
  * Isolated OpenGL compatibility probe for the MapLibre native SurfaceView.
  *
- * The production visual suite initializes Vulkan first. MapLibre selects its
- * renderer once per process, so this test runs in a fresh app process and
- * explicitly initializes OpenGL before the first MapView is created.
+ * LifeLink's map component explicitly selects OpenGL ES before creating its
+ * first MapView. MapLibre selects its renderer once per process, so this probe
+ * runs in a fresh target process and verifies that the app's renderer choice,
+ * network tile loading, and native viewport remain correct after startup.
  *
  * Only public basemap tiles are requested. No donor accounts, donor coordinates,
  * identities, or backend writes are used.
