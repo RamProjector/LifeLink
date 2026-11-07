@@ -26,8 +26,9 @@ env:
   AVD_TARGET: google_apis
   AVD_ARCH: x86_64
   AVD_PROFILE: pixel_2
-  # Force the emulator's software Vulkan ICD. MapLibre's dual-backend artifact
-  # selects Vulkan when the guest advertises support, with OpenGL as device fallback.
+  # Keep the software Vulkan ICD available for emulator diagnostics. LifeLink
+  # explicitly selects OpenGL ES for MapView after the blank Vulkan screenshot
+  # reproduced in CI; this setting does not change the app's renderer choice.
   ANDROID_EMU_VK_ICD: swiftshader
   # Bump after changing the guest architecture or system-image selection.
   AVD_CACHE_VERSION: v6
@@ -284,6 +285,41 @@ jobs:
               2>/dev/null | head -240 || true
           fi
           if [[ "$test_exit" == "0" ]]; then
+            # Preserve the main production-map visual suite before running a
+            # second isolated process. MapLibre chooses its renderer once per
+            # process; both LifeLink map entry points explicitly select OpenGL.
+            mkdir -p "$GITHUB_WORKSPACE/visual-artifacts/production-map-suite-test-results"
+            cp -R "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results/." \
+              "$GITHUB_WORKSPACE/visual-artifacts/production-map-suite-test-results/" 2>/dev/null || true
+            if [[ -d "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/reports/androidTests/connected" ]]; then
+              cp -R "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/reports/androidTests/connected" \
+                "$GITHUB_WORKSPACE/visual-artifacts/production-map-suite-report" || true
+            fi
+            echo "Starting isolated MapLibre OpenGL viewport compatibility test."
+            timeout 20s adb -s "$device_serial" shell am force-stop com.lifelink.app >/dev/null 2>&1 || true
+            timeout 20s adb -s "$device_serial" shell am force-stop com.lifelink.app.test >/dev/null 2>&1 || true
+            ./gradlew connectedDebugAndroidTest \
+              -Pandroid.testInstrumentationRunnerArguments.class="com.lifelink.app.MapLibreOpenGlViewportTest" \
+              -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
+              --no-daemon --stacktrace
+            opengl_exit=$?
+            if [[ "$opengl_exit" != "0" ]]; then
+              echo "::error::Isolated MapLibre OpenGL viewport test failed with exit code $opengl_exit."
+              echo "--- OpenGL instrumentation failure excerpts ---"
+              rg -n -i -C 2 'failure|error|exception|assertion|timeout' \
+                "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results" \
+                "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/reports/androidTests/connected" \
+                2>/dev/null | head -200 || true
+              exit "$opengl_exit"
+            fi
+            if ! grep -R -Fq "openGlRendererCoversMapViewportAndLoadsTiles" \
+              "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results"; then
+              echo "::error::OpenGL viewport instrumentation result is missing from the report."
+              exit 9
+            fi
+            echo "OpenGL renderer test passed and its instrumentation result is present."
+          fi
+          if [[ "$test_exit" == "0" ]]; then
             echo "Starting isolated fake-backend UI APK smoke test."
             ui_apk="$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/apk/uiTest/app-uiTest.apk"
             if [[ ! -s "$ui_apk" ]]; then
@@ -492,6 +528,7 @@ jobs:
             "lifelink-phone-light-donor-map-synthetic-filtered-marker-selected.png"
             "lifelink-phone-light-donor-map-synthetic-marker-metadata-refreshed.png"
             "lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"
+            "lifelink-phone-light-donor-map-opengl-full-viewport.png"
             "lifelink-phone-light-donor-map-synthetic-list.png"
             "lifelink-phone-light-donor-map-synthetic-blood-filter.png"
             "lifelink-phone-light-donor-map-synthetic-available-filter.png"

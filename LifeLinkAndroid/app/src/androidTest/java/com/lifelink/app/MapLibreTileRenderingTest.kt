@@ -76,8 +76,8 @@ class MapLibreTileRenderingTest {
             "renderer=$renderer networkRequested=$networkRequests networkLoaded=$networkLoads parsed=$parsedTiles errors=$tileErrors",
         )
         assertEquals(
-            "The CI emulator should select MapLibre Vulkan so OpenFreeMap text/symbol layers render",
-            RenderingEngine.Type.VULKAN,
+            "LifeLink explicitly selects OpenGL ES because the CI emulator's Vulkan surface rendered blank despite successful tile parsing",
+            RenderingEngine.Type.OPENGL,
             renderer,
         )
         assertTrue("MapLibre did not request any network tiles: $tileActions", networkRequests > 0)
