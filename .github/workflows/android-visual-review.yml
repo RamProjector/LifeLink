@@ -529,6 +529,8 @@ jobs:
             "lifelink-phone-light-donor-map-synthetic-marker-metadata-refreshed.png"
             "lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"
             "lifelink-phone-light-donor-map-opengl-full-viewport.png"
+            "lifelink-maplibre-production-tile-summary.txt"
+            "lifelink-maplibre-opengl-summary.txt"
             "lifelink-phone-light-donor-map-synthetic-list.png"
             "lifelink-phone-light-donor-map-synthetic-blood-filter.png"
             "lifelink-phone-light-donor-map-synthetic-available-filter.png"
@@ -543,7 +545,7 @@ jobs:
               exit 1
             fi
           done
-          echo "Required home, rendered donor map, donor workspace, and requests screenshots are present."
+          echo "Required workflow screenshots and MapLibre renderer/tile diagnostic summaries are present."
 
       - name: Upload visual evidence and reports
         if: always()
