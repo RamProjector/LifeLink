@@ -59,7 +59,20 @@ class MapLibreOpenGlViewportTest {
         assertNetworkTileOperations(tileActions)
         composeRule.onNodeWithContentDescription("Donor map rendered")
             .assertHeightIsAtLeast(500.dp)
-        captureAndAssertViewport(context.filesDir)
+        val viewportSummary = captureAndAssertViewport(context.filesDir)
+        val tileSummary = listOf(
+            "renderer=OPENGL",
+            "networkRequested=${tileActions.count { it == TileOperation.RequestedFromNetwork }}",
+            "networkLoaded=${tileActions.count { it == TileOperation.LoadFromNetwork }}",
+            "parsedTiles=${tileActions.count { it == TileOperation.EndParse }}",
+            "tileErrors=${tileActions.count { it == TileOperation.Error }}",
+            "mapRendered=true",
+            viewportSummary,
+        ).joinToString(separator = "\\n", postfix = "\\n")
+        assertTrue(
+            "MapLibre OpenGL diagnostics could not be saved",
+            VisualEvidence.writeText("lifelink-maplibre-opengl-summary.txt", tileSummary),
+        )
     }
 
     private fun initializeOpenGl(context: Context) {
@@ -164,22 +177,24 @@ class MapLibreOpenGlViewportTest {
         assertEquals("OpenGL reported tile errors: $tileActions", 0, tileErrors)
     }
 
-    private fun captureAndAssertViewport(filesDir: File) {
+    private fun captureAndAssertViewport(filesDir: File): String {
         val screenshotName = "lifelink-phone-light-donor-map-opengl-full-viewport.png"
         assertTrue(
             "OpenGL map screenshot could not be captured",
             VisualEvidence.capture(screenshotName),
         )
-        assertMapViewportCoverage(filesDir, screenshotName)
+        return assertMapViewportCoverage(filesDir, screenshotName)
     }
 
-    private fun assertMapViewportCoverage(filesDir: File, screenshotName: String) {
+    private fun assertMapViewportCoverage(filesDir: File, screenshotName: String): String {
         val screenshot = File(filesDir, "lifelink-evidence/$screenshotName")
         val bitmap = BitmapFactory.decodeFile(screenshot.absolutePath)
         assertNotNull("Map viewport screenshot could not be decoded: $screenshotName", bitmap)
         val image = requireNotNull(bitmap)
-        val top = image.height / 12
-        val bottom = image.height * 11 / 12
+        val viewportWidth = image.width
+        val viewportHeight = image.height
+        val top = viewportHeight / 12
+        val bottom = viewportHeight * 11 / 12
         val bandHeight = (bottom - top) / VERTICAL_BANDS
         var texturedBands = 0
         val bandCounts = mutableListOf<Int>()
@@ -200,6 +215,14 @@ class MapLibreOpenGlViewportTest {
         }
         image.recycle()
         assertCoverageAcrossViewport(texturedBands, bandCounts)
+        return listOf(
+            "screenshot=$screenshotName",
+            "viewportWidthPx=$viewportWidth",
+            "viewportHeightPx=$viewportHeight",
+            "texturedBands=$texturedBands/$VERTICAL_BANDS",
+            "minimumTexturedBands=$MIN_TEXTURED_BANDS",
+            "distinctColorsByBand=$bandCounts",
+        ).joinToString(separator = "\\n")
     }
 
     private fun assertCoverageAcrossViewport(texturedBands: Int, bandCounts: List<Int>) {

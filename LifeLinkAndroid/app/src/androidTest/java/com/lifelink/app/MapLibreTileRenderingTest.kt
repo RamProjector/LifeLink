@@ -91,6 +91,19 @@ class MapLibreTileRenderingTest {
         )
         composeRule.onNodeWithContentDescription("Donor map rendered")
             .assertHeightIsAtLeast(500.dp)
+        val tileSummary = listOf(
+            "renderer=${renderer.name}",
+            "networkRequested=$networkRequests",
+            "networkLoaded=$networkLoads",
+            "parsedTiles=$parsedTiles",
+            "tileErrors=$tileErrors",
+            "mapRendered=true",
+            "minimumViewportHeightDp=500",
+        ).joinToString(separator = "\\n", postfix = "\\n")
+        assertTrue(
+            "MapLibre production tile diagnostics could not be saved",
+            VisualEvidence.writeText("lifelink-maplibre-production-tile-summary.txt", tileSummary),
+        )
         assertTrue(
             "OpenFreeMap tile-render screenshot could not be captured",
             VisualEvidence.capture("lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"),

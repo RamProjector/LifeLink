@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
 import java.io.File
+import java.io.IOException
 
 /**
  * Saves screenshots to app-private storage. The workflow extracts these files with `run-as`
@@ -30,6 +31,18 @@ object VisualEvidence {
         }
         Log.e(TAG, "Required visual evidence could not be saved: $fileName")
         return false
+    }
+
+    /** Writes privacy-safe renderer diagnostics to the same app-private evidence folder. */
+    fun writeText(fileName: String, content: String): Boolean {
+        val target = File(evidenceDir(), fileName)
+        return try {
+            target.writeText(content)
+            target.isFile && target.length() > 0
+        } catch (exception: IOException) {
+            Log.e(TAG, "Could not write diagnostic evidence: $fileName", exception)
+            false
+        }
     }
 
     private fun evidenceDir(): File {
