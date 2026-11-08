@@ -34,6 +34,7 @@ MapLibre documents Vulkan as the Android SDK's default since v13 and OpenGL ES a
   - The ambient MapLibre tile cache is cleared in the disposable emulator before the probe, so fresh network-load assertions do not depend on the prior Vulkan suite.
 - The test uses a public central-London basemap center only to exercise map tiles. No donor records, accounts, identities, exact donor coordinates, or backend writes are involved.
 - Synthetic marker/filter tests remain separate and deterministic; they assert approximate area selection and filter results without network/backend data.
+- The CI visual job now persists renderer/tile-operation counts and viewport band counts as app-private text evidence, requires both summary files, and uploads them with screenshots. The summaries omit tile coordinates, source identifiers, donor records, and account data.
 
 ## Latest production-renderer visual review (2026-11-07)
 
