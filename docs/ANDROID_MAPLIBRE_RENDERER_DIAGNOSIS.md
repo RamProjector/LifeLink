@@ -35,6 +35,16 @@ MapLibre documents Vulkan as the Android SDK's default since v13 and OpenGL ES a
 - The test uses a public central-London basemap center only to exercise map tiles. No donor records, accounts, identities, exact donor coordinates, or backend writes are involved.
 - Synthetic marker/filter tests remain separate and deterministic; they assert approximate area selection and filter results without network/backend data.
 
+## Latest production-renderer visual review (2026-11-07)
+
+The latest run on PR head `ff7ef7531de7f958abe890e2f9d88053be450fcf` is [Android visual review 42380075534](https://github.com/RamProjector/LifeLink/actions/runs/42380075534). Its artifact is [13577503311](https://github.com/RamProjector/LifeLink/actions/runs/42380075534/artifacts/13577503311).
+
+- The production-map instrumentation suite reported **21 tests, 0 failures, 0 errors, 0 skipped**. This includes `MapLibreTileRenderingTest`, donor navigation, synthetic marker/filter behavior, and loading/error/empty-state journeys.
+- The isolated `MapLibreOpenGlViewportTest.openGlRendererCoversMapViewportAndLoadsTiles` reported **1 test passed, 0 failures, 0 skipped**.
+- The artifact contains both the donor-workflow screenshot and `lifelink-phone-light-donor-map-opengl-full-viewport.png`; the latter shows tile imagery across the full map surface. The screenshot is evidence of viewport coverage, not a claim that every road/POI label is visible at zoom 12.
+- The donor navigation regression `donor_can_open_chat_and_system_back_returns_to_the_donor_workspace` passed in the same 21-test suite. Its scroll-to-visible interaction and destination/Back assertions remain enabled.
+- The fake-backend UI APK, Android APK build, CodeQL, security scan, and cloud validation runs for this head also completed successfully. The PR remains draft for review; these checks do not automatically merge it.
+
 ## Screenshot interpretation
 
 The OpenGL screenshot proves tile imagery occupies the tested viewport; the color-band assertion does **not** prove text labels are visible. The Liberty style's road-label layers begin at higher zoom levels (for example, major road names around zoom 12.2 and minor road names around zoom 15). The map test currently uses zoom 12, so absence of street/POI labels in that particular screenshot is not by itself evidence of a glyph-rendering failure.
