@@ -68,7 +68,7 @@ class MapLibreOpenGlViewportTest {
             "tileErrors=${tileActions.count { it == TileOperation.Error }}",
             "mapRendered=true",
             viewportSummary,
-        ).joinToString(separator = "\\n", postfix = "\\n")
+        ).joinToString(separator = "\n", postfix = "\\n")
         assertTrue(
             "MapLibre OpenGL diagnostics could not be saved",
             VisualEvidence.writeText("lifelink-maplibre-opengl-summary.txt", tileSummary),

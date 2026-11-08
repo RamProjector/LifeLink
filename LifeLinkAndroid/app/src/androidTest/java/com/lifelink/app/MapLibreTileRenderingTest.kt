@@ -99,7 +99,7 @@ class MapLibreTileRenderingTest {
             "tileErrors=$tileErrors",
             "mapRendered=true",
             "minimumViewportHeightDp=500",
-        ).joinToString(separator = "\\n", postfix = "\\n")
+        ).joinToString(separator = "\n", postfix = "\n")
         assertTrue(
             "MapLibre production tile diagnostics could not be saved",
             VisualEvidence.writeText("lifelink-maplibre-production-tile-summary.txt", tileSummary),
