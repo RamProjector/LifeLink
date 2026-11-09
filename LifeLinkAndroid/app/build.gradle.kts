@@ -305,7 +305,7 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:3.0.0")
     implementation("com.squareup.okhttp3:logging-interceptor:5.5.0")
     implementation("androidx.work:work-runtime-ktx:2.12.0")
-    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
     implementation("com.google.firebase:firebase-messaging")
 
     add("uiTestImplementation", "com.squareup.okhttp3:mockwebserver:5.5.0")
