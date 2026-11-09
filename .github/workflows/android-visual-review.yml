@@ -142,6 +142,32 @@ jobs:
           set +e
           mkdir -p "$GITHUB_WORKSPACE/visual-artifacts"
           device_serial="${ANDROID_SERIAL:-emulator-5554}"
+          collect_app_evidence() {
+            local stage="$1"
+            local listing_file="$GITHUB_WORKSPACE/visual-artifacts/evidence-listing-${stage}.txt"
+            local listing
+            local listing_exit
+            listing="$(timeout 10s adb -s "$device_serial" shell run-as com.lifelink.app ls -1 files/lifelink-evidence 2>&1)"
+            listing_exit=$?
+            printf "run-as exit=%s\\n%s\\n" "$listing_exit" "$listing" > "$listing_file"
+            if [[ "$listing_exit" != "0" ]]; then
+              echo "::warning::Could not list app-private visual evidence after ${stage}; see $(basename "$listing_file")."
+              return 0
+            fi
+            while IFS= read -r evidence_file; do
+              [[ "$evidence_file" =~ ^lifelink-[[:alnum:]_.-]+\\.(png|txt)$ ]] || continue
+              local output_file="$GITHUB_WORKSPACE/visual-artifacts/$evidence_file"
+              if timeout 15s adb -s "$device_serial" exec-out run-as com.lifelink.app cat "files/lifelink-evidence/$evidence_file" > "$output_file"; then
+                if [[ -s "$output_file" ]]; then
+                  echo "Collected $evidence_file after ${stage} ($(wc -c < "$output_file") bytes)."
+                else
+                  echo "::warning::Evidence file was empty after extraction: $evidence_file (${stage})."
+                fi
+              else
+                echo "::warning::Could not extract $evidence_file after ${stage}."
+              fi
+            done <<< "$listing"
+          }
           collect_diagnostics() {
             local script_exit=$?
             mkdir -p "$GITHUB_WORKSPACE/visual-artifacts"
@@ -161,9 +187,7 @@ jobs:
             for remote_file in $(timeout 10s adb -s "$device_serial" shell ls /sdcard/Android/data/com.lifelink.app/files/lifelink-*.png 2>/dev/null | tr -d '\r'); do
               timeout 15s adb -s "$device_serial" pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
             done
-            for evidence_file in $(timeout 10s adb -s "$device_serial" shell run-as com.lifelink.app ls files/lifelink-evidence 2>/dev/null | tr -d '\r' | grep -E 'lifelink-.*(png|txt)'); do
-              timeout 15s adb -s "$device_serial" exec-out run-as com.lifelink.app cat "files/lifelink-evidence/$evidence_file" > "$GITHUB_WORKSPACE/visual-artifacts/$evidence_file" || true
-            done
+            collect_app_evidence "final"
             echo "$script_exit" > "$GITHUB_WORKSPACE/visual-artifacts/visual-test-exit-code.txt"
             exit "$script_exit"
           }
@@ -255,6 +279,9 @@ jobs:
             -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
             --no-daemon --stacktrace
           test_exit=$?
+          # Preserve the production suite screenshots before the next Gradle
+          # instrumentation invocation can reinstall the app and clear app data.
+          collect_app_evidence "production-suite"
           if [[ "$test_exit" == "0" ]]; then
             test_results_dir="$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results"
             for expected_test in "AuthScreenVisualTest" "MapLibreTileRenderingTest" "LifeLinkVisualSmokeTest" "ConversationNavigationSmokeTest" "DebugFileLoggerTest" "LifeLinkFeedbackCardTest" "openFreeMapLoadsAndParsesNetworkTilesBeforeMapIsReportedRendered" "donor_map_synthetic_fixture_filters_areas_without_live_data" "navigatesCoreWorkflowsAndCapturesEvidence" "donorMapErrorKeepsMapVisibleAndRetryable" "emptyDonorMapKeepsMapVisibleAndOffersRefresh" "selectingDonorAreaOpensPrivacySafeDetailsAndReturnsToMap" "donor_can_open_chat_and_system_back_returns_to_the_donor_workspace" "unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions" "donor_map_is_a_labeled_top_level_destination_and_navigation_remains_available" "donor_map_shows_the_correct_loading_error_and_empty_state" "syntheticMapMarkerTapSelectsTheMatchingApproximateAreaWithoutNetwork" "debugDiagnosticsAreReadableFromDownloads" "errorFeedbackShowsRecoveryActionAndInvokesIt"; do
@@ -303,6 +330,7 @@ jobs:
               -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
               --no-daemon --stacktrace
             opengl_exit=$?
+            collect_app_evidence "opengl-probe"
             if [[ "$opengl_exit" != "0" ]]; then
               echo "::error::Isolated MapLibre OpenGL viewport test failed with exit code $opengl_exit."
               echo "--- OpenGL instrumentation failure excerpts ---"
