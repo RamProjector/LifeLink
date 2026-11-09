@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material3.Card
@@ -45,6 +46,7 @@ fun UpdatesScreen(
     updates: List<UpdateItem>,
     onOpen: (UpdateItem) -> Unit,
     onMarkAllRead: () -> Unit,
+    onBack: () -> Unit = {},
 ) {
     val unread = updates.count { !it.isRead }
     LazyColumn(
@@ -53,7 +55,10 @@ fun UpdatesScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     LifeLinkPageHeader("Activity")
                     Text(

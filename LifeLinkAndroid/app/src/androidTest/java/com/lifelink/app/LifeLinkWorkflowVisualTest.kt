@@ -574,9 +574,9 @@ open class LifeLinkWorkflowVisualTest {
     }
 
     private fun verifyProfileSettings() {
-        composeRule.onNodeWithTag("open-settings").performClick()
+        composeRule.onNodeWithTag("open-profile").performClick()
         composeRule.waitForIdle()
-        assertVisible("Account, notifications, privacy, and app preferences.")
+        assertVisible("Profile, notifications, privacy, safety, and app preferences.")
 
         tapTab("Settings")
         composeRule.onNodeWithTag("settings-screen-title").assertIsDisplayed()
@@ -587,8 +587,9 @@ open class LifeLinkWorkflowVisualTest {
         capture("workflow-settings-notifications")
 
         tap("Privacy")
-        assertVisible("Donor locations")
-        assertVisible("Chat history")
+        assertVisible("Privacy Center")
+        assertVisible("Consent required")
+        assertVisible("Not available in-app yet")
         capture("workflow-settings-privacy")
 
         tap("Legal")
@@ -607,6 +608,11 @@ open class LifeLinkWorkflowVisualTest {
         tap("Security")
         assertVisible("Reset password")
         capture("workflow-settings-security")
+
+        tap("Help & FAQ")
+        assertVisible("Help & FAQ")
+        assertVisible("Is LifeLink an emergency service?")
+        capture("workflow-settings-help")
     }
 
     @Test
@@ -633,11 +639,11 @@ open class LifeLinkWorkflowVisualTest {
             .performClick()
         composeRule.onNodeWithTag("nav-MAP").assertIsSelected()
 
-        composeRule.onNodeWithTag("nav-MESSAGING")
-            .assert(hasText("Messages", substring = false))
+        composeRule.onNodeWithTag("nav-UPDATES")
+            .assert(hasText("Updates", substring = false))
             .performClick()
-        composeRule.onNodeWithTag("nav-MESSAGING").assertIsSelected()
-        capture("navigation-messages-selected")
+        composeRule.onNodeWithTag("nav-UPDATES").assertIsSelected()
+        capture("navigation-updates-selected")
     }
 
     @Test
@@ -707,7 +713,6 @@ open class LifeLinkWorkflowVisualTest {
     }
 
     private fun tap(label: String) {
-        composeRule.onNodeWithTag("settings-tabs").performScrollToNode(hasText(label, substring = false))
         composeRule.onNodeWithTag("settings-${label.uppercase()}").performClick()
         composeRule.waitForIdle()
     }
