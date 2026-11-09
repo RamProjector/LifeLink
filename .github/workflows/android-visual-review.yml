@@ -1,23 +1,16 @@
 name: Android visual review
 
 on:
-  pull_request:
-    paths:
-      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/core/location/**'
-      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/privacy/**'
-      - 'LifeLinkAndroid/app/src/main/java/com/lifelink/app/feature/**/Screen.kt'
-      - 'LifeLinkAndroid/app/src/androidTest/**'
-      - '.github/workflows/android-visual-review.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# Keep PR emulator evidence attached to the exact tested commit; do not cancel
-# an in-progress screenshot run when another small fix lands on the same PR.
+# Match main: emulator visual review is manual-only because hosted runs can be
+# cancelled by unrelated PR activity before screenshots and reports are saved.
 concurrency:
-  group: android-visual-review-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
+  group: android-visual-review-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   # Single source of truth for the emulator image. Bump API_LEVEL only when the
