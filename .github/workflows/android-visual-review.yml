@@ -155,7 +155,7 @@ jobs:
               return 0
             fi
             while IFS= read -r evidence_file; do
-              [[ "$evidence_file" =~ ^lifelink-[[:alnum:]_.-]+\\.(png|txt)$ ]] || continue
+              [[ "$evidence_file" == lifelink-* && ( "$evidence_file" == *.png || "$evidence_file" == *.txt ) ]] || continue
               local output_file="$GITHUB_WORKSPACE/visual-artifacts/$evidence_file"
               if timeout 15s adb -s "$device_serial" exec-out run-as com.lifelink.app cat "files/lifelink-evidence/$evidence_file" > "$output_file"; then
                 if [[ -s "$output_file" ]]; then
