@@ -25,7 +25,10 @@ object VisualEvidence {
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
         repeat(SCREENSHOT_ATTEMPTS) { attempt ->
             val target = File(evidenceDir(), fileName)
-            if (device.takeScreenshot(target)) return true
+            if (device.takeScreenshot(target)) {
+                Log.i(TAG, "Captured screenshot name=${target.name} bytes=${target.length()}")
+                return true
+            }
             Log.w(TAG, "Screenshot attempt ${attempt + 1}/$SCREENSHOT_ATTEMPTS failed for $target")
             Thread.sleep(RETRY_DELAY_MS)
         }
@@ -38,7 +41,11 @@ object VisualEvidence {
         val target = File(evidenceDir(), fileName)
         return try {
             target.writeText(content)
-            target.isFile && target.length() > 0
+            val written = target.isFile && target.length() > 0
+            if (written) {
+                Log.i(TAG, "Saved diagnostic name=${target.name} bytes=${target.length()}")
+            }
+            written
         } catch (exception: IOException) {
             Log.e(TAG, "Could not write diagnostic evidence: $fileName", exception)
             false
