@@ -144,7 +144,7 @@ private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
-                    conversation.lastMessageAt?.let { "Last message: $it" } ?: "No messages yet",
+                    if (conversation.lastMessageAt != null) "Recent activity" else "No messages yet",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
