@@ -460,7 +460,9 @@ fun LifeLinkShell(
                                 }, onDonor = openDonorWorkspace, updates = updates, onRequests = {
                                     tab =
                                         ShellTab.REQUESTS
-                                }, onUpdates = { showNotifications = true })
+                                }, onUpdates = { showNotifications = true }, onRefreshHistory = {
+                                    onAction(EmergencyRequestAction.RefreshHistory)
+                                })
                             ShellTab.REQUESTS ->
                                 RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = {
                                     showRequest =
@@ -994,6 +996,7 @@ private fun HomeContent(
     updates: List<UpdateItem>,
     onRequests: () -> Unit,
     onUpdates: () -> Unit,
+    onRefreshHistory: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -1048,6 +1051,12 @@ private fun HomeContent(
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                if (state.historyError != null) {
+                                    TextButton(
+                                        onClick = onRefreshHistory,
+                                        enabled = !state.historyRefreshing,
+                                    ) { Text("Retry") }
+                                }
                             }
                         }
                     }
@@ -1168,7 +1177,7 @@ private fun ActiveRequestSummary(state: EmergencyRequestUiState, onOpen: () -> U
 @Preview(name = "Home · dark", widthDp = 360, heightDp = 820, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun HomePreview() {
-    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, emptyList(), {}, {}) }
+    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, emptyList(), {}, {}, {}) }
 }
 
 /** Summarizes donor availability and request count with an action to open donor mode. */
