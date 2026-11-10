@@ -460,7 +460,13 @@ fun LifeLinkShell(
                                 }, onDonor = openDonorWorkspace, updates = updates, onRequests = {
                                     tab =
                                         ShellTab.REQUESTS
-                                }, onUpdates = { showNotifications = true }, onRefreshHistory = {
+                                }, onOpenUpdate = { update ->
+                                    onUpdateRead(update.id)
+                                    update.requestId?.let { requestId ->
+                                        onAction(EmergencyRequestAction.OpenRequest(requestId))
+                                        showActive = true
+                                    } ?: run { showNotifications = true }
+                                }, onRefreshHistory = {
                                     onAction(EmergencyRequestAction.RefreshHistory)
                                 })
                             ShellTab.REQUESTS ->
@@ -995,7 +1001,7 @@ private fun HomeContent(
     onDonor: () -> Unit,
     updates: List<UpdateItem>,
     onRequests: () -> Unit,
-    onUpdates: () -> Unit,
+    onOpenUpdate: (UpdateItem) -> Unit,
     onRefreshHistory: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
@@ -1131,7 +1137,7 @@ private fun HomeContent(
                                 .clickable(
                                     onClickLabel = "Open update: ${update.title}",
                                     role = Role.Button,
-                                    onClick = onUpdates,
+                                    onClick = { onOpenUpdate(update) },
                                 )
                                 .testTag("home-update-${update.id}"),
                         )
