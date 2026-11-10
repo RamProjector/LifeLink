@@ -107,6 +107,8 @@ The same audit found an identity-boundary defect in donor operations: a donor ro
 
 Verification performed on the PR branch: `python3 -m compileall -q app`; full PostgreSQL-backed `python3 -m pytest -q` with `pgserver` installed — **198 passed**, coverage **62.85%**. Added a regression assertion that Request Chat produces a single pending contact record. Render push delivery and Android physical-device verification remain deployment/device checks; they were not claimed as locally verified.
 
+The first UI modernization slice also aligns the shell with the v5 navigation contract: the Settings destination uses a settings icon rather than a profile icon, while the top-right profile shortcut remains available, and the former Messaging heading/empty copy now consistently describes the Chats destination and pending-chat behavior.
+
 ## Security note
 
 This document intentionally contains no Supabase URLs beyond the public API endpoint, no publishable or service-role keys, no database connection strings, no JWT secrets, and no personal or medical information. It is a project-state record for continuity across future maintenance chats.

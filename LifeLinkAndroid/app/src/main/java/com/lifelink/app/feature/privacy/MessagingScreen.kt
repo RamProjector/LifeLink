@@ -73,7 +73,7 @@ fun MessagingScreen(
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                LifeLinkPageHeader("Messaging")
+                LifeLinkPageHeader("Chats")
                 Text(
                     "Chat with matched donors and requesters. Contact details remain private until shared.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -97,7 +97,7 @@ fun MessagingScreen(
                 LifeLinkEmptyState(
                     icon = Icons.AutoMirrored.Filled.Chat,
                     title = "No conversations yet",
-                    body = "Messaging becomes available after a matched donor or requester accepts a contact request.",
+                    body = "Chats appear when you request chat with a matched participant or receive a contact request.",
                 )
             }
             else -> items(state.conversations, key = { it.conversationId }) { conversation ->

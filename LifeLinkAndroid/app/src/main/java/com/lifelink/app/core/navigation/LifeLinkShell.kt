@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -563,7 +564,7 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
             ShellTab.REQUESTS -> Icons.AutoMirrored.Filled.Assignment
             ShellTab.MAP -> Icons.Default.Map
             ShellTab.UPDATES -> Icons.AutoMirrored.Filled.Chat
-            ShellTab.SETTINGS -> Icons.Default.Person
+            ShellTab.SETTINGS -> Icons.Default.Settings
         }
     Icon(icon, contentDescription = null, modifier = Modifier.size(size))
 }
