@@ -518,11 +518,16 @@ fun DonorMapScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(
-                        "Approximate donor pins only",
-                        Modifier.padding(start = 8.dp).weight(1f),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    Column(Modifier.padding(start = 8.dp).weight(1f)) {
+                        Text("Approximate donor pins only", style = MaterialTheme.typography.bodySmall)
+                        if (eligibleDonors.isNotEmpty()) {
+                            Text(
+                                "${eligibleDonors.size} eligible match${if (eligibleDonors.size == 1) "" else "es"} in your request",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
                     Text(donorAreaCountLabel(filteredAreas.size, ""), style = MaterialTheme.typography.labelMedium)
                 }
             }
