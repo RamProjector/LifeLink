@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
@@ -611,6 +612,18 @@ private fun RequestsContent(
         }
         matchesQuery && matchesFilter
     }
+    selectedRequest?.let { request ->
+        BackHandler { selectedRequest = null }
+        RequestHistoryDetailScreen(
+            request = request,
+            onBack = { selectedRequest = null },
+            onOpenStatus = {
+                selectedRequest = null
+                onAction(EmergencyRequestAction.OpenRequest(request.requestId))
+            },
+        )
+        return
+    }
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.fillMaxSize().testTag("request-history"),
@@ -810,9 +823,6 @@ private fun RequestsContent(
                 RequestHistoryCard(request, onOpen = { selectedRequest = request })
             }
         }
-        selectedRequest?.let { request ->
-            RequestHistoryDialog(request = request, onDismiss = { selectedRequest = null })
-        }
     }
 }
 
@@ -890,13 +900,57 @@ private fun RequestHistoryCard(request: RequestHistoryItem, onOpen: () -> Unit) 
 }
 
 @Composable
-private fun RequestHistoryDialog(request: RequestHistoryItem, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Request details") },
-        text = { RequestDetailsContent(request) },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
-    )
+private fun RequestHistoryDetailScreen(
+    request: RequestHistoryItem,
+    onBack: () -> Unit,
+    onOpenStatus: () -> Unit,
+) {
+    Scaffold(
+        topBar = {
+            androidx.compose.material3.TopAppBar(
+                title = { Text("Request details") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+            ) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(request.status.label, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (request.status in setOf(
+                                com.lifelink.app.domain.ActiveRequestStatus.FULFILLED,
+                                com.lifelink.app.domain.ActiveRequestStatus.EXPIRED,
+                                com.lifelink.app.domain.ActiveRequestStatus.CANCELLED,
+                            )
+                        ) "Past request" else "Active request",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+            }
+            RequestDetailsContent(request)
+            Button(onClick = onOpenStatus, modifier = Modifier.fillMaxWidth()) {
+                Text("Open request status")
+            }
+            OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+                Text("Back to requests")
+            }
+        }
+    }
 }
 
 @Composable

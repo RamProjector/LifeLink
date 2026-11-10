@@ -109,6 +109,8 @@ Verification performed on the PR branch: `python3 -m compileall -q app`; full Po
 
 The first UI modernization slice also aligns the shell with the v5 navigation contract: the Settings destination uses a settings icon rather than a profile icon, while the top-right profile shortcut remains available, and the former Messaging heading/empty copy now consistently describes the Chats destination and pending-chat behavior. The Donors destination now exposes the active authenticated match set in a list alongside privacy-safe approximate donor areas, with profile cards opening a dedicated full-screen, privacy-bounded detail view. The request results flow uses the same detail view instead of a cramped dialog; Request chat still dispatches the existing request-scoped conversation API.
 
+The Requests tab now opens historical request details as a dedicated back-safe screen rather than a cramped dialog. It keeps the active/past status distinction, donor-response metrics, contact statuses, and a clear action to reopen the request status flow without treating the history card itself as an active request.
+
 ## Security note
 
 This document intentionally contains no Supabase URLs beyond the public API endpoint, no publishable or service-role keys, no database connection strings, no JWT secrets, and no personal or medical information. It is a project-state record for continuity across future maintenance chats.
