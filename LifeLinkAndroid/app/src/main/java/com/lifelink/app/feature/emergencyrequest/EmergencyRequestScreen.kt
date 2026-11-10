@@ -98,6 +98,7 @@ import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.ContactMethod
+import com.lifelink.app.domain.DiscoveredDonor
 import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.Facility
 import com.lifelink.app.domain.NearbyFacility
@@ -259,6 +260,7 @@ private fun DonorPicker(
     onOpenConversation: (String, String) -> Unit,
 ) {
     var showMap by rememberSaveable { mutableStateOf(false) }
+    var profileDonor by remember { mutableStateOf<DiscoveredDonor?>(null) }
     val donorsWithinFiveKm = state.discoveredDonors.count { it.distanceKm <= 5.0 }
     val donorsWithinTenKm = state.discoveredDonors.count { it.distanceKm > 5.0 && it.distanceKm <= 10.0 }
     val donorsBeyondTenKm = state.discoveredDonors.count { it.distanceKm > 10.0 }
@@ -367,14 +369,7 @@ private fun DonorPicker(
             state.discoveredDonors.forEach { donor ->
                 val isSelected = donor.donorId in state.selectedDonorIds
                 Card(
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .toggleable(
-                            value = isSelected,
-                            role = Role.Checkbox,
-                            onValueChange = { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) },
-                        ),
+                    modifier = Modifier.fillMaxWidth(),
                     colors =
                     CardDefaults.cardColors(
                         containerColor =
@@ -389,7 +384,14 @@ private fun DonorPicker(
                         Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Checkbox(checked = isSelected, onCheckedChange = null)
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) },
+                            modifier = Modifier.semantics {
+                                contentDescription =
+                                    if (isSelected) "Remove ${donor.displayName} from selection" else "Select ${donor.displayName}"
+                            },
+                        )
                         Column(Modifier.weight(1f).padding(start = 8.dp)) {
                             Text(donor.displayName, fontWeight = FontWeight.SemiBold)
                             Text(
@@ -398,6 +400,9 @@ private fun DonorPicker(
                             )
                             donor.explanation.firstOrNull()?.let {
                                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            TextButton(onClick = { profileDonor = donor }, contentPadding = PaddingValues(0.dp)) {
+                                Text("View profile")
                             }
                         }
                     }
@@ -425,6 +430,40 @@ private fun DonorPicker(
                     },
                 )
             }
+        }
+        profileDonor?.let { donor ->
+            AlertDialog(
+                onDismissRequest = { profileDonor = null },
+                title = { Text(donor.displayName, modifier = Modifier.semantics { heading() }) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            "Matched donor profile",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text("Blood type · ${donor.bloodType}")
+                        Text("Approximate distance · ${"%.1f".format(donor.distanceKm)} km")
+                        Text("Estimated travel · about ${donor.travelMinutes} min")
+                        donor.explanation.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
+                        Text(
+                            "Exact location and private contact details are hidden unless the donor chooses to share them.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            profileDonor = null
+                            requestId?.let { onOpenConversation(it, donor.donorId) }
+                        },
+                        enabled = requestId != null,
+                    ) { Text("Request chat") }
+                },
+                dismissButton = { TextButton(onClick = { profileDonor = null }) { Text("Close") } },
+            )
         }
         Text(
             "LifeLink supports discovery and contact only. Screening remains with a licensed facility.",
@@ -564,22 +603,6 @@ private fun AcceptedContactCard(
                             true
                     }) { Text("Cancel contact") }
                 }
-                // Open the in-app conversation with this matched donor. The chat was
-                // previously unreachable: ConversationScreen existed but nothing
-                // navigated to it, so an accepted contact had no way to message.
-                if (requestId != null) {
-                    OutlinedButton(
-                        onClick = { onOpenConversation(requestId, contact.donorId) },
-                        enabled = !actionInFlight,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        if (actionInFlight) {
-                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text("Message ${contact.displayName}")
-                        }
-                    }
-                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { reportDialogVisible = true }) { Text("Report") }
                     TextButton(onClick = { blockDialogVisible = true }) { Text("Block") }
@@ -595,6 +618,19 @@ private fun AcceptedContactCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            if (requestId != null && status in setOf("pending", "accepted", "arrived", "contact_shared", "meeting_arranged")) {
+                OutlinedButton(
+                    onClick = { onOpenConversation(requestId, contact.donorId) },
+                    enabled = !actionInFlight,
+                    modifier = Modifier.fillMaxWidth().testTag("request-chat-${contact.donorId}"),
+                ) {
+                    if (actionInFlight) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text(if (status == "pending") "Request chat" else "Open chat")
+                    }
+                }
             }
         }
     }

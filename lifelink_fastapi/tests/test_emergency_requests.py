@@ -49,7 +49,7 @@ def test_request_returns_eligible_ranked_matches():
     body = response.json()
     assert body["status"] == "awaiting_responses"
     assert body["matching_version"] == "v1-explainable-weighted"
-    assert body["notifications_created"] >= 1
+    assert body["notifications_created"] == 0
     assert all(match["explanation"]["eligible"] for match in body["matches"])
     assert all("Blood type" in match["explanation"]["factors"][0] for match in body["matches"])
     assert body["matches"] == sorted(
@@ -66,6 +66,8 @@ def test_idempotency_returns_same_request():
     assert first.status_code == 201
     assert second.status_code == 201
     assert first.json()["request_id"] == second.json()["request_id"]
+    assert first.json()["notifications_created"] == 0
+    assert second.json()["notifications_created"] == 0
 
 
 def test_request_history_returns_owned_summary_without_coordinates():
@@ -76,7 +78,7 @@ def test_request_history_returns_owned_summary_without_coordinates():
     item = next(entry for entry in response.json() if entry["request_id"] == created["request_id"])
     assert item["blood_type"] == "O-"
     assert item["status"] == "awaiting_responses"
-    assert item["notifications_created"] >= 1
+    assert item["notifications_created"] == 0
     assert "latitude" not in item
     assert "longitude" not in item
 

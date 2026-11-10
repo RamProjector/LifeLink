@@ -581,8 +581,10 @@ def create_emergency_request(
             created_at=existing.created_at,
             expires_at=existing.expires_at,
             matches=existing.matches,
-            matching_version="v1-explainable-weighted",
-            notifications_created=len(existing.matches),
+            matching_version=(
+                "v1-explainable-weighted" if existing.payload.ai_matching_enabled else "v1-distance-only"
+            ),
+            notifications_created=0,
         )
 
     now = datetime.now(timezone.utc)
@@ -633,7 +635,7 @@ def create_emergency_request(
         expires_at=payload.response_deadline,
         matches=matches,
         matching_version=matching_version,
-        notifications_created=len(matches),
+        notifications_created=0,
     )
 
 
@@ -698,7 +700,7 @@ def list_emergency_request_history(
             urgency=record.payload.urgency,
             facility_name=record.payload.location.facility_name,
             area=record.payload.location.area,
-            notifications_created=len(record.matches),
+            notifications_created=0,
             matches_responded=sum(
                 1 for (request_id, _), value in match_statuses.items()
                 if request_id == record.request_id and value.get("response") in {"accepted", "declined", "arrived"}
@@ -718,7 +720,7 @@ def emergency_request_status(request_id: str, principal: Principal = Depends(get
     return EmergencyRequestStatusOut(
         request_id=request_id,
         status=record.status,
-        notifications_created=len(record.matches),
+        notifications_created=0,
         matches_responded=responded,
         reason="Manual review is required." if record.status == RequestStatus.MANUAL_BROADCAST else None,
         matches=record.matches,

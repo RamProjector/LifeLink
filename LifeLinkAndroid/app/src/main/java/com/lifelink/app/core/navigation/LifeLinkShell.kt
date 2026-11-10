@@ -36,6 +36,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Favorite
@@ -127,8 +128,8 @@ private enum class ShellTab(val label: String) {
     HOME("Home"),
     REQUESTS("Requests"),
     MAP("Donors"),
-    UPDATES("Updates"),
-    SETTINGS("Profile"),
+    UPDATES("Chats"),
+    SETTINGS("Settings"),
 }
 
 private enum class SettingsSection(val label: String) {
@@ -263,7 +264,7 @@ fun LifeLinkShell(
     LaunchedEffect(notificationOpenUpdates) {
         if (notificationOpenUpdates) {
             showStart = false
-            tab = ShellTab.UPDATES
+            showNotifications = true
         }
     }
 
@@ -395,7 +396,7 @@ fun LifeLinkShell(
                         )
                         Spacer(Modifier.weight(1f))
                         IconButton(
-                            onClick = { tab = ShellTab.UPDATES },
+                            onClick = { showNotifications = true },
                             modifier = Modifier.testTag("open-notifications"),
                         ) {
                             BadgedBox(badge = {
@@ -457,7 +458,7 @@ fun LifeLinkShell(
                                 }, onDonor = openDonorWorkspace, updates = updates, onRequests = {
                                     tab =
                                         ShellTab.REQUESTS
-                                }, onUpdates = { tab = ShellTab.UPDATES })
+                                }, onUpdates = { showNotifications = true })
                             ShellTab.REQUESTS ->
                                 RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = {
                                     showRequest =
@@ -474,30 +475,18 @@ fun LifeLinkShell(
                                     embeddedInShell = true,
                                 )
                             ShellTab.UPDATES ->
-                                if (notificationRequestId?.startsWith("conversation:") == true) {
-                                    MessagingScreen(
-                                        state = privacyState,
-                                        onAction = onPrivacyAction,
-                                        onOpenConversation = openConversation,
-                                        targetConversationId = notificationRequestId
-                                            .substringAfter("conversation:")
-                                            .substringBefore("|"),
-                                        targetConversationEventId = notificationRequestId.substringAfter("|"),
-                                    )
-                                } else {
-                                    UpdatesScreen(
-                                        updates = updates,
-                                        onOpen = { update ->
-                                            onUpdateRead(update.id)
-                                            update.requestId?.let {
-                                                onAction(EmergencyRequestAction.OpenRequest(it))
-                                                showActive = true
-                                            }
-                                        },
-                                        onMarkAllRead = onMarkAllUpdatesRead,
-                                        onBack = { tab = ShellTab.HOME },
-                                    )
-                                }
+                                MessagingScreen(
+                                    state = privacyState,
+                                    onAction = onPrivacyAction,
+                                    onOpenConversation = openConversation,
+                                    targetConversationId = notificationRequestId
+                                        ?.takeIf { it.startsWith("conversation:") }
+                                        ?.substringAfter("conversation:")
+                                        ?.substringBefore("|"),
+                                    targetConversationEventId = notificationRequestId
+                                        ?.takeIf { it.startsWith("conversation:") }
+                                        ?.substringAfter("|"),
+                                )
                             ShellTab.SETTINGS ->
                                 SettingsContent(
                                     role,
@@ -573,7 +562,7 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
             ShellTab.HOME -> Icons.Default.Home
             ShellTab.REQUESTS -> Icons.AutoMirrored.Filled.Assignment
             ShellTab.MAP -> Icons.Default.Map
-            ShellTab.UPDATES -> Icons.Default.NotificationsNone
+            ShellTab.UPDATES -> Icons.AutoMirrored.Filled.Chat
             ShellTab.SETTINGS -> Icons.Default.Person
         }
     Icon(icon, contentDescription = null, modifier = Modifier.size(size))
