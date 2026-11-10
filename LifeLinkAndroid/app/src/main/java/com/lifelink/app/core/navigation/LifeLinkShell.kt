@@ -394,13 +394,13 @@ fun LifeLinkShell(
                         if (isError) {
                             MaterialTheme.colorScheme.errorContainer
                         } else {
-                            MaterialTheme.colorScheme.inverseSurface
+                            MaterialTheme.colorScheme.secondaryContainer
                         },
                         contentColor =
                         if (isError) {
                             MaterialTheme.colorScheme.onErrorContainer
                         } else {
-                            MaterialTheme.colorScheme.onInverseSurface
+                            MaterialTheme.colorScheme.onSecondaryContainer
                         },
                         actionColor =
                         if (isError) {
