@@ -73,9 +73,9 @@ fun MessagingScreen(
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                LifeLinkPageHeader("Messaging")
+                LifeLinkPageHeader("Chats")
                 Text(
-                    "Chat with matched donors and requesters. Contact details remain private until shared.",
+                    "Your conversations with matched donors and requesters. Contact details remain private until shared.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
