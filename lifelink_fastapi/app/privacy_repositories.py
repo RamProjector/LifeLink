@@ -439,7 +439,24 @@ class SqlAlchemyPrivacyStore:
                 requester_id=requester_id,
             )
             self.session.add(conversation)
-            await self.session.commit()
+            try:
+                # The unique (request_id, donor_id) constraint is the
+                # authority when two devices open the same chat at once.
+                # Flush inside a savepoint so a losing request can recover
+                # the winner without poisoning the caller's transaction.
+                async with self.session.begin_nested():
+                    await self.session.flush()
+            except IntegrityError:
+                conversation = await self.session.scalar(
+                    select(Conversation).where(
+                        Conversation.request_id == request_id,
+                        Conversation.donor_id == donor.id,
+                    )
+                )
+                if conversation is None:
+                    raise
+            else:
+                await self.session.commit()
         return conversation
 
     async def conversation_for_participant(self, conversation_id: str, user_id: str) -> Conversation:

@@ -510,6 +510,9 @@ def test_conversation_is_scoped_to_the_two_participants(pg_url):
         )
         assert opened.status_code == 200, opened.text
         conversation_id = opened.json()["conversation_id"]
+        contacts = await client.get(f"/v1/emergency-requests/{created['request_id']}/contacts")
+        assert contacts.status_code == 200, contacts.text
+        assert [(item["donor_id"], item["status"]) for item in contacts.json()] == [(donor, "pending")]
 
         sent = await client.post(
             f"/v1/conversations/{conversation_id}/messages",

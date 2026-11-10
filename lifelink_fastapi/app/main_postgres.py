@@ -1441,6 +1441,35 @@ async def open_conversation(
         raise HTTPException(status_code=404, detail="Donor profile not found")
     if principal.subject not in {request.requester_id, donor.id}:
         raise HTTPException(status_code=403, detail="Not a participant in this request")
+    # "Request chat" is an actionable requester intent, not just a local
+    # navigation event. Persist the pending contact request before creating
+    # the conversation so the donor inbox, contact status, audit trail, and
+    # push notification remain synchronized with the chat UI. Donor opens do
+    # not create a new contact request; they are only allowed after matching.
+    if principal.subject == request.requester_id:
+        await enforce_rate_limit(f"contact-request:{principal.subject}", 20, 300)
+        request_store = SqlAlchemyRequestStore(session)
+        try:
+            _, newly_contacted, donors_to_notify = await request_store.contact_selected_donors_async(
+                request_id, [donor.id]
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if newly_contacted:
+            await request_store.record_audit_async(
+                principal.subject,
+                "contact_requested",
+                request_id,
+                donor_id=donor.id,
+                metadata={"donor_count": len(newly_contacted), "source": "request_chat"},
+            )
+        if donors_to_notify:
+            await send_push_safely(
+                await _push_recipients_for_donors(session, donors_to_notify),
+                "LifeLink contact request",
+                "A requester selected you for contact. Open LifeLink to review the request.",
+                {"type": "contact_request", "request_id": request_id},
+            )
     try:
         conversation = await store.get_or_create_conversation(request_id, donor.id, request.requester_id)
     except PermissionError:
