@@ -1,7 +1,6 @@
 package com.lifelink.app.core.ui.theme
 
 import android.content.Context
-import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
@@ -11,14 +10,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -27,69 +23,69 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val LifeLinkLightColors = lightColorScheme(
-    primary = Color(0xFFB91C3A),
+    primary = Color(0xFFAA1F3D),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFFBEAEC),
-    onPrimaryContainer = Color(0xFF861C32),
-    secondary = Color(0xFF006B5D),
+    primaryContainer = Color(0xFFF7E8EB),
+    onPrimaryContainer = Color(0xFF65132A),
+    secondary = Color(0xFF475569),
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE5F5F1),
-    onSecondaryContainer = Color(0xFF0B554B),
-    background = Color(0xFFFFFFFF),
-    onBackground = Color(0xFF202124),
-    surface = Color.White,
-    onSurface = Color(0xFF202124),
-    surfaceVariant = Color(0xFFF1F3F4),
-    onSurfaceVariant = Color(0xFF5F6368),
-    outline = Color(0xFF80868B),
-    outlineVariant = Color(0xFFDADCE0),
-    surfaceDim = Color(0xFFDADCE0),
-    surfaceBright = Color(0xFFFFFFFF),
-    surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Color(0xFFF8F9FA),
-    surfaceContainer = Color(0xFFF1F3F4),
-    surfaceContainerHigh = Color(0xFFECEEF0),
-    surfaceContainerHighest = Color(0xFFE3E5E7),
-    tertiary = Color(0xFF785900),
+    secondaryContainer = Color(0xFFE9EDF2),
+    onSecondaryContainer = Color(0xFF263445),
+    background = Color(0xFFF7F5F3),
+    onBackground = Color(0xFF211F20),
+    surface = Color(0xFFFFFEFC),
+    onSurface = Color(0xFF211F20),
+    surfaceVariant = Color(0xFFEDE9E6),
+    onSurfaceVariant = Color(0xFF5D5756),
+    outline = Color(0xFF827B79),
+    outlineVariant = Color(0xFFDED8D5),
+    surfaceDim = Color(0xFFE4DFDC),
+    surfaceBright = Color(0xFFFFFEFC),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF3F0ED),
+    surfaceContainer = Color(0xFFEDE9E6),
+    surfaceContainerHigh = Color(0xFFE7E2DF),
+    surfaceContainerHighest = Color(0xFFDED8D5),
+    tertiary = Color(0xFF795A18),
     onTertiary = Color.White,
     tertiaryContainer = Color(0xFFFFE2A0),
     onTertiaryContainer = Color(0xFF251A00),
-    error = Color(0xFFB3261E),
-    errorContainer = Color(0xFFF9DEDC),
-    onErrorContainer = Color(0xFF410E0B),
+    error = Color(0xFFB3263A),
+    errorContainer = Color(0xFFF8E2E4),
+    onErrorContainer = Color(0xFF5F1420),
 )
 
 private val LifeLinkDarkColors = darkColorScheme(
-    primary = Color(0xFFFFB2BE),
-    onPrimary = Color(0xFF65001A),
-    primaryContainer = Color(0xFF8F1633),
+    primary = Color(0xFFFFB3C0),
+    onPrimary = Color(0xFF64152A),
+    primaryContainer = Color(0xFF76263B),
     onPrimaryContainer = Color(0xFFFFD9DE),
-    secondary = Color(0xFF6DD8C3),
-    onSecondary = Color(0xFF00382F),
-    secondaryContainer = Color(0xFF075247),
-    onSecondaryContainer = Color(0xFF8DF5DF),
-    background = Color(0xFF121212),
-    onBackground = Color(0xFFE8EAED),
-    surface = Color(0xFF1C1C1C),
-    onSurface = Color(0xFFE8EAED),
-    surfaceVariant = Color(0xFF444746),
-    onSurfaceVariant = Color(0xFFBDC1C6),
-    outline = Color(0xFF9AA0A6),
-    outlineVariant = Color(0xFF444746),
-    surfaceDim = Color(0xFF121212),
-    surfaceBright = Color(0xFF3C4043),
-    surfaceContainerLowest = Color(0xFF0E0E0E),
-    surfaceContainerLow = Color(0xFF1C1C1C),
-    surfaceContainer = Color(0xFF232323),
-    surfaceContainerHigh = Color(0xFF2C2C2C),
-    surfaceContainerHighest = Color(0xFF363636),
+    secondary = Color(0xFFB9C5D5),
+    onSecondary = Color(0xFF263445),
+    secondaryContainer = Color(0xFF303B4A),
+    onSecondaryContainer = Color(0xFFD9E2EF),
+    background = Color(0xFF111318),
+    onBackground = Color(0xFFE9E6E4),
+    surface = Color(0xFF191B22),
+    onSurface = Color(0xFFE9E6E4),
+    surfaceVariant = Color(0xFF373941),
+    onSurfaceVariant = Color(0xFFC3BEC0),
+    outline = Color(0xFF8E8990),
+    outlineVariant = Color(0xFF3D3F47),
+    surfaceDim = Color(0xFF111318),
+    surfaceBright = Color(0xFF393B44),
+    surfaceContainerLowest = Color(0xFF0D0F13),
+    surfaceContainerLow = Color(0xFF191B22),
+    surfaceContainer = Color(0xFF20222A),
+    surfaceContainerHigh = Color(0xFF292B34),
+    surfaceContainerHighest = Color(0xFF33353E),
     tertiary = Color(0xFFEEC15C),
     onTertiary = Color(0xFF3E2E00),
     tertiaryContainer = Color(0xFF594300),
     onTertiaryContainer = Color(0xFFFFE2A0),
-    error = Color(0xFFFFB4AB),
-    errorContainer = Color(0xFF93000A),
-    onErrorContainer = Color(0xFFFFDAD6),
+    error = Color(0xFFFFB4BE),
+    errorContainer = Color(0xFF5D1E2A),
+    onErrorContainer = Color(0xFFFFD9DE),
 )
 
 private val LifeLinkTypography = Typography(
@@ -116,7 +112,7 @@ private val LifeLinkShapes = Shapes(
     large = RoundedCornerShape(20.dp),
 )
 
-enum class ThemeMode { SYSTEM, LIGHT, DARK, DYNAMIC }
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 class ThemeStore(context: Context) {
     private val preferences = context.getSharedPreferences("lifelink_theme", Context.MODE_PRIVATE)
@@ -132,18 +128,16 @@ class ThemeStore(context: Context) {
 
 /**
  * Applies the selected color mode, LifeLink typography and shapes, and matching system bar styles.
- * Dynamic colors use the system palette on Android 12 or later and fall back to LifeLink colors otherwise.
+ * System follows Android appearance; explicit Light and Dark selections always win over it.
  */
 @Composable
 fun LifeLinkTheme(themeMode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Unit) {
     val darkTheme = when (themeMode) {
-        ThemeMode.SYSTEM, ThemeMode.DYNAMIC -> isSystemInDarkTheme()
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
-    val colors = if (themeMode == ThemeMode.DYNAMIC && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        if (darkTheme) dynamicDarkColorScheme(LocalContext.current) else dynamicLightColorScheme(LocalContext.current)
-    } else if (darkTheme) {
+    val colors = if (darkTheme) {
         LifeLinkDarkColors
     } else {
         LifeLinkLightColors

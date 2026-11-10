@@ -63,6 +63,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -128,7 +132,7 @@ private enum class ShellTab(val label: String) {
     REQUESTS("Requests"),
     MAP("Donors"),
     UPDATES("Updates"),
-    SETTINGS("Profile"),
+    SETTINGS("Settings"),
 }
 
 private enum class SettingsSection(val label: String) {
@@ -178,6 +182,19 @@ fun LifeLinkShell(
     notificationRequestId: String? = null,
 ) {
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    var lastThemeMode by remember { mutableStateOf(themeMode) }
+    LaunchedEffect(profileMessage) {
+        profileMessage?.takeIf { it.isNotBlank() }?.let { message ->
+            snackbarHostState.showSnackbar(message = message, duration = SnackbarDuration.Short)
+        }
+    }
+    LaunchedEffect(themeMode) {
+        if (lastThemeMode != themeMode) {
+            lastThemeMode = themeMode
+            snackbarHostState.showSnackbar("Appearance updated", duration = SnackbarDuration.Short)
+        }
+    }
     val welcomePrefs = context.getSharedPreferences("lifelink_welcome", 0)
     val screenStateHolder = rememberSaveableStateHolder()
     var showRequest by rememberSaveable { mutableStateOf(false) }
@@ -367,6 +384,33 @@ fun LifeLinkShell(
         val useRail = windowSize.widthSizeClass != WindowWidthSizeClass.Compact
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = {
+                SnackbarHost(hostState = snackbarHostState) { snackbarData ->
+                    val isError = listOf("could not", "failed", "unable", "try again", "error")
+                        .any { snackbarData.visuals.message.contains(it, ignoreCase = true) }
+                    Snackbar(
+                        snackbarData = snackbarData,
+                        containerColor =
+                        if (isError) {
+                            MaterialTheme.colorScheme.errorContainer
+                        } else {
+                            MaterialTheme.colorScheme.inverseSurface
+                        },
+                        contentColor =
+                        if (isError) {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        } else {
+                            MaterialTheme.colorScheme.onInverseSurface
+                        },
+                        actionColor =
+                        if (isError) {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        } else {
+                            MaterialTheme.colorScheme.inversePrimary
+                        },
+                    )
+                }
+            },
             topBar = {
                 if (tab != ShellTab.MAP) {
                     Row(
@@ -1619,14 +1663,19 @@ private fun PrivacyCapabilityCard(title: String, status: String, body: String) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            "Appearance",
+            "Theme & appearance",
             style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.semantics { heading() },
         )
-        ThemeMode.values().forEach { mode ->
+        Text(
+            "Choose how LifeLink looks. Your choice is saved and applied immediately.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        ThemeMode.entries.forEach { mode ->
             Card(
-                Modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(selected = themeMode == mode, role = Role.RadioButton, onClick = {
+                Modifier.fillMaxWidth().heightIn(min = 76.dp).selectable(selected = themeMode == mode, role = Role.RadioButton, onClick = {
                     onThemeModeChange(mode)
                 }),
                 colors =
@@ -1641,21 +1690,35 @@ private fun PrivacyCapabilityCard(title: String, status: String, body: String) {
                     },
                 ),
             ) {
-                Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = themeMode == mode, onClick = null)
-                    Text(
-                        when (mode) {
-                            ThemeMode.SYSTEM -> "Use device setting"
-                            ThemeMode.LIGHT -> "Light"
-                            ThemeMode.DARK -> "Dark"
-                            ThemeMode.DYNAMIC -> "Wallpaper colors (Android 12+)"
-                        },
-                        modifier = Modifier.padding(start = 4.dp),
-                        fontWeight = if (themeMode == mode) FontWeight.SemiBold else FontWeight.Normal,
-                    )
+                    Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            when (mode) {
+                                ThemeMode.SYSTEM -> "Use system setting"
+                                ThemeMode.LIGHT -> "Light"
+                                ThemeMode.DARK -> "Dark"
+                            },
+                            fontWeight = if (themeMode == mode) FontWeight.SemiBold else FontWeight.Medium,
+                        )
+                        Text(
+                            when (mode) {
+                                ThemeMode.SYSTEM -> "Follows your Android light or dark preference"
+                                ThemeMode.LIGHT -> "Keep LifeLink in light appearance"
+                                ThemeMode.DARK -> "Keep LifeLink in dark appearance"
+                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             }
         }
+        Text(
+            "LifeLink brand colors are used in every mode for consistent, readable status and action colors.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
@@ -1843,13 +1906,6 @@ private fun ProfileContent(
                     enabled = !profileSaving && displayName.trim().length >= 2,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(if (profileSaving) "Saving…" else "Save profile") }
-                profileMessage?.let {
-                    Text(
-                        it,
-                        color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                    )
-                }
             }
         }
         Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {

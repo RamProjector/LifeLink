@@ -427,9 +427,12 @@ class MainActivity : ComponentActivity() {
                                         displayName = saved.body()?.displayName.orEmpty()
                                         profileMessage = "Profile saved"
                                     } else {
-                                        profileMessage = "Profile could not be saved (${saved.code()})."
+                                        profileMessage = "Profile could not be saved. Please try again."
                                     }
-                                }.onFailure { error -> profileMessage = error.message ?: "Profile could not be saved." }
+                                }.onFailure { error ->
+                                    if (error is CancellationException) throw error
+                                    profileMessage = "Profile could not be saved. Check your connection and try again."
+                                }
                             profileSaving = false
                         }
                     },
