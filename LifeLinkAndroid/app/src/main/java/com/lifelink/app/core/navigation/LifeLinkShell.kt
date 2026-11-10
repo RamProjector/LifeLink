@@ -885,12 +885,17 @@ private fun RequestHistoryCard(request: RequestHistoryItem, onOpen: () -> Unit) 
                     color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
                 )
             }
-            Text("Request ${request.requestId.take(12)}", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-            request.createdAt?.takeIf { it.isNotBlank() }?.let {
-                Text("Created $it", style = MaterialTheme.typography.bodySmall)
+            Text(
+                request.facilityName?.takeIf { it.isNotBlank() }
+                    ?: request.area?.takeIf { it.isNotBlank() }
+                    ?: "Emergency request",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (!request.createdAt.isNullOrBlank()) {
+                Text("Submitted", style = MaterialTheme.typography.bodySmall)
             }
-            request.expiresAt?.takeIf { it.isNotBlank() }?.let {
-                Text("Response deadline $it", style = MaterialTheme.typography.bodySmall)
+            if (!request.expiresAt.isNullOrBlank()) {
+                Text("Response window applies", style = MaterialTheme.typography.bodySmall)
             }
             Text(
                 "${request.bloodType ?: "Request"} · ${request.units?.let {
