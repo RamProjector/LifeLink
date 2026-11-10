@@ -1377,7 +1377,7 @@ async def revoke_location_share(
     donor = await store.donor_row(donor_id)
     if donor is None:
         raise HTTPException(status_code=404, detail="Donor profile not found")
-    if principal.subject != "development-user" and principal.subject != donor.id:
+    if principal.subject != "development-user" and principal.subject not in {donor.id, donor.user_id}:
         raise HTTPException(status_code=403, detail="Only the donor can revoke this share")
     try:
         share = await store.revoke_location_share(request_id, donor.id, actor_id=principal.subject)
@@ -1439,7 +1439,10 @@ async def open_conversation(
     donor = await store.donor_row(donor_id)
     if donor is None:
         raise HTTPException(status_code=404, detail="Donor profile not found")
-    if principal.subject not in {request.requester_id, donor.id}:
+    donor_user_ids = {donor.id}
+    if donor.user_id:
+        donor_user_ids.add(donor.user_id)
+    if principal.subject != request.requester_id and principal.subject not in donor_user_ids:
         raise HTTPException(status_code=403, detail="Not a participant in this request")
     # "Request chat" is an actionable requester intent, not just a local
     # navigation event. Persist the pending contact request before creating

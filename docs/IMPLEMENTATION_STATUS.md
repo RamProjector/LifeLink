@@ -103,6 +103,8 @@ The PR #184 review traced the requester **Request Chat** action across Compose, 
 
 Conversation creation also now uses the existing unique `(request_id, donor_id)` constraint as the race-safe authority. Concurrent opens recover the committed winner instead of surfacing a duplicate-record failure. No migration was required because the constraint and supporting indexes already exist in migration 004/007 and the SQLAlchemy model.
 
+The same audit found an identity-boundary defect in donor operations: a donor row may have an owning authenticated user ID that differs from the row ID, but conversation opening and location-share revocation accepted only the row ID. Both routes now accept the donor row ID or its owning user ID while retaining the existing resource and match checks.
+
 Verification performed on the PR branch: `python3 -m compileall -q app`; full PostgreSQL-backed `python3 -m pytest -q` with `pgserver` installed — **198 passed**, coverage **62.85%**. Added a regression assertion that Request Chat produces a single pending contact record. Render push delivery and Android physical-device verification remain deployment/device checks; they were not claimed as locally verified.
 
 ## Security note

@@ -1168,6 +1168,11 @@ def test_donor_with_distinct_user_id_can_use_the_conversation(pg_url):
 
         # The donor, acting as the owning user, can read, message, report, block.
         current["id"] = donor_user
+        donor_reopen = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert donor_reopen.status_code == 200, donor_reopen.text
+        assert donor_reopen.json()["conversation_id"] == conversation_id
         assert (
             await client.get(f"/v1/conversations/{conversation_id}/messages")
         ).status_code == 200
