@@ -434,7 +434,7 @@ fun LifeLinkShell(
                             }
                         }
                         Text(
-                            "LifeLink",
+                            if (tab == ShellTab.HOME) "Home" else "LifeLink",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(start = 8.dp),
