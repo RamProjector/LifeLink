@@ -66,6 +66,7 @@ import com.lifelink.app.core.ui.LifeLinkFeedbackCard
 import com.lifelink.app.core.ui.LifeLinkFeedbackLevel
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.domain.DonorMapArea
+import com.lifelink.app.domain.DiscoveredDonor
 
 private fun donorAreaKey(area: DonorMapArea): String =
     "${area.latitude}|${area.longitude}|${area.bloodType}|${area.freshnessAt}"
@@ -145,6 +146,8 @@ fun DonorMapScreen(
     state: PrivacyUiState,
     onAction: (PrivacyAction) -> Unit,
     onBack: () -> Unit,
+    eligibleDonors: List<DiscoveredDonor> = emptyList(),
+    onRequestChat: ((DiscoveredDonor) -> Unit)? = null,
     centerLatitude: Double? = null,
     centerLongitude: Double? = null,
     showCloseButton: Boolean = true,
@@ -158,8 +161,18 @@ fun DonorMapScreen(
     var selectedBloodType by rememberSaveable { mutableStateOf("All") }
     var availableOnly by rememberSaveable { mutableStateOf(false) }
     var selectedAreaKey by rememberSaveable { mutableStateOf("") }
+    var selectedDonorId by rememberSaveable { mutableStateOf<String?>(null) }
     val areas = state.map?.areas.orEmpty()
     val selectedArea = areas.firstOrNull { donorAreaKey(it) == selectedAreaKey }
+    val selectedDonor = eligibleDonors.firstOrNull { it.donorId == selectedDonorId }
+    if (selectedDonor != null) {
+        MatchedDonorProfileScreen(
+            donor = selectedDonor,
+            onBack = { selectedDonorId = null },
+            onRequestChat = onRequestChat?.let { callback -> { callback(selectedDonor) } },
+        )
+        return
+    }
     if (selectedArea != null) {
         BackHandler { selectedAreaKey = "" }
         DonorAreaDetailsScreen(selectedArea) { selectedAreaKey = "" }
@@ -184,7 +197,7 @@ fun DonorMapScreen(
                 Modifier.fillMaxSize().padding(top = 80.dp, bottom = 8.dp),
             ) {
                 Text(
-                    "Donor areas",
+                    if (eligibleDonors.isNotEmpty()) "Eligible donors" else "Donor areas",
                     Modifier.padding(horizontal = 20.dp, vertical = 8.dp).semantics { heading() },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
@@ -194,6 +207,48 @@ fun DonorMapScreen(
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    if (eligibleDonors.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Matched to your active request",
+                                Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        items(eligibleDonors, key = { it.donorId }) { donor ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .sizeIn(minHeight = 72.dp)
+                                    .clickable(
+                                        role = Role.Button,
+                                        onClickLabel = "View donor profile",
+                                    ) { selectedDonorId = donor.donorId }
+                                    .testTag("eligible-donor-card"),
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text(donor.displayName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        "${donor.bloodType} · ${"%.1f".format(donor.distanceKm)} km · about ${donor.travelMinutes} min",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                    Text("View privacy-safe profile", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
+                        item {
+                            Text(
+                                "Approximate donor areas",
+                                Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                     items(filteredAreas) { area ->
                         Card(
                             modifier = Modifier

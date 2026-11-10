@@ -107,7 +107,7 @@ The same audit found an identity-boundary defect in donor operations: a donor ro
 
 Verification performed on the PR branch: `python3 -m compileall -q app`; full PostgreSQL-backed `python3 -m pytest -q` with `pgserver` installed — **198 passed**, coverage **62.85%**. Added a regression assertion that Request Chat produces a single pending contact record. Render push delivery and Android physical-device verification remain deployment/device checks; they were not claimed as locally verified.
 
-The first UI modernization slice also aligns the shell with the v5 navigation contract: the Settings destination uses a settings icon rather than a profile icon, while the top-right profile shortcut remains available, and the former Messaging heading/empty copy now consistently describes the Chats destination and pending-chat behavior.
+The first UI modernization slice also aligns the shell with the v5 navigation contract: the Settings destination uses a settings icon rather than a profile icon, while the top-right profile shortcut remains available, and the former Messaging heading/empty copy now consistently describes the Chats destination and pending-chat behavior. The Donors destination now exposes the active authenticated match set in a list alongside privacy-safe approximate donor areas, with profile cards opening a dedicated full-screen, privacy-bounded detail view. The request results flow uses the same detail view instead of a cramped dialog; Request chat still dispatches the existing request-scoped conversation API.
 
 ## Security note
 

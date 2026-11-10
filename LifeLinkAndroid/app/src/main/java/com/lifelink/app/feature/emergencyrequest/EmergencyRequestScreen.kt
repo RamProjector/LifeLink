@@ -35,7 +35,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -96,6 +95,7 @@ import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.core.location.MapLibreLocationPicker
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.LifeLinkEmptyState
+import com.lifelink.app.feature.privacy.MatchedDonorProfileScreen
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.ContactMethod
 import com.lifelink.app.domain.DiscoveredDonor
@@ -265,6 +265,16 @@ private fun DonorPicker(
     val donorsWithinTenKm = state.discoveredDonors.count { it.distanceKm > 5.0 && it.distanceKm <= 10.0 }
     val donorsBeyondTenKm = state.discoveredDonors.count { it.distanceKm > 10.0 }
     val requestId = state.resultsRequestId ?: (state.submission as? SubmissionState.Matching)?.requestId
+    profileDonor?.let { donor ->
+        MatchedDonorProfileScreen(
+            donor = donor,
+            onBack = { profileDonor = null },
+            onRequestChat = requestId?.let { id ->
+                { profileDonor = null; onOpenConversation(id, donor.donorId) }
+            },
+        )
+        return
+    }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Heading("Potential donors", "Review matches and choose who to contact.")
         if (state.matchesRefreshing) {
@@ -430,40 +440,6 @@ private fun DonorPicker(
                     },
                 )
             }
-        }
-        profileDonor?.let { donor ->
-            AlertDialog(
-                onDismissRequest = { profileDonor = null },
-                title = { Text(donor.displayName, modifier = Modifier.semantics { heading() }) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            "Matched donor profile",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Text("Blood type · ${donor.bloodType}")
-                        Text("Approximate distance · ${"%.1f".format(donor.distanceKm)} km")
-                        Text("Estimated travel · about ${donor.travelMinutes} min")
-                        donor.explanation.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
-                        Text(
-                            "Exact location and private contact details are hidden unless the donor chooses to share them.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            profileDonor = null
-                            requestId?.let { onOpenConversation(it, donor.donorId) }
-                        },
-                        enabled = requestId != null,
-                    ) { Text("Request chat") }
-                },
-                dismissButton = { TextButton(onClick = { profileDonor = null }) { Text("Close") } },
-            )
         }
         Text(
             "LifeLink supports discovery and contact only. Screening remains with a licensed facility.",

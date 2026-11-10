@@ -470,6 +470,10 @@ fun LifeLinkShell(
                                     state = privacyState,
                                     onAction = onPrivacyAction,
                                     onBack = { tab = ShellTab.HOME },
+                                    eligibleDonors = state.discoveredDonors,
+                                    onRequestChat = state.activeRequest?.requestId?.let { requestId ->
+                                        { donor -> openConversation(requestId, donor.donorId) }
+                                    },
                                     centerLatitude = state.draft.requesterLatitude,
                                     centerLongitude = state.draft.requesterLongitude,
                                     showCloseButton = false,
