@@ -248,6 +248,16 @@ fun DonorMapScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        if (filteredAreas.isEmpty()) {
+                            item {
+                                Text(
+                                    "No approximate area pins are available for these filters. Matched donor profiles remain available above.",
+                                    Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                     items(filteredAreas) { area ->
                         Card(
@@ -306,7 +316,7 @@ fun DonorMapScreen(
 
         // Never show an empty result while a request is loading or has failed.
         // Those states need their own truthful feedback and recovery action.
-        if (!state.mapLoading && state.mapError == null && filteredAreas.isEmpty()) {
+        if (!state.mapLoading && state.mapError == null && filteredAreas.isEmpty() && (!showList || eligibleDonors.isEmpty())) {
             Surface(
                 Modifier.align(Alignment.BottomCenter)
                     .padding(start = 24.dp, end = 24.dp, bottom = 88.dp)
