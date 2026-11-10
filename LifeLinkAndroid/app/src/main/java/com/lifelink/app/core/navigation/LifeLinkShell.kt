@@ -739,7 +739,7 @@ private fun RequestsContent(
                     onValueChange = { searchQuery = it },
                     modifier = Modifier.fillMaxWidth().testTag("request-history-search"),
                     label = { Text("Search requests") },
-                    placeholder = { Text("Blood type, facility, status, or ID") },
+                    placeholder = { Text("Blood type, facility, area, or status") },
                     singleLine = true,
                 )
             }
