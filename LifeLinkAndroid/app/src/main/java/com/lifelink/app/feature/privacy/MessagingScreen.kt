@@ -129,17 +129,17 @@ private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
                 color = MaterialTheme.colorScheme.primaryContainer,
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        conversation.conversationId.take(2).uppercase(),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontWeight = FontWeight.Bold,
+                    Icon(
+                        Icons.AutoMirrored.Filled.Chat,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Conversation ${conversation.conversationId.take(8)}", fontWeight = FontWeight.SemiBold)
+                Text("Matched conversation", fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Request ${conversation.requestId.take(12)}",
+                    "Linked to your request",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                 )
