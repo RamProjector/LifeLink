@@ -333,25 +333,29 @@ fun LifeLinkShell(
                         Modifier.weight(1f).fillMaxHeight(),
                         color = MaterialTheme.colorScheme.background,
                     ) {
-                        ConversationScreen(
-                            state = privacyState,
-                            requestId = conversationRequestId,
-                            donorId = conversationDonorId,
-                            currentUserId = accountUserId,
-                            onAction = onPrivacyAction,
-                            onBack = { closeConversation() },
-                        )
+                        screenStateHolder.SaveableStateProvider("active-conversation") {
+                            ConversationScreen(
+                                state = privacyState,
+                                requestId = conversationRequestId,
+                                donorId = conversationDonorId,
+                                currentUserId = accountUserId,
+                                onAction = onPrivacyAction,
+                                onBack = { closeConversation() },
+                            )
+                        }
                     }
                 }
             } else {
-                ConversationScreen(
-                    state = privacyState,
-                    requestId = conversationRequestId,
-                    donorId = conversationDonorId,
-                    currentUserId = accountUserId,
-                    onAction = onPrivacyAction,
-                    onBack = { closeConversation() },
-                )
+                screenStateHolder.SaveableStateProvider("active-conversation") {
+                    ConversationScreen(
+                        state = privacyState,
+                        requestId = conversationRequestId,
+                        donorId = conversationDonorId,
+                        currentUserId = accountUserId,
+                        onAction = onPrivacyAction,
+                        onBack = { closeConversation() },
+                    )
+                }
             }
         }
         return
