@@ -358,6 +358,16 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
         // double tap (or repeated UI action in the same frame) must not start two
         // network requests for the same emergency draft.
         val current = _uiState.value
+        if (current.activeRequest?.isTerminal == false && current.step != RequestStep.RESULTS) {
+            _uiState.update {
+                it.copy(
+                    submission = SubmissionState.Error(
+                        "You already have an active emergency request. Review or close it before creating another.",
+                    ),
+                )
+            }
+            return
+        }
         if (current.submission is SubmissionState.Submitting) return
         if (!_uiState.compareAndSet(current, current.copy(submission = SubmissionState.Submitting))) return
 
