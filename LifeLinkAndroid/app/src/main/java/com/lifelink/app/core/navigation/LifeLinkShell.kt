@@ -762,134 +762,85 @@ private fun RequestsContent(
             selectedRequestId = null
         }
         val requestListContent: @Composable () -> Unit = {
-            LazyColumn(
-                state = requestListState,
-                modifier = Modifier.fillMaxSize().testTag("request-history"),
-            contentPadding = PaddingValues(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item { LifeLinkPageHeader("Requests") }
-            item {
-                if (state.step == com.lifelink.app.domain.RequestStep.RESULTS &&
-                    state.submission is com.lifelink.app.feature.emergencyrequest.SubmissionState.Matching
-                ) {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(
-                                "Matching results ready",
-                                style = MaterialTheme.typography.titleLarge,
-                                modifier = Modifier.semantics { heading() },
-                            )
-                            Text("Review nearby donors and choose who to contact.")
-                            Button(
-                                onClick = onOpen,
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-                            ) { Text("Open matching results") }
-                        }
-                    }
-                } else if (state.activeRequest != null) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ActiveRequestSummary(state, onActive)
-                        if (!state.activeRequest.isTerminal) {
-                            Text(
-                                "Finish or cancel this request before starting another.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                } else {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(
-                                if (state.historyRefreshing) {
-                                    "Loading your requests…"
-                                } else if (state.historyError !=
-                                    null
-                                ) {
-                                    "Requests unavailable"
-                                } else {
-                                    "No active request"
-                                },
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.semantics { heading() },
-                            )
-                            Text(
-                                if (state.historyRefreshing ||
-                                    state.historyError != null
-                                ) {
-                                    "Your saved requests will appear after they load."
-                                } else {
-                                    "When you need blood, start with the type, amount, and location."
-                                },
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-            if (state.activeRequest?.isTerminal != false) {
+                LazyColumn(
+                    state = requestListState,
+                    modifier = Modifier.fillMaxSize().testTag("request-history"),
+                contentPadding = PaddingValues(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                item { LifeLinkPageHeader("Requests") }
                 item {
-                    Button(
-                        onClick = onCreate,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                        shape = MaterialTheme.shapes.medium,
+                    if (state.step == com.lifelink.app.domain.RequestStep.RESULTS &&
+                        state.submission is com.lifelink.app.feature.emergencyrequest.SubmissionState.Matching
                     ) {
-                        Icon(Icons.Default.Add, null, Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Create emergency request", fontWeight = FontWeight.SemiBold)
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text(
+                                    "Matching results ready",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    modifier = Modifier.semantics { heading() },
+                                )
+                                Text("Review nearby donors and choose who to contact.")
+                                Button(
+                                    onClick = onOpen,
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                                ) { Text("Open matching results") }
+                            }
+                        }
+                    } else if (state.activeRequest != null) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ActiveRequestSummary(state, onActive)
+                            if (!state.activeRequest.isTerminal) {
+                                Text(
+                                    "Finish or cancel this request before starting another.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    } else {
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    if (state.historyRefreshing) {
+                                        "Loading your requests…"
+                                    } else if (state.historyError !=
+                                        null
+                                    ) {
+                                        "Requests unavailable"
+                                    } else {
+                                        "No active request"
+                                    },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.semantics { heading() },
+                                )
+                                Text(
+                                    if (state.historyRefreshing ||
+                                        state.historyError != null
+                                    ) {
+                                        "Your saved requests will appear after they load."
+                                    } else {
+                                        "When you need blood, start with the type, amount, and location."
+                                    },
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
-            }
-            item {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "Request history",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.weight(1f).semantics { heading() },
-                    )
-                    // The header action is always a refresh; the error card below owns the single
-                    // "Retry" affordance so the screen never shows two identically-labelled actions.
-                    TextButton(onClick = { onAction(EmergencyRequestAction.RefreshHistory) }, enabled = !state.historyRefreshing) {
-                        Text(if (state.historyRefreshing) "Refreshing…" else "Refresh")
+                if (state.activeRequest?.isTerminal != false) {
+                    item {
+                        Button(
+                            onClick = onCreate,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                            shape = MaterialTheme.shapes.medium,
+                        ) {
+                            Icon(Icons.Default.Add, null, Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Create emergency request", fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
-            }
-            item {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier.fillMaxWidth().testTag("request-history-search"),
-                    label = { Text("Search requests") },
-                    placeholder = { Text("Blood type, facility, area, or status") },
-                    singleLine = true,
-                )
-            }
-            item {
-                Row(
-                    Modifier
-                        .testTag("request-history-filters")
-                        .semantics { paneTitle = "Request history filters" },
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    listOf("All", "Active", "Past").forEach { filter ->
-                        FilterChip(
-                            selected = historyFilter == filter,
-                            onClick = { historyFilter = filter },
-                            label = { Text(filter) },
-                            modifier = Modifier.testTag("request-filter-${filter.lowercase()}"),
-                        )
-                    }
-                }
-            }
-            val activeFilterCount =
-                (if (historyFilter != "All") 1 else 0) +
-                    (if (searchQuery.isNotBlank()) 1 else 0)
-            if (activeFilterCount > 0) {
                 item {
                     Row(
                         Modifier.fillMaxWidth(),
@@ -897,90 +848,139 @@ private fun RequestsContent(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            "$activeFilterCount active ${if (activeFilterCount == 1) "filter" else "filters"}",
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("request-history-filter-summary")
-                                .semantics { liveRegion = LiveRegionMode.Polite },
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            "Request history",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.weight(1f).semantics { heading() },
                         )
-                        TextButton(
-                            onClick = {
-                                historyFilter = "All"
-                                searchQuery = ""
-                            },
-                        ) { Text("Clear filters") }
-                    }
-                }
-            }
-            item {
-                Text(
-                    "${visibleHistory.size} ${if (visibleHistory.size == 1) "request" else "requests"} found",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("request-history-result-count")
-                        .semantics { liveRegion = LiveRegionMode.Polite },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            state.historyError?.let { error ->
-                item {
-                    Card(
-                        Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    ) {
-                        Row(
-                            Modifier.padding(16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                Icons.Default.Error,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.size(20.dp),
-                            )
-                            Text(
-                                error,
-                                modifier = Modifier.weight(1f),
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            TextButton(
-                                onClick = { onAction(EmergencyRequestAction.RefreshHistory) },
-                                enabled = !state.historyRefreshing,
-                            ) { Text("Retry") }
+                        // The header action is always a refresh; the error card below owns the single
+                        // "Retry" affordance so the screen never shows two identically-labelled actions.
+                        TextButton(onClick = { onAction(EmergencyRequestAction.RefreshHistory) }, enabled = !state.historyRefreshing) {
+                            Text(if (state.historyRefreshing) "Refreshing…" else "Refresh")
                         }
                     }
                 }
-            }
-            if (visibleHistory.isEmpty() && !state.historyRefreshing && state.historyError == null) {
                 item {
-                    LifeLinkEmptyState(
-                        icon = Icons.AutoMirrored.Filled.Assignment,
-                        title = if (state.requestHistory.isEmpty() && activeFilterCount == 0) {
-                            "No requests yet"
-                        } else {
-                            "No requests match these filters"
-                        },
-                        body = if (state.requestHistory.isEmpty() && activeFilterCount == 0) {
-                            "Your request history will appear here after you create your first request."
-                        } else {
-                            "Clear the active filters or try a different search term."
-                        },
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth().testTag("request-history-search"),
+                        label = { Text("Search requests") },
+                        placeholder = { Text("Blood type, facility, area, or status") },
+                        singleLine = true,
                     )
                 }
+                item {
+                    Row(
+                        Modifier
+                            .testTag("request-history-filters")
+                            .semantics { paneTitle = "Request history filters" },
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        listOf("All", "Active", "Past").forEach { filter ->
+                            FilterChip(
+                                selected = historyFilter == filter,
+                                onClick = { historyFilter = filter },
+                                label = { Text(filter) },
+                                modifier = Modifier.testTag("request-filter-${filter.lowercase()}"),
+                            )
+                        }
+                    }
+                }
+                val activeFilterCount =
+                    (if (historyFilter != "All") 1 else 0) +
+                        (if (searchQuery.isNotBlank()) 1 else 0)
+                if (activeFilterCount > 0) {
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "$activeFilterCount active ${if (activeFilterCount == 1) "filter" else "filters"}",
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("request-history-filter-summary")
+                                    .semantics { liveRegion = LiveRegionMode.Polite },
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            TextButton(
+                                onClick = {
+                                    historyFilter = "All"
+                                    searchQuery = ""
+                                },
+                            ) { Text("Clear filters") }
+                        }
+                    }
+                }
+                item {
+                    Text(
+                        "${visibleHistory.size} ${if (visibleHistory.size == 1) "request" else "requests"} found",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("request-history-result-count")
+                            .semantics { liveRegion = LiveRegionMode.Polite },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                state.historyError?.let { error ->
+                    item {
+                        Card(
+                            Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        ) {
+                            Row(
+                                Modifier.padding(16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Default.Error,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Text(
+                                    error,
+                                    modifier = Modifier.weight(1f),
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                TextButton(
+                                    onClick = { onAction(EmergencyRequestAction.RefreshHistory) },
+                                    enabled = !state.historyRefreshing,
+                                ) { Text("Retry") }
+                            }
+                        }
+                    }
+                }
+                if (visibleHistory.isEmpty() && !state.historyRefreshing && state.historyError == null) {
+                    item {
+                        LifeLinkEmptyState(
+                            icon = Icons.AutoMirrored.Filled.Assignment,
+                            title = if (state.requestHistory.isEmpty() && activeFilterCount == 0) {
+                                "No requests yet"
+                            } else {
+                                "No requests match these filters"
+                            },
+                            body = if (state.requestHistory.isEmpty() && activeFilterCount == 0) {
+                                "Your request history will appear here after you create your first request."
+                            } else {
+                                "Clear the active filters or try a different search term."
+                            },
+                        )
+                    }
+                }
+                items(visibleHistory, key = { it.requestId }) { request ->
+                    RequestHistoryCard(
+                        request = request,
+                        selected = request.requestId == selectedRequestId,
+                        onOpen = { selectedRequestId = request.requestId },
+                    )
+                }
+                }
             }
-            items(visibleHistory, key = { it.requestId }) { request ->
-                RequestHistoryCard(
-                    request = request,
-                    selected = request.requestId == selectedRequestId,
-                    onOpen = { selectedRequestId = request.requestId },
-                )
-            }
-            }
-        }
         when {
             isExpanded -> {
                 Row(Modifier.fillMaxSize()) {
