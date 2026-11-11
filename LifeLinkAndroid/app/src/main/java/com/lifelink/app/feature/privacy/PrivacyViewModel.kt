@@ -28,6 +28,7 @@ data class PrivacyUiState(
     val conversations: List<Conversation> = emptyList(),
     val conversationsLoading: Boolean = false,
     val conversationsError: String? = null,
+    val conversationRefreshError: String? = null,
     val messages: List<ChatMessage> = emptyList(),
     val savedMessages: List<ChatMessage> = emptyList(),
     val contactShares: List<ContactShare> = emptyList(),
@@ -253,6 +254,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     messages = emptyList(),
                     savedMessages = emptyList(),
                     contactShares = emptyList(),
+                    conversationRefreshError = null,
                     lastSentMessage = null,
                     lastSharedContact = null,
                     sharingContact = false,
@@ -283,15 +285,25 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     private fun refreshConversation(conversationId: String, generation: Int) {
         conversationRefreshJob?.cancel()
         conversationRefreshJob = viewModelScope.launch {
-            val messages = repository.messages(conversationId).getOrDefault(emptyList())
-            val shares = repository.contactShares(conversationId).getOrDefault(emptyList())
-            val savedMessages = repository.savedMessages(conversationId).getOrDefault(_state.value.savedMessages)
+            val messagesResult = repository.messages(conversationId)
+            val sharesResult = repository.contactShares(conversationId)
+            val savedMessagesResult = repository.savedMessages(conversationId)
             if (generation != conversationGeneration) return@launch
-            _state.value = _state.value.copy(
-                messages = messages,
-                savedMessages = savedMessages,
-                contactShares = shares,
+            val current = _state.value
+            val refreshFailed = messagesResult.isFailure || sharesResult.isFailure || savedMessagesResult.isFailure
+            _state.value = current.copy(
+                // A transient read failure must never erase a conversation that was
+                // already displayed. A newly opened conversation starts empty, so it
+                // still fails closed while showing the retry state.
+                messages = messagesResult.getOrElse { current.messages },
+                savedMessages = savedMessagesResult.getOrElse { current.savedMessages },
+                contactShares = sharesResult.getOrElse { current.contactShares },
                 chatLoading = false,
+                conversationRefreshError = if (refreshFailed) {
+                    "Some conversation details could not be refreshed. Your existing messages are still shown."
+                } else {
+                    null
+                },
             )
         }
     }
