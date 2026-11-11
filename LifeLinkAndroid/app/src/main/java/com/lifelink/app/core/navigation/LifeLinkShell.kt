@@ -312,7 +312,7 @@ fun LifeLinkShell(
             if (showChatListBesideConversation) {
                 Row(Modifier.fillMaxSize()) {
                     Surface(
-                        Modifier.widthIn(min = 300.dp, max = 400.dp).fillMaxHeight(),
+                        Modifier.widthIn(min = 280.dp, max = 360.dp).fillMaxHeight(),
                         color = MaterialTheme.colorScheme.surface,
                     ) {
                         screenStateHolder.SaveableStateProvider("chats-list") {
@@ -579,51 +579,49 @@ fun LifeLinkShell(
                                     showCloseButton = false,
                                     embeddedInShell = true,
                                 )
-                            ShellTab.CHATS ->
-                                BoxWithConstraints(Modifier.fillMaxSize()) {
-                                    val chatsWindowSize = WindowSizeClass.calculateFromSize(DpSize(maxWidth, maxHeight))
-                                    val chatList: @Composable () -> Unit = {
-                                        screenStateHolder.SaveableStateProvider("chats-list") {
-                                            MessagingScreen(
-                                                state = privacyState,
-                                                onAction = onPrivacyAction,
-                                                onOpenConversation = openConversation,
-                                                targetConversationId = notificationRequestId
-                                                    ?.takeIf { it.startsWith("conversation:") }
-                                                    ?.substringAfter("conversation:")
-                                                    ?.substringBefore("|"),
-                                                targetConversationEventId = notificationRequestId
-                                                    ?.takeIf { it.startsWith("conversation:") }
-                                                    ?.substringAfter("|"),
-                                            )
-                                        }
-                                    }
-                                    if (chatsWindowSize.widthSizeClass == WindowWidthSizeClass.Expanded) {
-                                        Row(Modifier.fillMaxSize()) {
-                                            Surface(
-                                                Modifier.widthIn(min = 300.dp, max = 400.dp).fillMaxHeight(),
-                                                color = MaterialTheme.colorScheme.surface,
-                                            ) {
-                                                chatList()
-                                            }
-                                            Box(
-                                                Modifier.width(1.dp).fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant),
-                                            )
-                                            Surface(
-                                                Modifier.weight(1f).fillMaxHeight(),
-                                                color = MaterialTheme.colorScheme.background,
-                                            ) {
-                                                LifeLinkEmptyState(
-                                                    icon = Icons.AutoMirrored.Filled.Chat,
-                                                    title = "Select a conversation",
-                                                    body = "Choose a conversation from the list to read and reply to messages.",
-                                                )
-                                            }
-                                        }
-                                    } else {
-                                        chatList()
+                            ShellTab.CHATS -> {
+                                val chatList: @Composable () -> Unit = {
+                                    screenStateHolder.SaveableStateProvider("chats-list") {
+                                        MessagingScreen(
+                                            state = privacyState,
+                                            onAction = onPrivacyAction,
+                                            onOpenConversation = openConversation,
+                                            targetConversationId = notificationRequestId
+                                                ?.takeIf { it.startsWith("conversation:") }
+                                                ?.substringAfter("conversation:")
+                                                ?.substringBefore("|"),
+                                            targetConversationEventId = notificationRequestId
+                                                ?.takeIf { it.startsWith("conversation:") }
+                                                ?.substringAfter("|"),
+                                        )
                                     }
                                 }
+                                if (windowSize.widthSizeClass == WindowWidthSizeClass.Expanded) {
+                                    Row(Modifier.fillMaxSize()) {
+                                        Surface(
+                                            Modifier.widthIn(min = 280.dp, max = 360.dp).fillMaxHeight(),
+                                            color = MaterialTheme.colorScheme.surface,
+                                        ) {
+                                            chatList()
+                                        }
+                                        Box(
+                                            Modifier.width(1.dp).fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant),
+                                        )
+                                        Surface(
+                                            Modifier.weight(1f).fillMaxHeight(),
+                                            color = MaterialTheme.colorScheme.background,
+                                        ) {
+                                            LifeLinkEmptyState(
+                                                icon = Icons.AutoMirrored.Filled.Chat,
+                                                title = "Select a conversation",
+                                                body = "Choose a conversation from the list to read and reply to messages.",
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    chatList()
+                                }
+                            }
                             ShellTab.SETTINGS ->
                                 SettingsContent(
                                     role,
