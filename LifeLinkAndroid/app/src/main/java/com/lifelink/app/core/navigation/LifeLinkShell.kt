@@ -1416,8 +1416,8 @@ private fun HelpFaqContent() {
                 "Messaging is tied to a request and its connection state. Share phone or email details only " +
                 "when you are comfortable and only through the available consent action.",
             "Why did I not receive a notification?" to
-                "Check Android notification permission and device notification settings. Open Updates in " +
-                "LifeLink to review durable activity even when a system notification was dismissed.",
+                "Check Android notification permission and device notification settings. Open the notification bell " +
+                "in LifeLink to review activity even when a system notification was dismissed.",
             "How do I recover my account?" to
                 "Use the password-reset action in Privacy Center or Security. If you still cannot access " +
                 "the account, contact the support channel provided by your deployment administrator.",
@@ -1584,7 +1584,7 @@ private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> U
             status = "Controlled by Android",
             body =
             "LifeLink may send request and conversation updates when Android notification permission and " +
-                "device settings allow it. In-app Updates remains the source of durable activity history.",
+                "device settings allow it. The in-app notification bell keeps your activity history available.",
         )
         PrivacyCapabilityCard(
             title = "Retention summary",
