@@ -586,6 +586,29 @@ async def create_emergency_request_postgres(
         )
 
     now = datetime.now(timezone.utc)
+    # Different idempotency keys must not let one requester create parallel
+    # active emergencies from separate devices. Serialize by requester inside
+    # the same transaction as the subsequent insert; the per-key lock above
+    # still preserves safe replay of the exact same submission.
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"),
+        {"lock_key": f"lifelink:active-requester:{payload.requester_id}"},
+    )
+    active_request_id = await session.scalar(
+        select(EmergencyRequestRow.id)
+        .where(
+            EmergencyRequestRow.requester_id == payload.requester_id,
+            EmergencyRequestRow.status.in_(ACTIVE_REQUEST_STATUSES),
+            EmergencyRequestRow.response_deadline > now,
+        )
+        .limit(1)
+    )
+    if active_request_id is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="You already have an active emergency request. Review or close it before creating another.",
+        )
+
     request_id = f"req_{uuid4().hex}"
     donor_repository = SqlAlchemyDonorRepository(session)
     donors = await donor_repository.list_active_donors(excluded_user_id=principal.subject)
