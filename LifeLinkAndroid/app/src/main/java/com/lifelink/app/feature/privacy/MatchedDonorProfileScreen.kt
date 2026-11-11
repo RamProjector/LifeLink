@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -24,7 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Row
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -72,50 +72,9 @@ fun MatchedDonorProfileScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Card(
-                Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-            ) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(donor.displayName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text("Matched donor", color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    Text(
-                        "Eligible for this request based on the current authenticated match result.",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                }
-            }
-            Text("Match details", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DetailRow("Blood type", donor.bloodType)
-                    DetailRow("Approximate distance", "${"%.1f".format(donor.distanceKm)} km")
-                    DetailRow("Estimated travel", "About ${donor.travelMinutes} minutes")
-                    donor.explanation.forEach { explanation ->
-                        Text("• $explanation", style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-            }
-            Card(
-                Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-            ) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                        Text("Approximate location only", Modifier.padding(start = 8.dp), fontWeight = FontWeight.SemiBold)
-                    }
-                    Text(
-                        "Exact donor coordinates, personal contact details, and map-pin identity are hidden. " +
-                            "Use Request chat to start the authorized request-scoped conversation.",
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                        Text("Privacy protected", Modifier.padding(start = 8.dp), color = MaterialTheme.colorScheme.onSecondaryContainer)
-                    }
-                }
-            }
+            MatchedDonorIdentityCard(donor)
+            MatchedDonorMatchDetails(donor)
+            MatchedDonorPrivacyCard()
             onRequestChat?.let { requestChat ->
                 Button(
                     onClick = requestChat,
@@ -128,6 +87,63 @@ fun MatchedDonorProfileScreen(
             }
             OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
                 Text("Back to donors")
+            }
+        }
+}
+
+@Composable
+private fun MatchedDonorIdentityCard(donor: DiscoveredDonor) {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(donor.displayName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Matched donor", color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(
+                "Eligible for this request based on the current authenticated match result.",
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MatchedDonorMatchDetails(donor: DiscoveredDonor) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Match details", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                DetailRow("Blood type", donor.bloodType)
+                DetailRow("Approximate distance", "${"%.1f".format(donor.distanceKm)} km")
+                DetailRow("Estimated travel", "About ${donor.travelMinutes} minutes")
+                donor.explanation.forEach { explanation ->
+                    Text("• $explanation", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MatchedDonorPrivacyCard() {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    ) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text("Approximate location only", Modifier.padding(start = 8.dp), fontWeight = FontWeight.SemiBold)
+            }
+            Text(
+                "Exact donor coordinates, personal contact details, and map-pin identity are hidden. " +
+                    "Use Request chat to start the authorized request-scoped conversation.",
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text("Privacy protected", Modifier.padding(start = 8.dp), color = MaterialTheme.colorScheme.onSecondaryContainer)
             }
         }
     }
