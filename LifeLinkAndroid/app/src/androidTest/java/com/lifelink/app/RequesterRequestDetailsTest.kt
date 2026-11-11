@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lifelink.app.core.auth.UserRole
@@ -89,7 +90,7 @@ class RequesterRequestDetailsTest {
         composeRule.onNodeWithTag("nav-REQUESTS").performClick()
         composeRule.onNodeWithText("Create emergency request").assertDoesNotExist()
         composeRule.onNodeWithText("Finish or cancel this request before starting another.").assertIsDisplayed()
-        composeRule.onNodeWithTag("request-history-request-details-1").performClick()
+        composeRule.onNodeWithTag("request-history-request-details-1").performScrollTo().performClick()
         composeRule.onNodeWithTag("request-history-detail-pane").assertIsDisplayed()
         composeRule.onNodeWithText("Request details").assertIsDisplayed()
         composeRule.onNodeWithText("Created").assertIsDisplayed()
@@ -98,6 +99,6 @@ class RequesterRequestDetailsTest {
         composeRule.onNodeWithText("Manila General Hospital").assertIsDisplayed()
         composeRule.onNodeWithText("Quezon City").assertIsDisplayed()
         composeRule.onNodeWithText("Done").performClick()
-        composeRule.onNodeWithTag("request-history-request-details-1").assertIsDisplayed()
+        composeRule.onNodeWithTag("request-history-request-details-1").performScrollTo().assertIsDisplayed()
     }
 }
