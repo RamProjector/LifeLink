@@ -326,6 +326,10 @@ fun LifeLinkShell(
                         }
                     }
                     Surface(
+                        Modifier.width(1.dp).fillMaxHeight(),
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+                    Surface(
                         Modifier.weight(1f).fillMaxHeight(),
                         color = MaterialTheme.colorScheme.background,
                     ) {
@@ -541,11 +545,12 @@ fun LifeLinkShell(
                     }
                 }
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
-                    val destinationContentModifier = if (tab == ShellTab.MAP) {
-                        Modifier.fillMaxSize()
-                    } else {
-                        Modifier.widthIn(max = 840.dp).fillMaxSize()
-                    }
+                    val destinationContentModifier =
+                        if (tab == ShellTab.MAP || tab == ShellTab.CHATS) {
+                            Modifier.fillMaxSize()
+                        } else {
+                            Modifier.widthIn(max = 840.dp).fillMaxSize()
+                        }
                     Surface(destinationContentModifier, color = MaterialTheme.colorScheme.background) {
                         when (tab) {
                             ShellTab.HOME ->
@@ -572,19 +577,50 @@ fun LifeLinkShell(
                                     embeddedInShell = true,
                                 )
                             ShellTab.CHATS ->
-                                screenStateHolder.SaveableStateProvider("chats-list") {
-                                    MessagingScreen(
-                                        state = privacyState,
-                                        onAction = onPrivacyAction,
-                                        onOpenConversation = openConversation,
-                                        targetConversationId = notificationRequestId
-                                            ?.takeIf { it.startsWith("conversation:") }
-                                            ?.substringAfter("conversation:")
-                                            ?.substringBefore("|"),
-                                        targetConversationEventId = notificationRequestId
-                                            ?.takeIf { it.startsWith("conversation:") }
-                                            ?.substringAfter("|"),
-                                    )
+                                BoxWithConstraints(Modifier.fillMaxSize()) {
+                                    val chatsWindowSize = WindowSizeClass.calculateFromSize(DpSize(maxWidth, maxHeight))
+                                    val chatList = @Composable {
+                                        screenStateHolder.SaveableStateProvider("chats-list") {
+                                            MessagingScreen(
+                                                state = privacyState,
+                                                onAction = onPrivacyAction,
+                                                onOpenConversation = openConversation,
+                                                targetConversationId = notificationRequestId
+                                                    ?.takeIf { it.startsWith("conversation:") }
+                                                    ?.substringAfter("conversation:")
+                                                    ?.substringBefore("|"),
+                                                targetConversationEventId = notificationRequestId
+                                                    ?.takeIf { it.startsWith("conversation:") }
+                                                    ?.substringAfter("|"),
+                                            )
+                                        }
+                                    }
+                                    if (chatsWindowSize.widthSizeClass == WindowWidthSizeClass.Expanded) {
+                                        Row(Modifier.fillMaxSize()) {
+                                            Surface(
+                                                Modifier.widthIn(min = 300.dp, max = 400.dp).fillMaxHeight(),
+                                                color = MaterialTheme.colorScheme.surface,
+                                            ) {
+                                                chatList()
+                                            }
+                                            Surface(
+                                                Modifier.width(1.dp).fillMaxHeight(),
+                                                color = MaterialTheme.colorScheme.outlineVariant,
+                                            )
+                                            Surface(
+                                                Modifier.weight(1f).fillMaxHeight(),
+                                                color = MaterialTheme.colorScheme.background,
+                                            ) {
+                                                LifeLinkEmptyState(
+                                                    icon = Icons.AutoMirrored.Filled.Chat,
+                                                    title = "Select a conversation",
+                                                    body = "Choose a conversation from the list to read and reply to messages.",
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        chatList()
+                                    }
                                 }
                             ShellTab.SETTINGS ->
                                 SettingsContent(
