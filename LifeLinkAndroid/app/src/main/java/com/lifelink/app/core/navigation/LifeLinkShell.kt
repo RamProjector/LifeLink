@@ -248,6 +248,14 @@ fun LifeLinkShell(
         if (accountUserId.isNotBlank()) welcomePrefs.edit().putBoolean("seen_$accountUserId", true).apply()
         showStart = false
     }
+    val openRequestCreation = {
+        markWelcomeSeen()
+        if (state.activeRequest?.isTerminal == false) {
+            showActive = true
+        } else {
+            showRequest = true
+        }
+    }
     // Route changes must close any competing overlay. This keeps a stale request,
     // notification, or conversation flag from masking the donor workspace.
     val openDonorWorkspace = {
@@ -293,10 +301,7 @@ fun LifeLinkShell(
         StartContent(
             role = role,
             onGetStarted = markWelcomeSeen,
-            onCreateRequest = {
-                markWelcomeSeen()
-                showRequest = true
-            },
+            onCreateRequest = openRequestCreation,
             onOpenDonor = openDonorWorkspace,
         )
         return
@@ -557,7 +562,7 @@ fun LifeLinkShell(
                     Surface(destinationContentModifier, color = MaterialTheme.colorScheme.background) {
                         when (tab) {
                             ShellTab.HOME ->
-                                HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = {
+                                HomeContent(state, donorState, role, onCreate = openRequestCreation, onActive = {
                                     showActive =
                                         true
                                 }, onDonor = openDonorWorkspace, updates = updates, onRequests = {
@@ -569,7 +574,7 @@ fun LifeLinkShell(
                                     state = state,
                                     accountUserId = accountUserId,
                                     onAction = onAction,
-                                    onCreate = { showRequest = true },
+                                    onCreate = openRequestCreation,
                                     onOpen = { showRequest = true },
                                     onActive = { showActive = true },
                                 )
@@ -811,11 +816,17 @@ private fun RequestsContent(
                     }
                 }
             }
-            item {
-                Button(onClick = onCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = MaterialTheme.shapes.medium) {
-                    Icon(Icons.Default.Add, null, Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Create emergency request", fontWeight = FontWeight.SemiBold)
+            if (state.activeRequest?.isTerminal != false) {
+                item {
+                    Button(
+                        onClick = onCreate,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Icon(Icons.Default.Add, null, Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Create emergency request", fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
             item {
@@ -1219,14 +1230,16 @@ private fun HomeContent(
                             }
                         }
                     }
-                    Button(
-                        onClick = onCreate,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                        shape = MaterialTheme.shapes.medium,
-                    ) {
-                        Icon(Icons.Default.Add, null, Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Create emergency request", fontWeight = FontWeight.SemiBold)
+                    if (state.activeRequest?.isTerminal != false) {
+                        Button(
+                            onClick = onCreate,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                            shape = MaterialTheme.shapes.medium,
+                        ) {
+                            Icon(Icons.Default.Add, null, Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Create emergency request", fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
             }
