@@ -908,6 +908,7 @@ private fun RequestHistoryCard(request: RequestHistoryItem, onOpen: () -> Unit) 
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RequestHistoryDetailScreen(
     request: RequestHistoryItem,
