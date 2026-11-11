@@ -35,6 +35,7 @@ data class PrivacyUiState(
     val sending: Boolean = false,
     val lastSentMessage: ChatMessage? = null,
     val lastSharedContact: ContactShare? = null,
+    val sharingContact: Boolean = false,
     val message: String? = null,
 )
 
@@ -254,6 +255,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     contactShares = emptyList(),
                     lastSentMessage = null,
                     lastSharedContact = null,
+                    sharingContact = false,
                     sending = false,
                 )
             repository
@@ -347,7 +349,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
         if (value.isBlank()) return
         val generation = conversationGeneration
         viewModelScope.launch {
-            _state.value = _state.value.copy(message = null, lastSharedContact = null)
+            _state.value = _state.value.copy(message = null, lastSharedContact = null, sharingContact = true)
             repository
                 .shareContact(conversationId, field, value)
                 .onSuccess { sharedContact ->
@@ -355,12 +357,14 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     _state.value = _state.value.copy(
                         message = "Your $field was shared and recorded.",
                         lastSharedContact = sharedContact,
+                        sharingContact = false,
                     )
                     refreshConversation(conversationId, generation)
                 }.onFailure { error ->
                     if (generation != conversationGeneration) return@onFailure
                     _state.value = _state.value.copy(
                         lastSharedContact = null,
+                        sharingContact = false,
                         message = userFacingError(error, "Contact details could not be shared."),
                     )
                 }
