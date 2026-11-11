@@ -21,6 +21,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -311,6 +312,30 @@ class PrivacyViewModelTest {
         assertNull(viewModel.state.value.lastSharedContact)
         assertFalse(viewModel.state.value.sharingContact)
         assertEquals("Contact details could not be shared.", viewModel.state.value.message)
+    }
+
+    /** Keeps the last successful history visible when a later refresh fails, then recovers on retry. */
+    @Test
+    fun failed_refresh_preserves_history_and_successful_retry_clears_error() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+        val previousMessages = viewModel.state.value.messages
+        val previousShares = viewModel.state.value.contactShares
+        repository.failHistory = true
+
+        viewModel.onAction(PrivacyAction.RefreshConversation)
+
+        assertEquals(previousMessages, viewModel.state.value.messages)
+        assertEquals(previousShares, viewModel.state.value.contactShares)
+        assertNotNull(viewModel.state.value.conversationRefreshError)
+
+        repository.failHistory = false
+        val refreshedMessage = chatMessage("chat-old").copy(messageId = "new-message", body = "Recovered")
+        repository.loadedMessages = listOf(refreshedMessage)
+
+        viewModel.onAction(PrivacyAction.RefreshConversation)
+
+        assertEquals(listOf(refreshedMessage), viewModel.state.value.messages)
+        assertNull(viewModel.state.value.conversationRefreshError)
     }
 
     /** Refreshes a visible conversation so messages sent by the other participant appear without reopening chat. */
