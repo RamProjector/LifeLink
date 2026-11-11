@@ -591,9 +591,8 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
             )
             VisibilitySwitchRow(
                 title = "Show my exact location to matched requesters",
-                subtitle =
-                "Only a requester whose active request has matched you can see your exact location, " +
-                    "and it expires when the request ends.",
+                subtitle = "Only a requester whose active request has matched you can see your exact " +
+                    "location, and it expires when the request ends.",
                 checked = visibility?.exactLocationSharingEnabled == true,
                 enabled = !state.visibilitySaving,
                 onCheckedChange = { checked ->
@@ -624,7 +623,13 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
  * via [toggleable]; the inner [Switch] is non-interactive so the two never double-toggle.
  */
 @Composable
-private fun VisibilitySwitchRow(title: String, subtitle: String, checked: Boolean, enabled: Boolean, onCheckedChange: (Boolean) -> Unit) {
+private fun VisibilitySwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth()
             .sizeIn(minHeight = 56.dp)
@@ -658,7 +663,12 @@ private fun VisibilitySwitchRow(title: String, subtitle: String, checked: Boolea
  * the server confirms a live share; otherwise it explains why it is hidden.
  */
 @Composable
-fun MatchedDonorLocationCard(state: PrivacyUiState, requestId: String, donorId: String, onAction: (PrivacyAction) -> Unit) {
+fun MatchedDonorLocationCard(
+    state: PrivacyUiState,
+    requestId: String,
+    donorId: String,
+    onAction: (PrivacyAction) -> Unit,
+) {
     LaunchedEffect(requestId, donorId) { onAction(PrivacyAction.LoadMatchedLocation(requestId, donorId)) }
     val location = state.matchedLocation
     Card(Modifier.fillMaxWidth()) {
@@ -683,7 +693,11 @@ fun MatchedDonorLocationCard(state: PrivacyUiState, requestId: String, donorId: 
                     Text("Latitude ${location.latitude}, longitude ${location.longitude}")
                     location.precisionMeters?.let { Text("Precision \u00b1$it m", style = MaterialTheme.typography.bodySmall) }
                     location.expiresAt?.let {
-                        Text("Expires: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "Expires: $it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
                 else -> {
@@ -691,7 +705,9 @@ fun MatchedDonorLocationCard(state: PrivacyUiState, requestId: String, donorId: 
                         location?.reason ?: "Exact location is not available for this donor.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    OutlinedButton(onClick = { onAction(PrivacyAction.ActivateLocationShare(requestId, donorId)) }) {
+                    OutlinedButton(
+                        onClick = { onAction(PrivacyAction.ActivateLocationShare(requestId, donorId)) },
+                    ) {
                         Text("Request exact location")
                     }
                 }
