@@ -13,6 +13,7 @@ import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.domain.ActiveRequestStatus
+import com.lifelink.app.domain.ActiveRequestSnapshot
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.feature.donor.BecomeDonorUiState
 import com.lifelink.app.feature.donor.DonorUiState
@@ -39,6 +40,10 @@ class RequesterRequestDetailsTest {
             LifeLinkTheme {
                 LifeLinkShell(
                     state = EmergencyRequestUiState(
+                        activeRequest = ActiveRequestSnapshot(
+                            requestId = "active-request-1",
+                            status = ActiveRequestStatus.AWAITING_RESPONSES,
+                        ),
                         requestHistory = listOf(
                             RequestHistoryItem(
                                 requestId = "request-details-1",
@@ -82,6 +87,8 @@ class RequesterRequestDetailsTest {
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("nav-REQUESTS").performClick()
+        composeRule.onNodeWithText("Create emergency request").assertDoesNotExist()
+        composeRule.onNodeWithText("Finish or cancel this request before starting another.").assertIsDisplayed()
         composeRule.onNodeWithTag("request-history-request-details-1").performClick()
         composeRule.onNodeWithTag("request-history-detail-pane").assertIsDisplayed()
         composeRule.onNodeWithText("Request details").assertIsDisplayed()
