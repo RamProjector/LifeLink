@@ -152,6 +152,9 @@ private enum class SettingsSection(val label: String) {
  * which dispatches [PrivacyAction.OpenConversation] itself on composition (and after
  * process-death restoration); closing it returns to the screen that opened it.
  */
+// This root composable intentionally coordinates shared navigation and saveable shell state.
+// Keep feature UI in destination composables; extract routing/state only when ownership can move safely.
+@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3WindowSizeClassApi::class)
 @Composable
 fun LifeLinkShell(
