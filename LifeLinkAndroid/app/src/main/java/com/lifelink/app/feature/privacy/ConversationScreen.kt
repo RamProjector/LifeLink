@@ -184,7 +184,7 @@ fun ConversationScreen(
         ShareContactCard(
             contactField = contactField,
             contactValue = contactValue,
-            enabled = chatReady,
+            enabled = chatReady && !state.sharingContact,
             onFieldChange = { contactField = it },
             onValueChange = { if (it.length <= MAX_CONTACT_VALUE_LENGTH) contactValue = it },
             onShare = {
