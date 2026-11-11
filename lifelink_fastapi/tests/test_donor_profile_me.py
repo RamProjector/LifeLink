@@ -416,6 +416,11 @@ def test_opt_out_stops_matching(pg_url):
         assert removed.status_code == 204, removed.text
         assert (await client.get("/v1/donor-profile")).status_code == 404
 
+        # Close the previous request before testing a fresh matching snapshot.
+        current["id"] = requester
+        cancelled = await client.post(f"/v1/emergency-requests/{created['request_id']}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
+
         # A new request no longer matches the opted-out donor.
         created = await submit_request(client, current, requester)
         assert created["matches"] == []

@@ -128,6 +128,35 @@ class EmergencyRequestViewModelTest {
     }
 
     @Test
+    fun active_request_blocks_a_new_submission_before_network_call() = runTest {
+        val repository = FakeRepository().apply {
+            activeRequest = ActiveRequestSnapshot(
+                "existing-active-request",
+                com.lifelink.app.domain.ActiveRequestStatus.AWAITING_RESPONSES,
+            )
+        }
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(
+            EmergencyRequestAction.UpdateDraft {
+                it.copy(
+                    bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                    facility = facility,
+                    requesterLatitude = 14.6466,
+                    requesterLongitude = 121.0437,
+                    genuineRequestConfirmed = true,
+                    sharingConsentConfirmed = true,
+                )
+            },
+        )
+        viewModel.onAction(EmergencyRequestAction.Submit)
+        advanceUntilIdle()
+
+        assertEquals(0, repository.submitCalls)
+        val error = viewModel.uiState.value.submission as SubmissionState.Error
+        assertTrue(error.message.contains("active emergency request"))
+    }
+
+    @Test
     fun continue_without_blood_type_exposes_validation_error() = runTest {
         val viewModel = EmergencyRequestViewModel(FakeRepository(), enablePolling = false)
         viewModel.onAction(EmergencyRequestAction.Continue)

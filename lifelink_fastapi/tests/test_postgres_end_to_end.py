@@ -291,6 +291,56 @@ def test_concurrent_request_creation_with_same_key_returns_one_request(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_requester_cannot_create_parallel_active_requests_and_can_create_after_cancel(pg_url):
+    """Different idempotency keys cannot bypass the one-active-request rule, even concurrently."""
+
+    async def scenario(client, current, run_sql):
+        requester = new_user("requester")
+        first_payload = request_payload(requester)
+        second_payload = request_payload(requester)
+        current["id"] = requester
+
+        first, second = await asyncio.gather(
+            client.post("/v1/emergency-requests", json=first_payload),
+            client.post("/v1/emergency-requests", json=second_payload),
+        )
+        successful = [response for response in (first, second) if response.status_code == 201]
+        rejected = [response for response in (first, second) if response.status_code == 409]
+        assert len(successful) == 1, (first.status_code, first.text, second.status_code, second.text)
+        assert len(rejected) == 1, (first.status_code, first.text, second.status_code, second.text)
+        assert "active emergency request" in rejected[0].json()["detail"].lower()
+
+        request_id = successful[0].json()["request_id"]
+        cancelled = await client.post(f"/v1/emergency-requests/{request_id}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
+
+        replacement_payload = request_payload(requester)
+        replacement = await client.post("/v1/emergency-requests", json=replacement_payload)
+        assert replacement.status_code == 201, replacement.text
+        replacement_id = replacement.json()["request_id"]
+        assert replacement_id != request_id
+
+        # An overdue request must not block a new one while the periodic expiry
+        # sweeper is waiting for its next tick.
+        await run_sql(
+            "UPDATE emergency_requests SET response_deadline = now() - interval '1 minute' "
+            f"WHERE id = '{replacement_id}'"
+        )
+        after_expiry = await client.post(
+            "/v1/emergency-requests",
+            json=request_payload(requester),
+        )
+        assert after_expiry.status_code == 201, after_expiry.text
+
+        count = await run_sql(
+            "SELECT count(*) FROM emergency_requests "
+            f"WHERE requester_id = '{requester}'"
+        )
+        assert count == [(3,)], "terminal and expired history must remain while only one request is active"
+
+    run_scenario(pg_url, scenario)
+
+
 def test_cancel_stops_the_donor_search_broadcast(pg_url):
     """Cancelling a request must stop its donor search, not just flip its status.
 
@@ -398,8 +448,10 @@ def test_sweeper_limit_bounds_a_single_sweep(pg_url):
     """
 
     async def scenario(client, current, run_sql):
-        requester = new_user("requester")
-        created = [await submit_request(client, current, requester) for _ in range(3)]
+        created = [
+            await submit_request(client, current, new_user("requester"))
+            for _ in range(3)
+        ]
         ids = ", ".join(f"'{item['request_id']}'" for item in created)
         await run_sql(
             f"UPDATE emergency_requests SET response_deadline = now() - interval '1 hour' "
@@ -585,13 +637,13 @@ def test_blood_type_change_immediately_rematches_active_requests(pg_url):
 
 def test_donor_inbox_excludes_expired_and_closed_requests(pg_url):
     async def scenario(client, current, run_sql):
-        donor, requester = new_user("donor"), new_user("requester")
+        donor = new_user("donor")
         await setup_donor(client, current, donor)
 
-        active = await submit_request(client, current, requester)
-        expired = await submit_request(client, current, requester)
-        cancelled = await submit_request(client, current, requester)
-        fulfilled = await submit_request(client, current, requester)
+        active = await submit_request(client, current, new_user("requester"))
+        expired = await submit_request(client, current, new_user("requester"))
+        cancelled = await submit_request(client, current, new_user("requester"))
+        fulfilled = await submit_request(client, current, new_user("requester"))
         await run_sql(
             "UPDATE emergency_requests SET response_deadline = now() - interval '5 minutes' "
             f"WHERE id = '{expired['request_id']}'"
@@ -795,6 +847,9 @@ def test_strict_mode_only_matches_verified_donors(pg_url, monkeypatch):
         assert created["matches"] == []
 
         await run_sql(f"UPDATE donors SET verified = TRUE WHERE id = '{donor}'")
+        current["id"] = requester
+        cancelled = await client.post(f"/v1/emergency-requests/{created['request_id']}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
         created = await submit_request(client, current, requester)
         assert created["notifications_created"] == 0
         assert [m["donor_id"] for m in created["matches"]] == [donor]

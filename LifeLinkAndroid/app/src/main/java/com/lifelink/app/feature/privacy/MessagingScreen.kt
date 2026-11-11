@@ -34,7 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
@@ -52,6 +51,8 @@ fun MessagingScreen(
     onOpenConversation: (String, String) -> Unit,
     targetConversationId: String? = null,
     targetConversationEventId: String? = null,
+    selectedRequestId: String? = null,
+    selectedDonorId: String? = null,
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadConversations) }
     var handledNotificationKey by remember { mutableStateOf<String?>(null) }
@@ -72,13 +73,10 @@ fun MessagingScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                LifeLinkPageHeader("Messaging")
-                Text(
-                    "Chat with matched donors and requesters. Contact details remain private until shared.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            LifeLinkPageHeader(
+                title = "Chats",
+                subtitle = "Your conversations with matched donors and requesters. Contact details remain private until shared.",
+            )
         }
         when {
             state.conversationsLoading -> item { LifeLinkLoadingIndicator(label = "Loading conversations\u2026") }
@@ -101,7 +99,10 @@ fun MessagingScreen(
                 )
             }
             else -> items(state.conversations, key = { it.conversationId }) { conversation ->
-                ConversationRow(conversation) { onOpenConversation(conversation.requestId, conversation.donorId) }
+                ConversationRow(
+                    conversation = conversation,
+                    selected = conversation.requestId == selectedRequestId && conversation.donorId == selectedDonorId,
+                ) { onOpenConversation(conversation.requestId, conversation.donorId) }
             }
         }
     }
@@ -109,14 +110,20 @@ fun MessagingScreen(
 
 /** Displays a conversation with an initials avatar, request reference, and message recency. */
 @Composable
-private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
+private fun ConversationRow(conversation: Conversation, selected: Boolean, onOpen: () -> Unit) {
+    val contentColor =
+        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    val secondaryContentColor =
+        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
     Card(
         modifier =
         Modifier
             .fillMaxWidth()
             .clickable(onClickLabel = "Open chat", onClick = onOpen),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 2.dp else 1.dp),
     ) {
         Row(
             Modifier.fillMaxWidth().padding(16.dp),
@@ -129,30 +136,30 @@ private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
                 color = MaterialTheme.colorScheme.primaryContainer,
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        conversation.conversationId.take(2).uppercase(),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontWeight = FontWeight.Bold,
+                    Icon(
+                        Icons.AutoMirrored.Filled.Chat,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Conversation ${conversation.conversationId.take(8)}", fontWeight = FontWeight.SemiBold)
+                Text("Matched conversation", style = MaterialTheme.typography.titleMedium, color = contentColor)
                 Text(
-                    "Request ${conversation.requestId.take(12)}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    "Linked to your request",
+                    color = secondaryContentColor,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
-                    conversation.lastMessageAt?.let { "Last message: $it" } ?: "No messages yet",
+                    if (conversation.lastMessageAt != null) "Recent activity" else "No messages yet",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = secondaryContentColor,
                 )
             }
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = secondaryContentColor,
             )
         }
     }
