@@ -785,7 +785,16 @@ private fun RequestsContent(
                         }
                     }
                 } else if (state.activeRequest != null) {
-                    ActiveRequestSummary(state, onActive)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ActiveRequestSummary(state, onActive)
+                        if (!state.activeRequest.isTerminal) {
+                            Text(
+                                "Finish or cancel this request before starting another.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
                 } else {
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1200,7 +1209,16 @@ private fun HomeContent(
                         TextButton(onClick = onRequests) { Text("View all") }
                     }
                     if (state.activeRequest != null) {
-                        ActiveRequestSummary(state, onActive)
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ActiveRequestSummary(state, onActive)
+                            if (!state.activeRequest.isTerminal) {
+                                Text(
+                                    "Finish or cancel this request before starting another.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
                     } else {
                         Card(
                             Modifier.fillMaxWidth(),
