@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import create_all_tables, get_db_session
-from .db_models import Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum, Message
+from .db_models import Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum, Message, RequestStatusEnum
 from .fcm import send_push_safely
 from .main import (
     EmergencyRequestIn,
@@ -598,7 +598,7 @@ async def create_emergency_request_postgres(
         select(EmergencyRequestRow.id)
         .where(
             EmergencyRequestRow.requester_id == payload.requester_id,
-            EmergencyRequestRow.status.in_(ACTIVE_REQUEST_STATUSES),
+            EmergencyRequestRow.status.in_([RequestStatusEnum(status) for status in ACTIVE_REQUEST_STATUSES]),
             EmergencyRequestRow.response_deadline > now,
         )
         .limit(1)
