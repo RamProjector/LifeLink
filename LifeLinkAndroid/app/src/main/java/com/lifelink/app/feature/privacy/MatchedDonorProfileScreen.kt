@@ -89,6 +89,7 @@ fun MatchedDonorProfileScreen(
                 Text("Back to donors")
             }
         }
+    }
 }
 
 @Composable
