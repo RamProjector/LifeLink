@@ -325,9 +325,8 @@ fun LifeLinkShell(
                             )
                         }
                     }
-                    Surface(
-                        Modifier.width(1.dp).fillMaxHeight(),
-                        color = MaterialTheme.colorScheme.outlineVariant,
+                    Box(
+                        Modifier.width(1.dp).fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant),
                     )
                     Surface(
                         Modifier.weight(1f).fillMaxHeight(),
@@ -607,9 +606,8 @@ fun LifeLinkShell(
                                             ) {
                                                 chatList()
                                             }
-                                            Surface(
-                                                Modifier.width(1.dp).fillMaxHeight(),
-                                                color = MaterialTheme.colorScheme.outlineVariant,
+                                            Box(
+                                                Modifier.width(1.dp).fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant),
                                             )
                                             Surface(
                                                 Modifier.weight(1f).fillMaxHeight(),
