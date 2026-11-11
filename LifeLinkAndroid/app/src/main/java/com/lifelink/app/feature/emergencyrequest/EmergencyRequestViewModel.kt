@@ -390,7 +390,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
             SubmitResult.Error("Your request could not be saved safely on this device, so it was not submitted.")
         }
 
-    private fun handleSubmitResult(result: SubmitResult, draft: EmergencyRequestDraft) {
+    private suspend fun handleSubmitResult(result: SubmitResult, draft: EmergencyRequestDraft) {
         when (result) {
             is SubmitResult.MatchingStarted -> {
                 runCatching { repository.deleteDraft(draft.id) }
