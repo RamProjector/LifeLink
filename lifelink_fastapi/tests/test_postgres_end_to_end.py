@@ -627,10 +627,10 @@ def test_donor_inbox_excludes_expired_and_closed_requests(pg_url):
         donor, requester = new_user("donor"), new_user("requester")
         await setup_donor(client, current, donor)
 
-        active = await submit_request(client, current, requester)
-        expired = await submit_request(client, current, requester)
-        cancelled = await submit_request(client, current, requester)
-        fulfilled = await submit_request(client, current, requester)
+        active = await submit_request(client, current, new_user("requester"))
+        expired = await submit_request(client, current, new_user("requester"))
+        cancelled = await submit_request(client, current, new_user("requester"))
+        fulfilled = await submit_request(client, current, new_user("requester"))
         await run_sql(
             "UPDATE emergency_requests SET response_deadline = now() - interval '5 minutes' "
             f"WHERE id = '{expired['request_id']}'"
