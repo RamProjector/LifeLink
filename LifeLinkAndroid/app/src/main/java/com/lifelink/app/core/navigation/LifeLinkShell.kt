@@ -302,14 +302,51 @@ fun LifeLinkShell(
     }
     if (showConversation && conversationRequestId.isNotBlank() && conversationDonorId.isNotBlank()) {
         BackHandler { closeConversation() }
-        ConversationScreen(
-            state = privacyState,
-            requestId = conversationRequestId,
-            donorId = conversationDonorId,
-            currentUserId = accountUserId,
-            onAction = onPrivacyAction,
-            onBack = { closeConversation() },
-        )
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val conversationWindowSize = WindowSizeClass.calculateFromSize(DpSize(maxWidth, maxHeight))
+            val showChatListBesideConversation =
+                !conversationOpenedFromDonor &&
+                    tab == ShellTab.CHATS &&
+                    conversationWindowSize.widthSizeClass == WindowWidthSizeClass.Expanded
+            if (showChatListBesideConversation) {
+                Row(Modifier.fillMaxSize()) {
+                    Surface(
+                        Modifier.widthIn(min = 300.dp, max = 400.dp).fillMaxHeight(),
+                        color = MaterialTheme.colorScheme.surface,
+                    ) {
+                        MessagingScreen(
+                            state = privacyState,
+                            onAction = onPrivacyAction,
+                            onOpenConversation = openConversation,
+                            selectedRequestId = conversationRequestId,
+                            selectedDonorId = conversationDonorId,
+                        )
+                    }
+                    Surface(
+                        Modifier.weight(1f).fillMaxHeight(),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        ConversationScreen(
+                            state = privacyState,
+                            requestId = conversationRequestId,
+                            donorId = conversationDonorId,
+                            currentUserId = accountUserId,
+                            onAction = onPrivacyAction,
+                            onBack = { closeConversation() },
+                        )
+                    }
+                }
+            } else {
+                ConversationScreen(
+                    state = privacyState,
+                    requestId = conversationRequestId,
+                    donorId = conversationDonorId,
+                    currentUserId = accountUserId,
+                    onAction = onPrivacyAction,
+                    onBack = { closeConversation() },
+                )
+            }
+        }
         return
     }
     if (showNotifications) {
