@@ -291,6 +291,43 @@ def test_concurrent_request_creation_with_same_key_returns_one_request(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_requester_cannot_create_parallel_active_requests_and_can_create_after_cancel(pg_url):
+    """Different idempotency keys cannot bypass the one-active-request rule, even concurrently."""
+
+    async def scenario(client, current, run_sql):
+        requester = new_user("requester")
+        first_payload = request_payload(requester)
+        second_payload = request_payload(requester)
+        current["id"] = requester
+
+        first, second = await asyncio.gather(
+            client.post("/v1/emergency-requests", json=first_payload),
+            client.post("/v1/emergency-requests", json=second_payload),
+        )
+        successful = [response for response in (first, second) if response.status_code == 201]
+        rejected = [response for response in (first, second) if response.status_code == 409]
+        assert len(successful) == 1, (first.status_code, first.text, second.status_code, second.text)
+        assert len(rejected) == 1, (first.status_code, first.text, second.status_code, second.text)
+        assert "active emergency request" in rejected[0].json()["detail"].lower()
+
+        request_id = successful[0].json()["request_id"]
+        cancelled = await client.post(f"/v1/emergency-requests/{request_id}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
+
+        replacement_payload = request_payload(requester)
+        replacement = await client.post("/v1/emergency-requests", json=replacement_payload)
+        assert replacement.status_code == 201, replacement.text
+        assert replacement.json()["request_id"] != request_id
+
+        count = await run_sql(
+            "SELECT count(*) FROM emergency_requests "
+            f"WHERE requester_id = '{requester}'"
+        )
+        assert count == [(2,)], "only one active request should exist at a time, while terminal history remains"
+
+    run_scenario(pg_url, scenario)
+
+
 def test_cancel_stops_the_donor_search_broadcast(pg_url):
     """Cancelling a request must stop its donor search, not just flip its status.
 
