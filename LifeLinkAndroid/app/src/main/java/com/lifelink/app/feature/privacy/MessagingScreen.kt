@@ -72,13 +72,10 @@ fun MessagingScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                LifeLinkPageHeader("Chats")
-                Text(
-                    "Your conversations with matched donors and requesters. Contact details remain private until shared.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            LifeLinkPageHeader(
+                title = "Chats",
+                subtitle = "Your conversations with matched donors and requesters. Contact details remain private until shared.",
+            )
         }
         when {
             state.conversationsLoading -> item { LifeLinkLoadingIndicator(label = "Loading conversations\u2026") }
@@ -137,7 +134,7 @@ private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
                 }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Matched conversation", fontWeight = FontWeight.SemiBold)
+                Text("Matched conversation", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "Linked to your request",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
