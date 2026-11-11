@@ -708,6 +708,7 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
 }
 
 /** Shows request history with actions to create, resume, or view the current request. */
+@OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
 @Suppress("CyclomaticComplexMethod", "LongMethod")
 @Composable
 private fun RequestsContent(
