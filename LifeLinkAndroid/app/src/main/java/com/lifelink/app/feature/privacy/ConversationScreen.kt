@@ -167,6 +167,28 @@ fun ConversationScreen(
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
+        state.conversationRefreshError?.let { refreshError ->
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        refreshError,
+                        Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    TextButton(onClick = { onAction(PrivacyAction.RefreshConversation) }) {
+                        Text("Retry")
+                    }
+                }
+            }
+        }
 
         ConversationMessagesList(
             modifier = Modifier.weight(1f).fillMaxWidth(),
