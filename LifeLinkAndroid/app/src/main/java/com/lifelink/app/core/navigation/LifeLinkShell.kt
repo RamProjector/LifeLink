@@ -979,8 +979,8 @@ private fun RequestsContent(
                         onOpen = { selectedRequestId = request.requestId },
                     )
                 }
-                }
             }
+        }
         when {
             isExpanded -> {
                 Row(Modifier.fillMaxSize()) {
