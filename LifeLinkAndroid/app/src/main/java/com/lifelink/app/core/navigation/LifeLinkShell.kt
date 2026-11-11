@@ -762,9 +762,9 @@ private fun RequestsContent(
             selectedRequestId = null
         }
         val requestListContent: @Composable () -> Unit = {
-                LazyColumn(
-                    state = requestListState,
-                    modifier = Modifier.fillMaxSize().testTag("request-history"),
+            LazyColumn(
+                state = requestListState,
+                modifier = Modifier.fillMaxSize().testTag("request-history"),
                 contentPadding = PaddingValues(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
