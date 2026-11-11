@@ -549,7 +549,7 @@ fun LifeLinkShell(
                 }
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
                     val destinationContentModifier =
-                        if (tab == ShellTab.MAP || tab == ShellTab.CHATS) {
+                        if (tab == ShellTab.MAP || tab == ShellTab.CHATS || tab == ShellTab.REQUESTS) {
                             Modifier.fillMaxSize()
                         } else {
                             Modifier.widthIn(max = 840.dp).fillMaxSize()
@@ -565,10 +565,14 @@ fun LifeLinkShell(
                                         ShellTab.REQUESTS
                                 }, onUpdates = { showNotifications = true })
                             ShellTab.REQUESTS ->
-                                RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = {
-                                    showRequest =
-                                        true
-                                }, onActive = { showActive = true })
+                                RequestsContent(
+                                    state = state,
+                                    accountUserId = accountUserId,
+                                    onAction = onAction,
+                                    onCreate = { showRequest = true },
+                                    onOpen = { showRequest = true },
+                                    onActive = { showActive = true },
+                                )
                             ShellTab.MAP ->
                                 DonorMapScreen(
                                     state = privacyState,
@@ -708,12 +712,13 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
 @Composable
 private fun RequestsContent(
     state: EmergencyRequestUiState,
+    accountUserId: String,
     onAction: (EmergencyRequestAction) -> Unit,
     onCreate: () -> Unit,
     onOpen: () -> Unit,
     onActive: () -> Unit,
 ) {
-    var selectedRequest by remember { mutableStateOf<RequestHistoryItem?>(null) }
+    var selectedRequestId by rememberSaveable(accountUserId) { mutableStateOf<String?>(null) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var historyFilter by rememberSaveable { mutableStateOf("All") }
     val terminalStatuses = remember {
@@ -741,9 +746,16 @@ private fun RequestsContent(
         }
         matchesQuery && matchesFilter
     }
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(
-            Modifier.fillMaxSize().testTag("request-history"),
+    val selectedRequest = state.requestHistory.firstOrNull { it.requestId == selectedRequestId }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val windowSize = WindowSizeClass.calculateFromSize(DpSize(maxWidth, maxHeight))
+        val isExpanded = windowSize.widthSizeClass == WindowWidthSizeClass.Expanded
+        BackHandler(enabled = selectedRequest != null && !isExpanded) {
+            selectedRequestId = null
+        }
+        val requestListContent: @Composable () -> Unit = {
+            LazyColumn(
+                Modifier.fillMaxSize().testTag("request-history"),
             contentPadding = PaddingValues(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -937,24 +949,70 @@ private fun RequestsContent(
                 }
             }
             items(visibleHistory, key = { it.requestId }) { request ->
-                RequestHistoryCard(request, onOpen = { selectedRequest = request })
+                RequestHistoryCard(
+                    request = request,
+                    selected = request.requestId == selectedRequestId,
+                    onOpen = { selectedRequestId = request.requestId },
+                )
+            }
             }
         }
-        selectedRequest?.let { request ->
-            RequestHistoryDialog(request = request, onDismiss = { selectedRequest = null })
+        when {
+            isExpanded -> {
+                Row(Modifier.fillMaxSize()) {
+                    Surface(
+                        Modifier.widthIn(min = 340.dp, max = 420.dp).fillMaxHeight(),
+                        color = MaterialTheme.colorScheme.surface,
+                    ) {
+                        requestListContent()
+                    }
+                    Box(
+                        Modifier.width(1.dp).fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant),
+                    )
+                    Surface(
+                        Modifier.weight(1f).fillMaxHeight(),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        if (selectedRequest != null) {
+                            RequestHistoryDetailPane(
+                                request = selectedRequest,
+                                onClose = { selectedRequestId = null },
+                                compact = false,
+                            )
+                        } else {
+                            LifeLinkEmptyState(
+                                icon = Icons.AutoMirrored.Filled.Assignment,
+                                title = "Select a request",
+                                body = "Choose a request from your history to review its details.",
+                            )
+                        }
+                    }
+                }
+            }
+            selectedRequest != null -> {
+                RequestHistoryDetailPane(
+                    request = selectedRequest,
+                    onClose = { selectedRequestId = null },
+                    compact = true,
+                )
+            }
+            else -> requestListContent()
         }
     }
 }
 
 /** Summarizes a saved request and labels terminal requests as past requests. */
 @Composable
-private fun RequestHistoryCard(request: RequestHistoryItem, onOpen: () -> Unit) {
+private fun RequestHistoryCard(request: RequestHistoryItem, selected: Boolean, onOpen: () -> Unit) {
     Card(
         Modifier
             .fillMaxWidth()
             .clickable(role = Role.Button, onClickLabel = "View request details", onClick = onOpen)
             .testTag("request-history-${request.requestId}"),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 2.dp else 1.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             RequestHistoryStatusRow(request)
@@ -1031,13 +1089,34 @@ private fun RequestHistoryMetadata(request: RequestHistoryItem) {
 }
 
 @Composable
-private fun RequestHistoryDialog(request: RequestHistoryItem, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Request details") },
-        text = { RequestDetailsContent(request) },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
-    )
+private fun RequestHistoryDetailPane(request: RequestHistoryItem, onClose: () -> Unit, compact: Boolean) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .testTag("request-history-detail-pane")
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                "Request details",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f).semantics { heading() },
+            )
+            TextButton(onClick = onClose) { Text(if (compact) "Done" else "Clear selection") }
+        }
+        Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+            Column(Modifier.padding(20.dp)) {
+                RequestDetailsContent(request)
+            }
+        }
+    }
 }
 
 @Composable
