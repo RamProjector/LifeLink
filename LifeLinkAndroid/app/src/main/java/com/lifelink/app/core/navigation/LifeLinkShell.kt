@@ -579,7 +579,7 @@ fun LifeLinkShell(
                             ShellTab.CHATS ->
                                 BoxWithConstraints(Modifier.fillMaxSize()) {
                                     val chatsWindowSize = WindowSizeClass.calculateFromSize(DpSize(maxWidth, maxHeight))
-                                    val chatList = @Composable {
+                                    val chatList: @Composable () -> Unit = {
                                         screenStateHolder.SaveableStateProvider("chats-list") {
                                             MessagingScreen(
                                                 state = privacyState,
