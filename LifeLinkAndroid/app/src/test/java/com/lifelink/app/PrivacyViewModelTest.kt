@@ -297,6 +297,20 @@ class PrivacyViewModelTest {
         assertEquals("555-0100", viewModel.state.value.lastSharedContact?.value)
         assertEquals("requester", viewModel.state.value.lastSharedContact?.sharedBy)
         assertEquals("Your phone was shared and recorded.", viewModel.state.value.message)
+        assertFalse(viewModel.state.value.sharingContact)
+    }
+
+    /** Leaves the contact form's values available when the server rejects a share. */
+    @Test
+    fun failed_contact_share_does_not_publish_a_confirmed_record() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+        repository.shareFailure = IllegalStateException("server rejected contact share")
+
+        viewModel.onAction(PrivacyAction.ShareContact("phone", "555-0100"))
+
+        assertNull(viewModel.state.value.lastSharedContact)
+        assertFalse(viewModel.state.value.sharingContact)
+        assertEquals("Contact details could not be shared.", viewModel.state.value.message)
     }
 
     /** Refreshes a visible conversation so messages sent by the other participant appear without reopening chat. */
@@ -355,6 +369,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
     var loadedSavedMessages = emptyList<ChatMessage>()
     var failHistory = false
     var sendFailure: Throwable? = null
+    var shareFailure: Throwable? = null
     var open: suspend (String, String) -> Result<Conversation> = { requestId, donorId ->
         Result.success(conversation("chat-old", requestId, donorId))
     }
@@ -409,6 +424,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
     /** Records the destination and contact field, then returns a synthetic share with those values. */
     override suspend fun shareContact(conversationId: String, field: String, value: String): Result<ContactShare> {
         shares += Triple(conversationId, field, value)
+        shareFailure?.let { return Result.failure(it) }
         return Result.success(contactShare(conversationId).copy(field = field, value = value))
     }
 
