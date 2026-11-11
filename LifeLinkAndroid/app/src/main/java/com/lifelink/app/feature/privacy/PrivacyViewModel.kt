@@ -33,6 +33,7 @@ data class PrivacyUiState(
     val contactShares: List<ContactShare> = emptyList(),
     val chatLoading: Boolean = false,
     val sending: Boolean = false,
+    val lastSentMessage: ChatMessage? = null,
     val message: String? = null,
 )
 
@@ -250,6 +251,8 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     messages = emptyList(),
                     savedMessages = emptyList(),
                     contactShares = emptyList(),
+                    lastSentMessage = null,
+                    sending = false,
                 )
             repository
                 .openConversation(requestId, donorId)
@@ -319,16 +322,20 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
         if (body.isBlank()) return
         val generation = conversationGeneration
         viewModelScope.launch {
-            _state.value = _state.value.copy(sending = true)
+            _state.value = _state.value.copy(sending = true, message = null, lastSentMessage = null)
             repository
                 .sendMessage(conversationId, body)
-                .onSuccess {
+                .onSuccess { sentMessage ->
                     if (generation != conversationGeneration) return@onSuccess
-                    _state.value = _state.value.copy(sending = false)
+                    _state.value = _state.value.copy(sending = false, lastSentMessage = sentMessage)
                     refreshConversation(conversationId, generation)
                 }.onFailure { error ->
                     if (generation != conversationGeneration) return@onFailure
-                    _state.value = _state.value.copy(sending = false, message = userFacingError(error, "Message could not be sent."))
+                    _state.value = _state.value.copy(
+                        sending = false,
+                        lastSentMessage = null,
+                        message = userFacingError(error, "Message could not be sent."),
+                    )
                 }
         }
     }
