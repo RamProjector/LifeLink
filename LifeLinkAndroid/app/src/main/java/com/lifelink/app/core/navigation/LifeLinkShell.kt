@@ -1172,6 +1172,65 @@ private fun DetailRow(label: String, value: String) {
     }
 }
 
+@Composable
+private fun ActiveRequestOverview(state: EmergencyRequestUiState, onActive: () -> Unit) {
+    if (state.activeRequest != null) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ActiveRequestSummary(state, onActive)
+            if (!state.activeRequest.isTerminal) {
+                Text(
+                    "Finish or cancel this request before starting another.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    } else {
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    if (state.historyRefreshing) {
+                        "Loading your requests…"
+                    } else if (state.historyError != null) {
+                        "Requests unavailable"
+                    } else {
+                        "No active request"
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    state.historyError
+                        ?: if (state.historyRefreshing) {
+                            "Checking your account for saved requests."
+                        } else {
+                            "Create a request to find nearby blood donors."
+                        },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreateRequestButton(visible: Boolean, onCreate: () -> Unit) {
+    if (visible) {
+        Button(
+            onClick = onCreate,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Icon(Icons.Default.Add, null, Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Create emergency request", fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
 /** Displays the account dashboard with request, donor, and activity navigation actions. */
 @Suppress("LongParameterList", "LongMethod")
 @Composable
@@ -1211,57 +1270,8 @@ private fun HomeContent(
                         )
                         TextButton(onClick = onRequests) { Text("View all") }
                     }
-                    if (state.activeRequest != null) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ActiveRequestSummary(state, onActive)
-                            if (!state.activeRequest.isTerminal) {
-                                Text(
-                                    "Finish or cancel this request before starting another.",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                            }
-                        }
-                    } else {
-                        Card(
-                            Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                        ) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(
-                                    if (state.historyRefreshing) {
-                                        "Loading your requests…"
-                                    } else if (state.historyError != null) {
-                                        "Requests unavailable"
-                                    } else {
-                                        "No active request"
-                                    },
-                                    style = MaterialTheme.typography.titleSmall,
-                                )
-                                Text(
-                                    state.historyError
-                                        ?: if (state.historyRefreshing) {
-                                            "Checking your account for saved requests."
-                                        } else {
-                                            "Create a request to find nearby blood donors."
-                                        },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                    if (state.activeRequest?.isTerminal != false) {
-                        Button(
-                            onClick = onCreate,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                            shape = MaterialTheme.shapes.medium,
-                        ) {
-                            Icon(Icons.Default.Add, null, Modifier.size(20.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Create emergency request", fontWeight = FontWeight.SemiBold)
-                        }
-                    }
+                    ActiveRequestOverview(state, onActive)
+                    CreateRequestButton(state.activeRequest?.isTerminal != false, onCreate)
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
