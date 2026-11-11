@@ -104,6 +104,16 @@ fun ConversationScreen(
     }
     var contactField by remember { mutableStateOf("phone") }
     var contactValue by remember { mutableStateOf("") }
+    LaunchedEffect(state.lastSharedContact?.shareId) {
+        val sharedContact = state.lastSharedContact
+        if (
+            sharedContact?.sharedBy == currentUserId &&
+            sharedContact.field == contactField &&
+            sharedContact.value == contactValue
+        ) {
+            contactValue = ""
+        }
+    }
     var showReport by remember { mutableStateOf(false) }
     var reportReason by remember { mutableStateOf("") }
     var showBlockConfirm by remember { mutableStateOf(false) }
@@ -179,7 +189,6 @@ fun ConversationScreen(
             onValueChange = { if (it.length <= MAX_CONTACT_VALUE_LENGTH) contactValue = it },
             onShare = {
                 onAction(PrivacyAction.ShareContact(contactField, contactValue))
-                contactValue = ""
             },
         )
 
