@@ -56,6 +56,15 @@ Allow repost/reactivation only when the requester has no other active request. P
 - Status changes preserve donor-response/contact history and notify affected users when appropriate.
 - Android process recreation and account switching never display another user's cached request.
 
+**PR #183 implementation update — 2026-11-11**
+- [x] The Requests destination now uses a responsive history list/detail workspace: one-pane on compact/medium windows and side-by-side on expanded windows. Selection and list scroll state are retained across pane changes; system Back clears the selected detail.
+- [x] The production create endpoint serializes new submissions with a PostgreSQL transaction-scoped advisory lock keyed by requester, then checks for an unexpired active request. A different idempotency key cannot create a second active request; an exact replay with the same key still returns the original request.
+- [x] The API returns HTTP 409 when another active request exists. Android routes known active-request users to that request, hides the duplicate create action, and guards the ViewModel submission path.
+- [x] PostgreSQL integration coverage checks concurrent distinct-key submissions, cancellation followed by a new request, and a new request after a deadline has passed even if the expiry sweeper has not run yet.
+- [ ] Editing an active request, same-record reactivation, and a complete status timeline remain unimplemented. Do not imply that a submitted request can currently be edited.
+- **Locking constraint:** PostgreSQL advisory locks are application-defined; every future production request-creation path must acquire the same requester lock. Transaction-level locks release automatically at transaction end. See https://www.postgresql.org/docs/17/explicit-locking.html#ADVISORY-LOCKS.
+- **Validation:** PostgreSQL backend tests, Ruff, mypy, and Docker build passed on commit `320e3e2`; Android quality gate, APK builds, and CodeQL were still running at the time of this note.
+
 #### 2. Donor lifecycle and response safety — planned audit
 
 Give donors a clear workspace for profile completeness, availability, incoming compatible opportunities, responses, accepted commitments, conversations, shared contact details, and past/closed opportunities. Distinguish profile-complete, verified (only if a real verification process exists), available, and matched states.
