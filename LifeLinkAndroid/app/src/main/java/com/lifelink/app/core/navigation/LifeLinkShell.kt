@@ -157,6 +157,7 @@ private enum class SettingsSection(val label: String) {
  * process-death restoration); closing it returns to the screen that opened it.
  */
 @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
+@Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod", "ReturnCount")
 @Composable
 fun LifeLinkShell(
     state: EmergencyRequestUiState,
@@ -173,7 +174,6 @@ fun LifeLinkShell(
     accountUserId: String,
     accountDisplayName: String,
     profileSaving: Boolean,
-    profileMessage: String?,
     onSaveProfile: (String) -> Unit,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
@@ -546,7 +546,6 @@ fun LifeLinkShell(
                                     accountUserId,
                                     accountDisplayName,
                                     profileSaving,
-                                    profileMessage,
                                     onSaveProfile,
                                     themeMode,
                                     onThemeModeChange,
@@ -1397,7 +1396,6 @@ private fun SettingsContent(
                     accountUserId,
                     accountDisplayName,
                     profileSaving,
-                    profileMessage,
                     onSaveProfile,
                     onSwitchRole,
                     onOpenDonor,
@@ -1844,7 +1842,6 @@ private fun ProfileContent(
     accountUserId: String,
     accountDisplayName: String,
     profileSaving: Boolean,
-    profileMessage: String?,
     onSaveProfile: (String) -> Unit,
     onSwitchRole: () -> Unit,
     onOpenDonor: () -> Unit,
