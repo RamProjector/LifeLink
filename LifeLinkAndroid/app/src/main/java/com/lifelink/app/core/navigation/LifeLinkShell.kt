@@ -865,7 +865,6 @@ private fun RequestsContent(
 
 /** Summarizes a saved request and labels terminal requests as past requests. */
 @Composable
-@Suppress("LongMethod")
 private fun RequestHistoryCard(request: RequestHistoryItem, onOpen: () -> Unit) {
     Card(
         Modifier
@@ -875,62 +874,14 @@ private fun RequestHistoryCard(request: RequestHistoryItem, onOpen: () -> Unit) 
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(request.status.label, modifier = Modifier.weight(1f).padding(end = 12.dp), fontWeight = FontWeight.SemiBold)
-                Text(
-                    if (request.status in
-                        setOf(
-                            com.lifelink.app.domain.ActiveRequestStatus.FULFILLED,
-                            com.lifelink.app.domain.ActiveRequestStatus.EXPIRED,
-                            com.lifelink.app.domain.ActiveRequestStatus.CANCELLED,
-                        )
-                    ) {
-                        "Past"
-                    } else {
-                        "Active"
-                    },
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                )
-            }
+            RequestHistoryStatusRow(request)
             Text(
                 request.facilityName?.takeIf { it.isNotBlank() }
                     ?: request.area?.takeIf { it.isNotBlank() }
                     ?: "Emergency request",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (!request.createdAt.isNullOrBlank()) {
-                Text("Submitted", style = MaterialTheme.typography.bodySmall)
-            }
-            if (!request.expiresAt.isNullOrBlank()) {
-                Text("Response window applies", style = MaterialTheme.typography.bodySmall)
-            }
-            Text(
-                "${request.bloodType ?: "Request"} · ${request.units?.let {
-                    "$it unit${if (it == 1) "" else "s"}"
-                } ?: "Details unavailable"}",
-                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                "${request.matchesResponded} donor response${if (request.matchesResponded == 1) "" else "s"} · " +
-                    "${request.notificationsCreated} notified",
-                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            request.facilityName?.let {
-                Text(
-                    "$it${request.area?.let { area ->
-                        " · $area"
-                    } ?: ""}",
-                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                )
-            }
-            if (request.contactStatuses.isNotEmpty()) {
-                Text(
-                    "Contacts: ${request.contactStatuses.joinToString()}",
-                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            RequestHistoryMetadata(request)
             Text(
                 "View request details",
                 color = MaterialTheme.colorScheme.primary,
@@ -938,6 +889,61 @@ private fun RequestHistoryCard(request: RequestHistoryItem, onOpen: () -> Unit) 
                 style = MaterialTheme.typography.labelLarge,
             )
         }
+    }
+}
+
+@Composable
+private fun RequestHistoryStatusRow(request: RequestHistoryItem) {
+    val isPast = request.status in setOf(
+        com.lifelink.app.domain.ActiveRequestStatus.FULFILLED,
+        com.lifelink.app.domain.ActiveRequestStatus.EXPIRED,
+        com.lifelink.app.domain.ActiveRequestStatus.CANCELLED,
+    )
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(
+            request.status.label,
+            modifier = Modifier.weight(1f).padding(end = 12.dp),
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            if (isPast) "Past" else "Active",
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+@Composable
+private fun RequestHistoryMetadata(request: RequestHistoryItem) {
+    if (!request.createdAt.isNullOrBlank()) {
+        Text("Submitted", style = MaterialTheme.typography.bodySmall)
+    }
+    if (!request.expiresAt.isNullOrBlank()) {
+        Text("Response window applies", style = MaterialTheme.typography.bodySmall)
+    }
+    Text(
+        "${request.bloodType ?: "Request"} · ${request.units?.let {
+            "$it unit${if (it == 1) "" else "s"}"
+        } ?: "Details unavailable"}",
+        style = MaterialTheme.typography.bodySmall,
+    )
+    Text(
+        "${request.matchesResponded} donor response${if (request.matchesResponded == 1) "" else "s"} · " +
+            "${request.notificationsCreated} notified",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    request.facilityName?.let { facility ->
+        Text(
+            "$facility${request.area?.let { area -> " · $area" } ?: ""}",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+    if (request.contactStatuses.isNotEmpty()) {
+        Text(
+            "Contacts: ${request.contactStatuses.joinToString()}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -1650,7 +1656,8 @@ private fun PrivacyCapabilityCard(title: String, status: String, body: String) {
 }
 
 /** Displays accessible theme choices and reports the selected mode through [onThemeModeChange]. */
-@Composable private fun ThemeContent(themeMode: ThemeMode, onThemeModeChange: (ThemeMode) -> Unit) {
+@Composable
+private fun ThemeContent(themeMode: ThemeMode, onThemeModeChange: (ThemeMode) -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
@@ -1661,7 +1668,7 @@ private fun PrivacyCapabilityCard(title: String, status: String, body: String) {
     ) {
         Text(
             "Theme & appearance",
-            style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.semantics { heading() },
         )
@@ -1671,51 +1678,62 @@ private fun PrivacyCapabilityCard(title: String, status: String, body: String) {
             style = MaterialTheme.typography.bodyMedium,
         )
         ThemeMode.entries.forEach { mode ->
-            Card(
-                Modifier.fillMaxWidth().heightIn(min = 76.dp).selectable(selected = themeMode == mode, role = Role.RadioButton, onClick = {
-                    onThemeModeChange(mode)
-                }),
-                colors =
-                CardDefaults.cardColors(
-                    containerColor =
-                    if (themeMode ==
-                        mode
-                    ) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surface
-                    },
-                ),
-            ) {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = themeMode == mode, onClick = null)
-                    Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            when (mode) {
-                                ThemeMode.SYSTEM -> "Use system setting"
-                                ThemeMode.LIGHT -> "Light"
-                                ThemeMode.DARK -> "Dark"
-                            },
-                            fontWeight = if (themeMode == mode) FontWeight.SemiBold else FontWeight.Medium,
-                        )
-                        Text(
-                            when (mode) {
-                                ThemeMode.SYSTEM -> "Follows your Android light or dark preference"
-                                ThemeMode.LIGHT -> "Keep LifeLink in light appearance"
-                                ThemeMode.DARK -> "Keep LifeLink in dark appearance"
-                            },
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            }
+            ThemeModeOption(
+                mode = mode,
+                selected = themeMode == mode,
+                onClick = { onThemeModeChange(mode) },
+            )
         }
         Text(
             "LifeLink brand colors are used in every mode for consistent, readable status and action colors.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
+    }
+}
+
+@Composable
+private fun ThemeModeOption(mode: ThemeMode, selected: Boolean, onClick: () -> Unit) {
+    val title = when (mode) {
+        ThemeMode.SYSTEM -> "Use system setting"
+        ThemeMode.LIGHT -> "Light"
+        ThemeMode.DARK -> "Dark"
+    }
+    val description = when (mode) {
+        ThemeMode.SYSTEM -> "Follows your Android light or dark preference"
+        ThemeMode.LIGHT -> "Keep LifeLink in light appearance"
+        ThemeMode.DARK -> "Keep LifeLink in dark appearance"
+    }
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 76.dp)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        ),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RadioButton(selected = selected, onClick = null)
+            Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    title,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                )
+                Text(
+                    description,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
     }
 }
 
