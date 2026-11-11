@@ -317,13 +317,26 @@ def test_requester_cannot_create_parallel_active_requests_and_can_create_after_c
         replacement_payload = request_payload(requester)
         replacement = await client.post("/v1/emergency-requests", json=replacement_payload)
         assert replacement.status_code == 201, replacement.text
-        assert replacement.json()["request_id"] != request_id
+        replacement_id = replacement.json()["request_id"]
+        assert replacement_id != request_id
+
+        # An overdue request must not block a new one while the periodic expiry
+        # sweeper is waiting for its next tick.
+        await run_sql(
+            "UPDATE emergency_requests SET response_deadline = now() - interval '1 minute' "
+            f"WHERE id = '{replacement_id}'"
+        )
+        after_expiry = await client.post(
+            "/v1/emergency-requests",
+            json=request_payload(requester),
+        )
+        assert after_expiry.status_code == 201, after_expiry.text
 
         count = await run_sql(
             "SELECT count(*) FROM emergency_requests "
             f"WHERE requester_id = '{requester}'"
         )
-        assert count == [(2,)], "only one active request should exist at a time, while terminal history remains"
+        assert count == [(3,)], "terminal and expired history must remain while only one request is active"
 
     run_scenario(pg_url, scenario)
 
