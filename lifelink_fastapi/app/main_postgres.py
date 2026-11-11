@@ -607,7 +607,7 @@ async def create_emergency_request_postgres(
         select(EmergencyRequestRow.id)
         .where(
             EmergencyRequestRow.requester_id == payload.requester_id,
-            EmergencyRequestRow.status.in_([RequestStatusEnum(status) for status in ACTIVE_REQUEST_STATUSES]),
+            EmergencyRequestRow.status.in_([RequestStatusEnum(request_status) for request_status in ACTIVE_REQUEST_STATUSES]),
             EmergencyRequestRow.response_deadline > now,
         )
         .limit(1)
