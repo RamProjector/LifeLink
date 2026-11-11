@@ -91,15 +91,29 @@ fun ConversationScreen(
     onAction: (PrivacyAction) -> Unit,
     onBack: () -> Unit,
 ) {
-    LaunchedEffect(requestId, donorId) { onAction(PrivacyAction.OpenConversation(requestId, donorId)) }
-    ConversationRefreshEffect(state.conversationId, onAction)
     var draft by remember { mutableStateOf("") }
-    // Keep the draft until the server confirms the send. If the user edits while
-    // a request is in flight, only clear the exact text that was accepted.
-    LaunchedEffect(state.lastSentMessage?.messageId) {
+    var draftRevision by remember { mutableStateOf(0) }
+    var submittedDraftRevision by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(requestId, donorId) {
+        draft = ""
+        draftRevision += 1
+        submittedDraftRevision = null
+        onAction(PrivacyAction.OpenConversation(requestId, donorId))
+    }
+    ConversationRefreshEffect(state.conversationId, onAction)
+    // Clear only the unchanged draft version acknowledged by the server. Text
+    // equality alone is insufficient if the user retypes the same message.
+    LaunchedEffect(state.lastSentMessage?.messageId, state.sending, state.message) {
         val sentMessage = state.lastSentMessage
-        if (sentMessage?.senderId == currentUserId && draft.trim() == sentMessage.body) {
-            draft = ""
+        val sentRevision = submittedDraftRevision
+        if (sentMessage?.senderId == currentUserId && sentRevision != null) {
+            if (draftRevision == sentRevision && draft.trim() == sentMessage.body) {
+                draft = ""
+                draftRevision += 1
+            }
+            submittedDraftRevision = null
+        } else if (!state.sending && state.message != null) {
+            submittedDraftRevision = null
         }
     }
     var contactField by remember { mutableStateOf("phone") }
@@ -173,9 +187,15 @@ fun ConversationScreen(
             draft = draft,
             sending = state.sending,
             enabled = chatReady,
-            onDraftChange = { if (it.length <= MAX_MESSAGE_LENGTH) draft = it },
+            onDraftChange = {
+                if (it.length <= MAX_MESSAGE_LENGTH) {
+                    draft = it
+                    draftRevision += 1
+                }
+            },
             onSend = {
                 if (chatReady) {
+                    submittedDraftRevision = draftRevision
                     onAction(PrivacyAction.SendMessage(draft))
                 }
             },
