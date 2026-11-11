@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,12 +93,12 @@ fun ConversationScreen(
 ) {
     LaunchedEffect(requestId, donorId) { onAction(PrivacyAction.OpenConversation(requestId, donorId)) }
     ConversationRefreshEffect(state.conversationId, onAction)
-    var draft by remember { mutableStateOf("") }
-    var contactField by remember { mutableStateOf("phone") }
-    var contactValue by remember { mutableStateOf("") }
-    var showReport by remember { mutableStateOf(false) }
-    var reportReason by remember { mutableStateOf("") }
-    var showBlockConfirm by remember { mutableStateOf(false) }
+    var draft by rememberSaveable(requestId, donorId) { mutableStateOf("") }
+    var contactField by rememberSaveable(requestId, donorId) { mutableStateOf("phone") }
+    var contactValue by rememberSaveable(requestId, donorId) { mutableStateOf("") }
+    var showReport by rememberSaveable(requestId, donorId) { mutableStateOf(false) }
+    var reportReason by rememberSaveable(requestId, donorId) { mutableStateOf("") }
+    var showBlockConfirm by rememberSaveable(requestId, donorId) { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val chatReady = !state.chatLoading && state.conversationId != null
     // Chat convention: keep the newest message in view as the thread grows.
