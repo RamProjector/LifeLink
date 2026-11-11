@@ -589,7 +589,7 @@ private fun RowScope.ShellNavigationBarItem(tab: ShellTab, selected: Boolean, on
         label = {
             Text(
                 tab.label,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
@@ -1429,7 +1429,6 @@ private fun HelpFaqContent() {
         Text(
             "Help & FAQ",
             style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
             modifier = Modifier.semantics { heading() },
         )
         Text(
@@ -1458,7 +1457,6 @@ private fun NotificationSettingsContent() {
         Text(
             "Notifications",
             style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
             modifier = Modifier.semantics { heading() },
         )
         Text(
@@ -1502,7 +1500,6 @@ private fun PrivacySettingsContent() {
         Text(
             "Privacy",
             style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
             modifier = Modifier.semantics { heading() },
         )
         Card(Modifier.fillMaxWidth()) {
@@ -1540,7 +1537,6 @@ private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> U
         Text(
             "Privacy Center",
             style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
             modifier = Modifier.semantics { heading() },
         )
         Text(
