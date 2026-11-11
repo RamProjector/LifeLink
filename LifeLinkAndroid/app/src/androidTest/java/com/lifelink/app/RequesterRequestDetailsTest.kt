@@ -83,6 +83,7 @@ class RequesterRequestDetailsTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("nav-REQUESTS").performClick()
         composeRule.onNodeWithTag("request-history-request-details-1").performClick()
+        composeRule.onNodeWithTag("request-history-detail-pane").assertIsDisplayed()
         composeRule.onNodeWithText("Request details").assertIsDisplayed()
         composeRule.onNodeWithText("Created").assertIsDisplayed()
         composeRule.onNodeWithText("Response deadline").assertIsDisplayed()
