@@ -315,13 +315,15 @@ fun LifeLinkShell(
                         Modifier.widthIn(min = 300.dp, max = 400.dp).fillMaxHeight(),
                         color = MaterialTheme.colorScheme.surface,
                     ) {
-                        MessagingScreen(
-                            state = privacyState,
-                            onAction = onPrivacyAction,
-                            onOpenConversation = openConversation,
-                            selectedRequestId = conversationRequestId,
-                            selectedDonorId = conversationDonorId,
-                        )
+                        screenStateHolder.SaveableStateProvider("chats-list") {
+                            MessagingScreen(
+                                state = privacyState,
+                                onAction = onPrivacyAction,
+                                onOpenConversation = openConversation,
+                                selectedRequestId = conversationRequestId,
+                                selectedDonorId = conversationDonorId,
+                            )
+                        }
                     }
                     Surface(
                         Modifier.weight(1f).fillMaxHeight(),
@@ -570,18 +572,20 @@ fun LifeLinkShell(
                                     embeddedInShell = true,
                                 )
                             ShellTab.CHATS ->
-                                MessagingScreen(
-                                    state = privacyState,
-                                    onAction = onPrivacyAction,
-                                    onOpenConversation = openConversation,
-                                    targetConversationId = notificationRequestId
-                                        ?.takeIf { it.startsWith("conversation:") }
-                                        ?.substringAfter("conversation:")
-                                        ?.substringBefore("|"),
-                                    targetConversationEventId = notificationRequestId
-                                        ?.takeIf { it.startsWith("conversation:") }
-                                        ?.substringAfter("|"),
-                                )
+                                screenStateHolder.SaveableStateProvider("chats-list") {
+                                    MessagingScreen(
+                                        state = privacyState,
+                                        onAction = onPrivacyAction,
+                                        onOpenConversation = openConversation,
+                                        targetConversationId = notificationRequestId
+                                            ?.takeIf { it.startsWith("conversation:") }
+                                            ?.substringAfter("conversation:")
+                                            ?.substringBefore("|"),
+                                        targetConversationEventId = notificationRequestId
+                                            ?.takeIf { it.startsWith("conversation:") }
+                                            ?.substringAfter("|"),
+                                    )
+                                }
                             ShellTab.SETTINGS ->
                                 SettingsContent(
                                     role,
