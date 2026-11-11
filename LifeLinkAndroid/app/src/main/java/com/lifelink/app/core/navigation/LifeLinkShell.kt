@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
@@ -151,7 +152,7 @@ private enum class SettingsSection(val label: String) {
  * which dispatches [PrivacyAction.OpenConversation] itself on composition (and after
  * process-death restoration); closing it returns to the screen that opened it.
  */
-@OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3WindowSizeClassApi::class)
 @Composable
 fun LifeLinkShell(
     state: EmergencyRequestUiState,
