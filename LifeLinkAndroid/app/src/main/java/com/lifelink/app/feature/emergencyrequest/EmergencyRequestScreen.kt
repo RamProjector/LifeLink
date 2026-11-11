@@ -383,7 +383,15 @@ private fun DonorPicker(
             state.discoveredDonors.forEach { donor ->
                 val isSelected = donor.donorId in state.selectedDonorIds
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = isSelected,
+                            role = Role.Checkbox,
+                            onValueChange = {
+                                onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId))
+                            },
+                        ),
                     colors =
                     CardDefaults.cardColors(
                         containerColor =
@@ -400,7 +408,7 @@ private fun DonorPicker(
                     ) {
                         Checkbox(
                             checked = isSelected,
-                            onCheckedChange = { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) },
+                            onCheckedChange = null,
                             modifier = Modifier.semantics {
                                 contentDescription =
                                     if (isSelected) "Remove ${donor.displayName} from selection" else "Select ${donor.displayName}"
