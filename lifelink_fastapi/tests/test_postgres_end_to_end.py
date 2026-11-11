@@ -435,8 +435,10 @@ def test_sweeper_limit_bounds_a_single_sweep(pg_url):
     """
 
     async def scenario(client, current, run_sql):
-        requester = new_user("requester")
-        created = [await submit_request(client, current, requester) for _ in range(3)]
+        created = [
+            await submit_request(client, current, new_user("requester"))
+            for _ in range(3)
+        ]
         ids = ", ".join(f"'{item['request_id']}'" for item in created)
         await run_sql(
             f"UPDATE emergency_requests SET response_deadline = now() - interval '1 hour' "
