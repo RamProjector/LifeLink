@@ -286,6 +286,19 @@ class PrivacyViewModelTest {
         assertNull(viewModel.state.value.message)
     }
 
+    /** Exposes a contact share only after the repository confirms persistence. */
+    @Test
+    fun successful_contact_share_exposes_confirmed_record() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+
+        viewModel.onAction(PrivacyAction.ShareContact("phone", "555-0100"))
+
+        assertEquals("phone", viewModel.state.value.lastSharedContact?.field)
+        assertEquals("555-0100", viewModel.state.value.lastSharedContact?.value)
+        assertEquals("requester", viewModel.state.value.lastSharedContact?.sharedBy)
+        assertEquals("Your phone was shared and recorded.", viewModel.state.value.message)
+    }
+
     /** Refreshes a visible conversation so messages sent by the other participant appear without reopening chat. */
     @Test
     fun refresh_action_reloads_current_conversation_messages_and_contact_shares() = runTest {
