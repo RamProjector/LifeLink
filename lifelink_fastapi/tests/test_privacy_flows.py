@@ -339,6 +339,10 @@ def test_exact_location_requires_a_match_and_donor_opt_in(pg_url):
         )
         assert not_matched.status_code == 403
 
+        # Finish the first request before creating a fresh match set.
+        cancelled = await client.post(f"/v1/emergency-requests/{created['request_id']}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
+
         # A matched donor that has not enabled exact sharing cannot be shared.
         no_optin = new_user("donor")
         await setup_donor(client, current, no_optin, blood_type="O+", exact_sharing=False)
