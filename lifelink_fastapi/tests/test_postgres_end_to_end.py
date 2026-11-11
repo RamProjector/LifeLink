@@ -637,7 +637,7 @@ def test_blood_type_change_immediately_rematches_active_requests(pg_url):
 
 def test_donor_inbox_excludes_expired_and_closed_requests(pg_url):
     async def scenario(client, current, run_sql):
-        donor, requester = new_user("donor"), new_user("requester")
+        donor = new_user("donor")
         await setup_donor(client, current, donor)
 
         active = await submit_request(client, current, new_user("requester"))
