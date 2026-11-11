@@ -140,7 +140,7 @@ private const val DEFAULT_MAP_LONGITUDE = 120.9842
  * exact coordinates or donor identities. Donors control their own
  * visibility from the same screen.
  */
-@Suppress("LongMethod", "CyclomaticComplexMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod", "LongParameterList")
 @Composable
 fun DonorMapScreen(
     state: PrivacyUiState,
@@ -231,12 +231,12 @@ fun DonorMapScreen(
                                     Modifier.fillMaxWidth().padding(16.dp),
                                     verticalArrangement = Arrangement.spacedBy(4.dp),
                                 ) {
-                                    Text(donor.displayName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                    Text(\n                                        donor.displayName,\n                                        style = MaterialTheme.typography.titleSmall,\n                                        fontWeight = FontWeight.SemiBold,\n                                    )
                                     Text(
                                         "${donor.bloodType} · ${"%.1f".format(donor.distanceKm)} km · about ${donor.travelMinutes} min",
                                         style = MaterialTheme.typography.bodyMedium,
                                     )
-                                    Text("View privacy-safe profile", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                    Text(\n                                        "View privacy-safe profile",\n                                        style = MaterialTheme.typography.bodySmall,\n                                        color = MaterialTheme.colorScheme.primary,\n                                    )
                                 }
                             }
                         }
@@ -316,7 +316,7 @@ fun DonorMapScreen(
 
         // Never show an empty result while a request is loading or has failed.
         // Those states need their own truthful feedback and recovery action.
-        if (!state.mapLoading && state.mapError == null && filteredAreas.isEmpty() && (!showList || eligibleDonors.isEmpty())) {
+        val shouldShowEmptyState =\n            !state.mapLoading && state.mapError == null && filteredAreas.isEmpty() &&\n                (!showList || eligibleDonors.isEmpty())\n        if (shouldShowEmptyState) {
             Surface(
                 Modifier.align(Alignment.BottomCenter)
                     .padding(start = 24.dp, end = 24.dp, bottom = 88.dp)
