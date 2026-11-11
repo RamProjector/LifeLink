@@ -751,7 +751,7 @@ private fun RequestsContent(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val windowSize = WindowSizeClass.calculateFromSize(DpSize(maxWidth, maxHeight))
         val isExpanded = windowSize.widthSizeClass == WindowWidthSizeClass.Expanded
-        BackHandler(enabled = selectedRequest != null && !isExpanded) {
+        BackHandler(enabled = selectedRequest != null) {
             selectedRequestId = null
         }
         val requestListContent: @Composable () -> Unit = {
@@ -1095,6 +1095,7 @@ private fun RequestHistoryDetailPane(request: RequestHistoryItem, onClose: () ->
         Modifier
             .fillMaxSize()
             .testTag("request-history-detail-pane")
+            .semantics { paneTitle = "Request details" }
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
