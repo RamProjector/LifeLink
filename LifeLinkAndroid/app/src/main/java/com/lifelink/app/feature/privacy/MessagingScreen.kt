@@ -51,6 +51,8 @@ fun MessagingScreen(
     onOpenConversation: (String, String) -> Unit,
     targetConversationId: String? = null,
     targetConversationEventId: String? = null,
+    selectedRequestId: String? = null,
+    selectedDonorId: String? = null,
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadConversations) }
     var handledNotificationKey by remember { mutableStateOf<String?>(null) }
@@ -97,7 +99,10 @@ fun MessagingScreen(
                 )
             }
             else -> items(state.conversations, key = { it.conversationId }) { conversation ->
-                ConversationRow(conversation) { onOpenConversation(conversation.requestId, conversation.donorId) }
+                ConversationRow(
+                    conversation = conversation,
+                    selected = conversation.requestId == selectedRequestId && conversation.donorId == selectedDonorId,
+                ) { onOpenConversation(conversation.requestId, conversation.donorId) }
             }
         }
     }
@@ -105,14 +110,20 @@ fun MessagingScreen(
 
 /** Displays a conversation with an initials avatar, request reference, and message recency. */
 @Composable
-private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
+private fun ConversationRow(conversation: Conversation, selected: Boolean, onOpen: () -> Unit) {
+    val contentColor =
+        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    val secondaryContentColor =
+        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
     Card(
         modifier =
         Modifier
             .fillMaxWidth()
             .clickable(onClickLabel = "Open chat", onClick = onOpen),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 2.dp else 1.dp),
     ) {
         Row(
             Modifier.fillMaxWidth().padding(16.dp),
@@ -133,22 +144,22 @@ private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
                 }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Matched conversation", style = MaterialTheme.typography.titleMedium)
+                Text("Matched conversation", style = MaterialTheme.typography.titleMedium, color = contentColor)
                 Text(
                     "Linked to your request",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = secondaryContentColor,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
                     if (conversation.lastMessageAt != null) "Recent activity" else "No messages yet",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = secondaryContentColor,
                 )
             }
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = secondaryContentColor,
             )
         }
     }
