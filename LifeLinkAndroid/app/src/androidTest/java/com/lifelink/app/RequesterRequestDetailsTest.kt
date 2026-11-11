@@ -2,10 +2,11 @@ package com.lifelink.app
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -89,7 +90,7 @@ class RequesterRequestDetailsTest {
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("nav-REQUESTS").performClick()
-        composeRule.onNodeWithText("Create emergency request").assertDoesNotExist()
+        composeRule.onAllNodesWithText("Create emergency request").assertCountEquals(0)
         composeRule.onNodeWithText("Finish or cancel this request before starting another.").assertIsDisplayed()
         composeRule.onNodeWithTag("request-history-request-details-1").performScrollTo().performClick()
         composeRule.onNodeWithTag("request-history-detail-pane").assertIsDisplayed()
