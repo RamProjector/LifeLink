@@ -14,7 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Button
@@ -81,7 +81,7 @@ fun MatchedDonorProfileScreen(
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(vertical = 14.dp),
                 ) {
-                    Icon(Icons.Default.Chat, contentDescription = null)
+                    Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
                     Text("Request chat", Modifier.padding(start = 8.dp))
                 }
             }
