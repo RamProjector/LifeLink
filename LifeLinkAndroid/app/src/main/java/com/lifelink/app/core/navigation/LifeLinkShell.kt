@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -725,6 +726,7 @@ private fun RequestsContent(
     onActive: () -> Unit,
 ) {
     var selectedRequestId by rememberSaveable(accountUserId) { mutableStateOf<String?>(null) }
+    val requestListState = rememberLazyListState()
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var historyFilter by rememberSaveable { mutableStateOf("All") }
     val terminalStatuses = remember {
@@ -761,7 +763,8 @@ private fun RequestsContent(
         }
         val requestListContent: @Composable () -> Unit = {
             LazyColumn(
-                Modifier.fillMaxSize().testTag("request-history"),
+                state = requestListState,
+                modifier = Modifier.fillMaxSize().testTag("request-history"),
             contentPadding = PaddingValues(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
