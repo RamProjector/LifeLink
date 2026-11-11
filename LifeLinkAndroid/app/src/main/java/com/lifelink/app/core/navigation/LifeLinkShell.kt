@@ -501,7 +501,12 @@ fun LifeLinkShell(
                     }
                 }
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
-                    Surface(Modifier.widthIn(max = 840.dp).fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    val destinationContentModifier = if (tab == ShellTab.MAP) {
+                        Modifier.fillMaxSize()
+                    } else {
+                        Modifier.widthIn(max = 840.dp).fillMaxSize()
+                    }
+                    Surface(destinationContentModifier, color = MaterialTheme.colorScheme.background) {
                         when (tab) {
                             ShellTab.HOME ->
                                 HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = {
