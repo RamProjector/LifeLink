@@ -374,55 +374,61 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
         draftSaveJob?.cancel()
         val draft = current.draft
         viewModelScope.launch {
-            val result = try {
-                // Persist the exact payload before any network side effect. The
-                // debounced autosave may still be pending when the user submits.
-                repository.saveDraft(draft)
-                repository.submit(draft)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                SubmitResult.Error("Your request could not be saved safely on this device, so it was not submitted.")
-            }
-            when (result) {
-                is SubmitResult.MatchingStarted -> {
-                    runCatching { repository.deleteDraft(draft.id) }
-                    // Do not keep the submit button spinning while the optional contacts refresh waits on the API.
-                    _uiState.update {
-                        it.copy(
-                            step = RequestStep.RESULTS,
-                            submission = SubmissionState.Matching(result.requestId),
-                            resultsRequestId = result.requestId,
-                            discoveredDonors = result.donors,
-                            matchesRefreshing = false,
-                            matchesError = null,
-                            selectedDonorIds = emptySet(),
-                            contactRequestSent = false,
-                            contacts = emptyList(),
-                            contactsRefreshing = false,
-                            contactsError = null,
-                        )
-                    }
-                    refreshContacts(result.requestId)
+            handleSubmitResult(submitDraft(draft), draft)
+        }
+    }
+
+    private suspend fun submitDraft(draft: EmergencyRequestDraft): SubmitResult =
+        try {
+            // Persist the exact payload before any network side effect. The
+            // debounced autosave may still be pending when the user submits.
+            repository.saveDraft(draft)
+            repository.submit(draft)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            SubmitResult.Error("Your request could not be saved safely on this device, so it was not submitted.")
+        }
+
+    private fun handleSubmitResult(result: SubmitResult, draft: EmergencyRequestDraft) {
+        when (result) {
+            is SubmitResult.MatchingStarted -> {
+                runCatching { repository.deleteDraft(draft.id) }
+                // Do not keep the submit button spinning while the optional contacts refresh waits on the API.
+                _uiState.update {
+                    it.copy(
+                        step = RequestStep.RESULTS,
+                        submission = SubmissionState.Matching(result.requestId),
+                        resultsRequestId = result.requestId,
+                        discoveredDonors = result.donors,
+                        matchesRefreshing = false,
+                        matchesError = null,
+                        selectedDonorIds = emptySet(),
+                        contactRequestSent = false,
+                        contacts = emptyList(),
+                        contactsRefreshing = false,
+                        contactsError = null,
+                    )
                 }
-                is SubmitResult.ContactRequested -> _uiState.update { it.copy(contactRequestSent = true) }
-                is SubmitResult.ContactRequestUncertain ->
-                    _uiState.update {
-                        it.copy(contactsError = "The server response was empty; contact status could not be confirmed yet.")
-                    }
-                is SubmitResult.ManualFallback -> {
-                    runCatching { repository.deleteDraft(draft.id) }
-                    _uiState.update {
-                        it.copy(
-                            submission = SubmissionState.ManualFallback(result.requestId, result.reason),
-                        )
-                    }
-                }
-                is SubmitResult.Cancelled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
-                is SubmitResult.Fulfilled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
-                is SubmitResult.OfflineQueued -> _uiState.update { it.copy(submission = SubmissionState.QueuedOffline(result.draftId)) }
-                is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message, result.retryable)) }
+                refreshContacts(result.requestId)
             }
+            is SubmitResult.ContactRequested -> _uiState.update { it.copy(contactRequestSent = true) }
+            is SubmitResult.ContactRequestUncertain ->
+                _uiState.update {
+                    it.copy(contactsError = "The server response was empty; contact status could not be confirmed yet.")
+                }
+            is SubmitResult.ManualFallback -> {
+                runCatching { repository.deleteDraft(draft.id) }
+                _uiState.update {
+                    it.copy(
+                        submission = SubmissionState.ManualFallback(result.requestId, result.reason),
+                    )
+                }
+            }
+            is SubmitResult.Cancelled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
+            is SubmitResult.Fulfilled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
+            is SubmitResult.OfflineQueued -> _uiState.update { it.copy(submission = SubmissionState.QueuedOffline(result.draftId)) }
+            is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message, result.retryable)) }
         }
     }
 
