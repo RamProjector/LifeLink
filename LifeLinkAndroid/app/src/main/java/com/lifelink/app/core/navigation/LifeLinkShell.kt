@@ -34,8 +34,8 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
@@ -950,7 +950,11 @@ private fun RequestHistoryDetailScreen(
                                 com.lifelink.app.domain.ActiveRequestStatus.EXPIRED,
                                 com.lifelink.app.domain.ActiveRequestStatus.CANCELLED,
                             )
-                        ) "Past request" else "Active request",
+                        ) {
+                                "Past request"
+                            } else {
+                                "Active request"
+                            },
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 }
