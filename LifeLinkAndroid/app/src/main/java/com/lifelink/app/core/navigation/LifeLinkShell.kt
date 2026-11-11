@@ -436,7 +436,6 @@ fun LifeLinkShell(
                         Text(
                             if (tab == ShellTab.HOME) "Home" else "LifeLink",
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(start = 8.dp),
                         )
                         Spacer(Modifier.weight(1f))
@@ -487,7 +486,7 @@ fun LifeLinkShell(
                                 selected = tab == destination,
                                 onClick = { tab = destination },
                                 icon = { ShellNavigationIcon(destination) },
-                                label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                label = { Text(destination.label, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 modifier = Modifier.testTag("nav-${destination.name}"),
                             )
                         }
@@ -572,12 +571,12 @@ private fun RowScope.ShellNavigationBarItem(tab: ShellTab, selected: Boolean, on
                 // The map is LifeLink's core matching surface, so give the centered
                 // destination a clear visual anchor without changing navigation order.
                 Surface(
-                    modifier = Modifier.size(48.dp).testTag("primary-map-destination"),
+                    modifier = Modifier.size(40.dp).testTag("primary-map-destination"),
                     shape = CircleShape,
                     color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
                     contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-                    tonalElevation = if (selected) 3.dp else 1.dp,
-                    shadowElevation = if (selected) 3.dp else 0.dp,
+                    tonalElevation = if (selected) 2.dp else 0.dp,
+                    shadowElevation = 0.dp,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         ShellNavigationIcon(tab, size = 25.dp)
@@ -590,9 +589,10 @@ private fun RowScope.ShellNavigationBarItem(tab: ShellTab, selected: Boolean, on
         label = {
             Text(
                 tab.label,
+                style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = if (isPrimaryMap) FontWeight.Bold else FontWeight.Medium,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             )
         },
         modifier = Modifier.weight(1f).testTag("nav-${tab.name}"),
