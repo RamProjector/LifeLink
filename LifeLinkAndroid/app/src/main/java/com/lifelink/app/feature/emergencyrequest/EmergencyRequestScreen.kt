@@ -96,7 +96,6 @@ import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.core.location.MapLibreLocationPicker
 import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.LifeLinkEmptyState
-import com.lifelink.app.feature.privacy.MatchedDonorProfileScreen
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.ContactMethod
 import com.lifelink.app.domain.DiscoveredDonor
@@ -105,6 +104,7 @@ import com.lifelink.app.domain.Facility
 import com.lifelink.app.domain.NearbyFacility
 import com.lifelink.app.domain.RequestStep
 import com.lifelink.app.domain.Urgency
+import com.lifelink.app.feature.privacy.MatchedDonorProfileScreen
 import kotlinx.coroutines.launch
 
 /** Renders the emergency request flow using the supplied state and action handler. */
@@ -271,7 +271,10 @@ private fun DonorPicker(
             donor = donor,
             onBack = { profileDonor = null },
             onRequestChat = requestId?.let { id ->
-                { profileDonor = null; onOpenConversation(id, donor.donorId) }
+                {
+                    profileDonor = null
+                    onOpenConversation(id, donor.donorId)
+                }
             },
         )
         return
