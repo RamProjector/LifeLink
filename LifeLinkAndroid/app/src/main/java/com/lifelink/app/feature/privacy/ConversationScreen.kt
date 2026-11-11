@@ -94,6 +94,14 @@ fun ConversationScreen(
     LaunchedEffect(requestId, donorId) { onAction(PrivacyAction.OpenConversation(requestId, donorId)) }
     ConversationRefreshEffect(state.conversationId, onAction)
     var draft by remember { mutableStateOf("") }
+    // Keep the draft until the server confirms the send. If the user edits while
+    // a request is in flight, only clear the exact text that was accepted.
+    LaunchedEffect(state.lastSentMessage?.messageId) {
+        val sentMessage = state.lastSentMessage
+        if (sentMessage?.senderId == currentUserId && draft.trim() == sentMessage.body) {
+            draft = ""
+        }
+    }
     var contactField by remember { mutableStateOf("phone") }
     var contactValue by remember { mutableStateOf("") }
     var showReport by remember { mutableStateOf(false) }
@@ -159,7 +167,6 @@ fun ConversationScreen(
             onSend = {
                 if (chatReady) {
                     onAction(PrivacyAction.SendMessage(draft))
-                    draft = ""
                 }
             },
         )
