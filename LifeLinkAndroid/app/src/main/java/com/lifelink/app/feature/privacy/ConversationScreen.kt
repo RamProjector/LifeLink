@@ -119,7 +119,6 @@ fun ConversationScreen(
                 "Conversation",
                 Modifier.weight(1f).semantics { heading() },
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
             )
             TextButton(onClick = onBack) { Text("Back") }
         }
@@ -180,7 +179,7 @@ fun ConversationScreen(
         // interaction without leaving the conversation.
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Safety", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+                Text("Safety", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
                 Text(
                     "If this conversation feels unsafe, report or block the other person. Reports are reviewed by our team.",
                     style = MaterialTheme.typography.bodySmall,
@@ -301,7 +300,7 @@ private fun SharedContactsCard(shares: List<ContactShare>) {
             Modifier.padding(12.dp).heightIn(max = 180.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text("Shared contact details", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+            Text("Shared contact details", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             shares.forEach { share ->
                 Text(
                     "${share.field.replaceFirstChar { it.uppercase() }}: ${share.value}",
@@ -320,7 +319,7 @@ private fun SavedMessagesCard(messages: List<ChatMessage>) {
             Modifier.padding(12.dp).heightIn(max = 140.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text("Saved messages", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+            Text("Saved messages", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             messages.forEach { message -> Text(message.body, style = MaterialTheme.typography.bodySmall) }
         }
     }
@@ -380,7 +379,7 @@ private fun ShareContactCard(
     val isPhone = contactField == "phone"
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Share contact details", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+            Text("Share contact details", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { onFieldChange("phone") }, enabled = enabled && !isPhone) { Text("Phone") }
                 OutlinedButton(onClick = { onFieldChange("email") }, enabled = enabled && isPhone) { Text("Email") }
