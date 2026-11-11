@@ -269,7 +269,21 @@ class PrivacyViewModelTest {
 
         assertFalse(viewModel.state.value.sending)
         assertEquals("Message could not be sent.", viewModel.state.value.message)
+        assertNull(viewModel.state.value.lastSentMessage)
         assertEquals(listOf("chat-old" to "Hello"), repository.sends)
+    }
+
+    /** Publishes the server-confirmed message so the composer clears only after success. */
+    @Test
+    fun successful_send_exposes_the_confirmed_message() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+
+        viewModel.onAction(PrivacyAction.SendMessage("Hello"))
+
+        assertFalse(viewModel.state.value.sending)
+        assertEquals("Hello", viewModel.state.value.lastSentMessage?.body)
+        assertEquals("message-chat-old", viewModel.state.value.lastSentMessage?.messageId)
+        assertNull(viewModel.state.value.message)
     }
 
     /** Refreshes a visible conversation so messages sent by the other participant appear without reopening chat. */
