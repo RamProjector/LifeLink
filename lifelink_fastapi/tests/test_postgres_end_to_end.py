@@ -834,6 +834,9 @@ def test_strict_mode_only_matches_verified_donors(pg_url, monkeypatch):
         assert created["matches"] == []
 
         await run_sql(f"UPDATE donors SET verified = TRUE WHERE id = '{donor}'")
+        current["id"] = requester
+        cancelled = await client.post(f"/v1/emergency-requests/{created['request_id']}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
         created = await submit_request(client, current, requester)
         assert created["notifications_created"] == 0
         assert [m["donor_id"] for m in created["matches"]] == [donor]
