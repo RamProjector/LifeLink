@@ -88,9 +88,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import com.lifelink.app.R
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -102,6 +101,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.R
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkPageHeader
@@ -173,7 +173,6 @@ fun LifeLinkShell(
     accountUserId: String,
     accountDisplayName: String,
     profileSaving: Boolean,
-    profileMessage: String?,
     onSaveProfile: (String) -> Unit,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
@@ -487,7 +486,14 @@ fun LifeLinkShell(
                                 selected = tab == destination,
                                 onClick = { tab = destination },
                                 icon = { ShellNavigationIcon(destination) },
-                                label = { Text(destination.label, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                label = {
+                                    Text(
+                                        destination.label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
                                 modifier = Modifier.testTag("nav-${destination.name}"),
                             )
                         }
@@ -1384,7 +1390,6 @@ private fun SettingsContent(
                     accountUserId,
                     accountDisplayName,
                     profileSaving,
-                    profileMessage,
                     onSaveProfile,
                     onSwitchRole,
                     onOpenDonor,
