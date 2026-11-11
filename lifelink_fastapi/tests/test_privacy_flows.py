@@ -514,6 +514,21 @@ def test_conversation_is_scoped_to_the_two_participants(pg_url):
         assert contacts.status_code == 200, contacts.text
         assert [(item["donor_id"], item["status"]) for item in contacts.json()] == [(donor, "pending")]
 
+        # Repeated taps must reopen the same room without duplicating the
+        # pending contact request or creating a second conversation.
+        reopened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert reopened.status_code == 200, reopened.text
+        assert reopened.json()["conversation_id"] == conversation_id
+        contacts_after_retry = await client.get(
+            f"/v1/emergency-requests/{created['request_id']}/contacts"
+        )
+        assert contacts_after_retry.status_code == 200, contacts_after_retry.text
+        assert [
+            (item["donor_id"], item["status"]) for item in contacts_after_retry.json()
+        ] == [(donor, "pending")]
+
         sent = await client.post(
             f"/v1/conversations/{conversation_id}/messages",
             json={"body": "Hello, are you available to donate?"},
