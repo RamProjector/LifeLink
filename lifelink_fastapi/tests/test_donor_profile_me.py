@@ -672,10 +672,11 @@ def test_donor_presence_updates_location_and_server_freshness(pg_url):
         assert response.status_code == 200, response.text
         assert response.json()["latitude"] == pytest.approx(11.2501)
         assert response.json()["longitude"] == pytest.approx(125.0102)
-        provider_rows = await run_sql(
-            f"SELECT last_location_provider FROM donors WHERE user_id = '{donor}'"
-        )
-        assert provider_rows == [("fused",)]
+        async with current["_session_factory"]() as session:
+            reported_provider = await session.scalar(
+                select(db_models.Donor.last_location_provider).where(db_models.Donor.user_id == donor)
+            )
+        assert reported_provider == "fused"
 
         invalid_provider = await client.post(
             "/v1/donor-profile/presence",
