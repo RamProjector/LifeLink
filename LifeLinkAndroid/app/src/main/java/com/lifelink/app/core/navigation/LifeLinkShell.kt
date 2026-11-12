@@ -842,7 +842,7 @@ private fun RequestsContent(
                     }
                 }
             }
-            if (visibleHistory.isEmpty() && !state.historyRefreshing && state.historyError == null) {
+            if (state.historyLoaded && visibleHistory.isEmpty() && !state.historyRefreshing && state.historyError == null) {
                 item {
                     LifeLinkEmptyState(
                         icon = Icons.AutoMirrored.Filled.Assignment,
