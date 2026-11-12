@@ -71,6 +71,7 @@ from .privacy_api import (
     SavedMessageOut,
 )
 from .privacy_repositories import (
+    LocationRequestInactiveError,
     LocationShareRevokedError,
     LocationSharingDisabledError,
     SqlAlchemyPrivacyStore,
@@ -1354,6 +1355,12 @@ async def activate_location_share(
             status_code=409,
             detail="The donor has disabled exact location sharing or hidden their map",
         ) from None
+    except LocationRequestInactiveError:
+        raise HTTPException(status_code=409, detail="This request is no longer active") from None
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Request or donor profile not found") from None
     # Tell the donor their exact location is now visible to the matched requester,
     # so the disclosure is never silent and they can revoke it.
     await send_push_safely(
