@@ -11,7 +11,10 @@ import com.lifelink.app.domain.SubmitResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
-internal class FakeRepository(private val submitResult: SubmitResult = SubmitResult.OfflineQueued("draft-1")) : EmergencyRequestRepository {
+
+internal class FakeRepository(
+    private val submitResult: SubmitResult = SubmitResult.OfflineQueued("draft-1"),
+) : EmergencyRequestRepository {
     var savedDrafts = 0
     var latestDraft: EmergencyRequestDraft? = null
     val deletedDraftIds = mutableListOf<String>()
@@ -86,9 +89,16 @@ internal class FakeRepository(private val submitResult: SubmitResult = SubmitRes
         lastMatchesRequestId = requestId
         return matches
     }
-    override suspend fun findNearbyFacilities(latitude: Double, longitude: Double): List<NearbyFacility> = nearbyFacilities
+    override suspend fun findNearbyFacilities(
+        latitude: Double,
+        longitude: Double,
+    ): List<NearbyFacility> = nearbyFacilities
 
-    override suspend fun updateContactStatus(requestId: String, donorId: String, status: String): RequesterContact = RequesterContact(
+    override suspend fun updateContactStatus(
+        requestId: String,
+        donorId: String,
+        status: String,
+    ): RequesterContact = RequesterContact(
         donorId,
         "Donor",
         status,
