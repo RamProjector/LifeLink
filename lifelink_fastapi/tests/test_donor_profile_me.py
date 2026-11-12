@@ -654,11 +654,27 @@ def test_donor_presence_updates_location_and_server_freshness(pg_url):
                 "latitude": 11.2501,
                 "longitude": 125.0102,
                 "precision_meters": 35,
+                "provider": "fused",
             },
         )
         assert response.status_code == 200, response.text
         assert response.json()["latitude"] == pytest.approx(11.2501)
         assert response.json()["longitude"] == pytest.approx(125.0102)
+        provider_rows = await run_sql(
+            f"SELECT last_location_provider FROM donors WHERE user_id = '{donor}'"
+        )
+        assert provider_rows == [("fused",)]
+
+        invalid_provider = await client.post(
+            "/v1/donor-profile/presence",
+            json={
+                "latitude": 11.2501,
+                "longitude": 125.0102,
+                "precision_meters": 35,
+                "provider": "arbitrary-device-identifier",
+            },
+        )
+        assert invalid_provider.status_code == 422
 
         # Prove a fresh, verified, explicitly available donor is matchable first.
         current["id"] = new_user("requester")
