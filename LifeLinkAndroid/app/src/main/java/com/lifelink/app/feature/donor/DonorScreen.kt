@@ -487,7 +487,7 @@ private fun DonorRequestsContent(
         }
         if (!state.profile.isSetupComplete) {
             item { SetupRequiredCard(state.profile) }
-        } else if (state.requests.isEmpty()) {
+        } else if (state.requests.isEmpty() && !state.requestsRefreshing && state.messageLevel != LifeLinkFeedbackLevel.Error) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LifeLinkEmptyState(
