@@ -73,7 +73,51 @@ fun ActiveRequestScreen(
     onBack: () -> Unit,
     onReviewContacts: () -> Unit,
 ) {
-    val active = state.activeRequest ?: return
+    val active = state.activeRequest
+    if (active == null) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                TopAppBar(
+                    title = { Text("Active request", fontWeight = FontWeight.SemiBold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                )
+            },
+        ) { padding ->
+            Column(
+                Modifier.fillMaxSize().padding(padding).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Icon(
+                    Icons.Default.HourglassEmpty,
+                    contentDescription = null,
+                    modifier = Modifier.size(44.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.size(16.dp))
+                Text(
+                    "No active request found",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    "This request may have been completed, cancelled, or is no longer available. " +
+                        "Return to Home to check your request history or start a new request.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.size(20.dp))
+                Button(onClick = onBack) { Text("Return to Home") }
+            }
+        }
+        return
+    }
     LaunchedEffect(active.requestId) {
         onAction(EmergencyRequestAction.RefreshContacts(active.requestId))
     }
