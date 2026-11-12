@@ -16,7 +16,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import java.io.IOException
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 data class DonorUiState(
     val profile: DonorProfile = DonorProfile(),
@@ -178,7 +180,15 @@ class DonorViewModel(
                 repository.respond(requestId, response)
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (error: Exception) {
+            } catch (error: IOException) {
+                Result.failure(error)
+            } catch (error: HttpException) {
+                Result.failure(error)
+            } catch (error: IllegalStateException) {
+                Result.failure(error)
+            } catch (error: IllegalArgumentException) {
+                Result.failure(error)
+            } catch (error: SecurityException) {
                 Result.failure(error)
             }
             result
