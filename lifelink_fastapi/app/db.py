@@ -104,6 +104,25 @@ async def create_all_tables() -> None:
             "ADD COLUMN IF NOT EXISTS last_presence_at TIMESTAMPTZ, "
             "ADD COLUMN IF NOT EXISTS last_location_provider VARCHAR(24)"
         ))
+        await connection.execute(text(
+            """
+            DO $
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conname = 'ck_donors_last_location_provider'
+                ) THEN
+                    ALTER TABLE donors
+                        ADD CONSTRAINT ck_donors_last_location_provider
+                        CHECK (
+                            last_location_provider IS NULL
+                            OR last_location_provider IN ('fused', 'gps', 'network', 'passive', 'unknown')
+                        );
+                END IF;
+            END;
+            $
+            """
+        ))
         # Legacy availability timestamps are not evidence of a GPS fix. Keep
         # last_presence_at NULL until the server records an actual presence update.
         await connection.execute(text(
