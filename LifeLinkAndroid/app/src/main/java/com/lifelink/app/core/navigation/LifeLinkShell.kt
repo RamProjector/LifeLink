@@ -1034,7 +1034,7 @@ private fun DetailRow(label: String, value: String) {
 }
 
 /** Displays the account dashboard with request, donor, and activity navigation actions. */
-@Suppress("LongParameterList", "LongMethod")
+@Suppress("LongParameterList")
 @Composable
 private fun HomeContent(
     state: EmergencyRequestUiState,
@@ -1064,155 +1064,176 @@ private fun HomeContent(
                 DonorDashboardSummary(donorState.profile, donorState.requests.size, onDonor)
             }
             if (role == UserRole.REQUESTER) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "Your requests",
-                            Modifier.weight(1f).semantics { heading() },
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        TextButton(onClick = onRequests) { Text("View all") }
-                    }
-                    if (state.activeRequest != null) {
-                        ActiveRequestSummary(state, onActive)
+                RequesterHomeSection(state, onCreate, onActive, onRequests, onRefreshHistory)
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            HomeRecentActivitySection(updates, onOpenUpdate)
+        }
+    }
+}
+
+/** Groups the request summary and the single permitted next action for requesters. */
+@Composable
+private fun RequesterHomeSection(
+    state: EmergencyRequestUiState,
+    onCreate: () -> Unit,
+    onActive: () -> Unit,
+    onRequests: () -> Unit,
+    onRefreshHistory: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Your requests",
+                Modifier.weight(1f).semantics { heading() },
+                style = MaterialTheme.typography.titleMedium,
+            )
+            TextButton(onClick = onRequests) { Text("View all") }
+        }
+        if (state.activeRequest != null) {
+            ActiveRequestSummary(state, onActive)
+        } else {
+            RequestHistoryStatusCard(state, onRefreshHistory)
+        }
+        if (state.hasActiveRequest) {
+            OutlinedButton(
+                onClick = onActive,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+            ) {
+                Text("Manage active request", fontWeight = FontWeight.SemiBold)
+            }
+            Text(
+                "You can start another request after this one is completed or cancelled.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            Button(
+                onClick = onCreate,
+                enabled = state.historyLoaded && !state.historyRefreshing && state.historyError == null,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Icon(Icons.Default.Add, null, Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Create emergency request", fontWeight = FontWeight.SemiBold)
+            }
+            if (!state.historyLoaded || state.historyRefreshing || state.historyError != null) {
+                Text(
+                    if (!state.historyLoaded || state.historyRefreshing) {
+                        "Checking request status before allowing a new request."
                     } else {
-                        Card(
-                            Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                        ) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(
-                                    if (!state.historyLoaded || state.historyRefreshing) {
-                                        "Loading your requests…"
-                                    } else if (state.historyError != null) {
-                                        "Requests unavailable"
-                                    } else {
-                                        "No active request"
-                                    },
-                                    style = MaterialTheme.typography.titleSmall,
-                                )
-                                Text(
-                                    state.historyError
-                                        ?: if (!state.historyLoaded || state.historyRefreshing) {
-                                            "Checking your account for saved requests."
-                                        } else {
-                                            "Create a request to find nearby blood donors."
-                                        },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                if (state.historyError != null) {
-                                    TextButton(
-                                        onClick = onRefreshHistory,
-                                        enabled = !state.historyRefreshing,
-                                    ) { Text("Retry") }
-                                }
-                            }
-                        }
-                    }
-                    if (state.hasActiveRequest) {
-                        OutlinedButton(
-                            onClick = onActive,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                        ) {
-                            Text("Manage active request", fontWeight = FontWeight.SemiBold)
-                        }
-                        Text(
-                            "You can start another request after this one is completed or cancelled.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        "Refresh your request history before starting another request."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** Shows a loading, error, or empty message while request history is restored. */
+@Composable
+private fun RequestHistoryStatusCard(state: EmergencyRequestUiState, onRefreshHistory: () -> Unit) {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                if (!state.historyLoaded || state.historyRefreshing) {
+                    "Loading your requests…"
+                } else if (state.historyError != null) {
+                    "Requests unavailable"
+                } else {
+                    "No active request"
+                },
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                state.historyError
+                    ?: if (!state.historyLoaded || state.historyRefreshing) {
+                        "Checking your account for saved requests."
                     } else {
-                        Button(
-                            onClick = onCreate,
-                            enabled = state.historyLoaded && !state.historyRefreshing && state.historyError == null,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                            shape = MaterialTheme.shapes.medium,
-                        ) {
-                            Icon(Icons.Default.Add, null, Modifier.size(20.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Create emergency request", fontWeight = FontWeight.SemiBold)
-                        }
-                        if (!state.historyLoaded || state.historyRefreshing || state.historyError != null) {
+                        "Create a request to find nearby blood donors."
+                    },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (state.historyError != null) {
+                TextButton(onClick = onRefreshHistory, enabled = !state.historyRefreshing) { Text("Retry") }
+            }
+        }
+    }
+}
+
+/** Shows the most recent activity with concise previews and clear unread status. */
+@Composable
+private fun HomeRecentActivitySection(updates: List<UpdateItem>, onOpenUpdate: (UpdateItem) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "Recent activity",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.semantics { heading() },
+        )
+        if (updates.isEmpty()) {
+            LifeLinkEmptyState(
+                icon = Icons.Default.NotificationsNone,
+                title = "No updates yet",
+                body = "Donor responses and request updates will appear here.",
+            )
+        } else {
+            updates.take(3).forEach { update ->
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            update.title,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            fontWeight = if (update.isRead) FontWeight.Normal else FontWeight.SemiBold,
+                        )
+                    },
+                    supportingContent = {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(update.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Text(
-                                if (!state.historyLoaded || state.historyRefreshing) {
-                                    "Checking request status before allowing a new request."
-                                } else {
-                                    "Refresh your request history before starting another request."
-                                },
-                                style = MaterialTheme.typography.bodySmall,
+                                DateUtils.getRelativeTimeSpanString(
+                                    update.createdAtEpochMillis,
+                                    System.currentTimeMillis(),
+                                    DateUtils.MINUTE_IN_MILLIS,
+                                ).toString(),
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                    }
-                }
-            }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "Recent activity",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.semantics { heading() },
-                )
-                if (updates.isEmpty()) {
-                    LifeLinkEmptyState(
-                        icon = Icons.Default.NotificationsNone,
-                        title = "No updates yet",
-                        body = "Donor responses and request updates will appear here.",
-                    )
-                } else {
-                    updates.take(3).forEach { update ->
-                        ListItem(
-                            headlineContent = {
-                                Text(
-                                    update.title,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    fontWeight = if (update.isRead) FontWeight.Normal else FontWeight.SemiBold,
-                                )
-                            },
-                            supportingContent = {
-                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(update.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    Text(
-                                        DateUtils.getRelativeTimeSpanString(
-                                            update.createdAtEpochMillis,
-                                            System.currentTimeMillis(),
-                                            DateUtils.MINUTE_IN_MILLIS,
-                                        ).toString(),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            },
-                            trailingContent = {
-                                if (!update.isRead) {
-                                    Text(
-                                        "Unread",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                    )
-                                }
-                            },
-                            leadingContent = {
-                                Surface(
-                                    modifier = Modifier.size(8.dp),
-                                    shape = CircleShape,
-                                    color = if (update.isRead) Color.Transparent else MaterialTheme.colorScheme.primary,
-                                ) {}
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(
-                                    onClickLabel = "Open update: ${update.title}",
-                                    role = Role.Button,
-                                    onClick = { onOpenUpdate(update) },
-                                )
-                                .testTag("home-update-${update.id}"),
+                    },
+                    trailingContent = {
+                        if (!update.isRead) {
+                            Text(
+                                "Unread",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    },
+                    leadingContent = {
+                        Surface(
+                            modifier = Modifier.size(8.dp),
+                            shape = CircleShape,
+                            color = if (update.isRead) Color.Transparent else MaterialTheme.colorScheme.primary,
+                        ) {}
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            onClickLabel = "Open update: ${update.title}",
+                            role = Role.Button,
+                            onClick = { onOpenUpdate(update) },
                         )
-                    }
-                }
+                        .testTag("home-update-${update.id}"),
+                )
             }
         }
     }
