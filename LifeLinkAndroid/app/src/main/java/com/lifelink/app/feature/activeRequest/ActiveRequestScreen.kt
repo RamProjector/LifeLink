@@ -173,9 +173,9 @@ fun ActiveRequestScreen(
                     ) {
                         Text("Manual review pending", fontWeight = FontWeight.SemiBold)
                         Text(
-                            "Automatic matching could not be completed. LifeLink has not sent donor " +
-                                "notifications for this request. Follow your official blood-service " +
-                                "coordination process for urgent assistance.",
+                            "Automatic matching could not be completed. This status does not send donor " +
+                                "notifications; donor contact is a separate, explicit action. Follow your " +
+                                "official blood-service coordination process for urgent assistance.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall,
                         )
