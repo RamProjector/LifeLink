@@ -52,8 +52,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Loads conversations on entry and displays loading, retry, empty, or conversation states.
- * Compact windows open a dedicated conversation screen; expanded windows keep the list and selected chat side by side.
+ * Loads conversations on entry and chooses compact navigation or expanded list-detail presentation.
  */
 @Composable
 fun MessagingScreen(
@@ -67,107 +66,173 @@ fun MessagingScreen(
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadConversations) }
     var handledNotificationKey by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedConversation by remember { mutableStateOf<Conversation?>(null) }
-    val notificationKey = targetConversationId?.let { conversationId ->
-        "$conversationId|${targetConversationEventId.orEmpty()}"
-    }
-    LaunchedEffect(notificationKey, state.conversations, state.conversationsLoading, useListDetailLayout) {
-        if (notificationKey != null && notificationKey != handledNotificationKey && !state.conversationsLoading) {
-            state.conversations.firstOrNull { it.conversationId == targetConversationId }?.let { conversation ->
-                handledNotificationKey = notificationKey
-                if (useListDetailLayout) {
-                    selectedConversation = conversation
-                } else {
-                    onOpenConversation(conversation.requestId, conversation.donorId)
-                }
-            }
-        }
-    }
-
-    val conversationList: @Composable () -> Unit = {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    LifeLinkPageHeader("Chats")
-                    Text(
-                        "Chat with matched donors and requesters. Contact details remain private until shared.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            when {
-                state.conversationsLoading -> item { LifeLinkLoadingIndicator(label = "Loading conversations…") }
-                state.conversationsError != null -> item {
-                    Card(
-                        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    ) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(state.conversationsError, color = MaterialTheme.colorScheme.onErrorContainer)
-                            Button(onClick = { onAction(PrivacyAction.LoadConversations) }) { Text("Retry") }
-                        }
-                    }
-                }
-                state.conversations.isEmpty() -> item {
-                    LifeLinkEmptyState(
-                        icon = Icons.AutoMirrored.Filled.Chat,
-                        title = "No conversations yet",
-                        body = "Chats appear when you request chat with a matched participant or receive a contact request.",
-                    )
-                }
-                else -> items(state.conversations, key = { it.conversationId }) { conversation ->
-                    ConversationRow(
-                        conversation = conversation,
-                        selected = selectedConversation?.conversationId == conversation.conversationId,
-                    ) {
-                        if (useListDetailLayout) {
-                            selectedConversation = conversation
-                        } else {
-                            onOpenConversation(conversation.requestId, conversation.donorId)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
+    var selectedConversationId by rememberSaveable { mutableStateOf<String?>(null) }
+    MessagingNotificationEffect(
+        targetConversationId = targetConversationId,
+        targetConversationEventId = targetConversationEventId,
+        handledNotificationKey = handledNotificationKey,
+        onHandledNotification = { handledNotificationKey = it },
+        conversations = state.conversations,
+        conversationsLoading = state.conversationsLoading,
+        useListDetailLayout = useListDetailLayout,
+        onSelectConversation = { selectedConversationId = it.conversationId },
+        onOpenConversation = onOpenConversation,
+    )
     if (!useListDetailLayout) {
-        conversationList()
+        ConversationListPane(
+            state = state,
+            selectedConversationId = null,
+            onAction = onAction,
+            onSelectConversation = { conversation ->
+                onOpenConversation(conversation.requestId, conversation.donorId)
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
     } else {
         Row(Modifier.fillMaxSize()) {
-            Surface(
-                modifier = Modifier.width(360.dp).fillMaxHeight().semantics { paneTitle = "Conversations" }.testTag("conversation-list-pane"),
-                color = MaterialTheme.colorScheme.surface,
-            ) {
-                conversationList()
-            }
+            ConversationListPane(
+                state = state,
+                selectedConversationId = selectedConversationId,
+                onAction = onAction,
+                onSelectConversation = { selectedConversationId = it.conversationId },
+                modifier = Modifier
+                    .width(360.dp)
+                    .fillMaxHeight()
+                    .semantics { paneTitle = "Conversations" }
+                    .testTag("conversation-list-pane"),
+            )
             androidx.compose.material3.VerticalDivider()
-            Box(
-                Modifier.weight(1f).fillMaxHeight().semantics { paneTitle = "Conversation details" }.testTag("conversation-detail-pane"),
-                contentAlignment = Alignment.Center,
-            ) {
-                val selected = selectedConversation
-                if (selected == null) {
-                    LifeLinkEmptyState(
-                        icon = Icons.AutoMirrored.Filled.Chat,
-                        title = "Choose a conversation",
-                        body = "Select a chat to view messages.",
-                    )
-                } else {
-                    ConversationScreen(
-                        state = state,
-                        requestId = selected.requestId,
-                        donorId = selected.donorId,
-                        currentUserId = currentUserId,
-                        onAction = onAction,
-                        onBack = { selectedConversation = null },
-                    )
-                }
+            ConversationDetailPane(
+                state = state,
+                selectedConversation = state.conversations.firstOrNull {
+                    it.conversationId == selectedConversationId
+                },
+                currentUserId = currentUserId,
+                onAction = onAction,
+                onClearSelection = { selectedConversationId = null },
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .semantics { paneTitle = "Conversation details" }
+                    .testTag("conversation-detail-pane"),
+            )
+        }
+    }
+}
+
+@Composable
+private fun MessagingNotificationEffect(
+    targetConversationId: String?,
+    targetConversationEventId: String?,
+    handledNotificationKey: String?,
+    onHandledNotification: (String) -> Unit,
+    conversations: List<Conversation>,
+    conversationsLoading: Boolean,
+    useListDetailLayout: Boolean,
+    onSelectConversation: (Conversation) -> Unit,
+    onOpenConversation: (String, String) -> Unit,
+) {
+    val notificationKey = targetConversationId?.let { "$it|${targetConversationEventId.orEmpty()}" }
+    LaunchedEffect(notificationKey, conversations, conversationsLoading, useListDetailLayout) {
+        if (notificationKey == null || notificationKey == handledNotificationKey || conversationsLoading) {
+            return@LaunchedEffect
+        }
+        conversations.firstOrNull { it.conversationId == targetConversationId }?.let { conversation ->
+            onHandledNotification(notificationKey)
+            if (useListDetailLayout) {
+                onSelectConversation(conversation)
+            } else {
+                onOpenConversation(conversation.requestId, conversation.donorId)
             }
+        }
+    }
+}
+
+@Composable
+private fun ConversationListPane(
+    state: PrivacyUiState,
+    selectedConversationId: String?,
+    onAction: (PrivacyAction) -> Unit,
+    onSelectConversation: (Conversation) -> Unit,
+    modifier: Modifier,
+) {
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                LifeLinkPageHeader("Chats")
+                Text(
+                    "Chat with matched donors and requesters. Contact details remain private until shared.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        when {
+            state.conversationsLoading -> item { LifeLinkLoadingIndicator(label = "Loading conversations…") }
+            state.conversationsError != null -> item {
+                ConversationLoadError(state.conversationsError, onRetry = {
+                    onAction(PrivacyAction.LoadConversations)
+                })
+            }
+            state.conversations.isEmpty() -> item {
+                LifeLinkEmptyState(
+                    icon = Icons.AutoMirrored.Filled.Chat,
+                    title = "No conversations yet",
+                    body = "Chats appear when you request chat with a matched participant or receive a contact request.",
+                )
+            }
+            else -> items(state.conversations, key = { it.conversationId }) { conversation ->
+                ConversationRow(
+                    conversation = conversation,
+                    selected = selectedConversationId == conversation.conversationId,
+                    onOpen = { onSelectConversation(conversation) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConversationLoadError(error: String, onRetry: () -> Unit) {
+    Card(
+        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(error, color = MaterialTheme.colorScheme.onErrorContainer)
+            Button(onClick = onRetry) { Text("Retry") }
+        }
+    }
+}
+
+@Composable
+private fun ConversationDetailPane(
+    state: PrivacyUiState,
+    selectedConversation: Conversation?,
+    currentUserId: String,
+    onAction: (PrivacyAction) -> Unit,
+    onClearSelection: () -> Unit,
+    modifier: Modifier,
+) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        if (selectedConversation == null) {
+            LifeLinkEmptyState(
+                icon = Icons.AutoMirrored.Filled.Chat,
+                title = "Choose a conversation",
+                body = "Select a chat to view messages.",
+            )
+        } else {
+            ConversationScreen(
+                state = state,
+                requestId = selectedConversation.requestId,
+                donorId = selectedConversation.donorId,
+                currentUserId = currentUserId,
+                onAction = onAction,
+                onBack = onClearSelection,
+            )
         }
     }
 }
