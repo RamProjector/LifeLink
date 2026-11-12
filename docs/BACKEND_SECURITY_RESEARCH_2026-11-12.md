@@ -18,6 +18,9 @@
    https://supabase.com/docs/guides/database/postgres/row-level-security
 6. **FastAPI OAuth2 scopes documentation (official).** Scopes can centralize operation-level authorization, but scopes placed into tokens must be derived from permissions the account is actually entitled to receive. LifeLink must continue checking resource ownership/participation as well as any role or scope.  
    https://fastapi.tiangolo.com/advanced/security/oauth2-scopes/
+7. **PostgreSQL 16 Explicit Locking and Application-Level Consistency Checks.** PostgreSQL documents that `SELECT FOR UPDATE` locks selected rows until transaction end and is appropriate when application-level read/check/write sequences must be serialized. It also warns that locking alone does not prevent every possible concurrent update; the lock must be acquired consistently by all competing operations and held through the protected write.  
+   https://www.postgresql.org/docs/16/explicit-locking.html  
+   https://www.postgresql.org/docs/16/applevel-consistency.html
 
 ## Architecture observed in the repository
 
@@ -74,7 +77,7 @@ Request cancel/fulfill/expiry, donor accept/decline/withdraw, contact creation, 
 
 The block record and its audit event now also share one transaction. If the audit insert fails, the block is rolled back rather than silently becoming active without an audit event. Contact disclosure and block writes both use explicit caller-owned transaction boundaries.
 
-**Regression coverage:** PostgreSQL integration tests verify (a) a second transaction cannot acquire the same conversation lock until the first commits, and (b) injected audit failures roll back both contact disclosure and block records. These tests are awaiting the latest CI run.
+**Regression coverage:** PostgreSQL integration tests verify (a) a second transaction cannot acquire the same conversation lock until the first commits, and (b) injected audit failures roll back both contact disclosure and block records. Both passed in PR #184 validation run `43204315213` (backend suite: 203 passed).
 
 **Boundary:** request cancellation/fulfillment is a separate lifecycle transition and is not serialized by this conversation lock. It requires its own request-row locking/conditional-update analysis.
 
