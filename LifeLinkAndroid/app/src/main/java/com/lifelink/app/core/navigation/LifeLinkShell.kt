@@ -945,16 +945,17 @@ private fun RequestHistoryDetailScreen(
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(request.status.label, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text(
-                        if (request.status in setOf(
+                        if (
+                            request.status in setOf(
                                 com.lifelink.app.domain.ActiveRequestStatus.FULFILLED,
                                 com.lifelink.app.domain.ActiveRequestStatus.EXPIRED,
                                 com.lifelink.app.domain.ActiveRequestStatus.CANCELLED,
                             )
                         ) {
-                                "Past request"
-                            } else {
-                                "Active request"
-                            },
+                            "Past request"
+                        } else {
+                            "Active request"
+                        },
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 }
