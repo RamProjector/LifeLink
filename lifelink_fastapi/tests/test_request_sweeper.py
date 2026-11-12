@@ -44,6 +44,7 @@ def session():
 def test_batch_expires_each_active_status_at_the_deadline(session, frozen_clock, status, plain_status):
     """Expire every active status at the exact deadline, accepting both enum and string values."""
     row = SimpleNamespace(
+        id="request-1",
         status=status if plain_status else RequestStatusEnum(status),
         response_deadline=NOW,
         updated_at=NOW - timedelta(days=1),
@@ -61,8 +62,8 @@ def test_batch_counts_only_expired_rows_and_commits_once(session, frozen_clock):
     """Count and timestamp only eligible transitions, then commit the batch once."""
     previous_update = NOW - timedelta(days=1)
     rows = [
-        SimpleNamespace(status=status, response_deadline=deadline, updated_at=previous_update)
-        for status, deadline in [
+        SimpleNamespace(id=f"request-{index}", status=status, response_deadline=deadline, updated_at=previous_update)
+        for index, (status, deadline) in enumerate([
             ("matching", NOW - timedelta(seconds=1)),
             ("awaiting_responses", NOW.replace(tzinfo=None)),
             ("manual_broadcast", NOW + timedelta(microseconds=1)),
@@ -70,7 +71,7 @@ def test_batch_counts_only_expired_rows_and_commits_once(session, frozen_clock):
             ("fulfilled", NOW - timedelta(days=1)),
             ("expired", NOW - timedelta(days=1)),
             ("draft", NOW - timedelta(days=1)),
-        ]
+        ])
     ]
     original_statuses = [row.status for row in rows]
     session.scalars.return_value.all.return_value = rows
