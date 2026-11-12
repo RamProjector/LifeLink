@@ -72,7 +72,9 @@ Request cancel/fulfill/expiry, donor accept/decline/withdraw, contact creation, 
 
 **Change committed:** added `SqlAlchemyPrivacyStore.lock_conversation()`, using PostgreSQL `SELECT ... FOR UPDATE`. Message send, contact disclosure, and block creation now acquire the same conversation-row lock before checking or changing block state. The lock remains held until the protected write commits, serializing these operations for one conversation.
 
-**Regression coverage:** PostgreSQL integration test verifies a second transaction cannot acquire the same conversation lock until the first commits. Existing block and message flow tests continue to cover participant semantics.
+The block record and its audit event now also share one transaction. If the audit insert fails, the block is rolled back rather than silently becoming active without an audit event. Contact disclosure and block writes both use explicit caller-owned transaction boundaries.
+
+**Regression coverage:** PostgreSQL integration tests verify (a) a second transaction cannot acquire the same conversation lock until the first commits, and (b) injected audit failures roll back both contact disclosure and block records. These tests are awaiting the latest CI run.
 
 **Boundary:** request cancellation/fulfillment is a separate lifecycle transition and is not serialized by this conversation lock. It requires its own request-row locking/conditional-update analysis.
 
@@ -97,7 +99,7 @@ Request cancel/fulfill/expiry, donor accept/decline/withdraw, contact creation, 
 ## Backend implementation sequence
 
 1. **Rate-limit correctness** — implemented in this PR with PostgreSQL-clock windows and a focused regression test; full PostgreSQL execution is pending CI.
-2. **Atomic disclosure/audit transaction** — implemented in this PR with a PostgreSQL failure-injection test that verifies a failed audit insert leaves neither record.
+2. **Atomic disclosure/audit transactions** — contact disclosure and conversation block now commit with their audit events; PostgreSQL failure-injection tests verify rollback behavior.
 3. **Conversation block/message race** — implemented with a shared conversation-row lock and PostgreSQL lock-serialization coverage.
 4. **Donor location-provider provenance** — implemented for donor-presence heartbeats with a bounded nullable field and additive schema migration; requester-created location provenance remains open.
 5. **Authorization matrix** — add cross-role deny tests for every sensitive object route; do not replace object-level checks with role-only checks.
