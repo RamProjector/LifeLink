@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -162,19 +162,30 @@ class SqlAlchemyRequestStore(RequestStore):
         return self._to_record(row) if row else None
 
     async def _expire_if_needed(self, row: EmergencyRequestRow) -> bool:
-        """Expire a due request only after re-reading it under a row lock."""
-        if not is_request_expired(_enum_value(row.status), row.response_deadline):
+        """Expire a due request with an atomic active-state compare-and-set."""
+        now = datetime.now(UTC)
+        if not is_request_expired(_enum_value(row.status), row.response_deadline, now):
             return False
-        locked = await self.session.scalar(
-            select(EmergencyRequestRow)
-            .where(EmergencyRequestRow.id == row.id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
+        result = await self.session.execute(
+            update(EmergencyRequestRow)
+            .where(
+                EmergencyRequestRow.id == row.id,
+                EmergencyRequestRow.status.in_(
+                    [RequestStatusEnum(status) for status in ACTIVE_REQUEST_STATUSES]
+                ),
+                EmergencyRequestRow.response_deadline <= now,
+            )
+            .values(status=RequestStatusEnum.EXPIRED, updated_at=now)
+            .returning(EmergencyRequestRow.id)
         )
-        if locked is None or not is_request_expired(_enum_value(locked.status), locked.response_deadline):
+        expired_id = result.scalar_one_or_none()
+        if expired_id is None:
+            # Another transaction may have cancelled or fulfilled the request
+            # while this expiry check was waiting on its row lock.
+            await self.session.refresh(row, attribute_names=["status", "updated_at"])
             return False
-        locked.status = RequestStatusEnum.EXPIRED
-        locked.updated_at = datetime.now(UTC)
+        row.status = RequestStatusEnum.EXPIRED
+        row.updated_at = now
         await self.session.commit()
         return True
 
@@ -226,8 +237,9 @@ class SqlAlchemyRequestStore(RequestStore):
             .limit(limit)
         )
         rows = result.unique().all()
-        # Lock only the overdue candidates and re-check their current status in
-        # PostgreSQL so a concurrent cancel/fulfill is never overwritten as expired.
+        # An UPDATE with an active-state predicate is an atomic compare-and-set:
+        # if cancellation/fulfillment wins first, the expired transition affects
+        # zero rows instead of overwriting the terminal status.
         now = datetime.now(UTC)
         overdue_ids = [
             row.id
@@ -235,8 +247,8 @@ class SqlAlchemyRequestStore(RequestStore):
             if is_request_expired(_enum_value(row.status), row.response_deadline, now)
         ]
         if overdue_ids:
-            overdue = await self.session.scalars(
-                select(EmergencyRequestRow)
+            result = await self.session.execute(
+                update(EmergencyRequestRow)
                 .where(
                     EmergencyRequestRow.id.in_(overdue_ids),
                     EmergencyRequestRow.status.in_(
@@ -244,16 +256,15 @@ class SqlAlchemyRequestStore(RequestStore):
                     ),
                     EmergencyRequestRow.response_deadline <= now,
                 )
-                .with_for_update()
-                .execution_options(populate_existing=True)
+                .values(status=RequestStatusEnum.EXPIRED, updated_at=now)
+                .returning(EmergencyRequestRow.id)
             )
-            changed = False
-            for row in overdue.all():
-                if is_request_expired(_enum_value(row.status), row.response_deadline, now):
-                    row.status = RequestStatusEnum.EXPIRED
-                    row.updated_at = now
-                    changed = True
-            if changed:
+            changed_ids = set(result.scalars().all())
+            if changed_ids:
+                for row in rows:
+                    if row.id in changed_ids:
+                        row.status = RequestStatusEnum.EXPIRED
+                        row.updated_at = now
                 await self.session.commit()
         records: list[RequestRecord] = []
         for row in rows:
