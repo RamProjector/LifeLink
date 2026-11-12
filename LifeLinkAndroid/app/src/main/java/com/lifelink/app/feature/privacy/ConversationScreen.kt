@@ -196,14 +196,17 @@ fun ConversationScreen(
             state = state,
             currentUserId = currentUserId,
             chatReady = chatReady,
+            contactField = contactField,
+            contactValue = contactValue,
+            onContactFieldChange = { contactField = it },
+            onContactValueChange = { if (it.length <= MAX_CONTACT_VALUE_LENGTH) contactValue = it },
+            onShareContact = {
+                onAction(PrivacyAction.ShareContact(contactField, contactValue))
+            },
+            onReport = { showReport = true },
+            onBlock = { showBlockConfirm = true },
             onAction = onAction,
         )
-
-        if (state.savedMessages.isNotEmpty()) SavedMessagesCard(state.savedMessages)
-
-        if (state.contactShares.isNotEmpty()) {
-            SharedContactsCard(shares = state.contactShares)
-        }
 
         MessageComposer(
             draft = draft,
@@ -223,21 +226,6 @@ fun ConversationScreen(
             },
         )
 
-        ShareContactCard(
-            contactField = contactField,
-            contactValue = contactValue,
-            enabled = chatReady && !state.sharingContact,
-            onFieldChange = { contactField = it },
-            onValueChange = { if (it.length <= MAX_CONTACT_VALUE_LENGTH) contactValue = it },
-            onShare = {
-                onAction(PrivacyAction.ShareContact(contactField, contactValue))
-            },
-        )
-
-        ConversationSafetyCard(
-            onReport = { showReport = true },
-            onBlock = { showBlockConfirm = true },
-        )
     }
 
     ConversationSafetyDialogs(
@@ -263,6 +251,13 @@ private fun ConversationMessagesList(
     state: PrivacyUiState,
     currentUserId: String,
     chatReady: Boolean,
+    contactField: String,
+    contactValue: String,
+    onContactFieldChange: (String) -> Unit,
+    onContactValueChange: (String) -> Unit,
+    onShareContact: () -> Unit,
+    onReport: () -> Unit,
+    onBlock: () -> Unit,
     onAction: (PrivacyAction) -> Unit,
 ) {
     LazyColumn(modifier, state = listState, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -307,6 +302,25 @@ private fun ConversationMessagesList(
                     Text(if (message.isSaved) "Remove saved message" else "Save message")
                 }
             }
+        }
+        if (state.savedMessages.isNotEmpty()) {
+            item(key = "saved-messages") { SavedMessagesCard(state.savedMessages) }
+        }
+        if (state.contactShares.isNotEmpty()) {
+            item(key = "shared-contacts") { SharedContactsCard(shares = state.contactShares) }
+        }
+        item(key = "share-contact") {
+            ShareContactCard(
+                contactField = contactField,
+                contactValue = contactValue,
+                enabled = chatReady && !state.sharingContact,
+                onFieldChange = onContactFieldChange,
+                onValueChange = onContactValueChange,
+                onShare = onShareContact,
+            )
+        }
+        item(key = "conversation-safety") {
+            ConversationSafetyCard(onReport = onReport, onBlock = onBlock)
         }
     }
 }
