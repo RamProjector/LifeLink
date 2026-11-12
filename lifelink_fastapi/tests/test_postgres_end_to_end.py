@@ -51,7 +51,7 @@ def run_scenario(pg_url: str, scenario):
             await conn.execute(text("CREATE SCHEMA public"))
             await conn.run_sync(db_models.Base.metadata.create_all)
         sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
-        current = {"id": "nobody"}
+        current = {"id": "nobody", "sessions": sessions, "engine": engine}
 
         async def session_dependency():
             async with sessions() as session:
@@ -66,8 +66,6 @@ def run_scenario(pg_url: str, scenario):
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
                 # The end-to-end concurrency scenario can coordinate independent
                 # database sessions while requests use the same API dependency.
-                client.extensions["lifelink_session_factory"] = sessions
-                client.extensions["lifelink_async_engine"] = engine
 
                 async def run_sql(statement: str):
                     async with engine.begin() as conn:
@@ -691,7 +689,7 @@ def test_donor_acceptance_waits_for_request_cancellation(pg_url):
         donor, requester = new_user("donor"), new_user("requester")
         await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
-        sessions = client.extensions["lifelink_session_factory"]
+        sessions = current["sessions"]
 
         async with sessions() as locking_session:
             request_row = await locking_session.scalar(
@@ -708,7 +706,7 @@ def test_donor_acceptance_waits_for_request_cancellation(pg_url):
                 if "FOR UPDATE" in statement.upper() and "EMERGENCY_REQUESTS" in statement.upper():
                     loop.call_soon_threadsafe(lock_requested.set)
 
-            engine = client.extensions["lifelink_async_engine"]
+            engine = current["engine"]
             event.listen(engine.sync_engine, "before_cursor_execute", observe_request_lock)
             try:
                 current["id"] = donor
