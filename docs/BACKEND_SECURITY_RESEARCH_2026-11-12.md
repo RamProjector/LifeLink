@@ -44,7 +44,9 @@
 
 **Risk status:** source-confirmed transaction boundary; failure behavior should be reproduced with PostgreSQL integration tests before changing the repository contract.
 
-**Recommended change:** make the route own one transaction for disclosure + audit. Repository methods should add/flush records without independently committing when called as part of a multi-record security operation. Commit once after both writes; roll back both on audit failure. Preserve separate transaction boundaries for callers that intentionally perform standalone writes.
+**Change committed:** repository methods now accept an explicit `commit=False` mode that flushes but leaves transaction ownership to the caller. The contact-share route stages both the disclosure and audit event, commits once, and rolls back on either write failure. Existing standalone callers retain the default immediate-commit behavior.
+
+**Regression coverage:** a focused unit test verifies both records are staged and flushed without an intermediate commit. A PostgreSQL failure-injection test proving that a failed audit insert rolls back the disclosure is still required before calling this path fully verified.
 
 **Required tests:** successful share creates exactly one disclosure and one audit row; injected audit insert failure leaves neither row; duplicate/retried client request follows an explicit idempotency policy; unauthorized participant cannot create either record.
 
@@ -66,8 +68,8 @@ Request cancel/fulfill/expiry, donor accept/decline/withdraw, contact creation, 
 
 ## Backend implementation sequence
 
-1. **Rate-limit correctness** — completed in this PR with PostgreSQL-clock windows and a regression test.
-2. **Atomic disclosure/audit transaction** — next implementation; add failure-injection PostgreSQL tests before changing commit ownership.
+1. **Rate-limit correctness** — implemented in this PR with PostgreSQL-clock windows and a focused regression test; full PostgreSQL execution is pending CI.
+2. **Atomic disclosure/audit transaction** — implemented in this PR; PostgreSQL failure-injection coverage remains outstanding.
 3. **Location provenance trace** — inspect request DTOs, donor-presence routes, migrations, and Android provider source; document what is already captured before proposing schema changes.
 4. **Authorization matrix** — add cross-role deny tests for every sensitive object route; do not replace object-level checks with role-only checks.
 5. **Lifecycle concurrency** — add concurrent PostgreSQL tests for accept vs cancel/fulfill/expiry, block vs message send, and revoke vs exact-location read.
