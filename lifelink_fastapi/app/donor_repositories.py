@@ -140,6 +140,13 @@ class SqlAlchemyDonorStore:
                 RequestRow.status.in_(ACTIVE_REQUEST_STATUSES),
                 RequestRow.response_deadline > now,
             )
+            # Every request-scoped mutation locks the request row first. Taking
+            # the same locks here prevents a delayed donor-profile recompute
+            # from inserting a match after cancellation or fulfillment commits.
+            # A stable order avoids deadlocks between concurrent donor recomputes.
+            .order_by(RequestRow.id)
+            .with_for_update(of=RequestRow)
+            .execution_options(populate_existing=True)
         )
         active_requests = list(result.unique().all())
 
