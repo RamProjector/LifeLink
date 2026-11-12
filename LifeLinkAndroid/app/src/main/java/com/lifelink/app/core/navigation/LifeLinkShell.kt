@@ -698,10 +698,35 @@ private fun RequestsContent(
                 }
             }
             item {
-                Button(onClick = onCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = MaterialTheme.shapes.medium) {
-                    Icon(Icons.Default.Add, null, Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Create emergency request", fontWeight = FontWeight.SemiBold)
+                if (state.activeRequest?.isTerminal == false) {
+                    OutlinedButton(
+                        onClick = onActive,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    ) {
+                        Text("Manage active request", fontWeight = FontWeight.SemiBold)
+                    }
+                } else {
+                    Button(
+                        onClick = onCreate,
+                        enabled = !state.historyRefreshing && state.historyError == null,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Icon(Icons.Default.Add, null, Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Create emergency request", fontWeight = FontWeight.SemiBold)
+                    }
+                    if (state.historyRefreshing || state.historyError != null) {
+                        Text(
+                            if (state.historyRefreshing) {
+                                "Checking request status before allowing a new request."
+                            } else {
+                                "Refresh your request history before starting another request."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
             item {
