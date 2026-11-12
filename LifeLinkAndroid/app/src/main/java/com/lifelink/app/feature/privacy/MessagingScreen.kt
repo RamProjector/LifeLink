@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -26,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -55,58 +57,110 @@ fun MessagingScreen(
     state: PrivacyUiState,
     onAction: (PrivacyAction) -> Unit,
     onOpenConversation: (String, String) -> Unit,
+    currentUserId: String = "",
+    useListDetailLayout: Boolean = false,
     targetConversationId: String? = null,
     targetConversationEventId: String? = null,
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadConversations) }
-    var handledNotificationKey by remember { mutableStateOf<String?>(null) }
+    var handledNotificationKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedConversation by rememberSaveable { mutableStateOf<Conversation?>(null) }
     val notificationKey = targetConversationId?.let { conversationId ->
         "$conversationId|${targetConversationEventId.orEmpty()}"
     }
-    LaunchedEffect(notificationKey, state.conversations, state.conversationsLoading) {
+    LaunchedEffect(notificationKey, state.conversations, state.conversationsLoading, useListDetailLayout) {
         if (notificationKey != null && notificationKey != handledNotificationKey && !state.conversationsLoading) {
             state.conversations.firstOrNull { it.conversationId == targetConversationId }?.let { conversation ->
                 handledNotificationKey = notificationKey
-                onOpenConversation(conversation.requestId, conversation.donorId)
+                if (useListDetailLayout) {
+                    selectedConversation = conversation
+                } else {
+                    onOpenConversation(conversation.requestId, conversation.donorId)
+                }
             }
         }
     }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                LifeLinkPageHeader("Chats")
-                Text(
-                    "Chat with matched donors and requesters. Contact details remain private until shared.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+
+    val conversationList: @Composable () -> Unit = {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    LifeLinkPageHeader("Chats")
+                    Text(
+                        "Chat with matched donors and requesters. Contact details remain private until shared.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-        }
-        when {
-            state.conversationsLoading -> item { LifeLinkLoadingIndicator(label = "Loading conversations\u2026") }
-            state.conversationsError != null -> item {
-                Card(
-                    Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(state.conversationsError, color = MaterialTheme.colorScheme.onErrorContainer)
-                        Button(onClick = { onAction(PrivacyAction.LoadConversations) }) { Text("Retry") }
+            when {
+                state.conversationsLoading -> item { LifeLinkLoadingIndicator(label = "Loading conversations…") }
+                state.conversationsError != null -> item {
+                    Card(
+                        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    ) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(state.conversationsError, color = MaterialTheme.colorScheme.onErrorContainer)
+                            Button(onClick = { onAction(PrivacyAction.LoadConversations) }) { Text("Retry") }
+                        }
+                    }
+                }
+                state.conversations.isEmpty() -> item {
+                    LifeLinkEmptyState(
+                        icon = Icons.AutoMirrored.Filled.Chat,
+                        title = "No conversations yet",
+                        body = "Chats appear when you request chat with a matched participant or receive a contact request.",
+                    )
+                }
+                else -> items(state.conversations, key = { it.conversationId }) { conversation ->
+                    ConversationRow(
+                        conversation = conversation,
+                        selected = selectedConversation?.conversationId == conversation.conversationId,
+                    ) {
+                        if (useListDetailLayout) {
+                            selectedConversation = conversation
+                        } else {
+                            onOpenConversation(conversation.requestId, conversation.donorId)
+                        }
                     }
                 }
             }
-            state.conversations.isEmpty() -> item {
-                LifeLinkEmptyState(
-                    icon = Icons.AutoMirrored.Filled.Chat,
-                    title = "No conversations yet",
-                    body = "Chats appear when you request chat with a matched participant or receive a contact request.",
-                )
+        }
+    }
+
+    if (!useListDetailLayout) {
+        conversationList()
+    } else {
+        Row(Modifier.fillMaxSize()) {
+            Surface(
+                modifier = Modifier.width(360.dp).fillMaxHeight(),
+                color = MaterialTheme.colorScheme.surface,
+            ) {
+                conversationList()
             }
-            else -> items(state.conversations, key = { it.conversationId }) { conversation ->
-                ConversationRow(conversation) { onOpenConversation(conversation.requestId, conversation.donorId) }
+            androidx.compose.material3.VerticalDivider()
+            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                val selected = selectedConversation
+                if (selected == null) {
+                    LifeLinkEmptyState(
+                        icon = Icons.AutoMirrored.Filled.Chat,
+                        title = "Choose a conversation",
+                        body = "Select a chat to view messages.",
+                    )
+                } else {
+                    ConversationScreen(
+                        state = state,
+                        requestId = selected.requestId,
+                        donorId = selected.donorId,
+                        currentUserId = currentUserId,
+                        onAction = onAction,
+                        onBack = { selectedConversation = null },
+                    )
+                }
             }
         }
     }
@@ -151,13 +205,15 @@ internal fun formatConversationTimestamp(timestamp: String, now: Date = Date()):
 
 /** Displays a conversation with an initials avatar, request reference, and message recency. */
 @Composable
-private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
+private fun ConversationRow(conversation: Conversation, selected: Boolean, onOpen: () -> Unit) {
     Card(
         modifier =
         Modifier
             .fillMaxWidth()
             .clickable(onClickLabel = "Open chat", onClick = onOpen),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Row(
