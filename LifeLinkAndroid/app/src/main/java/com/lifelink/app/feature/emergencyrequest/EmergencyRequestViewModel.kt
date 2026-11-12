@@ -395,45 +395,50 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
             } catch (_: Exception) {
                 SubmitResult.Error("Your request could not be saved safely on this device, so it was not submitted.")
             }
-            when (result) {
-                is SubmitResult.MatchingStarted -> {
-                    runCatching { repository.deleteDraft(draft.id) }
-                    // Do not keep the submit button spinning while the optional contacts refresh waits on the API.
-                    _uiState.update {
-                        it.copy(
-                            step = RequestStep.RESULTS,
-                            submission = SubmissionState.Matching(result.requestId),
-                            resultsRequestId = result.requestId,
-                            discoveredDonors = result.donors,
-                            matchesRefreshing = false,
-                            matchesError = null,
-                            selectedDonorIds = emptySet(),
-                            contactRequestSent = false,
-                            contacts = emptyList(),
-                            contactsRefreshing = false,
-                            contactsError = null,
-                        )
-                    }
-                    refreshContacts(result.requestId)
+            handleSubmitResult(draft, result)
+        }
+    }
+
+    /** Applies the repository result to the request wizard and its contact state. */
+    private suspend fun handleSubmitResult(draft: EmergencyRequestDraft, result: SubmitResult) {
+        when (result) {
+            is SubmitResult.MatchingStarted -> {
+                runCatching { repository.deleteDraft(draft.id) }
+                // Do not keep the submit button spinning while the optional contacts refresh waits on the API.
+                _uiState.update {
+                    it.copy(
+                        step = RequestStep.RESULTS,
+                        submission = SubmissionState.Matching(result.requestId),
+                        resultsRequestId = result.requestId,
+                        discoveredDonors = result.donors,
+                        matchesRefreshing = false,
+                        matchesError = null,
+                        selectedDonorIds = emptySet(),
+                        contactRequestSent = false,
+                        contacts = emptyList(),
+                        contactsRefreshing = false,
+                        contactsError = null,
+                    )
                 }
-                is SubmitResult.ContactRequested -> _uiState.update { it.copy(contactRequestSent = true) }
-                is SubmitResult.ContactRequestUncertain ->
-                    _uiState.update {
-                        it.copy(contactsError = "The server response was empty; contact status could not be confirmed yet.")
-                    }
-                is SubmitResult.ManualFallback -> {
-                    runCatching { repository.deleteDraft(draft.id) }
-                    _uiState.update {
-                        it.copy(
-                            submission = SubmissionState.ManualFallback(result.requestId, result.reason),
-                        )
-                    }
-                }
-                is SubmitResult.Cancelled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
-                is SubmitResult.Fulfilled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
-                is SubmitResult.OfflineQueued -> _uiState.update { it.copy(submission = SubmissionState.QueuedOffline(result.draftId)) }
-                is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message, result.retryable)) }
+                refreshContacts(result.requestId)
             }
+            is SubmitResult.ContactRequested -> _uiState.update { it.copy(contactRequestSent = true) }
+            is SubmitResult.ContactRequestUncertain ->
+                _uiState.update {
+                    it.copy(contactsError = "The server response was empty; contact status could not be confirmed yet.")
+                }
+            is SubmitResult.ManualFallback -> {
+                runCatching { repository.deleteDraft(draft.id) }
+                _uiState.update {
+                    it.copy(
+                        submission = SubmissionState.ManualFallback(result.requestId, result.reason),
+                    )
+                }
+            }
+            is SubmitResult.Cancelled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
+            is SubmitResult.Fulfilled -> _uiState.update { it.copy(submission = SubmissionState.Idle) }
+            is SubmitResult.OfflineQueued -> _uiState.update { it.copy(submission = SubmissionState.QueuedOffline(result.draftId)) }
+            is SubmitResult.Error -> _uiState.update { it.copy(submission = SubmissionState.Error(result.message, result.retryable)) }
         }
     }
 
