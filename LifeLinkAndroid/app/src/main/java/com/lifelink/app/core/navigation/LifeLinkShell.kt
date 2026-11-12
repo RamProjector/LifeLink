@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -1409,30 +1410,22 @@ private fun SettingsContent(
                 color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Column(
+        Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
                 .testTag("settings-sections"),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                "Profile sections",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             sections.forEach { item ->
-                if (section == item) {
-                    Button(
-                        onClick = { section = item },
-                        modifier = Modifier.fillMaxWidth().testTag("settings-${item.name}"),
-                    ) { Text(item.label) }
-                } else {
-                    OutlinedButton(
-                        onClick = { section = item },
-                        modifier = Modifier.fillMaxWidth().testTag("settings-${item.name}"),
-                    ) { Text(item.label) }
-                }
+                FilterChip(
+                    selected = section == item,
+                    onClick = { section = item },
+                    label = { Text(item.label, maxLines = 1) },
+                    modifier = Modifier.testTag("settings-${item.name}"),
+                )
             }
         }
         when (section) {
