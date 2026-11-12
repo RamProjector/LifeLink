@@ -12,9 +12,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
-internal class FakeRepository(
-    private val submitResult: SubmitResult = SubmitResult.OfflineQueued("draft-1"),
-) : EmergencyRequestRepository {
+internal class FakeRepository(private val submitResult: SubmitResult = SubmitResult.OfflineQueued("draft-1")) :
+    EmergencyRequestRepository {
     var savedDrafts = 0
     var latestDraft: EmergencyRequestDraft? = null
     val deletedDraftIds = mutableListOf<String>()
