@@ -805,11 +805,16 @@ class SqlAlchemyPrivacyStore:
             await self.session.flush()
 
     async def donor_matched_to_request(self, request_id: str, donor_row_id: str) -> bool:
-        """True when the donor row is one of the request's matches."""
+        """True only while the donor match remains actionable for this request.
+
+        A historical match row is not enough: declined and withdrawn matches
+        must no longer authorize chat creation or exact-location disclosure.
+        """
         match = await self.session.scalar(
             select(RequestMatch).where(
                 RequestMatch.request_id == request_id,
                 RequestMatch.donor_id == donor_row_id,
+                RequestMatch.status.notin_({"declined", "withdrawn"}),
             )
         )
         return match is not None
