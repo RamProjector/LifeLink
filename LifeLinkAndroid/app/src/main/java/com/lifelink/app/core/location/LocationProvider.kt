@@ -56,17 +56,20 @@ class LocationProvider(context: Context) {
 
     private fun android.location.Location.toDeviceLocation(): DeviceLocation? {
         val accuracy = accuracy.takeIf { it.isFinite() && it > 0f }?.roundToInt() ?: return null
-        return DeviceLocation(latitude, longitude, accuracy.coerceIn(1, 10_000))
+        val reportedProvider = provider?.lowercase()?.takeIf { it in SUPPORTED_PROVIDERS } ?: "unknown"
+        return DeviceLocation(latitude, longitude, accuracy.coerceIn(1, 10_000), reportedProvider)
     }
 
     private companion object {
         const val LOCATION_TIMEOUT_MILLIS = 15_000L
         const val MAX_CACHED_LOCATION_AGE_MILLIS = 30_000L
+        val SUPPORTED_PROVIDERS = setOf("fused", "gps", "network", "passive")
     }
 }
 
 data class DeviceLocation(
     val latitude: Double,
     val longitude: Double,
-    val precisionMeters: Int
+    val precisionMeters: Int,
+    val provider: String,
 )
