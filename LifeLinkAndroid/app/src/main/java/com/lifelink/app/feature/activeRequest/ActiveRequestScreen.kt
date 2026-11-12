@@ -328,13 +328,13 @@ private fun ContactActivityCard(
             when {
                 state.contactsRefreshing && state.contacts.isEmpty() ->
                     LifeLinkLoadingIndicator(label = "Refreshing contact activity\u2026")
-                state.contacts.isEmpty() ->
+                state.contacts.isEmpty() && state.contactsError == null ->
                     LifeLinkEmptyState(
                         icon = Icons.Default.VolunteerActivism,
                         title = "No contact activity yet",
                         body = "Selected donors and their responses will appear here.",
                     )
-                else -> {
+                state.contacts.isNotEmpty() -> {
                     state.contacts.forEachIndexed { index, contact ->
                         if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         ContactActivityRow(contact)
