@@ -16,7 +16,7 @@ BEGIN
             ADD CONSTRAINT ck_donors_last_location_provider
             CHECK (
                 last_location_provider IS NULL
-                OR last_location_provider IN ('fused', 'gps', 'network', 'passive')
+                OR last_location_provider IN ('fused', 'gps', 'network', 'passive', 'unknown')
             );
     END IF;
 END;
