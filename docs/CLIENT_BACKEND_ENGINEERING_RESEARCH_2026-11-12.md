@@ -32,7 +32,7 @@ Android’s current architecture recommendations favor a distinct data layer and
 
 The request ViewModel is still a large state holder (about 937 lines at the research snapshot). Do not split it mechanically by line count. A safer staged decomposition is to identify cohesive use cases around validation, submission/retry, contact selection, request lifecycle, and history refresh. Extract one behavior at a time behind narrow interfaces, preserving a single state owner and the existing action/state contract. A function should be split when it mixes distinct business decisions, side effects, and error policies—not simply because it exceeds an arbitrary number of lines.
 
-The test suite was split in this PR along a real responsibility boundary: submission state-machine tests now live in `EmergencyRequestSubmissionTest.kt`; shared repository behavior is in `EmergencyRequestTestFixtures.kt`; remaining history, validation, location, and lifecycle tests stay in `EmergencyRequestViewModelTest.kt`. This addresses a Detekt large-class warning without disabling the rule or reducing assertions.
+The test suite was split in this PR along a real responsibility boundary: submission state-machine tests now live in `EmergencyRequestSubmissionTest.kt`; the shared fake repository fixture is in `FakeRepository.kt`; remaining history, validation, location, and lifecycle tests stay in `EmergencyRequestViewModelTest.kt`. This addresses Detekt large-class and declaration-name warnings without disabling rules or reducing assertions.
 
 ### Offline-first and retry behavior
 
