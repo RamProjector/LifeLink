@@ -65,7 +65,7 @@ class DatabaseMigrationTest {
     }
 
     private fun insertLegacyRequestDraft(database: SQLiteDatabase) {
-    database.execSQL(
+        database.execSQL(
         """
         INSERT INTO emergency_request_drafts (
             id, bloodType, units, typeUnknown, urgency, responseDeadline, note,
@@ -80,9 +80,9 @@ class DatabaseMigrationTest {
         )
         """.trimIndent(),
     )
-}
+    }
 
-private fun insertLegacyRows(old: SQLiteDatabase, version: Int, ownedLegacyRows: Boolean) {
+    private fun insertLegacyRows(old: SQLiteDatabase, version: Int, ownedLegacyRows: Boolean) {
         insertLegacyRequestDraft(old)
         old.execSQL(
             """
