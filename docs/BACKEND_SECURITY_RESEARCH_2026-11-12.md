@@ -66,14 +66,43 @@ Use OWASP API1/API3/API5 as the test map. For every request/donor/conversation/m
 
 Request cancel/fulfill/expiry, donor accept/decline/withdraw, contact creation, block, location-share revoke, and message send can overlap across devices and API workers. Read-then-write checks must be paired with row locks, conditional updates, uniqueness constraints, or transaction isolation appropriate to the operation. Push notifications are best-effort side effects after the durable state transition; clients must reload authoritative state after opening a notification.
 
+### 6. Conversation block/message race (object-level authorization and consistency)
+
+**Evidence:** the message route checked `is_blocked()` and then called `add_message()`, which committed in a later operation. The block route independently inserted and committed a block. A concurrent block could therefore commit after the check but before the message insert, allowing a message after the block action appeared successful.
+
+**Change committed:** added `SqlAlchemyPrivacyStore.lock_conversation()`, using PostgreSQL `SELECT ... FOR UPDATE`. Message send, contact disclosure, and block creation now acquire the same conversation-row lock before checking or changing block state. The lock remains held until the protected write commits, serializing these operations for one conversation.
+
+**Regression coverage:** PostgreSQL integration test verifies a second transaction cannot acquire the same conversation lock until the first commits. Existing block and message flow tests continue to cover participant semantics.
+
+**Boundary:** request cancellation/fulfillment is a separate lifecycle transition and is not serialized by this conversation lock. It requires its own request-row locking/conditional-update analysis.
+
+### 7. Donor location-provider provenance (diagnostic metadata, not sensor attestation)
+
+**Evidence:** Android obtains a single current fix through `FusedLocationProviderClient`; the client retains the returned `Location.provider` string. The fused provider can combine multiple underlying sources, so reporting `fused` is accurate at the API boundary but must not be relabeled as “GPS” or treated as proof that GNSS satellites produced the fix. Android's location API also distinguishes approximate and precise permission levels, and the fused API can return a cached fix within the configured maximum age.
+
+**Change committed:** the Android donor-presence heartbeat now includes a bounded provider category (`fused`, `gps`, `network`, `passive`, or `unknown`). The FastAPI schema accepts only these values; PostgreSQL stores the nullable `last_location_provider` field with a check constraint. Older clients that omit the field remain compatible, and existing rows remain NULL rather than being assigned a guessed provider. The field is not included in public donor-map responses.
+
+**UI correction:** donor location capture no longer labels every fused fix as “GPS”; it describes the reported source category accurately.
+
+**Trust boundary:** this value is client-reported diagnostic metadata. A modified client can lie about it; it must never drive donor eligibility, matching, authorization, or location accuracy. The server timestamp and reported precision remain separate fields.
+
+**Remaining scope:** requester-created emergency location provenance and manual map-pin provenance are not yet persisted in the same way. That requires tracing the requester location DTO and schema separately before adding a migration.
+
+**Primary Android references (2020 onward/current API docs):**
+- FusedLocationProviderClient and permission behavior: https://developers.google.com/android/reference/com/google/android/gms/location/FusedLocationProviderClient
+- CurrentLocationRequest age/duration controls: https://developers.google.com/android/reference/com/google/android/gms/location/CurrentLocationRequest
+- Android's standard fused provider may combine underlying providers: https://developer.android.com/reference/android/location/LocationManager#FUSED_PROVIDER
+- Android approximate/precise permission behavior: https://developer.android.com/develop/sensors-and-location/location/permissions
+
 ## Backend implementation sequence
 
 1. **Rate-limit correctness** — implemented in this PR with PostgreSQL-clock windows and a focused regression test; full PostgreSQL execution is pending CI.
-2. **Atomic disclosure/audit transaction** — implemented in this PR; PostgreSQL failure-injection coverage remains outstanding.
-3. **Location provenance trace** — inspect request DTOs, donor-presence routes, migrations, and Android provider source; document what is already captured before proposing schema changes.
-4. **Authorization matrix** — add cross-role deny tests for every sensitive object route; do not replace object-level checks with role-only checks.
-5. **Lifecycle concurrency** — add concurrent PostgreSQL tests for accept vs cancel/fulfill/expiry, block vs message send, and revoke vs exact-location read.
-6. **Operational safety** — verify migration application state, backup/restore, readiness, rate-limit behavior under multi-instance and DB-outage conditions, and audit retention before any production release.
+2. **Atomic disclosure/audit transaction** — implemented in this PR with a PostgreSQL failure-injection test that verifies a failed audit insert leaves neither record.
+3. **Conversation block/message race** — implemented with a shared conversation-row lock and PostgreSQL lock-serialization coverage.
+4. **Donor location-provider provenance** — implemented for donor-presence heartbeats with a bounded nullable field and additive schema migration; requester-created location provenance remains open.
+5. **Authorization matrix** — add cross-role deny tests for every sensitive object route; do not replace object-level checks with role-only checks.
+6. **Lifecycle concurrency** — add concurrent PostgreSQL tests for accept vs cancel/fulfill/expiry, block vs message send, and revoke vs exact-location read.
+7. **Operational safety** — verify migration application state, backup/restore, readiness, rate-limit behavior under multi-instance and DB-outage conditions, and audit retention before any production release.
 
 ## Acceptance gates
 
