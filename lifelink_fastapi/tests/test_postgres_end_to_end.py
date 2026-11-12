@@ -337,21 +337,22 @@ def test_cancel_stops_the_donor_search_broadcast(pg_url):
     run_scenario(pg_url, scenario)
 
 
-def test_sweeper_expires_requests_past_their_deadline(pg_url):
-    """An open request must expire on its own once its deadline passes.
-
-    The lazy read paths only expire a request that something reads. The
-    background sweeper must close a timed-out request even when nothing reads
-    it, so its status reflects the deadline without any client action.
-    """
+def test_sweeper_expires_requests_and_closes_open_matches_and_contacts(pg_url):
+    """The background sweep expires requests and closes their active child rows."""
 
     async def scenario(client, current, run_sql):
-        """Age a request, run the store sweep, and verify persisted expiry via SQL."""
         donor, requester = new_user("donor"), new_user("requester")
         await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
 
-        # The deadline passes with no further cancel/fulfil and no read.
+        current["id"] = requester
+        contacted = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/contact",
+            json={"donor_ids": [donor]},
+        )
+        assert contacted.status_code == 200, contacted.text
+
+        # The deadline passes with a pending donor contact and no client read.
         await run_sql(
             f"UPDATE emergency_requests SET response_deadline = now() - interval '1 hour' "
             f"WHERE id = '{created['request_id']}'"
@@ -369,25 +370,72 @@ def test_sweeper_expires_requests_past_their_deadline(pg_url):
         await engine.dispose()
         assert expired >= 1
 
-        async with create_async_engine(pg_url).connect() as conn:
-            result = await conn.execute(
-                text(
-                    "SELECT id, status::text, updated_at > created_at "
-                    "FROM emergency_requests WHERE id IN (:rid, :open)"
-                ),
-                {"rid": created["request_id"], "open": still_open["request_id"]},
-            )
-            rows = {row[0]: (row[1], row[2]) for row in result.all()}
-        assert rows[created["request_id"]][0] == "expired"
-        # The sweep stamps updated_at so the transition is observable.
-        assert rows[created["request_id"]][1] is True
-        # A request still inside its deadline is untouched.
-        assert rows[still_open["request_id"]][0] in {
+        rows = await run_sql(
+            "SELECT id, status::text, updated_at > created_at "
+            f"FROM emergency_requests WHERE id IN ('{created['request_id']}', '{still_open['request_id']}')"
+        )
+        by_id = {row[0]: (row[1], row[2]) for row in rows}
+        assert by_id[created["request_id"]] == ("expired", True)
+        assert by_id[still_open["request_id"]][0] in {
             "matching",
             "awaiting_responses",
             "partially_fulfilled",
             "manual_broadcast",
         }
+
+        match_rows = await run_sql(
+            "SELECT status::text FROM request_matches "
+            f"WHERE request_id = '{created['request_id']}'"
+        )
+        contact_rows = await run_sql(
+            "SELECT status FROM donor_contact_requests "
+            f"WHERE request_id = '{created['request_id']}'"
+        )
+        assert match_rows == [("withdrawn",)]
+        assert contact_rows == [("cancelled",)]
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_response_after_deadline_expires_request_and_closes_children(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        contacted = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/contact",
+            json={"donor_ids": [donor]},
+        )
+        assert contacted.status_code == 200, contacted.text
+
+        await run_sql(
+            f"UPDATE emergency_requests SET response_deadline = now() - interval '1 second' "
+            f"WHERE id = '{created['request_id']}'"
+        )
+        current["id"] = donor
+        response = await client.post(
+            f"/v1/donors/{donor}/requests/{created['request_id']}/response",
+            json={"response": "accepted"},
+        )
+        assert response.status_code == 409, response.text
+
+        request_rows = await run_sql(
+            "SELECT status::text FROM emergency_requests "
+            f"WHERE id = '{created['request_id']}'"
+        )
+        match_rows = await run_sql(
+            "SELECT status::text FROM request_matches "
+            f"WHERE request_id = '{created['request_id']}'"
+        )
+        contact_rows = await run_sql(
+            "SELECT status FROM donor_contact_requests "
+            f"WHERE request_id = '{created['request_id']}'"
+        )
+        assert request_rows == [("expired",)]
+        assert match_rows == [("withdrawn",)]
+        assert contact_rows == [("cancelled",)]
 
     run_scenario(pg_url, scenario)
 
