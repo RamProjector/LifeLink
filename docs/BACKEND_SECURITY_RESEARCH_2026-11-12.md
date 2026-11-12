@@ -172,3 +172,16 @@ Exact-location share activation now also locks and re-checks the request row bef
 **Regression coverage:** PostgreSQL end-to-end tests now create a real match and pending contact, age the request deadline, and verify the sweep leaves the parent `expired`, match `withdrawn`, and contact `cancelled`. A second test verifies the same cleanup when a donor attempts to accept after the deadline and receives HTTP 409.
 
 **Boundary:** exact-location reads independently verify request state and live-share consent, so stale share rows cannot authorize coordinates after expiry even if the periodic share cleanup runs later. Push delivery remains a separate asynchronous side effect and is not implied by the database state transition.
+
+
+## 9. Exact-location expiry sweeper is now set-based and race-aware
+
+**Evidence:** the location-share sweeper previously selected every active share, then issued one request lookup per share. That was an N+1 query pattern: a backlog of `N` live shares could cause approximately `N + 1` database round trips. The loop also made the decision from an ORM snapshot before updating a share, so a concurrent activation that extended the expiry window could race with a stale application-side expiry decision.
+
+**Change committed:** `expire_stale_shares()` now issues one correlated PostgreSQL `UPDATE ... RETURNING`. It expires an active share when its own `expires_at` has elapsed, or when no parent request exists with both an active lifecycle status and a future response deadline. The `status = 'active'` predicate prevents the sweeper from overwriting a donor's `revoked` state. The `expires_at <= now` predicate is evaluated by PostgreSQL as part of the update, so a concurrent share extension is checked against the current target row rather than a previously materialized ORM object. The operation returns only changed share IDs to calculate the affected count; it does not load every share into Python or issue a per-share request lookup.
+
+The request-scoped expiry helper also uses a single conditional update. Its audit row is now inserted in the same transaction as share expiry, rather than after the share commit, so a reported successful close cannot omit the corresponding audit event.
+
+**Regression coverage:** the existing PostgreSQL test verifies a timed-out request's share is expired by the sweeper. A new PostgreSQL test creates two shares for one still-active request, ages only one share's own expiry, runs the sweeper, and verifies that the elapsed share becomes `expired` while the other remains `active`. Existing revocation tests verify a share already marked `revoked` remains unavailable.
+
+**Performance and safety limits:** the bulk update removes the per-share request query and avoids materializing the full share backlog in application memory. It does not add a new cache, queue, paid telemetry dependency, or hosted service. Continue measuring sweeper duration and rows affected in production-safe logs before adjusting the 300-second cadence or batch behavior; do not infer notification delivery from share-expiry state.
