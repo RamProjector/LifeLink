@@ -519,7 +519,7 @@ class SqlAlchemyRequestStore(RequestStore):
                 "longitude": float(row.requester_longitude),
                 "precision_meters": row.location_precision_meters,
                 "verified": row.facility.verified if row.facility else False,
-                "source": getattr(row, "requester_location_source", "unknown"),
+                "source": getattr(row, "requester_location_source", None) or "unknown",
             },
             "contact_method": _enum_value(row.contact_method),
             "note": row.note,
