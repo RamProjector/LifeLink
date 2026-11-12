@@ -1280,6 +1280,49 @@ def test_location_share_cannot_be_activated_on_an_inactive_request(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_sweeper_expires_elapsed_window_and_preserves_live_share(pg_url):
+    async def scenario(client, current, run_sql):
+        expired_donor, live_donor = new_user("donor"), new_user("donor")
+        requester = new_user("requester")
+        await setup_donor(client, current, expired_donor, map_visible=True, exact_sharing=True)
+        await setup_donor(client, current, live_donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+        current["id"] = requester
+
+        for donor in (expired_donor, live_donor):
+            activated = await client.post(
+                f"/v1/emergency-requests/{request_id}/donors/{donor}/location-share"
+            )
+            assert activated.status_code == 200, activated.text
+
+        # Only one share's own time window has passed; the request is still open.
+        await run_sql(
+            "UPDATE donor_location_shares "
+            "SET expires_at = now() - interval '1 hour' "
+            f"WHERE request_id = '{request_id}' AND donor_id = '{expired_donor}'"
+        )
+
+        from app.privacy_repositories import SqlAlchemyPrivacyStore
+
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        async with sessions() as session:
+            closed = await SqlAlchemyPrivacyStore(session).expire_stale_shares()
+        await engine.dispose()
+        assert closed == 1
+
+        rows = await run_sql(
+            "SELECT donor_id, status FROM donor_location_shares "
+            f"WHERE request_id = '{request_id}'"
+        )
+        statuses = dict(rows)
+        assert statuses[expired_donor] == "expired"
+        assert statuses[live_donor] == "active"
+
+    run_scenario(pg_url, scenario)
+
+
 def test_sweeper_expires_shares_for_timed_out_requests(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
