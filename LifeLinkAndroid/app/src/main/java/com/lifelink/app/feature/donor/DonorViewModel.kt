@@ -16,9 +16,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import java.io.IOException
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
+import java.io.IOException
 
 data class DonorUiState(
     val profile: DonorProfile = DonorProfile(),
