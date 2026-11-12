@@ -100,7 +100,6 @@ private data class ConversationDraftAcknowledgementState(
 
 private data class ConversationDraftAcknowledgementActions(val onClearDraft: () -> Unit, val onClearSubmittedRevision: () -> Unit)
 
-
 private data class ConversationMessagesListParams(
     val modifier: Modifier,
     val listState: LazyListState,
@@ -113,7 +112,6 @@ private data class ConversationMessagesListParams(
 )
 
 private data class ConversationDialogState(val showReport: Boolean, val reportReason: String, val showBlockConfirm: Boolean)
-
 
 private data class ConversationDialogActions(
     val onReportReasonChange: (String) -> Unit,
