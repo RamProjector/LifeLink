@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.lifelink.app.domain.ActiveRequestSnapshot
+import com.lifelink.app.domain.ActiveRequestStatus
 import com.lifelink.app.domain.DiscoveredDonor
 import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.EmergencyRequestRepository
@@ -67,7 +68,17 @@ data class EmergencyRequestUiState(
     val nearbyFacilities: List<NearbyFacility> = emptyList(),
     val nearbyFacilitiesLoading: Boolean = false,
     val nearbyFacilitiesError: String? = null,
-)
+) {
+    val hasActiveRequest: Boolean
+        get() = activeRequest?.isTerminal == false ||
+            requestHistory.any { request ->
+                request.status !in setOf(
+                    ActiveRequestStatus.FULFILLED,
+                    ActiveRequestStatus.EXPIRED,
+                    ActiveRequestStatus.CANCELLED,
+                )
+            }
+}
 
 sealed interface EmergencyRequestAction {
     data class UpdateDraft(val update: (EmergencyRequestDraft) -> EmergencyRequestDraft) : EmergencyRequestAction
@@ -360,7 +371,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
         // network requests for the same emergency draft.
         val current = _uiState.value
         if (current.submission is SubmissionState.Submitting) return
-        if (current.activeRequest?.isTerminal == false) {
+        if (current.hasActiveRequest) {
             _uiState.update {
                 it.copy(
                     submission = SubmissionState.Error(
