@@ -328,17 +328,21 @@ fun ConversationScreen(
 
     ConversationSafetyDialogs(
         conversationId = state.conversationId.orEmpty(),
-        showReport = showReport,
-        reportReason = reportReason,
-        showBlockConfirm = showBlockConfirm,
-        onReportReasonChange = { reportReason = it },
-        onDismissReport = { showReport = false },
-        onDismissBlock = { showBlockConfirm = false },
-        onAction = onAction,
-        onReportSubmitted = {
-            reportReason = ""
-            showReport = false
-        },
+        dialogState = ConversationDialogState(
+            showReport = showReport,
+            reportReason = reportReason,
+            showBlockConfirm = showBlockConfirm,
+        ),
+        actions = ConversationDialogActions(
+            onReportReasonChange = { reportReason = it },
+            onDismissReport = { showReport = false },
+            onDismissBlock = { showBlockConfirm = false },
+            onAction = onAction,
+            onReportSubmitted = {
+                reportReason = ""
+                showReport = false
+            },
+        ),
     )
 }
 
@@ -602,23 +606,17 @@ private fun ConversationSafetyCard(
 @Composable
 private fun ConversationSafetyDialogs(
     conversationId: String,
-    showReport: Boolean,
-    reportReason: String,
-    showBlockConfirm: Boolean,
-    onReportReasonChange: (String) -> Unit,
-    onDismissReport: () -> Unit,
-    onDismissBlock: () -> Unit,
-    onAction: (PrivacyAction) -> Unit,
-    onReportSubmitted: () -> Unit,
+    dialogState: ConversationDialogState,
+    actions: ConversationDialogActions,
 ) {
-    if (showReport) {
+    if (dialogState.showReport) {
         AlertDialog(
-            onDismissRequest = onDismissReport,
+            onDismissRequest = actions.onDismissReport,
             title = { Text("Report this person") },
             text = {
                 OutlinedTextField(
-                    value = reportReason,
-                    onValueChange = { if (it.length <= 500) onReportReasonChange(it) },
+                    value = dialogState.reportReason,
+                    onValueChange = { if (it.length <= 500) actions.onReportReasonChange(it) },
                     label = { Text("What happened? (optional)") },
                     minLines = 2,
                     maxLines = 4,
@@ -626,25 +624,25 @@ private fun ConversationSafetyDialogs(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    onAction(PrivacyAction.ReportParticipant(conversationId, reportReason))
-                    onReportSubmitted()
+                    actions.onAction(PrivacyAction.ReportParticipant(conversationId, dialogState.reportReason))
+                    actions.onReportSubmitted()
                 }) { Text("Submit report") }
             },
-            dismissButton = { TextButton(onClick = onDismissReport) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = actions.onDismissReport) { Text("Cancel") } },
         )
     }
-    if (showBlockConfirm) {
+    if (dialogState.showBlockConfirm) {
         AlertDialog(
-            onDismissRequest = onDismissBlock,
+            onDismissRequest = actions.onDismissBlock,
             title = { Text("Block this person?") },
             text = { Text("They will no longer be able to contact you through LifeLink.") },
             confirmButton = {
                 TextButton(onClick = {
-                    onAction(PrivacyAction.BlockParticipant(conversationId))
-                    onDismissBlock()
+                    actions.onAction(PrivacyAction.BlockParticipant(conversationId))
+                    actions.onDismissBlock()
                 }) { Text("Block") }
             },
-            dismissButton = { TextButton(onClick = onDismissBlock) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = actions.onDismissBlock) { Text("Cancel") } },
         )
     }
 }
