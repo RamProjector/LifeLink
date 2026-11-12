@@ -515,7 +515,6 @@ fun LifeLinkShell(
                                 SettingsContent(
                                     role,
                                     accountEmail,
-                                    accountUserId,
                                     accountDisplayName,
                                     profileSaving,
                                     profileMessage,
@@ -1353,7 +1352,6 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
 private fun SettingsContent(
     role: UserRole,
     accountEmail: String,
-    accountUserId: String,
     accountDisplayName: String,
     profileSaving: Boolean,
     profileMessage: String?,
