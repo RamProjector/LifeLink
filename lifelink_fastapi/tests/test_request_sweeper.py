@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, call
 
+from sqlalchemy.dialects import postgresql
+
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -105,8 +107,17 @@ def test_batch_bounds_the_database_query_before_loading_rows(session, limit, exp
     statement = session.scalars.await_args.args[0]
     # Check the bound sent to SQL, not just the returned count: limiting after
     # materializing rows would still load an unbounded backlog into memory.
-    query = str(statement.compile(compile_kwargs={"literal_binds": True}))
-    assert query.endswith(f"LIMIT {expected}")
+    # Compile with PostgreSQL's dialect so the test verifies the actual
+    # queue-worker locking clause rather than a lightweight test dialect that
+    # may omit unsupported SKIP LOCKED syntax.
+    query = str(
+        statement.compile(
+            dialect=postgresql.dialect(),
+            compile_kwargs={"literal_binds": True},
+        )
+    )
+    assert f"LIMIT {expected}" in query
+    assert query.endswith("FOR UPDATE SKIP LOCKED")
 
 
 @pytest.mark.parametrize("operation", ["scalars", "commit"])
