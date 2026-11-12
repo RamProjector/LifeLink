@@ -78,6 +78,14 @@ The block record and its audit event now also share one transaction. If the audi
 
 **Boundary:** request cancellation/fulfillment is a separate lifecycle transition and is not serialized by this conversation lock. It requires its own request-row locking/conditional-update analysis.
 
+### 6a. Manual-broadcast status is not an actual notification broadcast
+
+**Evidence:** the PostgreSQL `POST /v1/emergency-requests/{request_id}/manual-broadcast` route changes the request status to `manual_broadcast`, records an audit event, and returns an eligible-audience filter. It does not enqueue or send donor notifications. The cloud README also states that request creation does not broadcast; donors are notified only when the requester contacts selected donors.
+
+**UI correction committed:** removed the misleading “Send manual broadcast” CTA and snackbar action. The Active Request screen now shows “Manual review pending” and explicitly states that LifeLink has not sent donor notifications. This avoids implying that a broad donor notification or blood supply has been arranged when neither has occurred.
+
+**Remaining work:** a real coordinator/blood-service workflow would require a defined recipient system, delivery channel, permissions, audit trail, operational ownership, and verified delivery status. Do not call a status transition a broadcast.
+
 ### 7. Donor location-provider provenance (diagnostic metadata, not sensor attestation)
 
 **Evidence:** Android obtains a single current fix through `FusedLocationProviderClient`; the client retains the returned `Location.provider` string. The fused provider can combine multiple underlying sources, so reporting `fused` is accurate at the API boundary but must not be relabeled as “GPS” or treated as proof that GNSS satellites produced the fix. Android's location API also distinguishes approximate and precise permission levels, and the fused API can return a cached fix within the configured maximum age.
