@@ -132,7 +132,7 @@ private fun MessagingNotificationEffect(
     onSelectConversation: (Conversation) -> Unit,
     onOpenConversation: (String, String) -> Unit,
 ) {
-    val notificationKey = target?.let { "\${it.conversationId}|\${it.eventId.orEmpty()}" }
+    val notificationKey = target?.let { "${it.conversationId}|${it.eventId.orEmpty()}" }
     LaunchedEffect(notificationKey, state.conversations, state.conversationsLoading, useListDetailLayout) {
         if (notificationKey == null || notificationKey == handledNotificationKey || state.conversationsLoading) {
             return@LaunchedEffect
