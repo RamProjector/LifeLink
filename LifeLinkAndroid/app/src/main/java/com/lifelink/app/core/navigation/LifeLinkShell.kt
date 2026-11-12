@@ -276,8 +276,10 @@ fun LifeLinkShell(
         StartContent(
             role = role,
             hasActiveRequest = state.hasActiveRequest,
-            canCreateRequest = state.historyLoaded && !state.historyRefreshing &&
-                state.historyError == null && !state.hasActiveRequest,
+            canCreateRequest = state.historyLoaded &&
+                !state.historyRefreshing &&
+                state.historyError == null &&
+                !state.hasActiveRequest,
             onGetStarted = markWelcomeSeen,
             onCreateRequest = {
                 markWelcomeSeen()
