@@ -1681,6 +1681,11 @@ private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> U
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Account security", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Signing out clears the local session on this device. If you suspect unauthorized access, reset your password and sign out.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 OutlinedButton(
                     onClick = { onRequestPasswordReset { message -> resetMessage = message } },
                     modifier = Modifier.fillMaxWidth(),
