@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     Boolean,
+    BigInteger,
     Date,
     DateTime,
     ForeignKey,
@@ -478,5 +479,5 @@ class RateLimitCounter(Base):
     __tablename__ = "rate_limit_counters"
 
     bucket_key: Mapped[str] = mapped_column(String(256), primary_key=True)
-    window_start: Mapped[int] = mapped_column(Integer, primary_key=True)
+    window_start: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
