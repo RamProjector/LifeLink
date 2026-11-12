@@ -52,6 +52,7 @@ class EmergencyRequestViewModelTest {
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
         advanceUntilIdle()
         assertTrue(viewModel.uiState.value.historyError != null)
+        assertTrue(viewModel.uiState.value.historyLoaded)
         assertTrue(!viewModel.uiState.value.historyRefreshing)
         repository.historyFailure = null
         repository.history = listOf(RequestHistoryItem("saved-request", com.lifelink.app.domain.ActiveRequestStatus.AWAITING_RESPONSES))
@@ -64,6 +65,7 @@ class EmergencyRequestViewModelTest {
                 .requestId,
         )
         assertEquals(null, viewModel.uiState.value.historyError)
+        assertTrue(viewModel.uiState.value.historyLoaded)
         repository.historyFailure = java.io.IOException("offline again")
         viewModel.onAction(EmergencyRequestAction.RefreshHistory)
         advanceUntilIdle()
