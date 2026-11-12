@@ -318,19 +318,44 @@ class SqlAlchemyPrivacyStore:
         self, request_id: str, donor_id: str, requester_id: str
     ) -> dict:
         """Return exact coordinates only while a live share authorizes them."""
-        request = await self.session.get(RequestRow, request_id)
+        # Keep request, donor consent, and share state stable until the
+        # response is assembled. This uses the same request -> donor -> share
+        # lock order as activation and prevents a late GET from returning exact
+        # coordinates after cancellation, opt-out, or revocation commits.
+        request = await self.session.scalar(
+            select(RequestRow)
+            .where(RequestRow.id == request_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
         if request is None:
             raise KeyError(request_id)
         if request.requester_id != requester_id:
             raise PermissionError("Not the requester for this request")
-        donor = await self._donor_row(donor_id)
+        donor = await self.session.scalar(
+            select(DonorRow)
+            .where(DonorRow.id == donor_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if donor is None:
+            donor = await self.session.scalar(
+                select(DonorRow)
+                .where(DonorRow.user_id == donor_id)
+                .limit(1)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
         if donor is None:
             raise KeyError(donor_id)
         share = await self.session.scalar(
-            select(DonorLocationShare).where(
+            select(DonorLocationShare)
+            .where(
                 DonorLocationShare.request_id == request_id,
                 DonorLocationShare.donor_id == donor.id,
             )
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         now = datetime.now(UTC)
         # Profile edits and account creation are not evidence of a fresh GPS observation.
