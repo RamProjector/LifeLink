@@ -27,7 +27,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -154,7 +153,12 @@ fun ActiveRequestScreen(
         ) {
             StatusCard(active)
             requestDetails?.let { RequestDetailsCard(it) }
-            ProgressCard(active)
+            val contactedDonors = when {
+                state.contacts.isNotEmpty() -> state.contacts.size
+                state.contactsRefreshing || state.contactsError != null -> null
+                else -> 0
+            }
+            ProgressCard(active, contactedDonors)
             ContactActivityCard(state, active, onAction, onReviewContacts)
             if (active.status == ActiveRequestStatus.MANUAL_BROADCAST) {
                 Button(onClick = {
@@ -278,50 +282,22 @@ private fun StatusCard(active: ActiveRequestSnapshot) {
 
 /** Two metric tiles summarizing how many donors were notified and how many responded. */
 @Composable
-private fun ProgressCard(active: ActiveRequestSnapshot) {
+private fun ProgressCard(active: ActiveRequestSnapshot, contactedDonors: Int?) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Response activity", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricTile("Donors notified", active.notificationsCreated.toString(), Modifier.weight(1f))
-                MetricTile("Responses", active.matchesResponded.toString(), Modifier.weight(1f))
+                MetricTile("Contacted donors", contactedDonors?.toString() ?: "—", Modifier.weight(1f))
+                MetricTile("Donor responses", active.matchesResponded.toString(), Modifier.weight(1f))
             }
-            val responseRatio =
-                if (active.notificationsCreated > 0) {
-                    (active.matchesResponded.toFloat() / active.notificationsCreated.toFloat()).coerceIn(0f, 1f)
-                } else {
-                    0f
-                }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                LinearProgressIndicator(
-                    progress = { responseRatio },
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .semantics {
-                            contentDescription =
-                                if (active.notificationsCreated == 0) {
-                                    "No donors notified yet"
-                                } else {
-                                    "${active.matchesResponded} of ${active.notificationsCreated} notified donors responded"
-                                }
-                        },
-                )
-                Text(
-                    if (active.notificationsCreated == 0) {
-                        "No donors have been notified yet."
-                    } else {
-                        "${active.matchesResponded} of ${active.notificationsCreated} notified donors responded " +
-                            "(${(responseRatio * 100).toInt()}%)."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(
+                "Contacted donors are counted from saved contact requests. Notification delivery is tracked separately.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
-
 /** A single metric rendered as a tonal tile so the two counts read as a pair. */
 @Composable
 private fun MetricTile(label: String, value: String, modifier: Modifier = Modifier) {
