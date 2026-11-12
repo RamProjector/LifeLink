@@ -504,7 +504,12 @@ data class DonorProfileMeRequest(
     @SerializedName("profile_visible") val profileVisible: Boolean = true,
 )
 
-data class DonorPresenceRequest(val latitude: Double, val longitude: Double, @SerializedName("precision_meters") val precisionMeters: Int)
+data class DonorPresenceRequest(
+    val latitude: Double,
+    val longitude: Double,
+    @SerializedName("precision_meters") val precisionMeters: Int,
+    @SerializedName("provider") val provider: String? = null,
+)
 
 data class DonorAvailabilityToggleRequest(@SerializedName("availability_status") val availabilityStatus: String)
 
