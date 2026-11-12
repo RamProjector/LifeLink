@@ -161,6 +161,46 @@ class SqlAlchemyRequestStore(RequestStore):
             await self._expire_if_needed(row)
         return self._to_record(row) if row else None
 
+    async def close_expired_request_children_async(
+        self, request_ids: list[str], now: datetime
+    ) -> None:
+        """Withdraw open matches and cancel open contacts for expired requests.
+
+        Keep declined matches/contacts and fulfilled contacts as historical
+        outcomes. The caller must already hold the parent request-row lock, or
+        have atomically changed its active status to expired in this transaction.
+        """
+        request_ids = sorted(set(request_ids))
+        if not request_ids:
+            return
+        matches = await self.session.scalars(
+            select(RequestMatchRow)
+            .where(
+                RequestMatchRow.request_id.in_(request_ids),
+                RequestMatchRow.status.notin_(
+                    {MatchStatusEnum.WITHDRAWN.value, MatchStatusEnum.DECLINED.value}
+                ),
+            )
+            .order_by(RequestMatchRow.request_id, RequestMatchRow.id)
+            .with_for_update()
+        )
+        for match in matches.all():
+            match.status = MatchStatusEnum.WITHDRAWN
+            match.responded_at = match.responded_at or now
+
+        contacts = await self.session.scalars(
+            select(DonorContactRequest)
+            .where(
+                DonorContactRequest.request_id.in_(request_ids),
+                DonorContactRequest.status.notin_({"cancelled", "fulfilled", "declined"}),
+            )
+            .order_by(DonorContactRequest.request_id, DonorContactRequest.id)
+            .with_for_update()
+        )
+        for contact in contacts.all():
+            contact.status = "cancelled"
+            contact.updated_at = now
+
     async def _expire_if_needed(self, row: EmergencyRequestRow) -> bool:
         """Expire a due request with an atomic active-state compare-and-set."""
         now = datetime.now(UTC)
@@ -186,6 +226,7 @@ class SqlAlchemyRequestStore(RequestStore):
             return False
         row.status = RequestStatusEnum.EXPIRED
         row.updated_at = now
+        await self.close_expired_request_children_async([row.id], now)
         await self.session.commit()
         return True
 
@@ -216,15 +257,16 @@ class SqlAlchemyRequestStore(RequestStore):
             .with_for_update(skip_locked=True)
             .execution_options(populate_existing=True)
         )
-        count = 0
+        expired_ids: list[str] = []
         for row in open_requests.all():
             if is_request_expired(_enum_value(row.status), row.response_deadline, now):
                 row.status = RequestStatusEnum.EXPIRED
                 row.updated_at = now
-                count += 1
-        if count:
+                expired_ids.append(row.id)
+        if expired_ids:
+            await self.close_expired_request_children_async(expired_ids, now)
             await self.session.commit()
-        return count
+        return len(expired_ids)
 
     async def list_by_requester_async(self, requester_id: str, limit: int = 50) -> list[RequestRecord]:
         """Return a requester's requests, newest first, reporting overdue ones as expired."""
@@ -265,6 +307,7 @@ class SqlAlchemyRequestStore(RequestStore):
                     if row.id in changed_ids:
                         row.status = RequestStatusEnum.EXPIRED
                         row.updated_at = now
+                await self.close_expired_request_children_async(sorted(changed_ids), now)
                 await self.session.commit()
         records: list[RequestRecord] = []
         for row in rows:
