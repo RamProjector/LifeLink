@@ -57,7 +57,6 @@ class EmergencyRequestSubmissionTest {
         assertEquals(SubmissionState.Matching("request-accepted"), viewModel.uiState.value.submission)
     }
 
-
     @Test
     fun critical_submit_requires_confirmation_then_starts_matching() = runTest {
         val repository = FakeRepository(SubmitResult.MatchingStarted("req-1"))
@@ -81,7 +80,6 @@ class EmergencyRequestSubmissionTest {
         advanceUntilIdle()
         assertEquals(SubmissionState.Matching("req-1"), viewModel.uiState.value.submission)
     }
-
 
     @Test
     fun rapid_duplicate_submit_actions_start_only_one_repository_request() = runTest {
@@ -114,7 +112,6 @@ class EmergencyRequestSubmissionTest {
         assertEquals(1, repository.submitCalls)
     }
 
-
     @Test
     fun submission_persists_the_exact_draft_before_network_request() = runTest {
         val repository = FakeRepository(SubmitResult.MatchingStarted("persisted-request"))
@@ -139,10 +136,12 @@ class EmergencyRequestSubmissionTest {
         assertEquals(SubmissionState.Matching("persisted-request"), viewModel.uiState.value.submission)
     }
 
-
     @Test
     fun local_draft_persistence_failure_prevents_network_submission() = runTest {
-        val repository = FakeRepository().apply { draftSaveFailure = java.io.IOException("disk unavailable") }
+        val repository =
+            FakeRepository().apply {
+                draftSaveFailure = java.io.IOException("disk unavailable")
+            }
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
         viewModel.onAction(
             EmergencyRequestAction.UpdateDraft {
@@ -164,7 +163,6 @@ class EmergencyRequestSubmissionTest {
         val error = viewModel.uiState.value.submission as SubmissionState.Error
         assertTrue(!error.retryable)
     }
-
 
     @Test
     fun editing_draft_during_submission_is_ignored() = runTest {
@@ -193,7 +191,6 @@ class EmergencyRequestSubmissionTest {
         pendingResult.complete(SubmitResult.MatchingStarted("locked-request"))
         advanceUntilIdle()
     }
-
 
     @Test
     fun queued_offline_submission_keeps_its_original_payload_immutable() = runTest {
@@ -225,7 +222,6 @@ class EmergencyRequestSubmissionTest {
         assertEquals(originalNote, viewModel.uiState.value.draft.note)
         assertEquals(1, repository.savedDrafts)
     }
-
 
     @Test
     fun non_retryable_submission_error_does_not_repeat_network_request() = runTest {
