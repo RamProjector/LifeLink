@@ -140,9 +140,9 @@ jobs:
             local listing_file="$GITHUB_WORKSPACE/visual-artifacts/evidence-listing-${stage}.txt"
             local listing
             local listing_exit
-            listing="$(timeout 10s adb -s "$device_serial" shell run-as com.lifelink.app ls -1 files/lifelink-evidence 2>&1)"
+            listing="$(timeout 10s adb -s "$device_serial" shell run-as com.lifelink.app ls -1 files/lifelink-evidence 2>&1 | tr -d '\r')"
             listing_exit=$?
-            printf "run-as exit=%s\\n%s\\n" "$listing_exit" "$listing" > "$listing_file"
+            printf 'run-as exit=%s\n%s\n' "$listing_exit" "$listing" > "$listing_file"
             if [[ "$listing_exit" != "0" ]]; then
               echo "::warning::Could not list app-private visual evidence after ${stage}; see $(basename "$listing_file")."
               return 0
