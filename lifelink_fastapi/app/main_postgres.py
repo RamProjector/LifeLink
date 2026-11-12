@@ -1823,12 +1823,24 @@ async def block_conversation_participant(
     other = await store.other_participant_user_id(conversation, principal.subject)
     if other is None:
         raise HTTPException(status_code=400, detail="No other participant to block")
-    await store.block_participant(conversation, principal.subject, other, (payload.reason if payload else ""))
-    await store.record_audit_async(
-        principal.subject,
-        "conversation_blocked",
-        conversation.request_id,
-        conversation.donor_id,
-        {"conversation_id": conversation.id, "blocked_id": other},
-    )
+    try:
+        await store.block_participant(
+            conversation,
+            principal.subject,
+            other,
+            (payload.reason if payload else ""),
+            commit=False,
+        )
+        await store.record_audit_async(
+            principal.subject,
+            "conversation_blocked",
+            conversation.request_id,
+            conversation.donor_id,
+            {"conversation_id": conversation.id, "blocked_id": other},
+            commit=False,
+        )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
     return ConversationModerationOut(conversation_id=conversation.id, action="blocked")
