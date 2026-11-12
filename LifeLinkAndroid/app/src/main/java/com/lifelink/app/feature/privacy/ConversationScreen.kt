@@ -287,14 +287,14 @@ fun ConversationScreen(
             chatReady = chatReady,
             contactField = contactField,
             contactValue = contactValue,
-            onContactFieldChange = { contactField = it },
-            onContactValueChange = { if (it.length <= MAX_CONTACT_VALUE_LENGTH) contactValue = it },
-            onShareContact = {
-                onAction(PrivacyAction.ShareContact(contactField, contactValue))
-            },
-            onReport = { showReport = true },
-            onBlock = { showBlockConfirm = true },
-            onAction = onAction,
+            actions = ConversationListActions(
+                onContactFieldChange = { contactField = it },
+                onContactValueChange = { if (it.length <= MAX_CONTACT_VALUE_LENGTH) contactValue = it },
+                onShareContact = { onAction(PrivacyAction.ShareContact(contactField, contactValue)) },
+                onReport = { showReport = true },
+                onBlock = { showBlockConfirm = true },
+                onAction = onAction,
+            ),
         )
 
         if (state.conversationId == null && !state.chatLoading) {
@@ -351,75 +351,89 @@ private fun ConversationMessagesList(
     chatReady: Boolean,
     contactField: String,
     contactValue: String,
-    onContactFieldChange: (String) -> Unit,
-    onContactValueChange: (String) -> Unit,
-    onShareContact: () -> Unit,
-    onReport: () -> Unit,
-    onBlock: () -> Unit,
-    onAction: (PrivacyAction) -> Unit,
+    actions: ConversationListActions,
 ) {
     LazyColumn(modifier, state = listState, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (state.chatLoading) {
-            item {
-                Column(
-                    Modifier.fillMaxWidth().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    CircularProgressIndicator(Modifier.size(28.dp))
-                    Text("Loading conversation…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        } else if (state.conversationId == null) {
-            item {
-                LifeLinkEmptyState(
-                    icon = Icons.AutoMirrored.Filled.Chat,
-                    title = "Conversation unavailable",
-                    body = "This conversation could not be opened. Go back and try again.",
-                )
-            }
-        } else if (state.messages.isEmpty()) {
-            item {
-                LifeLinkEmptyState(
-                    icon = Icons.AutoMirrored.Filled.Chat,
-                    title = "No messages yet",
-                    body = "Say hello to start the conversation.",
-                )
-            }
-        }
-        items(state.messages, key = { it.messageId }) { message ->
+        conversationStatusItems(state)
+        conversationMessageItems(state, currentUserId, chatReady, actions.onAction)
+        conversationSupplementalItems(state, chatReady, contactField, contactValue, actions)
+    }
+}
+
+private fun LazyListScope.conversationStatusItems(state: PrivacyUiState) {
+    when {
+        state.chatLoading -> item {
             Column(
-                Modifier.fillMaxWidth(),
-                horizontalAlignment = if (message.senderId == currentUserId) Alignment.End else Alignment.Start,
+                Modifier.fillMaxWidth().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                MessageBubble(message, message.senderId == currentUserId)
-                TextButton(
-                    onClick = { onAction(PrivacyAction.ToggleSavedMessage(message.messageId)) },
-                    enabled = chatReady,
-                ) {
-                    Text(if (message.isSaved) "Remove saved message" else "Save message")
-                }
+                CircularProgressIndicator(Modifier.size(28.dp))
+                Text("Loading conversation…", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        if (state.savedMessages.isNotEmpty()) {
-            item(key = "saved-messages") { SavedMessagesCard(state.savedMessages) }
-        }
-        if (state.contactShares.isNotEmpty()) {
-            item(key = "shared-contacts") { SharedContactsCard(shares = state.contactShares) }
-        }
-        item(key = "share-contact") {
-            ShareContactCard(
-                contactField = contactField,
-                contactValue = contactValue,
-                enabled = chatReady && !state.sharingContact,
-                onFieldChange = onContactFieldChange,
-                onValueChange = onContactValueChange,
-                onShare = onShareContact,
+        state.conversationId == null -> item {
+            LifeLinkEmptyState(
+                icon = Icons.AutoMirrored.Filled.Chat,
+                title = "Conversation unavailable",
+                body = "This conversation could not be opened. Go back and try again.",
             )
         }
-        item(key = "conversation-safety") {
-            ConversationSafetyCard(onReport = onReport, onBlock = onBlock)
+        state.messages.isEmpty() -> item {
+            LifeLinkEmptyState(
+                icon = Icons.AutoMirrored.Filled.Chat,
+                title = "No messages yet",
+                body = "Say hello to start the conversation.",
+            )
         }
+    }
+}
+
+private fun LazyListScope.conversationMessageItems(
+    state: PrivacyUiState,
+    currentUserId: String,
+    chatReady: Boolean,
+    onAction: (PrivacyAction) -> Unit,
+) {
+    items(state.messages, key = { it.messageId }) { message ->
+        val mine = message.senderId == currentUserId
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+            MessageBubble(message, mine)
+            TextButton(
+                onClick = { onAction(PrivacyAction.ToggleSavedMessage(message.messageId)) },
+                enabled = chatReady,
+            ) {
+                Text(if (message.isSaved) "Remove saved message" else "Save message")
+            }
+        }
+    }
+}
+
+private fun LazyListScope.conversationSupplementalItems(
+    state: PrivacyUiState,
+    chatReady: Boolean,
+    contactField: String,
+    contactValue: String,
+    actions: ConversationListActions,
+) {
+    if (state.savedMessages.isNotEmpty()) {
+        item(key = "saved-messages") { SavedMessagesCard(state.savedMessages) }
+    }
+    if (state.contactShares.isNotEmpty()) {
+        item(key = "shared-contacts") { SharedContactsCard(shares = state.contactShares) }
+    }
+    item(key = "share-contact") {
+        ShareContactCard(
+            contactField = contactField,
+            contactValue = contactValue,
+            enabled = chatReady && !state.sharingContact,
+            onFieldChange = actions.onContactFieldChange,
+            onValueChange = actions.onContactValueChange,
+            onShare = actions.onShareContact,
+        )
+    }
+    item(key = "conversation-safety") {
+        ConversationSafetyCard(onReport = actions.onReport, onBlock = actions.onBlock)
     }
 }
 
