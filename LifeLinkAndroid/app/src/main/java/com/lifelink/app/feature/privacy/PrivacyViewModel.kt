@@ -87,6 +87,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
      */
     private var conversationGeneration = 0
     private var conversationRefreshJob: kotlinx.coroutines.Job? = null
+    private var conversationsGeneration = 0
     private var mapLoadGeneration = 0
 
     fun onAction(action: PrivacyAction) {
@@ -141,12 +142,18 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     }
 
     private fun loadConversations() {
+        // Ignore stale results when a retry or screen re-entry starts a newer load.
+        val generation = ++conversationsGeneration
         viewModelScope.launch {
             _state.value = _state.value.copy(conversationsLoading = true, conversationsError = null)
             repository
                 .conversations()
-                .onSuccess { _state.value = _state.value.copy(conversations = it, conversationsLoading = false) }
+                .onSuccess { conversations ->
+                    if (generation != conversationsGeneration) return@onSuccess
+                    _state.value = _state.value.copy(conversations = conversations, conversationsLoading = false)
+                }
                 .onFailure { error ->
+                    if (generation != conversationsGeneration) return@onFailure
                     _state.value =
                         _state.value.copy(
                             conversationsLoading = false,
