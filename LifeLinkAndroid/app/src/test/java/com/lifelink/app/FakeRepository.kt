@@ -89,6 +89,7 @@ internal class FakeRepository(
         lastMatchesRequestId = requestId
         return matches
     }
+
     override suspend fun findNearbyFacilities(
         latitude: Double,
         longitude: Double,
@@ -122,4 +123,3 @@ internal class FakeRepository(
         return activeRequest
     }
 }
-
