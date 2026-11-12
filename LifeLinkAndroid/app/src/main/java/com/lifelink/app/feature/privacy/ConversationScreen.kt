@@ -88,6 +88,32 @@ private data class ConversationListActions(
     val onAction: (PrivacyAction) -> Unit,
 )
 
+private data class ConversationDraftAcknowledgementState(
+    val sentMessage: ChatMessage?,
+    val sending: Boolean,
+    val message: String?,
+    val currentUserId: String,
+    val draft: String,
+    val draftRevision: Int,
+    val submittedDraftRevision: Int?,
+)
+
+private data class ConversationDraftAcknowledgementActions(
+    val onClearDraft: () -> Unit,
+    val onClearSubmittedRevision: () -> Unit,
+)
+
+private data class ConversationMessagesListParams(
+    val modifier: Modifier,
+    val listState: LazyListState,
+    val state: PrivacyUiState,
+    val currentUserId: String,
+    val chatReady: Boolean,
+    val contactField: String,
+    val contactValue: String,
+    val actions: ConversationListActions,
+)
+
 private data class ConversationDialogState(
     val showReport: Boolean,
     val reportReason: String,
@@ -117,24 +143,17 @@ private fun ConversationOpenEffect(
 
 @Composable
 private fun ConversationDraftAcknowledgementEffect(
-    sentMessage: ChatMessage?,
-    sending: Boolean,
-    message: String?,
-    currentUserId: String,
-    draft: String,
-    draftRevision: Int,
-    submittedDraftRevision: Int?,
-    onClearDraft: () -> Unit,
-    onClearSubmittedRevision: () -> Unit,
+    state: ConversationDraftAcknowledgementState,
+    actions: ConversationDraftAcknowledgementActions,
 ) {
-    LaunchedEffect(sentMessage?.messageId, sending, message) {
-        if (sentMessage?.senderId == currentUserId && submittedDraftRevision != null) {
-            if (draftRevision == submittedDraftRevision && draft.trim() == sentMessage.body) {
-                onClearDraft()
+    LaunchedEffect(state.sentMessage?.messageId, state.sending, state.message) {
+        if (state.sentMessage?.senderId == state.currentUserId && state.submittedDraftRevision != null) {
+            if (state.draftRevision == state.submittedDraftRevision && state.draft.trim() == state.sentMessage.body) {
+                actions.onClearDraft()
             }
-            onClearSubmittedRevision()
-        } else if (!sending && message != null) {
-            onClearSubmittedRevision()
+            actions.onClearSubmittedRevision()
+        } else if (!state.sending && state.message != null) {
+            actions.onClearSubmittedRevision()
         }
     }
 }
@@ -195,18 +214,22 @@ fun ConversationScreen(
     ConversationRefreshEffect(state.conversationId, onAction)
     // Clear only the unchanged draft version acknowledged by the server.
     ConversationDraftAcknowledgementEffect(
-        sentMessage = state.lastSentMessage,
-        sending = state.sending,
-        message = state.message,
-        currentUserId = currentUserId,
-        draft = draft,
-        draftRevision = draftRevision,
-        submittedDraftRevision = submittedDraftRevision,
-        onClearDraft = {
-            draft = ""
-            draftRevision += 1
-        },
-        onClearSubmittedRevision = { submittedDraftRevision = null },
+        state = ConversationDraftAcknowledgementState(
+            sentMessage = state.lastSentMessage,
+            sending = state.sending,
+            message = state.message,
+            currentUserId = currentUserId,
+            draft = draft,
+            draftRevision = draftRevision,
+            submittedDraftRevision = submittedDraftRevision,
+        ),
+        actions = ConversationDraftAcknowledgementActions(
+            onClearDraft = {
+                draft = ""
+                draftRevision += 1
+            },
+            onClearSubmittedRevision = { submittedDraftRevision = null },
+        ),
     )
     var contactField by remember { mutableStateOf("phone") }
     var contactValue by remember { mutableStateOf("") }
@@ -280,20 +303,22 @@ fun ConversationScreen(
         }
 
         ConversationMessagesList(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            listState = listState,
-            state = state,
-            currentUserId = currentUserId,
-            chatReady = chatReady,
-            contactField = contactField,
-            contactValue = contactValue,
-            actions = ConversationListActions(
-                onContactFieldChange = { contactField = it },
-                onContactValueChange = { if (it.length <= MAX_CONTACT_VALUE_LENGTH) contactValue = it },
-                onShareContact = { onAction(PrivacyAction.ShareContact(contactField, contactValue)) },
-                onReport = { showReport = true },
-                onBlock = { showBlockConfirm = true },
-                onAction = onAction,
+            ConversationMessagesListParams(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                listState = listState,
+                state = state,
+                currentUserId = currentUserId,
+                chatReady = chatReady,
+                contactField = contactField,
+                contactValue = contactValue,
+                actions = ConversationListActions(
+                    onContactFieldChange = { contactField = it },
+                    onContactValueChange = { if (it.length <= MAX_CONTACT_VALUE_LENGTH) contactValue = it },
+                    onShareContact = { onAction(PrivacyAction.ShareContact(contactField, contactValue)) },
+                    onReport = { showReport = true },
+                    onBlock = { showBlockConfirm = true },
+                    onAction = onAction,
+                ),
             ),
         )
 
@@ -347,20 +372,21 @@ fun ConversationScreen(
 }
 
 @Composable
-private fun ConversationMessagesList(
-    modifier: Modifier,
-    listState: LazyListState,
-    state: PrivacyUiState,
-    currentUserId: String,
-    chatReady: Boolean,
-    contactField: String,
-    contactValue: String,
-    actions: ConversationListActions,
-) {
-    LazyColumn(modifier, state = listState, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        conversationStatusItems(state)
-        conversationMessageItems(state, currentUserId, chatReady, actions.onAction)
-        conversationSupplementalItems(state, chatReady, contactField, contactValue, actions)
+private fun ConversationMessagesList(params: ConversationMessagesListParams) {
+    LazyColumn(
+        params.modifier,
+        state = params.listState,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        conversationStatusItems(params.state)
+        conversationMessageItems(params.state, params.currentUserId, params.chatReady, params.actions.onAction)
+        conversationSupplementalItems(
+            params.state,
+            params.chatReady,
+            params.contactField,
+            params.contactValue,
+            params.actions,
+        )
     }
 }
 
