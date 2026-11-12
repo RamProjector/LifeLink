@@ -14,6 +14,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -341,6 +342,47 @@ class PrivacyViewModelTest {
 
     /** Exposes a contact share only after the repository confirms persistence. */
     @Test
+    fun duplicate_send_actions_while_a_send_is_in_flight_are_ignored() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+        val sendGate = CompletableDeferred<Result<ChatMessage>>()
+        repository.sendGate = sendGate
+
+        viewModel.onAction(PrivacyAction.SendMessage("first message"))
+        assertTrue(viewModel.state.value.sending)
+        viewModel.onAction(PrivacyAction.SendMessage("duplicate message"))
+
+        assertEquals(listOf("chat-old" to "first message"), repository.sends)
+        sendGate.complete(Result.success(chatMessage("chat-old").copy(body = "first message")))
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.sending)
+        assertEquals("first message", viewModel.state.value.lastSentMessage?.body)
+    }
+
+    @Test
+    fun duplicate_contact_shares_while_a_share_is_in_flight_are_ignored() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+        val shareGate = CompletableDeferred<Result<ContactShare>>()
+        repository.shareGate = shareGate
+
+        viewModel.onAction(PrivacyAction.ShareContact("email", "person@example.invalid"))
+        assertTrue(viewModel.state.value.sharingContact)
+        viewModel.onAction(PrivacyAction.ShareContact("email", "person@example.invalid"))
+
+        assertEquals(
+            listOf(Triple("chat-old", "email", "person@example.invalid")),
+            repository.shares,
+        )
+        shareGate.complete(
+            Result.success(contactShare("chat-old").copy(field = "email", value = "person@example.invalid")),
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.sharingContact)
+        assertEquals("person@example.invalid", viewModel.state.value.lastSharedContact?.value)
+    }
+
+    @Test
     fun successful_contact_share_exposes_confirmed_record() = runTest {
         viewModel.openConversation("request-old", "donor-old")
 
@@ -447,7 +489,9 @@ private class ConversationRepositoryFake : PrivacyRepository {
     var failHistory = false
     var conversationList: suspend () -> Result<List<Conversation>> = { Result.success(emptyList()) }
     var sendFailure: Throwable? = null
+    var sendGate: CompletableDeferred<Result<ChatMessage>>? = null
     var shareFailure: Throwable? = null
+    var shareGate: CompletableDeferred<Result<ContactShare>>? = null
     var open: suspend (String, String) -> Result<Conversation> = { requestId, donorId ->
         Result.success(conversation("chat-old", requestId, donorId))
     }
@@ -475,6 +519,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
     /** Records the destination and body, then returns a synthetic message for that conversation. */
     override suspend fun sendMessage(conversationId: String, body: String): Result<ChatMessage> {
         sends += conversationId to body
+        sendGate?.let { return it.await() }
         sendFailure?.let { return Result.failure(it) }
         return Result.success(chatMessage(conversationId).copy(body = body))
     }
@@ -502,6 +547,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
     /** Records the destination and contact field, then returns a synthetic share with those values. */
     override suspend fun shareContact(conversationId: String, field: String, value: String): Result<ContactShare> {
         shares += Triple(conversationId, field, value)
+        shareGate?.let { return it.await() }
         shareFailure?.let { return Result.failure(it) }
         return Result.success(contactShare(conversationId).copy(field = field, value = value))
     }
