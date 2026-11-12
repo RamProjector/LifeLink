@@ -175,6 +175,46 @@ class EmergencyRequestViewModelTest {
     }
 
     @Test
+    fun restored_active_history_blocks_submission_when_snapshot_is_missing() = runTest {
+        val repository = FakeRepository().apply {
+            history = listOf(
+                RequestHistoryItem(
+                    "restored-active",
+                    com.lifelink.app.domain.ActiveRequestStatus.AWAITING_RESPONSES,
+                ),
+            )
+        }
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.hasActiveRequest)
+        viewModel.onAction(EmergencyRequestAction.Submit)
+        advanceUntilIdle()
+
+        assertEquals(0, repository.submitCalls)
+    }
+
+    @Test
+    fun terminal_active_snapshot_overrides_stale_active_history() = runTest {
+        val repository = FakeRepository().apply {
+            activeRequest = ActiveRequestSnapshot(
+                "cancelled-request",
+                com.lifelink.app.domain.ActiveRequestStatus.CANCELLED,
+            )
+            history = listOf(
+                RequestHistoryItem(
+                    "cancelled-request",
+                    com.lifelink.app.domain.ActiveRequestStatus.AWAITING_RESPONSES,
+                ),
+            )
+        }
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        advanceUntilIdle()
+
+        assertTrue(!viewModel.uiState.value.hasActiveRequest)
+    }
+
+    @Test
     fun active_request_blocks_a_second_submission_before_network_call() = runTest {
         val repository = FakeRepository().apply {
             activeRequest = ActiveRequestSnapshot(
