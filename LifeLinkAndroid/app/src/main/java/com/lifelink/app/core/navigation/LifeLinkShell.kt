@@ -509,6 +509,8 @@ fun LifeLinkShell(
                                     state = privacyState,
                                     onAction = onPrivacyAction,
                                     onOpenConversation = openConversation,
+                                    currentUserId = accountUserId,
+                                    useListDetailLayout = windowSize.widthSizeClass == WindowWidthSizeClass.Expanded,
                                     targetConversationId = notificationRequestId
                                         ?.takeIf { it.startsWith("conversation:") }
                                         ?.substringAfter("conversation:")
