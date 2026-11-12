@@ -61,6 +61,7 @@ data class EmergencyRequestUiState(
     val contactActionInFlightDonorId: String? = null,
     val requestHistory: List<RequestHistoryItem> = emptyList(),
     val historyRefreshing: Boolean = false,
+    val historyLoaded: Boolean = false,
     val historyError: String? = null,
     val cancelCompleted: Boolean = false,
     val nearbyFacilities: List<NearbyFacility> = emptyList(),
@@ -751,11 +752,16 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
                 _uiState.update { it.copy(historyRefreshing = true, historyError = null) }
                 try {
                     val history = repository.refreshRequestHistory()
-                    _uiState.update { it.copy(requestHistory = history) }
+                    _uiState.update { it.copy(requestHistory = history, historyLoaded = true) }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
-                    _uiState.update { it.copy(historyError = "Couldn’t load your requests. Check your connection and try again.") }
+                    _uiState.update {
+                        it.copy(
+                            historyLoaded = true,
+                            historyError = "Couldn’t load your requests. Check your connection and try again.",
+                        )
+                    }
                 } finally {
                     _uiState.update { it.copy(historyRefreshing = false) }
                 }
