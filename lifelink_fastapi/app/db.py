@@ -101,7 +101,8 @@ async def create_all_tables() -> None:
             "ADD COLUMN IF NOT EXISTS map_visible BOOLEAN NOT NULL DEFAULT FALSE, "
             "ADD COLUMN IF NOT EXISTS map_visibility_updated_at TIMESTAMPTZ, "
             "ADD COLUMN IF NOT EXISTS exact_location_sharing_enabled BOOLEAN NOT NULL DEFAULT FALSE, "
-            "ADD COLUMN IF NOT EXISTS last_presence_at TIMESTAMPTZ"
+            "ADD COLUMN IF NOT EXISTS last_presence_at TIMESTAMPTZ, "
+            "ADD COLUMN IF NOT EXISTS last_location_provider VARCHAR(24)"
         ))
         # Legacy availability timestamps are not evidence of a GPS fix. Keep
         # last_presence_at NULL until the server records an actual presence update.
