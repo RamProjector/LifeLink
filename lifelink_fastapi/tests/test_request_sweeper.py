@@ -6,9 +6,8 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, call
 
-from sqlalchemy.dialects import postgresql
-
 import pytest
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
