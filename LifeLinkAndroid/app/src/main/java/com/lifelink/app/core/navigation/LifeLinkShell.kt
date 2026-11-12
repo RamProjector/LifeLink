@@ -1882,24 +1882,23 @@ private fun ProfileContent(
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(accountEmail.ifBlank { "Authenticated LifeLink account" }, fontWeight = FontWeight.Bold)
                     Text(
-                        if (role ==
-                            UserRole.DONOR
-                        ) {
-                            "Donor account"
-                        } else {
-                            "Requester account"
+                        accountDisplayName.ifBlank {
+                            accountEmail.ifBlank { "LifeLink account" }
                         },
-                        color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
                     )
-                    if (accountUserId.isNotBlank()) {
+                    if (accountDisplayName.isNotBlank() && accountEmail.isNotBlank()) {
                         Text(
-                            "Account ID · ${accountUserId.take(8)}…",
+                            accountEmail,
                             style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    Text(
+                        if (role == UserRole.DONOR) "Donor account" else "Requester account",
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                    )
                 }
             }
         }
