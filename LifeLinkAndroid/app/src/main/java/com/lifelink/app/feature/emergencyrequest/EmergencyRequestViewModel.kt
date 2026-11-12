@@ -70,14 +70,13 @@ data class EmergencyRequestUiState(
     val nearbyFacilitiesError: String? = null,
 ) {
     val hasActiveRequest: Boolean
-        get() = activeRequest?.isTerminal == false ||
-            requestHistory.any { request ->
-                request.status !in setOf(
-                    ActiveRequestStatus.FULFILLED,
-                    ActiveRequestStatus.EXPIRED,
-                    ActiveRequestStatus.CANCELLED,
-                )
-            }
+        get() = activeRequest?.let { !it.isTerminal } ?: requestHistory.any { request ->
+            request.status !in setOf(
+                ActiveRequestStatus.FULFILLED,
+                ActiveRequestStatus.EXPIRED,
+                ActiveRequestStatus.CANCELLED,
+            )
+        }
 }
 
 sealed interface EmergencyRequestAction {
