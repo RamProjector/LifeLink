@@ -14,7 +14,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Refresh
