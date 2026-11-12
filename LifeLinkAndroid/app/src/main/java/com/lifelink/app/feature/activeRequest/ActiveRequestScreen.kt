@@ -162,12 +162,25 @@ fun ActiveRequestScreen(
             ProgressCard(active, contactedDonors)
             ContactActivityCard(state, active, onAction, onReviewContacts)
             if (active.status == ActiveRequestStatus.MANUAL_BROADCAST) {
-                Button(onClick = {
-                    onAction(EmergencyRequestAction.SendManualBroadcast)
-                }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Campaign, contentDescription = null, Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Send manual broadcast")
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    ),
+                ) {
+                    Column(
+                        Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text("Manual review pending", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Automatic matching could not be completed. LifeLink has not sent donor " +
+                                "notifications for this request. Follow your official blood-service " +
+                                "coordination process for urgent assistance.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             }
             if (!active.isTerminal) {
