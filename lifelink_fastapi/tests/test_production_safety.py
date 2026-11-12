@@ -25,6 +25,52 @@ def test_rate_limit_rejects_after_threshold():
         raise AssertionError("Expected the third request to be rate limited")
 
 
+
+def test_shared_rate_limit_uses_postgres_clock_for_all_workers(monkeypatch):
+    from app import db, rate_limit
+
+    class Result:
+        def one(self):
+            return (1, 1_800)
+
+    class Connection:
+        def __init__(self):
+            self.calls = []
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def execute(self, statement, params):
+            self.calls.append((str(statement), params))
+            return Result()
+
+        async def commit(self):
+            return None
+
+    class Engine:
+        def __init__(self, connection):
+            self.connection = connection
+
+        def connect(self):
+            return self.connection
+
+    connection = Connection()
+    monkeypatch.setattr(db, "engine", Engine(connection))
+
+    asyncio.run(rate_limit._enforce_shared("shared-window-test", 3, 300))
+
+    insert_sql, insert_params = connection.calls[0]
+    assert "clock_timestamp()" in insert_sql
+    assert "extract(epoch" in insert_sql
+    assert "monotonic" not in insert_sql
+    assert insert_params == {"key": "shared-window-test", "window_seconds": 300}
+    assert connection.calls[1][1] == {"cutoff": 600}
+
+
+
 def test_contact_response_preserves_lifecycle_timestamps():
     accepted_at = datetime.now(UTC)
     shared_at = datetime.now(UTC)
