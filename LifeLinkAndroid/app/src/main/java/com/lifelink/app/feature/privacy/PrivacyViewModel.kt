@@ -341,11 +341,14 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     }
 
     private fun sendMessage(body: String) {
-        val conversationId = _state.value.conversationId ?: return
-        if (body.isBlank()) return
+        val current = _state.value
+        val conversationId = current.conversationId ?: return
+        if (body.isBlank() || current.sending) return
         val generation = conversationGeneration
+        // Reserve the send synchronously so two actions in the same UI frame
+        // cannot enqueue duplicate POST requests before the coroutine starts.
+        _state.value = current.copy(sending = true, message = null, lastSentMessage = null)
         viewModelScope.launch {
-            _state.value = _state.value.copy(sending = true, message = null, lastSentMessage = null)
             repository
                 .sendMessage(conversationId, body)
                 .onSuccess { sentMessage ->
@@ -364,11 +367,13 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     }
 
     private fun shareContact(field: String, value: String) {
-        val conversationId = _state.value.conversationId ?: return
-        if (value.isBlank()) return
+        val current = _state.value
+        val conversationId = current.conversationId ?: return
+        if (value.isBlank() || current.sharingContact) return
         val generation = conversationGeneration
+        // Record the operation before launching to reject rapid duplicate shares.
+        _state.value = current.copy(message = null, lastSharedContact = null, sharingContact = true)
         viewModelScope.launch {
-            _state.value = _state.value.copy(message = null, lastSharedContact = null, sharingContact = true)
             repository
                 .shareContact(conversationId, field, value)
                 .onSuccess { sharedContact ->
