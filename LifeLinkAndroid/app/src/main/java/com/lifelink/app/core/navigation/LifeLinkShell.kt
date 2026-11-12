@@ -139,10 +139,8 @@ private enum class ShellTab(val label: String) {
 private enum class SettingsSection(val label: String) {
     ACCOUNT("Account"),
     NOTIFICATIONS("Notifications"),
-    PRIVACY("Privacy Center"),
-    LEGAL("Legal"),
+    PRIVACY("Privacy, Safety & Legal"),
     THEME("Theme"),
-    SECURITY("Security"),
     HELP("Help & FAQ"),
 }
 
@@ -1396,9 +1394,7 @@ private fun SettingsContent(
             SettingsSection.ACCOUNT,
             SettingsSection.NOTIFICATIONS,
             SettingsSection.PRIVACY,
-            SettingsSection.LEGAL,
             SettingsSection.THEME,
-            SettingsSection.SECURITY,
             SettingsSection.HELP,
         )
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -1455,9 +1451,7 @@ private fun SettingsContent(
                 )
             SettingsSection.NOTIFICATIONS -> NotificationSettingsContent()
             SettingsSection.PRIVACY -> PrivacySafetyContent(onRequestPasswordReset)
-            SettingsSection.LEGAL -> LegalContent()
             SettingsSection.THEME -> ThemeContent(themeMode, onThemeModeChange)
-            SettingsSection.SECURITY -> SecurityContent(onRequestPasswordReset)
             SettingsSection.HELP -> HelpFaqContent()
         }
     }
@@ -1482,7 +1476,7 @@ private fun HelpFaqContent() {
                 "Check Android notification permission and device notification settings. Open Updates in " +
                 "LifeLink to review durable activity even when a system notification was dismissed.",
             "How do I recover my account?" to
-                "Use the password-reset action in Privacy Center or Security. If you still cannot access " +
+                "Use the password-reset action in Privacy, Safety & Legal. If you still cannot access " +
                 "the account, contact the support channel provided by your deployment administrator.",
         )
     Column(
@@ -1601,7 +1595,7 @@ private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> U
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            "Privacy Center",
+            "Privacy, Safety & Legal",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.semantics { heading() },
@@ -1758,86 +1752,6 @@ private fun PrivacyCapabilityCard(title: String, status: String, body: String) {
                 }
             }
         }
-    }
-}
-
-/** Requests a password-reset link and shows the callback result alongside session-safety guidance. */
-@Composable
-private fun SecurityContent(onRequestPasswordReset: ((String) -> Unit) -> Unit) {
-    var resetMessage by rememberSaveable { mutableStateOf<String?>(null) }
-    var showSessionHelp by rememberSaveable { mutableStateOf(false) }
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            "Security",
-            style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.semantics { heading() },
-        )
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Reset password", fontWeight = FontWeight.Bold)
-                androidx.compose.material3.OutlinedButton(
-                    onClick = { onRequestPasswordReset { message -> resetMessage = message } },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Send reset link") }
-                resetMessage?.let {
-                    Text(
-                        it,
-                        color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                    )
-                }
-            }
-        }
-        Card(
-            Modifier
-                .fillMaxWidth()
-                .clickable(role = Role.Button) { showSessionHelp = true },
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Session safety", style = MaterialTheme.typography.titleMedium)
-                Text("About session safety", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-    if (showSessionHelp) {
-        AlertDialog(
-            onDismissRequest = { showSessionHelp = false },
-            title = { Text("Session safety") },
-            text = {
-                Text(
-                    "LifeLink refreshes your session when needed. Signing out clears the local session on this device. " +
-                        "If you suspect unauthorized access, reset your password and sign out.",
-                )
-            },
-            confirmButton = { TextButton(onClick = { showSessionHelp = false }) { Text("Done") } },
-        )
-    }
-}
-
-/** Displays product limitations, emergency guidance, and legal and safety information. */
-@Composable
-@Suppress("LongMethod")
-private fun LegalContent() {
-    var legalDocument by remember { mutableStateOf<LegalDocument?>(null) }
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            "Legal Documents",
-            style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.semantics { heading() },
-        )
-        LegalDocumentPicker(onSelect = { legalDocument = it })
-    }
-    legalDocument?.let { document ->
-        LegalDocumentDialog(document = document, onDismiss = { legalDocument = null })
     }
 }
 
