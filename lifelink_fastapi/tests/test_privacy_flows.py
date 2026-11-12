@@ -451,6 +451,39 @@ def test_exact_location_requires_a_match_and_donor_opt_in(pg_url):
 
 
 
+def test_declined_match_cannot_activate_exact_location_share(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        assert donor in [match["donor_id"] for match in created["matches"]]
+
+        # A donor can decline before the requester selects or contacts them.
+        current["id"] = donor
+        declined = await client.post(
+            f"/v1/donors/{donor}/requests/{created['request_id']}/response",
+            json={"response": "declined"},
+        )
+        assert declined.status_code == 200, declined.text
+
+        # Historical match rows must not continue to authorize exact GPS access.
+        current["id"] = requester
+        share_path = (
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
+        )
+        activation = await client.post(share_path)
+        assert activation.status_code == 403, activation.text
+        location = await client.get(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
+        )
+        assert location.status_code == 200, location.text
+        assert location.json()["shared"] is False
+        assert location.json()["latitude"] is None
+        assert location.json()["longitude"] is None
+
+    run_scenario(pg_url, scenario)
+
+
 def test_exact_location_is_restricted_to_the_requesting_account(pg_url):
     """A live share must not become readable by a donor or unrelated account.
 
