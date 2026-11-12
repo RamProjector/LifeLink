@@ -655,10 +655,21 @@ def test_cancel_fulfill_and_manual_broadcast_succeed(pg_url):
         assert cancelled.status_code == 200, cancelled.text
         assert cancelled.json()["status"] == "cancelled"
 
+        # Repeating cancellation is idempotent, but a terminal request cannot
+        # be reopened through a conflicting lifecycle action.
+        repeated_cancel = await client.post(f"/v1/emergency-requests/{first['request_id']}/cancel")
+        assert repeated_cancel.status_code == 200, repeated_cancel.text
+        rejected_fulfill = await client.post(f"/v1/emergency-requests/{first['request_id']}/fulfill")
+        assert rejected_fulfill.status_code == 409, rejected_fulfill.text
+
         second = await submit_request(client, current, requester)
         fulfilled = await client.post(f"/v1/emergency-requests/{second['request_id']}/fulfill")
         assert fulfilled.status_code == 200, fulfilled.text
         assert fulfilled.json()["status"] == "fulfilled"
+        rejected_cancel = await client.post(f"/v1/emergency-requests/{second['request_id']}/cancel")
+        assert rejected_cancel.status_code == 409, rejected_cancel.text
+        rejected_broadcast = await client.post(f"/v1/emergency-requests/{second['request_id']}/manual-broadcast")
+        assert rejected_broadcast.status_code == 409, rejected_broadcast.text
 
         third = await submit_request(client, current, requester)
         broadcast = await client.post(f"/v1/emergency-requests/{third['request_id']}/manual-broadcast")
