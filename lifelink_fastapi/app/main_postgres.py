@@ -1222,7 +1222,9 @@ async def donor_response_postgres(
     except KeyError:
         raise HTTPException(status_code=403, detail="Donor is not eligible for this request") from None
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        message = str(exc)
+        conflict = "request is no longer accepting" in message.lower() or "request has expired" in message.lower()
+        raise HTTPException(status_code=409 if conflict else 400, detail=message) from exc
     await SqlAlchemyRequestStore(session).record_audit_async(principal.subject, f"donor_response_{payload.response}", request_id, donor_id)
     request = await session.get(EmergencyRequestRow, request_id)
     if request is not None:
