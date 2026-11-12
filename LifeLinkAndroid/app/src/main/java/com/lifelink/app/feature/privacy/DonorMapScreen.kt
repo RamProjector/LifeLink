@@ -65,8 +65,8 @@ import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.LifeLinkFeedbackCard
 import com.lifelink.app.core.ui.LifeLinkFeedbackLevel
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
-import com.lifelink.app.domain.DonorMapArea
 import com.lifelink.app.domain.DiscoveredDonor
+import com.lifelink.app.domain.DonorMapArea
 
 private fun donorAreaKey(area: DonorMapArea): String =
     "${area.latitude}|${area.longitude}|${area.bloodType}|${area.freshnessAt}"
