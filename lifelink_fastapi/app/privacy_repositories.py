@@ -692,7 +692,13 @@ class SqlAlchemyPrivacyStore:
         return None
 
     async def block_participant(
-        self, conversation: Conversation, blocker_id: str, blocked_id: str, reason: str = ""
+        self,
+        conversation: Conversation,
+        blocker_id: str,
+        blocked_id: str,
+        reason: str = "",
+        *,
+        commit: bool = True,
     ) -> ConversationBlock:
         """Persist an enforceable block. Idempotent for the same (blocker, blocked) pair."""
         existing = await self.session.scalar(
@@ -713,7 +719,10 @@ class SqlAlchemyPrivacyStore:
             reason=reason,
         )
         self.session.add(block)
-        await self.session.commit()
+        if commit:
+            await self.session.commit()
+        else:
+            await self.session.flush()
         return block
 
     async def is_blocked(self, conversation: Conversation, sender_id: str) -> bool:
