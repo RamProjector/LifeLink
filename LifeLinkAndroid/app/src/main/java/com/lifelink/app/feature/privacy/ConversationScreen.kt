@@ -98,10 +98,8 @@ private data class ConversationDraftAcknowledgementState(
     val submittedDraftRevision: Int?,
 )
 
-private data class ConversationDraftAcknowledgementActions(
-    val onClearDraft: () -> Unit,
-    val onClearSubmittedRevision: () -> Unit,
-)
+private data class ConversationDraftAcknowledgementActions(val onClearDraft: () -> Unit, val onClearSubmittedRevision: () -> Unit)
+
 
 private data class ConversationMessagesListParams(
     val modifier: Modifier,
@@ -114,11 +112,8 @@ private data class ConversationMessagesListParams(
     val actions: ConversationListActions,
 )
 
-private data class ConversationDialogState(
-    val showReport: Boolean,
-    val reportReason: String,
-    val showBlockConfirm: Boolean,
-)
+private data class ConversationDialogState(val showReport: Boolean, val reportReason: String, val showBlockConfirm: Boolean)
+
 
 private data class ConversationDialogActions(
     val onReportReasonChange: (String) -> Unit,
@@ -348,7 +343,6 @@ fun ConversationScreen(
                 },
             )
         }
-
     }
 
     ConversationSafetyDialogs(
@@ -604,7 +598,6 @@ private fun MessageBubble(message: ChatMessage, mine: Boolean) {
         }
     }
 }
-
 
 /** Keeps safety actions and confirmation dialogs separate from conversation layout. */
 @Composable
