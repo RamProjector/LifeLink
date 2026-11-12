@@ -645,7 +645,7 @@ def test_contact_disclosure_rolls_back_when_audit_insert_fails(pg_url):
 
         trigger_engine = create_async_engine(pg_url)
         async with trigger_engine.begin() as connection:
-            dollar = "$"
+            dollar = "$fn$"
             await connection.exec_driver_sql(
                 "CREATE FUNCTION reject_contact_share_audit() RETURNS trigger AS "
                 + dollar
@@ -698,7 +698,7 @@ def test_conversation_block_rolls_back_when_audit_insert_fails(pg_url):
 
         trigger_engine = create_async_engine(pg_url)
         async with trigger_engine.begin() as connection:
-            dollar = "$"
+            dollar = "$fn$"
             await connection.exec_driver_sql(
                 "CREATE FUNCTION reject_conversation_block_audit() RETURNS trigger AS "
                 + dollar
