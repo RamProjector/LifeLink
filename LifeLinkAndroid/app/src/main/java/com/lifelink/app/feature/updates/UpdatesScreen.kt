@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -132,7 +133,7 @@ private fun UpdateStatusIcon(update: UpdateItem) {
 
 /** Shows the activity title, time, preview, and request destination hint. */
 @Composable
-private fun UpdateContent(update: UpdateItem) {
+private fun RowScope.UpdateContent(update: UpdateItem) {
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Text(
             update.title,
