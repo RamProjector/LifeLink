@@ -20,7 +20,7 @@ import pytest
 pgserver = pytest.importorskip("pgserver")
 
 import httpx
-from sqlalchemy import select, text
+from sqlalchemy import event, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app import db_models, main_postgres
@@ -67,6 +67,7 @@ def run_scenario(pg_url: str, scenario):
                 # The end-to-end concurrency scenario can coordinate independent
                 # database sessions while requests use the same API dependency.
                 client.extensions["lifelink_session_factory"] = sessions
+                client.extensions["lifelink_async_engine"] = engine
 
                 async def run_sql(statement: str):
                     async with engine.begin() as conn:
@@ -700,21 +701,33 @@ def test_donor_acceptance_waits_for_request_cancellation(pg_url):
             )
             assert request_row is not None
 
-            current["id"] = donor
-            response_task = asyncio.create_task(
-                client.post(
-                    f"/v1/donors/{donor}/requests/{created['request_id']}/response",
-                    json={"response": "accepted"},
-                )
-            )
-            # The response operation must wait on the request-row lock rather
-            # than reading "awaiting" and committing a late acceptance.
-            await asyncio.sleep(0.1)
-            assert not response_task.done()
+            lock_requested = asyncio.Event()
+            loop = asyncio.get_running_loop()
 
-            await main_postgres.SqlAlchemyRequestStore(locking_session).set_cancelled_async(
-                created["request_id"]
-            )
+            def observe_request_lock(connection, cursor, statement, parameters, context, executemany):
+                if "FOR UPDATE" in statement.upper() and "EMERGENCY_REQUESTS" in statement.upper():
+                    loop.call_soon_threadsafe(lock_requested.set)
+
+            engine = client.extensions["lifelink_async_engine"]
+            event.listen(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+            try:
+                current["id"] = donor
+                response_task = asyncio.create_task(
+                    client.post(
+                        f"/v1/donors/{donor}/requests/{created['request_id']}/response",
+                        json={"response": "accepted"},
+                    )
+                )
+                # Observe the donor query reaching the database before asserting
+                # it is blocked by the request lock (avoids a timing-only test).
+                await asyncio.wait_for(lock_requested.wait(), timeout=5)
+                assert not response_task.done()
+
+                await main_postgres.SqlAlchemyRequestStore(locking_session).set_cancelled_async(
+                    created["request_id"]
+                )
+            finally:
+                event.remove(engine.sync_engine, "before_cursor_execute", observe_request_lock)
 
         response = await response_task
         assert response.status_code == 409, response.text
