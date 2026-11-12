@@ -959,7 +959,8 @@ private fun LocationStep(
                                 source = location.provider,
                             ),
                         )
-                        locationMessage = "Map centered on ${locationSourceLabel(location.provider)} (accuracy ±${location.precisionMeters} m)."
+                        locationMessage =
+                            "Map centered on ${locationSourceLabel(location.provider)} (accuracy ±${location.precisionMeters} m)."
                     } ?: run { locationMessage = "Could not get a current fix. Try again or choose a location manually." }
                 }
             },
