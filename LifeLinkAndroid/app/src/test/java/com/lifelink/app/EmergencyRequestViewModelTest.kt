@@ -223,6 +223,18 @@ class EmergencyRequestViewModelTest {
             )
         }
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        viewModel.onAction(
+            EmergencyRequestAction.UpdateDraft {
+                it.copy(
+                    bloodType = com.lifelink.app.domain.BloodType.O_NEG,
+                    facility = facility,
+                    requesterLatitude = 14.6466,
+                    requesterLongitude = 121.0437,
+                    genuineRequestConfirmed = true,
+                    sharingConsentConfirmed = true,
+                )
+            },
+        )
         advanceUntilIdle()
 
         viewModel.onAction(EmergencyRequestAction.Submit)
