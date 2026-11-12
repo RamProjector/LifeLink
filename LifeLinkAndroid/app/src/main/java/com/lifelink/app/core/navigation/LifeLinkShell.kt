@@ -275,10 +275,17 @@ fun LifeLinkShell(
     if (showStart) {
         StartContent(
             role = role,
+            hasActiveRequest = state.activeRequest?.isTerminal == false,
+            canCreateRequest = state.historyLoaded && !state.historyRefreshing &&
+                state.historyError == null && state.activeRequest?.isTerminal != false,
             onGetStarted = markWelcomeSeen,
             onCreateRequest = {
                 markWelcomeSeen()
                 showRequest = true
+            },
+            onOpenActiveRequest = {
+                markWelcomeSeen()
+                showActive = true
             },
             onOpenDonor = openDonorWorkspace,
         )
@@ -1297,7 +1304,15 @@ private fun DonorDashboardSummary(profile: com.lifelink.app.domain.DonorProfile,
 
 /** Shows introductory guidance and delegates request creation or donor navigation to the caller. */
 @Composable
-private fun StartContent(role: UserRole, onGetStarted: () -> Unit, onCreateRequest: () -> Unit, onOpenDonor: () -> Unit) {
+private fun StartContent(
+    role: UserRole,
+    hasActiveRequest: Boolean,
+    canCreateRequest: Boolean,
+    onGetStarted: () -> Unit,
+    onCreateRequest: () -> Unit,
+    onOpenActiveRequest: () -> Unit,
+    onOpenDonor: () -> Unit,
+) {
     Surface(color = androidx.compose.material3.MaterialTheme.colorScheme.background) {
         Column(
             Modifier
@@ -1308,7 +1323,15 @@ private fun StartContent(role: UserRole, onGetStarted: () -> Unit, onCreateReque
             verticalArrangement = Arrangement.spacedBy(32.dp),
         ) {
             StartHeader(role)
-            StartActions(role = role, onGetStarted = onGetStarted, onCreateRequest = onCreateRequest, onOpenDonor = onOpenDonor)
+            StartActions(
+                role = role,
+                hasActiveRequest = hasActiveRequest,
+                canCreateRequest = canCreateRequest,
+                onGetStarted = onGetStarted,
+                onCreateRequest = onCreateRequest,
+                onOpenActiveRequest = onOpenActiveRequest,
+                onOpenDonor = onOpenDonor,
+            )
         }
     }
 }
@@ -1367,20 +1390,44 @@ private fun StartHeader(role: UserRole) {
 
 /** Primary/secondary actions and the role-specific reassurance line. */
 @Composable
-private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateRequest: () -> Unit, onOpenDonor: () -> Unit) {
+private fun StartActions(
+    role: UserRole,
+    hasActiveRequest: Boolean,
+    canCreateRequest: Boolean,
+    onGetStarted: () -> Unit,
+    onCreateRequest: () -> Unit,
+    onOpenActiveRequest: () -> Unit,
+    onOpenDonor: () -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Button(
-            onClick = if (role == UserRole.DONOR) onOpenDonor else onCreateRequest,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-            shape = MaterialTheme.shapes.medium,
-        ) {
-            Icon(
-                if (role == UserRole.DONOR) Icons.Default.Person else Icons.Default.Add,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(if (role == UserRole.DONOR) "Open donor workspace" else "Create a request")
+        if (role == UserRole.REQUESTER && hasActiveRequest) {
+            OutlinedButton(
+                onClick = onOpenActiveRequest,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+            ) { Text("View active request") }
+        } else {
+            Button(
+                onClick = if (role == UserRole.DONOR) onOpenDonor else onCreateRequest,
+                enabled = role == UserRole.DONOR || canCreateRequest,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Icon(
+                    if (role == UserRole.DONOR) Icons.Default.Person else Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(if (role == UserRole.DONOR) "Open donor workspace" else "Create a request")
+            }
+            if (role == UserRole.REQUESTER && !canCreateRequest) {
+                Text(
+                    "Checking your request status. You can create a request after your history loads.",
+                    modifier = Modifier.fillMaxWidth(),
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                )
+            }
         }
         androidx.compose.material3.OutlinedButton(onClick = onGetStarted, modifier = Modifier.fillMaxWidth()) {
             Text("Go to Home")
