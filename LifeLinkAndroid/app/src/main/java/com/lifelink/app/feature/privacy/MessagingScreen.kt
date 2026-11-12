@@ -40,6 +40,11 @@ import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.core.ui.LifeLinkPageHeader
 import com.lifelink.app.domain.Conversation
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+import java.util.Locale
 
 /**
  * Loads conversations on entry and displays loading, retry, empty, or conversation states.
@@ -107,6 +112,28 @@ fun MessagingScreen(
     }
 }
 
+/**
+ * Converts API timestamps to concise device-local labels. Invalid or legacy values
+ * fall back to neutral copy rather than exposing raw timestamp strings in the UI.
+ */
+internal fun formatConversationTimestamp(timestamp: String, now: OffsetDateTime = OffsetDateTime.now()): String {
+    val conversationTime = try {
+        OffsetDateTime.parse(timestamp).atZoneSameInstant(ZoneId.systemDefault())
+    } catch (_: DateTimeParseException) {
+        return "Recent message"
+    }
+    val localNow = now.atZoneSameInstant(ZoneId.systemDefault())
+    val timeLabel = conversationTime.format(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()))
+    return when (conversationTime.toLocalDate()) {
+        localNow.toLocalDate() -> "Today · $timeLabel"
+        localNow.toLocalDate().minusDays(1) -> "Yesterday · $timeLabel"
+        else -> {
+            val pattern = if (conversationTime.year == localNow.year) "MMM d · h:mm a" else "MMM d, yyyy"
+            conversationTime.format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
+        }
+    }
+}
+
 /** Displays a conversation with an initials avatar, request reference, and message recency. */
 @Composable
 private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
@@ -144,7 +171,7 @@ private fun ConversationRow(conversation: Conversation, onOpen: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
-                    conversation.lastMessageAt?.let { "Last message: $it" } ?: "No messages yet",
+                    conversation.lastMessageAt?.let { "Last message · ${formatConversationTimestamp(it)}" } ?: "No messages yet",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
