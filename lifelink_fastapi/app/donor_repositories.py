@@ -265,14 +265,25 @@ class SqlAlchemyDonorStore:
 
     async def respond(self, donor_id: str, request_id: str, response: DonorResponseIn) -> MatchRow:
         """Record a donor's accept/decline/arrive response, rejecting stale requests."""
+        # All request-scoped mutations acquire the parent request lock first.
+        # This serializes donor responses with requester cancellation, fulfillment,
+        # contact selection, and expiry without relying on a check-then-write gap.
+        request = await self.session.scalar(
+            select(RequestRow)
+            .where(RequestRow.id == request_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if request is None:
+            raise KeyError(request_id)
         result = await self.session.execute(
-            select(MatchRow).where(MatchRow.donor_id == donor_id, MatchRow.request_id == request_id)
+            select(MatchRow)
+            .where(MatchRow.donor_id == donor_id, MatchRow.request_id == request_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         match = result.scalar_one_or_none()
         if match is None:
-            raise KeyError(request_id)
-        request = await self.session.get(RequestRow, request_id)
-        if request is None:
             raise KeyError(request_id)
         if request.requester_id == donor_id:
             raise ValueError("You cannot accept or decline your own request")
