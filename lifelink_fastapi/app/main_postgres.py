@@ -783,6 +783,8 @@ async def manual_broadcast_postgres(
         record = await store.set_manual_broadcast_async(request_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Request not found") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     await store.record_audit_async(principal.subject, "request_manual_broadcast", request_id)
 
     return ManualFallbackOut(
@@ -874,6 +876,8 @@ async def cancel_emergency_request(
         record = await store.set_cancelled_async(request_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Request not found") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     await SqlAlchemyPrivacyStore(session).expire_shares_for_request(request_id)
     await store.record_audit_async(principal.subject, "request_cancelled", request_id)
     return RequestActionOut(
@@ -898,7 +902,7 @@ async def fulfill_emergency_request(
     try:
         record = await store.set_fulfilled_async(request_id)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     await SqlAlchemyPrivacyStore(session).expire_shares_for_request(request_id)
     await store.record_audit_async(principal.subject, "request_fulfilled", request_id)
     return RequestActionOut(request_id=record.request_id, status=record.status, reason="Marked fulfilled by requester")
