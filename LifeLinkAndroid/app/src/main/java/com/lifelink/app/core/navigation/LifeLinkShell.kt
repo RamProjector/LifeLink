@@ -670,7 +670,7 @@ private fun RequestsContent(
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
-                                if (state.historyRefreshing) {
+                                if (!state.historyLoaded || state.historyRefreshing) {
                                     "Loading your requests…"
                                 } else if (state.historyError !=
                                     null
@@ -707,7 +707,7 @@ private fun RequestsContent(
                 } else {
                     Button(
                         onClick = onCreate,
-                        enabled = !state.historyRefreshing && state.historyError == null,
+                        enabled = state.historyLoaded && !state.historyRefreshing && state.historyError == null,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                         shape = MaterialTheme.shapes.medium,
                     ) {
@@ -715,9 +715,9 @@ private fun RequestsContent(
                         Spacer(Modifier.width(8.dp))
                         Text("Create emergency request", fontWeight = FontWeight.SemiBold)
                     }
-                    if (state.historyRefreshing || state.historyError != null) {
+                    if (!state.historyLoaded || state.historyRefreshing || state.historyError != null) {
                         Text(
-                            if (state.historyRefreshing) {
+                            if (!state.historyLoaded || state.historyRefreshing) {
                                 "Checking request status before allowing a new request."
                             } else {
                                 "Refresh your request history before starting another request."
@@ -1076,7 +1076,7 @@ private fun HomeContent(
                         ) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(
-                                    if (state.historyRefreshing) {
+                                    if (!state.historyLoaded || state.historyRefreshing) {
                                         "Loading your requests…"
                                     } else if (state.historyError != null) {
                                         "Requests unavailable"
@@ -1087,7 +1087,7 @@ private fun HomeContent(
                                 )
                                 Text(
                                     state.historyError
-                                        ?: if (state.historyRefreshing) {
+                                        ?: if (!state.historyLoaded || state.historyRefreshing) {
                                             "Checking your account for saved requests."
                                         } else {
                                             "Create a request to find nearby blood donors."
@@ -1119,7 +1119,7 @@ private fun HomeContent(
                     } else {
                         Button(
                             onClick = onCreate,
-                            enabled = !state.historyRefreshing && state.historyError == null,
+                            enabled = state.historyLoaded && !state.historyRefreshing && state.historyError == null,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                             shape = MaterialTheme.shapes.medium,
                         ) {
@@ -1127,9 +1127,9 @@ private fun HomeContent(
                             Spacer(Modifier.width(8.dp))
                             Text("Create emergency request", fontWeight = FontWeight.SemiBold)
                         }
-                        if (state.historyRefreshing || state.historyError != null) {
+                        if (!state.historyLoaded || state.historyRefreshing || state.historyError != null) {
                             Text(
-                                if (state.historyRefreshing) {
+                                if (!state.historyLoaded || state.historyRefreshing) {
                                     "Checking request status before allowing a new request."
                                 } else {
                                     "Refresh your request history before starting another request."
