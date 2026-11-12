@@ -7,8 +7,8 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
-    Boolean,
     BigInteger,
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
