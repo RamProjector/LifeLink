@@ -65,8 +65,8 @@ fun MessagingScreen(
     targetConversationEventId: String? = null,
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadConversations) }
-    var handledNotificationKey by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedConversationId by rememberSaveable { mutableStateOf<String?>(null) }
+    var handledNotificationKey by rememberSaveable(currentUserId) { mutableStateOf<String?>(null) }
+    var selectedConversationId by rememberSaveable(currentUserId) { mutableStateOf<String?>(null) }
     MessagingNotificationEffect(
         targetConversationId = targetConversationId,
         targetConversationEventId = targetConversationEventId,
