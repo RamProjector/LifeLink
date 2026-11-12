@@ -2,7 +2,6 @@ package com.lifelink.app.data.local
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 
 @Entity(tableName = "emergency_request_drafts", primaryKeys = ["ownerId", "id"])
 data class EmergencyRequestDraftEntity(
@@ -26,5 +25,5 @@ data class EmergencyRequestDraftEntity(
     val genuineRequestConfirmed: Boolean,
     val sharingConsentConfirmed: Boolean,
     val aiMatchingEnabled: Boolean,
-    val updatedAtEpochMillis: Long
+    val updatedAtEpochMillis: Long,
 )
