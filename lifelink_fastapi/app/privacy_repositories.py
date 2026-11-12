@@ -459,6 +459,22 @@ class SqlAlchemyPrivacyStore:
                 await self.session.commit()
         return conversation
 
+    async def lock_conversation(self, conversation_id: str) -> Conversation:
+        """Serialize message/contact writes against participant block changes.
+
+        Call before checking block state and keep the transaction open until the
+        protected write commits. The block route takes the same row lock before
+        inserting a block, so either the action commits first or the block does.
+        """
+        conversation = await self.session.scalar(
+            select(Conversation)
+            .where(Conversation.id == conversation_id)
+            .with_for_update()
+        )
+        if conversation is None:
+            raise KeyError(conversation_id)
+        return conversation
+
     async def conversation_for_participant(self, conversation_id: str, user_id: str) -> Conversation:
         """Return the conversation if ``user_id`` is one of its two participants.
 
