@@ -82,7 +82,7 @@ The block record and its audit event now also share one transaction. If the audi
 
 **Evidence:** the PostgreSQL `POST /v1/emergency-requests/{request_id}/manual-broadcast` route changes the request status to `manual_broadcast`, records an audit event, and returns an eligible-audience filter. It does not enqueue or send donor notifications. The cloud README also states that request creation does not broadcast; donors are notified only when the requester contacts selected donors.
 
-**UI correction committed:** removed the misleading “Send manual broadcast” CTA and snackbar action. The Active Request screen now shows “Manual review pending” and explicitly states that LifeLink has not sent donor notifications. This avoids implying that a broad donor notification or blood supply has been arranged when neither has occurred.
+**UI correction committed:** removed the misleading “Send manual broadcast” CTA and snackbar action. The Active Request screen now shows “Manual review pending” and explicitly states that this status transition does not send donor notifications. This avoids implying that a broad donor notification or blood supply has been arranged when neither has occurred.
 
 **Remaining work:** a real coordinator/blood-service workflow would require a defined recipient system, delivery channel, permissions, audit trail, operational ownership, and verified delivery status. Do not call a status transition a broadcast.
 
