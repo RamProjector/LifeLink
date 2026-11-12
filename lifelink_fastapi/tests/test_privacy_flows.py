@@ -53,7 +53,7 @@ def run_scenario(pg_url: str, scenario):
             await conn.execute(text("CREATE SCHEMA public"))
             await conn.run_sync(db_models.Base.metadata.create_all)
         sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
-        current = {"id": "nobody"}
+        current = {"id": "nobody", "sessions": sessions, "engine": engine}
 
         async def session_dependency():
             async with sessions() as session:
@@ -66,8 +66,6 @@ def run_scenario(pg_url: str, scenario):
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
         try:
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-                client.extensions["lifelink_session_factory"] = sessions
-                client.extensions["lifelink_async_engine"] = engine
 
                 async def run_sql(statement: str):
                     async with engine.begin() as conn:
@@ -330,8 +328,8 @@ def test_location_share_activation_waits_for_request_cancellation(pg_url):
         donor, requester = new_user("donor"), new_user("requester")
         await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
-        sessions = client.extensions["lifelink_session_factory"]
-        engine = client.extensions["lifelink_async_engine"]
+        sessions = current["sessions"]
+        engine = current["engine"]
         request_id = created["request_id"]
         share_path = f"/v1/emergency-requests/{request_id}/donors/{donor}/location-share"
 
@@ -471,8 +469,8 @@ def test_donor_match_recompute_cannot_add_match_after_request_cancellation(pg_ur
 
         from app.donor_repositories import SqlAlchemyDonorStore
 
-        sessions = client.extensions["lifelink_session_factory"]
-        engine = client.extensions["lifelink_async_engine"]
+        sessions = current["sessions"]
+        engine = current["engine"]
         async with sessions() as locking_session:
             locked = await locking_session.scalar(
                 select(db_models.EmergencyRequest)
