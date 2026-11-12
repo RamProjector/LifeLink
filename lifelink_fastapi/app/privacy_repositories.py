@@ -12,7 +12,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import exists, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +24,7 @@ from .db_models import (
     DonorLocationShare,
     Message,
     RequestMatch,
+    RequestStatusEnum,
     SavedMessage,
 )
 from .db_models import (
@@ -410,54 +411,66 @@ class SqlAlchemyPrivacyStore:
         }
 
     async def expire_shares_for_request(self, request_id: str) -> int:
-        """Expire every live share for a request that has ended."""
+        """Expire live shares and persist the audit event in the same transaction."""
         now = datetime.now(UTC)
-        shares = await self.session.scalars(
-            select(DonorLocationShare).where(
+        result = await self.session.execute(
+            update(DonorLocationShare)
+            .where(
                 DonorLocationShare.request_id == request_id,
                 DonorLocationShare.status == "active",
             )
+            .values(status="expired", updated_at=now)
+            .returning(DonorLocationShare.id)
         )
-        count = 0
-        for share in shares.all():
-            share.status = "expired"
-            share.updated_at = now
-            count += 1
-        if count:
-            await self.session.commit()
-            await self.record_audit_async(
-                "system",
-                "location_shares_expired",
-                request_id=request_id,
-                metadata={"expired_count": count},
+        expired_ids = result.scalars().all()
+        if expired_ids:
+            self.session.add(
+                AuditEvent(
+                    id=f"audit_{uuid4().hex}",
+                    actor_id="system",
+                    action="location_shares_expired",
+                    request_id=request_id,
+                    event_metadata={"expired_count": len(expired_ids)},
+                )
             )
-        return count
+            await self.session.commit()
+        return len(expired_ids)
 
     async def expire_stale_shares(self) -> int:
-        """Expire every live share whose window or request deadline has passed.
+        """Expire stale shares in one conditional update rather than an N+1 scan.
 
-        Called by the background sweeper so a request that simply times out
-        (without an explicit cancel/fulfil) still closes its exact-location
-        shares. Returns the number of shares closed.
+        A share expires when its own window has elapsed or no open request with
+        a future response deadline exists for it. The active-status and expiry
+        predicates are re-evaluated by PostgreSQL when the row is updated, so a
+        share extended by a concurrent activation is not expired from a stale
+        application-side snapshot.
         """
         now = datetime.now(UTC)
-        shares = await self.session.scalars(
-            select(DonorLocationShare).where(DonorLocationShare.status == "active")
-        )
-        count = 0
-        for share in shares.all():
-            request = await self.session.get(RequestRow, share.request_id)
-            request_ended = request is None or (
-                _enum_value(request.status) not in ACTIVE_REQUEST_STATUSES
-                or is_request_expired(_enum_value(request.status), request.response_deadline, now)
+        has_live_request = exists(
+            select(RequestRow.id).where(
+                RequestRow.id == DonorLocationShare.request_id,
+                RequestRow.status.in_(
+                    [RequestStatusEnum(status) for status in ACTIVE_REQUEST_STATUSES]
+                ),
+                RequestRow.response_deadline > now,
             )
-            if _as_utc(share.expires_at) <= now or request_ended:
-                share.status = "expired"
-                share.updated_at = now
-                count += 1
-        if count:
+        )
+        result = await self.session.execute(
+            update(DonorLocationShare)
+            .where(
+                DonorLocationShare.status == "active",
+                or_(
+                    DonorLocationShare.expires_at <= now,
+                    ~has_live_request,
+                ),
+            )
+            .values(status="expired", updated_at=now)
+            .returning(DonorLocationShare.id)
+        )
+        expired_ids = result.scalars().all()
+        if expired_ids:
             await self.session.commit()
-        return count
+        return len(expired_ids)
 
     # --------------------------------------------------------- conversations
     async def get_or_create_conversation(
