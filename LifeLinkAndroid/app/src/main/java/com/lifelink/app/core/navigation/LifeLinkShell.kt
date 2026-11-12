@@ -301,19 +301,24 @@ fun LifeLinkShell(
     }
     if (showNotifications) {
         BackHandler { showNotifications = false }
-        UpdatesScreen(
-            updates = updates,
-            onOpen = { update ->
-                onUpdateRead(update.id)
-                showNotifications = false
-                update.requestId?.let {
-                    onAction(EmergencyRequestAction.OpenRequest(it))
-                    showActive = true
-                }
-            },
-            onMarkAllRead = onMarkAllUpdatesRead,
-            onBack = { showNotifications = false },
-        )
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
+        ) {
+            UpdatesScreen(
+                updates = updates,
+                onOpen = { update ->
+                    onUpdateRead(update.id)
+                    showNotifications = false
+                    update.requestId?.let {
+                        onAction(EmergencyRequestAction.OpenRequest(it))
+                        showActive = true
+                    }
+                },
+                onMarkAllRead = onMarkAllUpdatesRead,
+                onBack = { showNotifications = false },
+            )
+        }
         return
     }
     if (showRequest) {
