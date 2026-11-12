@@ -129,7 +129,12 @@ def test_batch_bounds_the_database_query_before_loading_rows(session, limit, exp
 def test_batch_propagates_database_failures_to_the_retry_loop(session, frozen_clock, operation):
     """Let query and commit failures escape the store so the background loop can retry."""
     session.scalars.return_value.all.return_value = [
-        SimpleNamespace(status="matching", response_deadline=NOW, updated_at=NOW)
+        SimpleNamespace(
+            id="request-failure",
+            status="matching",
+            response_deadline=NOW,
+            updated_at=NOW,
+        )
     ]
     getattr(session, operation).side_effect = SQLAlchemyError("database unavailable")
 
