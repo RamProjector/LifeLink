@@ -628,6 +628,59 @@ def test_contact_share_audit_row_exists(pg_url):
     run_scenario(pg_url, scenario)
 
 
+
+def test_contact_disclosure_rolls_back_when_audit_insert_fails(pg_url):
+    """A failed audit write must not leave a contact disclosure committed."""
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert opened.status_code == 200, opened.text
+        conversation_id = opened.json()["conversation_id"]
+
+        await run_sql(
+            """
+            CREATE FUNCTION reject_contact_share_audit() RETURNS trigger AS $
+            BEGIN
+                IF NEW.action = 'contact_share_email' THEN
+                    RAISE EXCEPTION 'injected audit write failure';
+                END IF;
+                RETURN NEW;
+            END;
+            $ LANGUAGE plpgsql
+            """
+        )
+        await run_sql(
+            """
+            CREATE TRIGGER reject_contact_share_audit_trigger
+            BEFORE INSERT ON audit_events
+            FOR EACH ROW EXECUTE FUNCTION reject_contact_share_audit()
+            """
+        )
+
+        failed = await client.post(
+            f"/v1/conversations/{conversation_id}/contact-shares",
+            json={"field": "email", "value": "donor@example.test"},
+        )
+        assert failed.status_code == 500
+
+        contact_rows = await run_sql(
+            f"SELECT id FROM contact_shares WHERE conversation_id = '{conversation_id}'"
+        )
+        audit_rows = await run_sql(
+            "SELECT id FROM audit_events WHERE action = 'contact_share_email'"
+        )
+        assert contact_rows == []
+        assert audit_rows == []
+
+    run_scenario(pg_url, scenario)
+
+
 def test_map_visibility_off_revokes_live_share(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
