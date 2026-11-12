@@ -681,6 +681,50 @@ def test_contact_disclosure_rolls_back_when_audit_insert_fails(pg_url):
     run_scenario(pg_url, scenario)
 
 
+
+def test_conversation_row_lock_serializes_against_block_changes(pg_url):
+    """A second participant action waits until the first transaction commits."""
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert opened.status_code == 200, opened.text
+        conversation_id = opened.json()["conversation_id"]
+
+        from app.privacy_repositories import SqlAlchemyPrivacyStore
+
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        async with sessions() as first, sessions() as second:
+            await SqlAlchemyPrivacyStore(first).lock_conversation(conversation_id)
+            waiting = asyncio.Event()
+            acquired = asyncio.Event()
+
+            async def acquire_from_second_transaction():
+                waiting.set()
+                await SqlAlchemyPrivacyStore(second).lock_conversation(conversation_id)
+                acquired.set()
+
+            task = asyncio.create_task(acquire_from_second_transaction())
+            await waiting.wait()
+            await asyncio.sleep(0.05)
+            assert not acquired.is_set(), "second transaction must wait for the conversation lock"
+
+            await first.commit()
+            await asyncio.wait_for(acquired.wait(), timeout=2)
+            await second.rollback()
+            await task
+
+        await engine.dispose()
+
+    run_scenario(pg_url, scenario)
+
+
 def test_map_visibility_off_revokes_live_share(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
