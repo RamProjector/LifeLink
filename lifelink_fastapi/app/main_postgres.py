@@ -1109,6 +1109,8 @@ async def record_legacy_donor_presence_postgres(
     row.latitude = Decimal(str(payload.latitude))
     row.longitude = Decimal(str(payload.longitude))
     row.last_location_precision_meters = payload.precision_meters
+    if payload.provider is not None:
+        row.last_location_provider = payload.provider
     row.last_presence_at = now
     row.availability_updated_at = now
     row.updated_at = now
