@@ -56,6 +56,10 @@ class LocationSharingDisabledError(Exception):
     """Raised when donor-level location sharing is no longer enabled."""
 
 
+class LocationRequestInactiveError(Exception):
+    """Raised when the request ends before exact-location sharing is activated."""
+
+
 # Contact details are only accepted in a plausible shape, so a typo cannot be
 # broadcast to the other participant as a "shared" phone/email.
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -195,9 +199,26 @@ class SqlAlchemyPrivacyStore:
         Called only after the request has matched the donor. The share expires
         with the request deadline, or sooner if the donor disabled sharing.
         """
-        # Serialize activation and revocation for this donor. Locking the donor
-        # row also covers the first-share case, where no share row exists yet
-        # and therefore cannot itself be locked.
+        # Lock the request first, matching the global request -> donor -> share
+        # ordering used by other request-scoped mutations. The API pre-check is
+        # not enough: cancellation may commit while this write is waiting.
+        request = await self.session.scalar(
+            select(RequestRow)
+            .where(RequestRow.id == request_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if request is None:
+            raise KeyError(request_id)
+        if request.requester_id != requester_id:
+            raise PermissionError("Not the requester for this request")
+        if (
+            _enum_value(request.status) not in ACTIVE_REQUEST_STATUSES
+            or is_request_expired(_enum_value(request.status), request.response_deadline)
+        ):
+            raise LocationRequestInactiveError(request_id)
+        # Serialize activation and donor opt-out. Locking the donor row also
+        # covers the first-share case, where no share row exists yet.
         donor = await self.session.scalar(
             select(DonorRow)
             .where(DonorRow.id == donor_id)
@@ -208,6 +229,8 @@ class SqlAlchemyPrivacyStore:
             raise KeyError(donor_id)
         if not donor.map_visible or not donor.exact_location_sharing_enabled:
             raise LocationSharingDisabledError(donor_id)
+        if not await self.donor_matched_to_request(request_id, donor.id):
+            raise PermissionError("Donor is not matched to this request")
         now = datetime.now(UTC)
         share = await self.session.scalar(
             select(DonorLocationShare).where(
