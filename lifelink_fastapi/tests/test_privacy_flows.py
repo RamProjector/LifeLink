@@ -26,10 +26,10 @@ import pytest
 pgserver = pytest.importorskip("pgserver")
 
 import httpx
-from sqlalchemy import text
+from sqlalchemy import event, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app import db_models
+from app import db_models, main_postgres
 from app.db import get_db_session
 from app.main_postgres import app
 from app.security import Principal, get_postgres_principal
@@ -66,6 +66,8 @@ def run_scenario(pg_url: str, scenario):
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
         try:
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                client.extensions["lifelink_session_factory"] = sessions
+                client.extensions["lifelink_async_engine"] = engine
 
                 async def run_sql(statement: str):
                     async with engine.begin() as conn:
@@ -319,6 +321,58 @@ def test_hiding_from_map_revokes_live_location_share(pg_url):
                     datetime.now(UTC) + timedelta(hours=1),
                 )
         await engine.dispose()
+
+    run_scenario(pg_url, scenario)
+
+
+def test_location_share_activation_waits_for_request_cancellation(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        sessions = client.extensions["lifelink_session_factory"]
+        engine = client.extensions["lifelink_async_engine"]
+        request_id = created["request_id"]
+        share_path = f"/v1/emergency-requests/{request_id}/donors/{donor}/location-share"
+
+        async with sessions() as locking_session:
+            request_row = await locking_session.scalar(
+                select(db_models.EmergencyRequest)
+                .where(db_models.EmergencyRequest.id == request_id)
+                .with_for_update()
+            )
+            assert request_row is not None
+
+            lock_requested = asyncio.Event()
+            loop = asyncio.get_running_loop()
+
+            def observe_request_lock(connection, cursor, statement, parameters, context, executemany):
+                if "FOR UPDATE" in statement.upper() and "EMERGENCY_REQUESTS" in statement.upper():
+                    loop.call_soon_threadsafe(lock_requested.set)
+
+            event.listen(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+            try:
+                current["id"] = requester
+                activation_task = asyncio.create_task(client.post(share_path))
+                # The API's final repository write must reach its request lock
+                # before cancellation commits, not just pass the route pre-check.
+                await asyncio.wait_for(lock_requested.wait(), timeout=5)
+                assert not activation_task.done()
+
+                await main_postgres.SqlAlchemyRequestStore(locking_session).set_cancelled_async(request_id)
+            finally:
+                event.remove(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+
+        activation = await activation_task
+        assert activation.status_code == 409, activation.text
+        current["id"] = requester
+        location = await client.get(
+            f"/v1/emergency-requests/{request_id}/donors/{donor}/location"
+        )
+        assert location.status_code == 200, location.text
+        assert location.json()["shared"] is False
+        assert location.json()["latitude"] is None
+        assert location.json()["longitude"] is None
 
     run_scenario(pg_url, scenario)
 
