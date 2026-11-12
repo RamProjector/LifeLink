@@ -50,6 +50,7 @@ data class EmergencyRequestDraft(
     val requesterLatitude: Double? = null,
     val requesterLongitude: Double? = null,
     val locationPrecisionMeters: Int = 100,
+    val locationSource: String = "unknown",
     val contactMethod: ContactMethod = ContactMethod.IN_APP,
     val genuineRequestConfirmed: Boolean = false,
     val sharingConsentConfirmed: Boolean = false,

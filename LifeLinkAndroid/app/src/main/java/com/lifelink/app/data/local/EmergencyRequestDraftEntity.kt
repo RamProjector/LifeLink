@@ -1,5 +1,6 @@
 package com.lifelink.app.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -20,6 +21,7 @@ data class EmergencyRequestDraftEntity(
     val requesterLatitude: Double?,
     val requesterLongitude: Double?,
     val locationPrecisionMeters: Int,
+    @ColumnInfo(defaultValue = "'unknown'") val locationSource: String = "unknown",
     val contactMethod: String,
     val genuineRequestConfirmed: Boolean,
     val sharingConsentConfirmed: Boolean,

@@ -397,6 +397,7 @@ private fun EmergencyRequestDraft.toEntity(ownerId: String) = EmergencyRequestDr
     facilityVerified = facility?.verified ?: false, contactMethod = contactMethod.name,
     requesterLatitude = requesterLatitude, requesterLongitude = requesterLongitude,
     locationPrecisionMeters = locationPrecisionMeters,
+    locationSource = locationSource,
     genuineRequestConfirmed = genuineRequestConfirmed, sharingConsentConfirmed = sharingConsentConfirmed,
     aiMatchingEnabled = aiMatchingEnabled,
     updatedAtEpochMillis = System.currentTimeMillis(),
@@ -412,6 +413,7 @@ private fun EmergencyRequestDraftEntity.toDomain() = EmergencyRequestDraft(
     facility = facilityId?.let { Facility(it, facilityName.orEmpty(), facilityArea.orEmpty(), facilityVerified) },
     requesterLatitude = requesterLatitude, requesterLongitude = requesterLongitude,
     locationPrecisionMeters = locationPrecisionMeters,
+    locationSource = locationSource,
     contactMethod = enumValueOf<ContactMethod>(contactMethod), genuineRequestConfirmed = genuineRequestConfirmed,
     sharingConsentConfirmed = sharingConsentConfirmed, aiMatchingEnabled = aiMatchingEnabled,
 )
