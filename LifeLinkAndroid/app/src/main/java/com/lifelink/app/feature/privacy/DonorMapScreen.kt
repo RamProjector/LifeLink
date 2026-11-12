@@ -390,42 +390,6 @@ fun DonorMapScreen(
             }
         }
 
-        if (state.mapLoading || state.mapError != null) {
-            Column(
-                Modifier.align(Alignment.TopCenter)
-                    .then(if (embeddedInShell) Modifier else Modifier.statusBarsPadding())
-                    .padding(top = 76.dp, start = 16.dp, end = 16.dp)
-                    .widthIn(max = 520.dp)
-                    .testTag("donor-map-load-feedback"),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (state.mapError != null) {
-                    LifeLinkFeedbackCard(
-                        title = "Donor map unavailable",
-                        message = state.mapError,
-                        level = LifeLinkFeedbackLevel.Error,
-                        actionLabel = "Retry",
-                        onAction = { onAction(PrivacyAction.LoadMap) },
-                    )
-                } else if (state.mapLoading && areas.isEmpty()) {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                        shadowElevation = 3.dp,
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                            Text("Loading donor areas…", style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
-            }
-        }
-
         Row(
             Modifier.fillMaxWidth()
                 .then(if (embeddedInShell) Modifier else Modifier.statusBarsPadding())
