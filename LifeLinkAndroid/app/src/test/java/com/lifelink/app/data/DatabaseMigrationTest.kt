@@ -66,20 +66,20 @@ class DatabaseMigrationTest {
 
     private fun insertLegacyRequestDraft(database: SQLiteDatabase) {
         database.execSQL(
-        """
-        INSERT INTO emergency_request_drafts (
-            id, bloodType, units, typeUnknown, urgency, responseDeadline, note,
-            facilityId, facilityName, facilityArea, facilityVerified,
-            requesterLatitude, requesterLongitude, locationPrecisionMeters,
-            contactMethod, genuineRequestConfirmed, sharingConsentConfirmed,
-            aiMatchingEnabled, updatedAtEpochMillis
-        ) VALUES (
-            'legacy-request-draft', 'O_NEG', 1, 0, 'URGENT', 'Today',
-            'Saved before source migration', NULL, NULL, NULL, 0,
-            11.2433, 125.0, 100, 'IN_APP', 1, 1, 1, 1
+            """
+            INSERT INTO emergency_request_drafts (
+                id, bloodType, units, typeUnknown, urgency, responseDeadline, note,
+                facilityId, facilityName, facilityArea, facilityVerified,
+                requesterLatitude, requesterLongitude, locationPrecisionMeters,
+                contactMethod, genuineRequestConfirmed, sharingConsentConfirmed,
+                aiMatchingEnabled, updatedAtEpochMillis
+            ) VALUES (
+                'legacy-request-draft', 'O_NEG', 1, 0, 'URGENT', 'Today',
+                'Saved before source migration', NULL, NULL, NULL, 0,
+                11.2433, 125.0, 100, 'IN_APP', 1, 1, 1, 1
+            )
+            """.trimIndent(),
         )
-        """.trimIndent(),
-    )
     }
 
     private fun insertLegacyRows(old: SQLiteDatabase, version: Int, ownedLegacyRows: Boolean) {
