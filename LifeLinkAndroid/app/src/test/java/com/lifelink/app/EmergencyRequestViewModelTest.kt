@@ -25,8 +25,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-@OptIn(ExperimentalCoroutinesApi::class)
 // Covers request history, validation, location metadata, and request lifecycle state.
+@OptIn(ExperimentalCoroutinesApi::class)
 class EmergencyRequestViewModelTest {
     private val facility = Facility("facility-1", "St. Luke’s Medical Center", "Quezon City")
 
