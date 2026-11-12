@@ -275,9 +275,9 @@ fun LifeLinkShell(
     if (showStart) {
         StartContent(
             role = role,
-            hasActiveRequest = state.activeRequest?.isTerminal == false,
+            hasActiveRequest = state.hasActiveRequest,
             canCreateRequest = state.historyLoaded && !state.historyRefreshing &&
-                state.historyError == null && state.activeRequest?.isTerminal != false,
+                state.historyError == null && !state.hasActiveRequest,
             onGetStarted = markWelcomeSeen,
             onCreateRequest = {
                 markWelcomeSeen()
@@ -703,7 +703,7 @@ private fun RequestsContent(
                 }
             }
             item {
-                if (state.activeRequest?.isTerminal == false) {
+                if (state.hasActiveRequest) {
                     OutlinedButton(
                         onClick = onActive,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
@@ -1110,7 +1110,7 @@ private fun HomeContent(
                             }
                         }
                     }
-                    if (state.activeRequest?.isTerminal == false) {
+                    if (state.hasActiveRequest) {
                         OutlinedButton(
                             onClick = onActive,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
