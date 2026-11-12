@@ -145,7 +145,7 @@ fun EmergencyRequestScreen(
                     (
                         "Automatic matching is unavailable. Manual review is pending; " +
                             "this status change does not send donor notifications."
-                    ) to null
+                        ) to null
                 is SubmissionState.QueuedOffline -> "Saved offline. It will sync when connection returns." to null
                 else -> null
             }
