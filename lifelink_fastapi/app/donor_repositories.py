@@ -296,7 +296,15 @@ class SqlAlchemyDonorStore:
             raise ValueError("You cannot accept or decline your own request")
         current_status = getattr(request.status, "value", request.status)
         if is_request_expired(current_status, request.response_deadline):
+            now = datetime.now(UTC)
             request.status = RequestStatusEnum.EXPIRED
+            request.updated_at = now
+            from .repositories import SqlAlchemyRequestStore
+
+            await SqlAlchemyRequestStore(self.session).close_expired_request_children_async(
+                [request_id],
+                now,
+            )
             await self.session.commit()
             raise ValueError("This request has expired and is no longer accepting donor responses")
         if current_status in {"cancelled", "expired", "fulfilled"}:
