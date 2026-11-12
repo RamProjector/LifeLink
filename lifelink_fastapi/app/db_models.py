@@ -133,6 +133,9 @@ class Donor(Base):
     verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     service_radius_km: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False, default=15)
     last_location_precision_meters: Mapped[int] = mapped_column(Integer, nullable=False, default=500)
+    # Client-reported provider category from Android's fused location result.
+    # Diagnostic only: it does not prove which underlying sensor contributed.
+    last_location_provider: Mapped[str | None] = mapped_column(String(24), nullable=True)
     estimated_response_probability: Mapped[Decimal] = mapped_column(
         Numeric(4, 3), nullable=False, default=Decimal("0.50")
     )
