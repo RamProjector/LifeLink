@@ -49,7 +49,12 @@ class EmergencyRequestViewModelTest {
         assertTrue(viewModel.uiState.value.historyLoaded)
         assertTrue(!viewModel.uiState.value.historyRefreshing)
         repository.historyFailure = null
-        repository.history = listOf(RequestHistoryItem("saved-request", com.lifelink.app.domain.ActiveRequestStatus.AWAITING_RESPONSES))
+        repository.history = listOf(
+            RequestHistoryItem(
+                "saved-request",
+                com.lifelink.app.domain.ActiveRequestStatus.AWAITING_RESPONSES,
+            ),
+        )
         viewModel.onAction(EmergencyRequestAction.RefreshHistory)
         advanceUntilIdle()
         assertEquals(
@@ -411,14 +416,20 @@ class EmergencyRequestViewModelTest {
             viewModel.uiState.value.contactsError
                 ?.contains("empty") == true,
         )
-        assertTrue("uncertain contacts stay selected until status confirms them", "donor-1" in viewModel.uiState.value.selectedDonorIds)
+        assertTrue(
+            "uncertain contacts stay selected until status confirms them",
+            "donor-1" in viewModel.uiState.value.selectedDonorIds,
+        )
     }
 
     @Test
     fun active_request_refresh_does_not_replace_another_open_results_request() = runTest {
         val repository =
             FakeRepository().apply {
-                activeRequest = ActiveRequestSnapshot("active-request", com.lifelink.app.domain.ActiveRequestStatus.MATCHING)
+                activeRequest = ActiveRequestSnapshot(
+                    "active-request",
+                    com.lifelink.app.domain.ActiveRequestStatus.MATCHING,
+                )
             }
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
         advanceUntilIdle()
@@ -437,7 +448,10 @@ class EmergencyRequestViewModelTest {
     fun cancelling_a_request_resets_the_flow_and_starts_a_fresh_draft() = runTest {
         val repository =
             FakeRepository().apply {
-                activeRequest = ActiveRequestSnapshot("active-request", com.lifelink.app.domain.ActiveRequestStatus.AWAITING_RESPONSES)
+                activeRequest = ActiveRequestSnapshot(
+                    "active-request",
+                    com.lifelink.app.domain.ActiveRequestStatus.AWAITING_RESPONSES,
+                )
             }
         val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
         advanceUntilIdle()
@@ -489,7 +503,11 @@ class EmergencyRequestViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf("near", "far"), viewModel.uiState.value.nearbyFacilities.map { it.id })
-        viewModel.onAction(EmergencyRequestAction.SelectNearbyFacility(viewModel.uiState.value.nearbyFacilities.first()))
+        viewModel.onAction(
+            EmergencyRequestAction.SelectNearbyFacility(
+                viewModel.uiState.value.nearbyFacilities.first(),
+            ),
+        )
         assertEquals("near", viewModel.uiState.value.draft.facility?.id)
         assertEquals(14.61, viewModel.uiState.value.draft.requesterLatitude!!, 0.000001)
         assertEquals(121.04, viewModel.uiState.value.draft.requesterLongitude!!, 0.000001)
