@@ -1337,7 +1337,7 @@ private fun StartHeader(role: UserRole) {
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    Icons.Default.Favorite,
+                    Icons.Default.Shield,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(20.dp),
@@ -1376,7 +1376,11 @@ private fun StartActions(role: UserRole, onGetStarted: () -> Unit, onCreateReque
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
             shape = MaterialTheme.shapes.medium,
         ) {
-            Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(20.dp))
+            Icon(
+                if (role == UserRole.DONOR) Icons.Default.Person else Icons.Default.Add,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
             Spacer(Modifier.width(8.dp))
             Text(if (role == UserRole.DONOR) "Open donor workspace" else "Create a request")
         }
