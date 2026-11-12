@@ -1,6 +1,5 @@
 package com.lifelink.app
 
-import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.Facility
 import com.lifelink.app.domain.SubmitResult
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
@@ -9,11 +8,11 @@ import com.lifelink.app.feature.emergencyrequest.SubmissionState
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
