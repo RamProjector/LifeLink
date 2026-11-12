@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -169,37 +169,33 @@ class SqlAlchemyRequestStore(RequestStore):
         Keep declined matches/contacts and fulfilled contacts as historical
         outcomes. The caller must already hold the parent request-row lock, or
         have atomically changed its active status to expired in this transaction.
+        Two conditional UPDATEs keep this operation bounded for large batches;
+        PostgreSQL takes the child-row locks as part of each update.
         """
         request_ids = sorted(set(request_ids))
         if not request_ids:
             return
-        matches = await self.session.scalars(
-            select(RequestMatchRow)
+        await self.session.execute(
+            update(RequestMatchRow)
             .where(
                 RequestMatchRow.request_id.in_(request_ids),
                 RequestMatchRow.status.notin_(
                     {MatchStatusEnum.WITHDRAWN.value, MatchStatusEnum.DECLINED.value}
                 ),
             )
-            .order_by(RequestMatchRow.request_id, RequestMatchRow.id)
-            .with_for_update()
+            .values(
+                status=MatchStatusEnum.WITHDRAWN,
+                responded_at=func.coalesce(RequestMatchRow.responded_at, now),
+            )
         )
-        for match in matches.all():
-            match.status = MatchStatusEnum.WITHDRAWN
-            match.responded_at = match.responded_at or now
-
-        contacts = await self.session.scalars(
-            select(DonorContactRequest)
+        await self.session.execute(
+            update(DonorContactRequest)
             .where(
                 DonorContactRequest.request_id.in_(request_ids),
                 DonorContactRequest.status.notin_({"cancelled", "fulfilled", "declined"}),
             )
-            .order_by(DonorContactRequest.request_id, DonorContactRequest.id)
-            .with_for_update()
+            .values(status="cancelled", updated_at=now)
         )
-        for contact in contacts.all():
-            contact.status = "cancelled"
-            contact.updated_at = now
 
     async def _expire_if_needed(self, row: EmergencyRequestRow) -> bool:
         """Expire a due request with an atomic active-state compare-and-set."""
