@@ -298,6 +298,7 @@ private fun ProgressCard(active: ActiveRequestSnapshot, contactedDonors: Int?) {
         }
     }
 }
+
 /** A single metric rendered as a tonal tile so the two counts read as a pair. */
 @Composable
 private fun MetricTile(label: String, value: String, modifier: Modifier = Modifier) {
