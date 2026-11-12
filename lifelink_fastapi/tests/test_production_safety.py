@@ -71,6 +71,64 @@ def test_shared_rate_limit_uses_postgres_clock_for_all_workers(monkeypatch):
 
 
 
+
+def test_contact_disclosure_and_audit_can_share_one_transaction():
+    from types import SimpleNamespace
+
+    from app.privacy_api import ContactShareIn
+    from app.privacy_repositories import SqlAlchemyPrivacyStore
+
+    class Session:
+        def __init__(self):
+            self.added = []
+            self.flush_count = 0
+            self.commit_count = 0
+
+        def add(self, value):
+            self.added.append(value)
+
+        async def flush(self):
+            self.flush_count += 1
+
+        async def commit(self):
+            self.commit_count += 1
+
+    session = Session()
+    store = SqlAlchemyPrivacyStore(session)
+    conversation = SimpleNamespace(
+        id="conversation-1",
+        request_id="request-1",
+        donor_id="donor-1",
+        requester_id="requester-1",
+    )
+
+    share = asyncio.run(
+        store.add_contact_share(
+            conversation,
+            "requester-1",
+            ContactShareIn(field="email", value="person@example.test"),
+            commit=False,
+        )
+    )
+    asyncio.run(
+        store.record_audit_async(
+            "requester-1",
+            "contact_share_email",
+            "request-1",
+            "donor-1",
+            {"conversation_id": "conversation-1"},
+            commit=False,
+        )
+    )
+
+    assert share.value == "person@example.test"
+    assert len(session.added) == 2
+    assert session.flush_count == 2
+    assert session.commit_count == 0
+    assert session.added[1].action == "contact_share_email"
+    assert session.added[1].event_metadata == {"conversation_id": "conversation-1"}
+
+
 def test_contact_response_preserves_lifecycle_timestamps():
     accepted_at = datetime.now(UTC)
     shared_at = datetime.now(UTC)
