@@ -40,10 +40,10 @@ import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
 import com.lifelink.app.core.ui.LifeLinkPageHeader
 import com.lifelink.app.domain.Conversation
-import java.time.OffsetDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
+import java.text.ParsePosition
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 /**
@@ -113,25 +113,40 @@ fun MessagingScreen(
 }
 
 /**
- * Converts API timestamps to concise device-local labels. Invalid or legacy values
- * fall back to neutral copy rather than exposing raw timestamp strings in the UI.
+ * Converts API timestamps to concise device-local labels. Uses platform date APIs
+ * supported by the app's API 24 minimum; invalid or legacy values get neutral copy.
  */
-internal fun formatConversationTimestamp(timestamp: String, now: OffsetDateTime = OffsetDateTime.now()): String {
-    val conversationTime = try {
-        OffsetDateTime.parse(timestamp).atZoneSameInstant(ZoneId.systemDefault())
-    } catch (_: DateTimeParseException) {
-        return "Recent message"
-    }
-    val localNow = now.atZoneSameInstant(ZoneId.systemDefault())
-    val timeLabel = conversationTime.format(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()))
-    return when (conversationTime.toLocalDate()) {
-        localNow.toLocalDate() -> "Today · $timeLabel"
-        localNow.toLocalDate().minusDays(1) -> "Yesterday · $timeLabel"
-        else -> {
-            val pattern = if (conversationTime.year == localNow.year) "MMM d · h:mm a" else "MMM d, yyyy"
-            conversationTime.format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
-        }
-    }
+internal fun formatConversationTimestamp(timestamp: String, now: Date = Date()): String {
+    val normalized = timestamp.replace(
+        Regex("(\\.\\d{3})\\d+(?=(Z|[+-]\\d{2}:?\\d{2})$)"),
+        "$1",
+    )
+    val patterns = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXX",
+    )
+    val parsed = patterns.firstNotNullOfOrNull { pattern ->
+        val parser = SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }
+        val position = ParsePosition(0)
+        parser.parse(normalized, position)?.takeIf { position.index == normalized.length }
+    } ?: return "Recent message"
+
+    val localTime = Calendar.getInstance().apply { time = parsed }
+    val localNow = Calendar.getInstance().apply { time = now }
+    val timeLabel = SimpleDateFormat("h:mm a", Locale.getDefault()).format(parsed)
+    val sameDay = localTime.get(Calendar.ERA) == localNow.get(Calendar.ERA) &&
+        localTime.get(Calendar.YEAR) == localNow.get(Calendar.YEAR) &&
+        localTime.get(Calendar.DAY_OF_YEAR) == localNow.get(Calendar.DAY_OF_YEAR)
+    if (sameDay) return "Today · $timeLabel"
+
+    val yesterday = (localNow.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -1) }
+    val isYesterday = localTime.get(Calendar.ERA) == yesterday.get(Calendar.ERA) &&
+        localTime.get(Calendar.YEAR) == yesterday.get(Calendar.YEAR) &&
+        localTime.get(Calendar.DAY_OF_YEAR) == yesterday.get(Calendar.DAY_OF_YEAR)
+    if (isYesterday) return "Yesterday · $timeLabel"
+
+    val pattern = if (localTime.get(Calendar.YEAR) == localNow.get(Calendar.YEAR)) "MMM d · h:mm a" else "MMM d, yyyy"
+    return SimpleDateFormat(pattern, Locale.getDefault()).format(parsed)
 }
 
 /** Displays a conversation with an initials avatar, request reference, and message recency. */
