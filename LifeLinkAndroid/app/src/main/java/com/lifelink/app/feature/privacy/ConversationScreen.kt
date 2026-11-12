@@ -245,7 +245,7 @@ fun ConversationScreen(
             }
         }
         Text(
-            "Only you and the other person can read these messages. Contact details stay hidden until you share them.",
+            "Messages are shared with the matched requester and donor. Contact details stay hidden until you choose to share them.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
