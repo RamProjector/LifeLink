@@ -10,6 +10,7 @@ import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRepository
 import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -173,7 +174,14 @@ class DonorViewModel(
             messageLevel = LifeLinkFeedbackLevel.Info,
         )
         launchDurableWrite {
-            repository.respond(requestId, response)
+            val result = try {
+                repository.respond(requestId, response)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
+            }
+            result
                 .onSuccess {
                     _state.value = _state.value.copy(
                         saving = false,
