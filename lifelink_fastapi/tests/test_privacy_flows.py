@@ -666,7 +666,7 @@ def test_contact_disclosure_rolls_back_when_audit_insert_fails(pg_url):
             f"/v1/conversations/{conversation_id}/contact-shares",
             json={"field": "email", "value": "donor@example.test"},
         )
-        assert failed.status_code == 500
+        assert failed.status_code == 503
 
         contact_rows = await run_sql(
             f"SELECT id FROM contact_shares WHERE conversation_id = '{conversation_id}'"
@@ -719,7 +719,7 @@ def test_conversation_block_rolls_back_when_audit_insert_fails(pg_url):
             f"/v1/conversations/{conversation_id}/block",
             json={"reason": "test"},
         )
-        assert failed.status_code == 500
+        assert failed.status_code == 503
 
         block_rows = await run_sql(
             f"SELECT id FROM conversation_blocks WHERE conversation_id = '{conversation_id}'"
