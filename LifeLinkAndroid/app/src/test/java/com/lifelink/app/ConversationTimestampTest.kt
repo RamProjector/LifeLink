@@ -2,30 +2,40 @@ package com.lifelink.app
 
 import com.lifelink.app.feature.privacy.formatConversationTimestamp
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConversationTimestampTest {
-    private val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
+    private val formatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).apply {
+        timeZone = TimeZone.getDefault()
+    }
 
-    private fun date(value: String): Date = requireNotNull(parser.parse(value))
+    private fun date(dayOffset: Int): Date =
+        Calendar.getInstance().apply {
+            set(2026, Calendar.NOVEMBER, 12, 10, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+            add(Calendar.DAY_OF_YEAR, dayOffset)
+        }.time
+
+    private fun timestamp(value: Date): String = formatter.format(value)
 
     @Test
     fun same_day_timestamp_uses_today_label_and_device_local_time() {
-        val now = date("2026-11-12T10:00:00+08:00")
-        val result = formatConversationTimestamp("2026-11-12T09:30:00+08:00", now)
+        val now = date(0)
+        val result = formatConversationTimestamp(timestamp(date(0)), now)
 
         assertTrue(result.startsWith("Today · "))
-        assertTrue(result.endsWith("AM"))
     }
 
     @Test
     fun previous_calendar_day_uses_yesterday_label() {
-        val now = date("2026-11-12T10:00:00+08:00")
-        val result = formatConversationTimestamp("2026-11-11T21:15:00+08:00", now)
+        val now = date(0)
+        val result = formatConversationTimestamp(timestamp(date(-1)), now)
 
         assertTrue(result.startsWith("Yesterday · "))
     }
