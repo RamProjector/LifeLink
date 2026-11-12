@@ -681,6 +681,56 @@ def test_contact_disclosure_rolls_back_when_audit_insert_fails(pg_url):
 
 
 
+
+def test_conversation_block_rolls_back_when_audit_insert_fails(pg_url):
+    """A failed block audit must not leave an unaudited block active."""
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert opened.status_code == 200, opened.text
+        conversation_id = opened.json()["conversation_id"]
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_conversation_block_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'conversation_blocked' THEN "
+                + "RAISE EXCEPTION 'injected block audit failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_conversation_block_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_conversation_block_audit()"
+            )
+        await trigger_engine.dispose()
+
+        failed = await client.post(
+            f"/v1/conversations/{conversation_id}/block",
+            json={"reason": "test"},
+        )
+        assert failed.status_code == 500
+
+        block_rows = await run_sql(
+            f"SELECT id FROM conversation_blocks WHERE conversation_id = '{conversation_id}'"
+        )
+        audit_rows = await run_sql(
+            "SELECT id FROM audit_events WHERE action = 'conversation_blocked'"
+        )
+        assert block_rows == []
+        assert audit_rows == []
+
+
 def test_conversation_row_lock_serializes_against_block_changes(pg_url):
     """A second participant action waits until the first transaction commits."""
     async def scenario(client, current, run_sql):
