@@ -142,7 +142,7 @@ fun EmergencyRequestScreen(
                 is SubmissionState.Error -> submission.message to if (submission.retryable) "Retry" else null
                 is SubmissionState.Matching -> "Request submitted. Matching donors nearby…" to null
                 is SubmissionState.ManualFallback ->
-                    "Automatic matching is unavailable. The request is marked for manual review; LifeLink has not sent donor notifications." to null
+                    "Automatic matching is unavailable. Manual review is pending; this status change does not send donor notifications." to null
                 is SubmissionState.QueuedOffline -> "Saved offline. It will sync when connection returns." to null
                 else -> null
             }
