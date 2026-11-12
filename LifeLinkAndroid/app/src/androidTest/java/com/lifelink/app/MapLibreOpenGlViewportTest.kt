@@ -62,6 +62,7 @@ class MapLibreOpenGlViewportTest {
         val viewportSummary = captureAndAssertViewport(context.filesDir)
         val tileSummary = listOf(
             "renderer=OPENGL",
+            "ambientCacheCleared=true",
             "networkRequested=${tileActions.count { it == TileOperation.RequestedFromNetwork }}",
             "networkLoaded=${tileActions.count { it == TileOperation.LoadFromNetwork }}",
             "parsedTiles=${tileActions.count { it == TileOperation.EndParse }}",
@@ -94,7 +95,7 @@ class MapLibreOpenGlViewportTest {
     }
 
     /**
-     * The Vulkan suite runs first and can warm MapLibre's shared ambient tile
+     * The production visual suite runs first and can warm MapLibre's shared ambient tile
      * cache. Clear only that cache in this disposable emulator before the
      * OpenGL probe, so LoadFromNetwork is deterministic rather than depending
      * on whichever tiles the previous test happened to cache. Offline regions
@@ -126,6 +127,7 @@ class MapLibreOpenGlViewportTest {
             "MapLibre ambient cache could not be cleared; fresh network tile loading cannot be verified",
             succeeded,
         )
+        Log.i("LifeLinkMapTilesOpenGL", "ambientCacheCleared=true")
     }
 
     private fun renderPublicBasemap(tileActions: CopyOnWriteArrayList<TileOperation>) {
