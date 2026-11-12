@@ -117,10 +117,8 @@ fun MessagingScreen(
     }
 }
 
-private data class ConversationNotificationTarget(
-    val conversationId: String,
-    val eventId: String?,
-)
+private data class ConversationNotificationTarget(val conversationId: String, val eventId: String?)
+
 
 @Composable
 private fun MessagingNotificationEffect(
