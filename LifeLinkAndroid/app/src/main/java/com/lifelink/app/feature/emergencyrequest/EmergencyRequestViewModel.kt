@@ -360,6 +360,16 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
         // network requests for the same emergency draft.
         val current = _uiState.value
         if (current.submission is SubmissionState.Submitting) return
+        if (current.activeRequest?.isTerminal == false) {
+            _uiState.update {
+                it.copy(
+                    submission = SubmissionState.Error(
+                        "You already have an active request. Manage it before starting another request.",
+                    ),
+                )
+            }
+            return
+        }
         if (!_uiState.compareAndSet(current, current.copy(submission = SubmissionState.Submitting))) return
 
         draftSaveJob?.cancel()
