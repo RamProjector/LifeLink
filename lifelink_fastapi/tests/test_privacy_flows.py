@@ -643,25 +643,24 @@ def test_contact_disclosure_rolls_back_when_audit_insert_fails(pg_url):
         assert opened.status_code == 200, opened.text
         conversation_id = opened.json()["conversation_id"]
 
-        await run_sql(
-            """
-            CREATE FUNCTION reject_contact_share_audit() RETURNS trigger AS $
-            BEGIN
-                IF NEW.action = 'contact_share_email' THEN
-                    RAISE EXCEPTION 'injected audit write failure';
-                END IF;
-                RETURN NEW;
-            END;
-            $ LANGUAGE plpgsql
-            """
-        )
-        await run_sql(
-            """
-            CREATE TRIGGER reject_contact_share_audit_trigger
-            BEFORE INSERT ON audit_events
-            FOR EACH ROW EXECUTE FUNCTION reject_contact_share_audit()
-            """
-        )
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_contact_share_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'contact_share_email' THEN "
+                + "RAISE EXCEPTION 'injected audit write failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_contact_share_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_contact_share_audit()"
+            )
+        await trigger_engine.dispose()
 
         failed = await client.post(
             f"/v1/conversations/{conversation_id}/contact-shares",
