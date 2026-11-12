@@ -141,7 +141,8 @@ fun EmergencyRequestScreen(
             when (val submission = state.submission) {
                 is SubmissionState.Error -> submission.message to if (submission.retryable) "Retry" else null
                 is SubmissionState.Matching -> "Request submitted. Matching donors nearby…" to null
-                is SubmissionState.ManualFallback -> "No automatic matches yet. You can broadcast to more potential donors." to "Broadcast"
+                is SubmissionState.ManualFallback ->
+                    "Automatic matching is unavailable. The request is marked for manual review; LifeLink has not sent donor notifications." to null
                 is SubmissionState.QueuedOffline -> "Saved offline. It will sync when connection returns." to null
                 else -> null
             }
@@ -154,7 +155,6 @@ fun EmergencyRequestScreen(
                 )
             if (result == SnackbarResult.ActionPerformed) {
                 if (feedback.second == "Retry") onAction(EmergencyRequestAction.Retry)
-                if (feedback.second == "Broadcast") onAction(EmergencyRequestAction.SendManualBroadcast)
             }
         }
         if (state.contactRequestSent) snackbarHostState.showSnackbar("Contact request sent")
@@ -1517,22 +1517,6 @@ private fun NearbyFacilityRow(facility: NearbyFacility, selected: Boolean, onCli
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("LifeLink update", fontWeight = FontWeight.SemiBold)
             Text(message, color = MaterialTheme.colorScheme.onSecondaryContainer)
-        }
-    }
-}
-
-/** Explains why automatic matching is unavailable and offers the manual broadcast action. */
-@Composable private fun ManualFallbackBanner(reason: String, onSend: () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.medium) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Automatic matching is unavailable", fontWeight = FontWeight.SemiBold)
-            Text(reason, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-            Text(
-                "A manual broadcast may reach more eligible donors.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Button(onClick = onSend) { Text("Send manual broadcast") }
         }
     }
 }
