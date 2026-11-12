@@ -99,7 +99,7 @@ The block record and its audit event now also share one transaction. If the audi
 
 **Trust boundary:** this value is client-reported diagnostic metadata. A modified client can lie about it; it must never drive donor eligibility, matching, authorization, or location accuracy. The server timestamp and reported precision remain separate fields.
 
-**Remaining scope:** requester-created emergency location provenance and manual map-pin provenance are not yet persisted in the same way. That requires tracing the requester location DTO and schema separately before adding a migration.
+**Requester follow-up completed in this PR:** requester-created emergency location provenance is now persisted through the request DTO, PostgreSQL request row, Android Room draft, and request-wizard action flow. Manual map pins, manually entered coordinates, device-reported providers, and selected facilities have separate bounded categories. See the `Requester location provenance implementation` section below and `docs/CLIENT_BACKEND_ENGINEERING_RESEARCH_2026-11-12.md` for the cross-layer review.
 
 **Primary Android references (2020 onward/current API docs):**
 - FusedLocationProviderClient and permission behavior: https://developers.google.com/android/reference/com/google/android/gms/location/FusedLocationProviderClient
@@ -137,3 +137,8 @@ Attribution is deliberately excluded from the idempotency-intent comparison. A r
 The field is not proof that a physical sensor was used or that coordinates are trustworthy. Android documents that the fused provider can combine multiple providers, so `fused` does not identify a single physical sensor ([Android LocationManager reference](https://developer.android.com/reference/android/location/LocationManager)). The database CHECK constraint enforces the controlled vocabulary ([PostgreSQL 16 constraints](https://www.postgresql.org/docs/16/ddl-constraints.html)). The source is not returned to other users; response models should expose only properties required by each flow, following OWASP API3:2023 guidance on object-property authorization and minimizing exposed fields ([OWASP API3:2023](https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/)).
 
 The migration is committed to this PR but has **not** been applied to a hosted or production database. Verify migration order and backup/restore in the target environment before separately approving any production change.
+
+
+## Cross-layer research companion
+
+The broader 2020–2026 review of Android architecture, offline-first state, debugging and observability, SQLAlchemy concurrency, PostgreSQL query diagnostics, accessibility/HCI, open-source messaging implementations, and patent literature is recorded in [`CLIENT_BACKEND_ENGINEERING_RESEARCH_2026-11-12.md`](CLIENT_BACKEND_ENGINEERING_RESEARCH_2026-11-12.md). The report separates source-backed findings from recommendations and labels patent status as a database display rather than legal advice.
