@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -64,7 +65,7 @@ fun MessagingScreen(
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadConversations) }
     var handledNotificationKey by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedConversation by rememberSaveable { mutableStateOf<Conversation?>(null) }
+    var selectedConversation by remember { mutableStateOf<Conversation?>(null) }
     val notificationKey = targetConversationId?.let { conversationId ->
         "$conversationId|${targetConversationEventId.orEmpty()}"
     }
