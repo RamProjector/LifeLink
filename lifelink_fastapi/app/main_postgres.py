@@ -505,6 +505,8 @@ def _same_emergency_request_intent(
     Display-only facility labels/area/verification are intentionally excluded:
     they can be hydrated from mutable facility data and are not stored as
     requester-supplied values. Coordinates and precision are included.
+    Location source is diagnostic metadata and intentionally excluded, so an
+    idempotent retry from a newer client cannot conflict over attribution.
     """
     def persisted_intent(payload: EmergencyRequestIn) -> tuple:
         location = payload.location

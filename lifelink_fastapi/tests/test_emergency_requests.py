@@ -93,6 +93,23 @@ def test_request_status_restores_safe_donor_matches():
     assert all("latitude" not in match and "longitude" not in match for match in body["matches"])
 
 
+def test_request_location_source_accepts_known_categories_and_rejects_unknown_values():
+    supported = (
+        "fused", "gps", "network", "passive", "unknown",
+        "manual_pin", "manual_coordinates", "facility",
+    )
+    for index, source in enumerate(supported):
+        payload = make_payload(idempotency_key=f"request-location-source-{index:02}")
+        payload["location"]["source"] = source
+        response = client.post("/v1/emergency-requests", json=payload)
+        assert response.status_code == 201, (source, response.text)
+
+    invalid = make_payload(idempotency_key="request-location-source-invalid")
+    invalid["location"]["source"] = "wifi"
+    response = client.post("/v1/emergency-requests", json=invalid)
+    assert response.status_code == 422
+
+
 def test_mismatched_idempotency_header_is_rejected():
     response = client.post(
         "/v1/emergency-requests",

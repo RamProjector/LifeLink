@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timezone
 from enum import Enum
 from math import atan2, cos, radians, sin, sqrt
-from typing import Annotated, Protocol
+from typing import Annotated, Literal, Protocol
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
@@ -65,6 +65,11 @@ class RequestLocation(BaseModel):
     longitude: float = Field(ge=-180, le=180)
     precision_meters: int = Field(default=100, ge=10, le=10000)
     verified: bool = False
+    # Client-reported diagnostic category only; never treat it as proof of fix quality.
+    source: Literal[
+        "fused", "gps", "network", "passive", "unknown",
+        "manual_pin", "manual_coordinates", "facility",
+    ] = "unknown"
 
 
 class EmergencyRequestIn(BaseModel):

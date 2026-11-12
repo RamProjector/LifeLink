@@ -9,6 +9,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -228,6 +229,9 @@ class EmergencyRequest(Base):
     requester_latitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
     requester_longitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
     location_precision_meters: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    requester_location_source: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="unknown", server_default="unknown"
+    )
     blood_type: Mapped[BloodTypeEnum] = mapped_column(
         SqlEnum(BloodTypeEnum, name="blood_type_enum", native_enum=True, values_callable=enum_values), nullable=False
     )
@@ -258,6 +262,12 @@ class EmergencyRequest(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "requester_location_source IN "
+            "('fused', 'gps', 'network', 'passive', 'unknown', "
+            "'manual_pin', 'manual_coordinates', 'facility')",
+            name="ck_emergency_requests_requester_location_source",
+        ),
         Index("ix_requests_status_deadline", "status", "response_deadline"),
         Index("ix_requests_requester_created", "requester_id", "created_at"),
     )

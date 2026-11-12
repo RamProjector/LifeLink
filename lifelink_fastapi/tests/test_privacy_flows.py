@@ -109,6 +109,50 @@ def request_payload(requester_id: str, *, blood_type: str = "O+", hours: float =
     }
 
 
+def test_requester_location_source_is_persisted_and_idempotency_ignores_attribution(pg_url):
+    async def scenario(client, current, run_sql):
+        requester = new_user("requester")
+        payload = request_payload(requester)
+        payload["location"]["source"] = "manual_pin"
+        current["id"] = requester
+
+        created = await client.post("/v1/emergency-requests", json=payload)
+        assert created.status_code == 201, created.text
+        request_id = created.json()["request_id"]
+        stored = await run_sql(
+            "SELECT requester_location_source FROM emergency_requests "
+            f"WHERE id = '{request_id}'"
+        )
+        assert stored == [("manual_pin",)]
+
+        # Attribution is not request intent: retrying the same request with a
+        # different client-reported source must return the original request.
+        retry_payload = {**payload, "location": {**payload["location"], "source": "facility"}}
+        retried = await client.post("/v1/emergency-requests", json=retry_payload)
+        assert retried.status_code == 201, retried.text
+        assert retried.json()["request_id"] == request_id
+        stored_after_retry = await run_sql(
+            "SELECT requester_location_source FROM emergency_requests "
+            f"WHERE id = '{request_id}'"
+        )
+        assert stored_after_retry == [("manual_pin",)]
+
+        # Older app versions omit the field. They are recorded honestly as
+        # unknown rather than having provenance guessed from coordinates.
+        legacy_payload = request_payload(new_user("legacy-requester"))
+        current["id"] = legacy_payload["requester_id"]
+        legacy_created = await client.post("/v1/emergency-requests", json=legacy_payload)
+        assert legacy_created.status_code == 201, legacy_created.text
+        legacy_id = legacy_created.json()["request_id"]
+        legacy_source = await run_sql(
+            "SELECT requester_location_source FROM emergency_requests "
+            f"WHERE id = '{legacy_id}'"
+        )
+        assert legacy_source == [("unknown",)]
+
+    run_scenario(pg_url, scenario)
+
+
 async def setup_donor(
     client,
     current,
