@@ -1189,58 +1189,64 @@ private fun HomeRecentActivitySection(updates: List<UpdateItem>, onOpenUpdate: (
             )
         } else {
             updates.take(3).forEach { update ->
-                ListItem(
-                    headlineContent = {
-                        Text(
-                            update.title,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            fontWeight = if (update.isRead) FontWeight.Normal else FontWeight.SemiBold,
-                        )
-                    },
-                    supportingContent = {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(update.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                DateUtils.getRelativeTimeSpanString(
-                                    update.createdAtEpochMillis,
-                                    System.currentTimeMillis(),
-                                    DateUtils.MINUTE_IN_MILLIS,
-                                ).toString(),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    },
-                    trailingContent = {
-                        if (!update.isRead) {
-                            Text(
-                                "Unread",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    },
-                    leadingContent = {
-                        Surface(
-                            modifier = Modifier.size(8.dp),
-                            shape = CircleShape,
-                            color = if (update.isRead) Color.Transparent else MaterialTheme.colorScheme.primary,
-                        ) {}
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            onClickLabel = "Open update: ${update.title}",
-                            role = Role.Button,
-                            onClick = { onOpenUpdate(update) },
-                        )
-                        .testTag("home-update-${update.id}"),
-                )
+                HomeActivityItem(update, onOpenUpdate)
             }
         }
     }
+}
+
+/** Renders one activity preview with unread status, relative time, and a clear open action. */
+@Composable
+private fun HomeActivityItem(update: UpdateItem, onOpenUpdate: (UpdateItem) -> Unit) {
+    ListItem(
+        headlineContent = {
+            Text(
+                update.title,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = if (update.isRead) FontWeight.Normal else FontWeight.SemiBold,
+            )
+        },
+        supportingContent = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(update.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    DateUtils.getRelativeTimeSpanString(
+                        update.createdAtEpochMillis,
+                        System.currentTimeMillis(),
+                        DateUtils.MINUTE_IN_MILLIS,
+                    ).toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        trailingContent = {
+            if (!update.isRead) {
+                Text(
+                    "Unread",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        },
+        leadingContent = {
+            Surface(
+                modifier = Modifier.size(8.dp),
+                shape = CircleShape,
+                color = if (update.isRead) Color.Transparent else MaterialTheme.colorScheme.primary,
+            ) {}
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                onClickLabel = "Open update: ${update.title}",
+                role = Role.Button,
+                onClick = { onOpenUpdate(update) },
+            )
+            .testTag("home-update-${update.id}"),
+    )
 }
 
 /** Shows the current request status and response count, or nothing when no request is loaded. */
