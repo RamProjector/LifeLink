@@ -46,7 +46,7 @@ class DonorPresenceIn(BaseModel):
     precision_meters: int = Field(ge=1, le=10000)
     # Client-reported Android location provider. This is diagnostic metadata,
     # not proof of the physical sensor or accuracy of a location fix.
-    provider: Literal["fused", "gps", "network", "passive"] | None = None
+    provider: Literal["fused", "gps", "network", "passive", "unknown"] | None = None
 
 
 class DonorProfileMeOut(BaseModel):
