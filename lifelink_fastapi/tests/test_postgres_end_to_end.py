@@ -20,7 +20,7 @@ import pytest
 pgserver = pytest.importorskip("pgserver")
 
 import httpx
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app import db_models, main_postgres
@@ -64,6 +64,9 @@ def run_scenario(pg_url: str, scenario):
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
         try:
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                # The end-to-end concurrency scenario can coordinate independent
+                # database sessions while requests use the same API dependency.
+                client.extensions["lifelink_session_factory"] = sessions
 
                 async def run_sql(statement: str):
                     async with engine.begin() as conn:
@@ -667,6 +670,48 @@ def test_cancel_fulfill_and_manual_broadcast_succeed(pg_url):
         assert statuses[first["request_id"]] == "cancelled"
         assert statuses[second["request_id"]] == "fulfilled"
         assert statuses[third["request_id"]] == "manual_broadcast"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_acceptance_waits_for_request_cancellation(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        sessions = client.extensions["lifelink_session_factory"]
+
+        async with sessions() as locking_session:
+            request_row = await locking_session.scalar(
+                select(db_models.EmergencyRequest)
+                .where(db_models.EmergencyRequest.id == created["request_id"])
+                .with_for_update()
+            )
+            assert request_row is not None
+
+            current["id"] = donor
+            response_task = asyncio.create_task(
+                client.post(
+                    f"/v1/donors/{donor}/requests/{created['request_id']}/response",
+                    json={"response": "accepted"},
+                )
+            )
+            # The response operation must wait on the request-row lock rather
+            # than reading "awaiting" and committing a late acceptance.
+            await asyncio.sleep(0.1)
+            assert not response_task.done()
+
+            await main_postgres.SqlAlchemyRequestStore(locking_session).set_cancelled_async(
+                created["request_id"]
+            )
+
+        response = await response_task
+        assert response.status_code == 409, response.text
+        current["id"] = requester
+        restored = await client.get(f"/v1/emergency-requests/{created['request_id']}")
+        assert restored.status_code == 200, restored.text
+        assert restored.json()["status"] == "cancelled"
+        assert restored.json()["matches"] == []
 
     run_scenario(pg_url, scenario)
 
