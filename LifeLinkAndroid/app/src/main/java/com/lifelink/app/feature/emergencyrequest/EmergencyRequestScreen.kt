@@ -906,7 +906,7 @@ private fun LocationStep(
     val scope = rememberCoroutineScope()
     var locationCaptureRequest by remember { mutableStateOf(0) }
     var locationMessage by remember { mutableStateOf<String?>(null) }
-    var locationSource by rememberSaveable { mutableStateOf<String?>(null) }
+    val locationSource = locationSourceLabel(draft.locationSource)
     var fullMapVisible by remember { mutableStateOf(false) }
     val settingsResolutionLauncher =
         rememberLauncherForActivityResult(
@@ -959,14 +959,7 @@ private fun LocationStep(
                                 source = location.provider,
                             ),
                         )
-                        locationSource = when (location.provider) {
-                            "fused" -> "Fused device location"
-                            "gps" -> "GNSS satellite location"
-                            "network" -> "Network-assisted location"
-                            "passive" -> "Passive device location"
-                            else -> "Device location"
-                        }
-                        locationMessage = "Map centered on $locationSource (accuracy ±${location.precisionMeters} m)."
+                        locationMessage = "Map centered on ${locationSourceLabel(location.provider)} (accuracy ±${location.precisionMeters} m)."
                     } ?: run { locationMessage = "Could not get a current fix. Try again or choose a location manually." }
                 }
             },
@@ -1013,7 +1006,6 @@ private fun LocationStep(
         LocationMapPicker(
             draft = draft,
             onLocationSelected = { latitude, longitude ->
-                locationSource = "Pin selected manually"
                 onAction(
                     EmergencyRequestAction.SetGpsLocation(
                         latitude,
@@ -1026,9 +1018,9 @@ private fun LocationStep(
             recenterRequest = locationCaptureRequest,
             modifier = Modifier.height(260.dp),
         )
-        locationSource?.let { source ->
+        if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
             Text(
-                "$source · accuracy about ${draft.locationPrecisionMeters} m",
+                "$locationSource · reported accuracy about ${draft.locationPrecisionMeters} m",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1050,7 +1042,6 @@ private fun LocationStep(
                     )
                 },
                 onSelect = {
-                    locationSource = "Selected facility"
                     onAction(EmergencyRequestAction.SelectNearbyFacility(it))
                 },
             )
@@ -1090,7 +1081,6 @@ private fun LocationStep(
                     latitude !in -90.0..90.0 || longitude !in -180.0..180.0 ->
                         locationMessage = "Latitude must be between -90 and 90, and longitude between -180 and 180."
                     else -> {
-                        locationSource = "Coordinates entered manually"
                         onAction(
                             EmergencyRequestAction.SetGpsLocation(
                                 latitude,
@@ -1120,7 +1110,7 @@ private fun LocationStep(
                     null
                 ) {
                     Text(
-                        "${locationSource ?: "Approximate location"} · accuracy about ${draft.locationPrecisionMeters} m",
+                        "$locationSource · reported accuracy about ${draft.locationPrecisionMeters} m",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1145,7 +1135,6 @@ private fun LocationStep(
                             latitude,
                             longitude,
                         ->
-                        locationSource = "Pin selected manually"
                         onAction(
                             EmergencyRequestAction.SetGpsLocation(
                                 latitude,
@@ -1614,6 +1603,17 @@ private fun CriticalSheet(draft: EmergencyRequestDraft, onAction: (EmergencyRequ
 }
 
 /** Reports whether both request coordinates are present without exposing their values. */
+private fun locationSourceLabel(source: String): String = when (source) {
+    "fused" -> "Fused location provider"
+    "gps" -> "GNSS provider"
+    "network" -> "Network-assisted provider"
+    "passive" -> "Passive location provider"
+    "manual_pin" -> "Manually selected map point"
+    "manual_coordinates" -> "Manually entered coordinates"
+    "facility" -> "Selected nearby facility"
+    else -> "Location source not reported"
+}
+
 private fun locationSummary(draft: EmergencyRequestDraft): String =
     if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
         "Approximate GPS location captured"
