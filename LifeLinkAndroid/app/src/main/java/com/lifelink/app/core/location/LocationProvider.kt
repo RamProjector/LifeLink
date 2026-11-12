@@ -56,15 +56,24 @@ class LocationProvider(context: Context) {
 
     private fun android.location.Location.toDeviceLocation(): DeviceLocation? {
         val accuracy = accuracy.takeIf { it.isFinite() && it > 0f }?.roundToInt() ?: return null
-        val reportedProvider = provider?.lowercase()?.takeIf { it in SUPPORTED_PROVIDERS } ?: "unknown"
+        val reportedProvider = normalizeLocationProvider(provider)
         return DeviceLocation(latitude, longitude, accuracy.coerceIn(1, 10_000), reportedProvider)
     }
 
     private companion object {
         const val LOCATION_TIMEOUT_MILLIS = 15_000L
         const val MAX_CACHED_LOCATION_AGE_MILLIS = 30_000L
-        val SUPPORTED_PROVIDERS = setOf("fused", "gps", "network", "passive")
     }
 }
+
+/** Maps platform-specific provider text into the API's bounded attribution vocabulary. */
+internal fun normalizeLocationProvider(provider: String?): String =
+    when (provider?.trim()?.lowercase()) {
+        "fused" -> "fused"
+        "gps" -> "gps"
+        "network" -> "network"
+        "passive" -> "passive"
+        else -> "unknown"
+    }
 
 data class DeviceLocation(val latitude: Double, val longitude: Double, val precisionMeters: Int, val provider: String)
