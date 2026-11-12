@@ -211,23 +211,32 @@ fun ConversationScreen(
             onAction = onAction,
         )
 
-        MessageComposer(
-            draft = draft,
-            sending = state.sending,
-            enabled = chatReady,
-            onDraftChange = {
-                if (it.length <= MAX_MESSAGE_LENGTH) {
-                    draft = it
-                    draftRevision += 1
-                }
-            },
-            onSend = {
-                if (chatReady) {
-                    submittedDraftRevision = draftRevision
-                    onAction(PrivacyAction.SendMessage(draft))
-                }
-            },
-        )
+        if (state.conversationId == null && !state.chatLoading) {
+            Button(
+                onClick = { onAction(PrivacyAction.OpenConversation(requestId, donorId)) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Try again")
+            }
+        } else {
+            MessageComposer(
+                draft = draft,
+                sending = state.sending,
+                enabled = chatReady,
+                onDraftChange = {
+                    if (it.length <= MAX_MESSAGE_LENGTH) {
+                        draft = it
+                        draftRevision += 1
+                    }
+                },
+                onSend = {
+                    if (chatReady) {
+                        submittedDraftRevision = draftRevision
+                        onAction(PrivacyAction.SendMessage(draft))
+                    }
+                },
+            )
+        }
 
     }
 
