@@ -451,6 +451,75 @@ def test_exact_location_requires_a_match_and_donor_opt_in(pg_url):
 
 
 
+def test_donor_match_recompute_cannot_add_match_after_request_cancellation(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+
+        # Remove the initial request-time match to reproduce the worker's
+        # "newly eligible" insert path during donor-profile recomputation.
+        await run_sql(
+            "DELETE FROM request_matches "
+            f"WHERE request_id = '{request_id}' AND donor_id = '{donor}'"
+        )
+        assert await run_sql(
+            "SELECT COUNT(*) FROM request_matches "
+            f"WHERE request_id = '{request_id}' AND donor_id = '{donor}'"
+        ) == [(0,)]
+
+        from app.donor_repositories import SqlAlchemyDonorStore
+
+        sessions = client.extensions["lifelink_session_factory"]
+        engine = client.extensions["lifelink_async_engine"]
+        async with sessions() as locking_session:
+            locked = await locking_session.scalar(
+                select(db_models.EmergencyRequest)
+                .where(db_models.EmergencyRequest.id == request_id)
+                .with_for_update()
+            )
+            assert locked is not None
+
+            lock_requested = asyncio.Event()
+            loop = asyncio.get_running_loop()
+
+            def observe_request_lock(connection, cursor, statement, parameters, context, executemany):
+                if "FOR UPDATE" in statement.upper() and "EMERGENCY_REQUESTS" in statement.upper():
+                    loop.call_soon_threadsafe(lock_requested.set)
+
+            event.listen(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+            try:
+                async def recompute():
+                    async with sessions() as recompute_session:
+                        await SqlAlchemyDonorStore(recompute_session).recompute_matches_for_donor(donor)
+
+                recompute_task = asyncio.create_task(recompute())
+                # Wait until the background recompute reaches its parent-request
+                # lock; the earlier unlocked eligibility snapshot is not enough.
+                await asyncio.wait_for(lock_requested.wait(), timeout=5)
+                assert not recompute_task.done()
+
+                await main_postgres.SqlAlchemyRequestStore(locking_session).set_cancelled_async(
+                    request_id
+                )
+            finally:
+                event.remove(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+
+        await recompute_task
+        current["id"] = requester
+        restored = await client.get(f"/v1/emergency-requests/{request_id}")
+        assert restored.status_code == 200, restored.text
+        assert restored.json()["status"] == "cancelled"
+        remaining = await run_sql(
+            "SELECT COUNT(*) FROM request_matches "
+            f"WHERE request_id = '{request_id}' AND donor_id = '{donor}'"
+        )
+        assert remaining == [(0,)]
+
+    run_scenario(pg_url, scenario)
+
+
 def test_declined_match_cannot_activate_exact_location_share(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
