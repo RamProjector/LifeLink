@@ -618,7 +618,12 @@ class SqlAlchemyPrivacyStore:
 
     # -------------------------------------------------------- contact shares
     async def add_contact_share(
-        self, conversation: Conversation, shared_by: str, payload: ContactShareIn
+        self,
+        conversation: Conversation,
+        shared_by: str,
+        payload: ContactShareIn,
+        *,
+        commit: bool = True,
     ) -> ContactShare:
         """Record an explicit phone/email disclosure inside a conversation.
 
@@ -640,7 +645,10 @@ class SqlAlchemyPrivacyStore:
             value=value,
         )
         self.session.add(share)
-        await self.session.commit()
+        if commit:
+            await self.session.commit()
+        else:
+            await self.session.flush()
         return share
 
     async def list_contact_shares(self, conversation_id: str) -> list[ContactShare]:
@@ -731,8 +739,10 @@ class SqlAlchemyPrivacyStore:
         request_id: str | None = None,
         donor_id: str | None = None,
         metadata: dict | None = None,
+        *,
+        commit: bool = True,
     ) -> None:
-        """Append an audit event and commit it immediately."""
+        """Append an audit event, optionally leaving commit ownership to the caller."""
         self.session.add(AuditEvent(
             id=f"audit_{uuid4().hex}",
             actor_id=actor_id,
@@ -741,7 +751,10 @@ class SqlAlchemyPrivacyStore:
             donor_id=donor_id,
             event_metadata=metadata or {},
         ))
-        await self.session.commit()
+        if commit:
+            await self.session.commit()
+        else:
+            await self.session.flush()
 
     async def donor_matched_to_request(self, request_id: str, donor_row_id: str) -> bool:
         """True when the donor row is one of the request's matches."""
