@@ -112,7 +112,7 @@ The block record and its audit event now also share one transaction. If the audi
 1. **Rate-limit correctness** — implemented in this PR with PostgreSQL-clock windows and a focused regression test; full PostgreSQL execution is pending CI.
 2. **Atomic disclosure/audit transactions** — contact disclosure and conversation block now commit with their audit events; PostgreSQL failure-injection tests verify rollback behavior.
 3. **Conversation block/message race** — implemented with a shared conversation-row lock and PostgreSQL lock-serialization coverage.
-4. **Donor location-provider provenance** — implemented for donor-presence heartbeats with a bounded nullable field and additive schema migration; requester-created location provenance remains open.
+4. **Requester and donor location provenance** — both paths now carry a bounded client-reported category. Request provenance is persisted on the request row; Android drafts retain it through a Room migration. Older clients and historical rows use `unknown`. It is diagnostic metadata, not sensor attestation, matching input, authorization evidence, or a public response property.
 5. **Authorization matrix** — add cross-role deny tests for every sensitive object route; do not replace object-level checks with role-only checks.
 6. **Lifecycle concurrency** — add concurrent PostgreSQL tests for accept vs cancel/fulfill/expiry, block vs message send, and revoke vs exact-location read.
 7. **Operational safety** — verify migration application state, backup/restore, readiness, rate-limit behavior under multi-instance and DB-outage conditions, and audit retention before any production release.
@@ -124,3 +124,16 @@ The block record and its audit event now also share one transaction. If the audi
 - RLS/grant checks cover every exposed table and every operation; service-role credentials never enter Android or public client bundles.
 - API responses and logs do not disclose exact coordinates, contact details, auth tokens, FCM tokens, or signed media URLs outside explicitly authorized flows.
 - No production migration, schema mutation, deployment, or release occurs without separate explicit approval and verified migration state.
+
+
+## Requester location provenance implementation
+
+The request wizard captures four distinct actions: a device location fix (`fused`, `gps`, `network`, `passive`, or `unknown`), a map pin (`manual_pin`), manually typed coordinates (`manual_coordinates`), or a selected facility (`facility`). The Android draft persists this category locally and includes it in the request-location payload. Selecting a facility also moves the request coordinates to that facility's coordinates; the approximate facility point is assigned a 500 m precision rather than inheriting a previous device fix.
+
+The PostgreSQL request row stores `requester_location_source` under an explicit CHECK constraint and a non-null `unknown` default. Migration `014_requester_location_source.sql` is additive; existing rows are not retrospectively classified. The Android Room schema advances from version 9 to 10 with a default of `unknown`, preserving saved drafts.
+
+Attribution is deliberately excluded from the idempotency-intent comparison. A retry with the same request intent must resolve to the original request, not be rejected because a client updated its diagnostic category. The stored first-submission source is retained.
+
+The field is not proof that a physical sensor was used or that coordinates are trustworthy. Android documents that the fused provider can combine multiple providers, so `fused` does not identify a single physical sensor ([Android LocationManager reference](https://developer.android.com/reference/android/location/LocationManager)). The database CHECK constraint enforces the controlled vocabulary ([PostgreSQL 16 constraints](https://www.postgresql.org/docs/16/ddl-constraints.html)). The source is not returned to other users; response models should expose only properties required by each flow, following OWASP API3:2023 guidance on object-property authorization and minimizing exposed fields ([OWASP API3:2023](https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/)).
+
+The migration is committed to this PR but has **not** been applied to a hosted or production database. Verify migration order and backup/restore in the target environment before separately approving any production change.

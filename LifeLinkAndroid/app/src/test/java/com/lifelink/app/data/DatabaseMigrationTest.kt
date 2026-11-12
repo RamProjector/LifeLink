@@ -67,6 +67,21 @@ class DatabaseMigrationTest {
     private fun insertLegacyRows(old: SQLiteDatabase, version: Int, ownedLegacyRows: Boolean) {
         old.execSQL(
             """
+            INSERT INTO emergency_request_drafts (
+                id, bloodType, units, typeUnknown, urgency, responseDeadline, note,
+                facilityId, facilityName, facilityArea, facilityVerified,
+                requesterLatitude, requesterLongitude, locationPrecisionMeters,
+                contactMethod, genuineRequestConfirmed, sharingConsentConfirmed,
+                aiMatchingEnabled, updatedAtEpochMillis
+            ) VALUES (
+                'legacy-request-draft', 'O_NEG', 1, 0, 'URGENT', 'Today',
+                'Saved before source migration', NULL, NULL, NULL, 0,
+                11.2433, 125.0, 100, 'IN_APP', 1, 1, 1, 1
+            )
+            """.trimIndent(),
+        )
+        old.execSQL(
+            """
             INSERT INTO pending_submissions
             VALUES ('legacy-draft', '{}', 2, 'offline', 1)
             """.trimIndent(),
@@ -128,6 +143,7 @@ class DatabaseMigrationTest {
                 LifeLinkDatabase.migration6To7,
                 LifeLinkDatabase.migration7To8,
                 LifeLinkDatabase.migration8To9,
+                LifeLinkDatabase.migration9To10,
             )
             .allowMainThreadQueries()
             .build()
@@ -146,6 +162,11 @@ class DatabaseMigrationTest {
             assertNotNull(migrated.pendingSubmissionDao().findById("", "legacy-null-owner"))
             assertNull(migrated.pendingSubmissionDao().findById("alice", "legacy-null-owner"))
         }
+        val legacyDraft = migrated.emergencyRequestDraftDao().findById(legacyOwner, "legacy-request-draft")
+        assertNotNull(legacyDraft)
+        assertEquals("Saved before source migration", legacyDraft?.note)
+        assertEquals("unknown", legacyDraft?.locationSource)
+        assertEquals(11.2433, legacyDraft?.requesterLatitude ?: 0.0, 0.000001)
         assertEquals(
             2,
             migrated.pendingSubmissionDao().findById(legacyOwner, "legacy-draft")?.attempts,

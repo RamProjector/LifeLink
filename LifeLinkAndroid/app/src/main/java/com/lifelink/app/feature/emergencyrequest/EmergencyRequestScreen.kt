@@ -951,7 +951,14 @@ private fun LocationStep(
                 scope.launch {
                     locationMessage = "Finding your current location…"
                     provider.currentLocation()?.let { location ->
-                        onAction(EmergencyRequestAction.SetGpsLocation(location.latitude, location.longitude, location.precisionMeters))
+                        onAction(
+                            EmergencyRequestAction.SetGpsLocation(
+                                location.latitude,
+                                location.longitude,
+                                location.precisionMeters,
+                                source = location.provider,
+                            ),
+                        )
                         locationSource = when (location.provider) {
                             "fused" -> "Fused device location"
                             "gps" -> "GNSS satellite location"
@@ -1007,7 +1014,14 @@ private fun LocationStep(
             draft = draft,
             onLocationSelected = { latitude, longitude ->
                 locationSource = "Pin selected manually"
-                onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+                onAction(
+                    EmergencyRequestAction.SetGpsLocation(
+                        latitude,
+                        longitude,
+                        500,
+                        source = "manual_pin",
+                    ),
+                )
             },
             recenterRequest = locationCaptureRequest,
             modifier = Modifier.height(260.dp),
@@ -1035,7 +1049,10 @@ private fun LocationStep(
                         ),
                     )
                 },
-                onSelect = { onAction(EmergencyRequestAction.SelectNearbyFacility(it)) },
+                onSelect = {
+                    locationSource = "Selected facility"
+                    onAction(EmergencyRequestAction.SelectNearbyFacility(it))
+                },
             )
         }
         OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { fullMapVisible = true }) {
@@ -1074,7 +1091,14 @@ private fun LocationStep(
                         locationMessage = "Latitude must be between -90 and 90, and longitude between -180 and 180."
                     else -> {
                         locationSource = "Coordinates entered manually"
-                        onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+                        onAction(
+                            EmergencyRequestAction.SetGpsLocation(
+                                latitude,
+                                longitude,
+                                500,
+                                source = "manual_coordinates",
+                            ),
+                        )
                         locationMessage = "Approximate location set from your coordinates."
                     }
                 }
@@ -1122,7 +1146,14 @@ private fun LocationStep(
                             longitude,
                         ->
                         locationSource = "Pin selected manually"
-                        onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+                        onAction(
+                            EmergencyRequestAction.SetGpsLocation(
+                                latitude,
+                                longitude,
+                                500,
+                                source = "manual_pin",
+                            ),
+                        )
                     },
                     modifier = Modifier.height(520.dp),
                 )

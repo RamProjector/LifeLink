@@ -128,7 +128,12 @@ sealed interface EmergencyRequestAction {
 
     data class BlockContact(val donorId: String) : EmergencyRequestAction
 
-    data class SetGpsLocation(val latitude: Double, val longitude: Double, val precisionMeters: Int) : EmergencyRequestAction
+    data class SetGpsLocation(
+        val latitude: Double,
+        val longitude: Double,
+        val precisionMeters: Int,
+        val source: String = "unknown",
+    ) : EmergencyRequestAction
 
     data class LoadNearbyFacilities(val latitude: Double, val longitude: Double) : EmergencyRequestAction
 
@@ -245,6 +250,7 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
                         requesterLatitude = action.latitude,
                         requesterLongitude = action.longitude,
                         locationPrecisionMeters = action.precisionMeters,
+                        locationSource = action.source,
                         facility = null,
                     )
                 }
@@ -259,6 +265,10 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
                             area = action.facility.area ?: "Nearby area",
                             verified = false,
                         ),
+                        requesterLatitude = action.facility.latitude,
+                        requesterLongitude = action.facility.longitude,
+                        locationPrecisionMeters = 500,
+                        locationSource = "facility",
                     )
                 }
         }

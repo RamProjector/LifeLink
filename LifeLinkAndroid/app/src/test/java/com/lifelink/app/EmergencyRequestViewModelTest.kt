@@ -137,6 +137,36 @@ class EmergencyRequestViewModelTest {
     }
 
     @Test
+    fun requester_location_source_is_included_in_api_payload() {
+        val request = EmergencyRequestRequest.from(
+            EmergencyRequestDraft(
+                requesterLatitude = 14.6466,
+                requesterLongitude = 121.0437,
+                locationSource = "manual_pin",
+            ),
+            requesterId = "user-1",
+        )
+
+        assertEquals("manual_pin", request.location.source)
+    }
+
+    @Test
+    fun set_gps_location_keeps_the_reported_provider_category() = runTest {
+        val viewModel = EmergencyRequestViewModel(FakeRepository(), enablePolling = false)
+        viewModel.onAction(
+            EmergencyRequestAction.SetGpsLocation(
+                14.6466,
+                121.0437,
+                35,
+                source = "fused",
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals("fused", viewModel.uiState.value.draft.locationSource)
+    }
+
+    @Test
     fun negative_blood_type_uses_api_ascii_hyphen() {
         val request =
             EmergencyRequestRequest.from(
@@ -679,6 +709,9 @@ class EmergencyRequestViewModelTest {
         assertEquals(listOf("near", "far"), viewModel.uiState.value.nearbyFacilities.map { it.id })
         viewModel.onAction(EmergencyRequestAction.SelectNearbyFacility(viewModel.uiState.value.nearbyFacilities.first()))
         assertEquals("near", viewModel.uiState.value.draft.facility?.id)
+        assertEquals(14.61, viewModel.uiState.value.draft.requesterLatitude!!, 0.000001)
+        assertEquals(121.04, viewModel.uiState.value.draft.requesterLongitude!!, 0.000001)
+        assertEquals("facility", viewModel.uiState.value.draft.locationSource)
         assertTrue(viewModel.uiState.value.draft.facility?.verified == false)
     }
 }

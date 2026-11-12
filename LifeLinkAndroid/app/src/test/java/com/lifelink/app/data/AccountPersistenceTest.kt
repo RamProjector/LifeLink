@@ -69,6 +69,7 @@ class AccountPersistenceTest {
             db.pendingSubmissionDao().upsert(PendingSubmissionEntity(owner, "draft", "payload-$owner"))
         }
         assertEquals("alice", db.emergencyRequestDraftDao().findById("alice", "draft")?.ownerId)
+        assertEquals("manual_pin", db.emergencyRequestDraftDao().findById("alice", "draft")?.locationSource)
         assertNull(db.emergencyRequestDraftDao().findById("new-account", "draft"))
         assertNull(db.pendingSubmissionDao().findById("alice", "other-draft"))
         assertEquals("payload-bob", db.pendingSubmissionDao().findById("bob", "draft")?.payloadJson)
@@ -220,7 +221,7 @@ class AccountPersistenceTest {
         urgency = "URGENT", responseDeadline = "Today", note = "Private note",
         facilityId = null, facilityName = null, facilityArea = null, facilityVerified = false,
         requesterLatitude = null, requesterLongitude = null, locationPrecisionMeters = 100,
-        contactMethod = "IN_APP", genuineRequestConfirmed = true, sharingConsentConfirmed = true,
+        locationSource = "manual_pin", contactMethod = "IN_APP", genuineRequestConfirmed = true, sharingConsentConfirmed = true,
         aiMatchingEnabled = true, updatedAtEpochMillis = 1,
     )
 }
