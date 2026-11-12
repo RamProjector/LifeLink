@@ -234,62 +234,26 @@ fun ConversationScreen(
             },
         )
 
-        // Report and Block are surfaced here so a participant can act on an unsafe
-        // interaction without leaving the conversation.
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Safety", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
-                Text(
-                    "If this conversation feels unsafe, report or block the other person. Reports are reviewed by our team.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { showReport = true }, modifier = Modifier.weight(1f)) { Text("Report") }
-                    OutlinedButton(onClick = { showBlockConfirm = true }, modifier = Modifier.weight(1f)) { Text("Block") }
-                }
-            }
-        }
-    }
-
-    if (showReport) {
-        AlertDialog(
-            onDismissRequest = { showReport = false },
-            title = { Text("Report this person") },
-            text = {
-                OutlinedTextField(
-                    value = reportReason,
-                    onValueChange = { if (it.length <= 500) reportReason = it },
-                    label = { Text("What happened? (optional)") },
-                    minLines = 2,
-                    maxLines = 4,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    onAction(PrivacyAction.ReportParticipant(state.conversationId.orEmpty(), reportReason))
-                    reportReason = ""
-                    showReport = false
-                }) { Text("Submit report") }
-            },
-            dismissButton = { TextButton(onClick = { showReport = false }) { Text("Cancel") } },
+        ConversationSafetyCard(
+            onReport = { showReport = true },
+            onBlock = { showBlockConfirm = true },
         )
     }
 
-    if (showBlockConfirm) {
-        AlertDialog(
-            onDismissRequest = { showBlockConfirm = false },
-            title = { Text("Block this person?") },
-            text = { Text("They will no longer be able to contact you through LifeLink.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onAction(PrivacyAction.BlockParticipant(state.conversationId.orEmpty()))
-                    showBlockConfirm = false
-                }) { Text("Block") }
-            },
-            dismissButton = { TextButton(onClick = { showBlockConfirm = false }) { Text("Cancel") } },
-        )
-    }
+    ConversationSafetyDialogs(
+        conversationId = state.conversationId.orEmpty(),
+        showReport = showReport,
+        reportReason = reportReason,
+        showBlockConfirm = showBlockConfirm,
+        onReportReasonChange = { reportReason = it },
+        onDismissReport = { showReport = false },
+        onDismissBlock = { showBlockConfirm = false },
+        onAction = onAction,
+        onReportSubmitted = {
+            reportReason = ""
+            showReport = false
+        },
+    )
 }
 
 @Composable
@@ -482,5 +446,79 @@ private fun MessageBubble(message: ChatMessage, mine: Boolean) {
                 Text(message.createdAt, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+}
+
+
+/** Keeps safety actions and confirmation dialogs separate from conversation layout. */
+@Composable
+private fun ConversationSafetyCard(
+    onReport: () -> Unit,
+    onBlock: () -> Unit,
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Safety", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+            Text(
+                "If this conversation feels unsafe, report or block the other person. Reports are reviewed by our team.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onReport, modifier = Modifier.weight(1f)) { Text("Report") }
+                OutlinedButton(onClick = onBlock, modifier = Modifier.weight(1f)) { Text("Block") }
+            }
+        }
+    }
+}
+
+/** Keeps report and block confirmation behavior isolated and easy to regression-test. */
+@Composable
+private fun ConversationSafetyDialogs(
+    conversationId: String,
+    showReport: Boolean,
+    reportReason: String,
+    showBlockConfirm: Boolean,
+    onReportReasonChange: (String) -> Unit,
+    onDismissReport: () -> Unit,
+    onDismissBlock: () -> Unit,
+    onAction: (PrivacyAction) -> Unit,
+    onReportSubmitted: () -> Unit,
+) {
+    if (showReport) {
+        AlertDialog(
+            onDismissRequest = onDismissReport,
+            title = { Text("Report this person") },
+            text = {
+                OutlinedTextField(
+                    value = reportReason,
+                    onValueChange = { if (it.length <= 500) onReportReasonChange(it) },
+                    label = { Text("What happened? (optional)") },
+                    minLines = 2,
+                    maxLines = 4,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onAction(PrivacyAction.ReportParticipant(conversationId, reportReason))
+                    onReportSubmitted()
+                }) { Text("Submit report") }
+            },
+            dismissButton = { TextButton(onClick = onDismissReport) { Text("Cancel") } },
+        )
+    }
+    if (showBlockConfirm) {
+        AlertDialog(
+            onDismissRequest = onDismissBlock,
+            title = { Text("Block this person?") },
+            text = { Text("They will no longer be able to contact you through LifeLink.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onAction(PrivacyAction.BlockParticipant(conversationId))
+                    onDismissBlock()
+                }) { Text("Block") }
+            },
+            dismissButton = { TextButton(onClick = onDismissBlock) { Text("Cancel") } },
+        )
     }
 }
