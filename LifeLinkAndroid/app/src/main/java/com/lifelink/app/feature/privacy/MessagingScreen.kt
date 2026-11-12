@@ -34,8 +34,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -51,7 +53,7 @@ import java.util.Locale
 
 /**
  * Loads conversations on entry and displays loading, retry, empty, or conversation states.
- * Selecting a conversation calls [onOpenConversation] with its request and donor IDs.
+ * Compact windows open a dedicated conversation screen; expanded windows keep the list and selected chat side by side.
  */
 @Composable
 fun MessagingScreen(
@@ -138,13 +140,16 @@ fun MessagingScreen(
     } else {
         Row(Modifier.fillMaxSize()) {
             Surface(
-                modifier = Modifier.width(360.dp).fillMaxHeight(),
+                modifier = Modifier.width(360.dp).fillMaxHeight().semantics { paneTitle = "Conversations" }.testTag("conversation-list-pane"),
                 color = MaterialTheme.colorScheme.surface,
             ) {
                 conversationList()
             }
             androidx.compose.material3.VerticalDivider()
-            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.weight(1f).fillMaxHeight().semantics { paneTitle = "Conversation details" }.testTag("conversation-detail-pane"),
+                contentAlignment = Alignment.Center,
+            ) {
                 val selected = selectedConversation
                 if (selected == null) {
                     LifeLinkEmptyState(
