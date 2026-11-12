@@ -128,12 +128,8 @@ sealed interface EmergencyRequestAction {
 
     data class BlockContact(val donorId: String) : EmergencyRequestAction
 
-    data class SetGpsLocation(
-        val latitude: Double,
-        val longitude: Double,
-        val precisionMeters: Int,
-        val source: String = "unknown",
-    ) : EmergencyRequestAction
+    data class SetGpsLocation(val latitude: Double, val longitude: Double, val precisionMeters: Int, val source: String = "unknown") :
+        EmergencyRequestAction
 
     data class LoadNearbyFacilities(val latitude: Double, val longitude: Double) : EmergencyRequestAction
 
