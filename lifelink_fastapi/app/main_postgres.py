@@ -1723,16 +1723,29 @@ async def share_contact_details(
     if await store.is_blocked(conversation, principal.subject):
         raise HTTPException(status_code=403, detail="You cannot share contact details with this person")
     try:
-        share = await store.add_contact_share(conversation, principal.subject, payload)
+        # The disclosure and its audit event are one security-sensitive unit:
+        # neither should persist if the other write fails.
+        share = await store.add_contact_share(
+            conversation,
+            principal.subject,
+            payload,
+            commit=False,
+        )
+        await store.record_audit_async(
+            principal.subject,
+            f"contact_share_{payload.field}",
+            conversation.request_id,
+            conversation.donor_id,
+            {"conversation_id": conversation.id},
+            commit=False,
+        )
+        await session.commit()
     except ValueError as exc:
+        await session.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    await store.record_audit_async(
-        principal.subject,
-        f"contact_share_{payload.field}",
-        conversation.request_id,
-        conversation.donor_id,
-        {"conversation_id": conversation.id},
-    )
+    except Exception:
+        await session.rollback()
+        raise
     await send_push_safely(
         await _conversation_recipient(session, conversation, principal.subject),
         "Contact details shared",
