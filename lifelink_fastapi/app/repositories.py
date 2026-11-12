@@ -162,12 +162,21 @@ class SqlAlchemyRequestStore(RequestStore):
         return self._to_record(row) if row else None
 
     async def _expire_if_needed(self, row: EmergencyRequestRow) -> bool:
-        """Mark ``row`` expired and commit when its deadline has passed."""
-        if is_request_expired(_enum_value(row.status), row.response_deadline):
-            row.status = RequestStatusEnum.EXPIRED
-            await self.session.commit()
-            return True
-        return False
+        """Expire a due request only after re-reading it under a row lock."""
+        if not is_request_expired(_enum_value(row.status), row.response_deadline):
+            return False
+        locked = await self.session.scalar(
+            select(EmergencyRequestRow)
+            .where(EmergencyRequestRow.id == row.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if locked is None or not is_request_expired(_enum_value(locked.status), locked.response_deadline):
+            return False
+        locked.status = RequestStatusEnum.EXPIRED
+        locked.updated_at = datetime.now(UTC)
+        await self.session.commit()
+        return True
 
     async def expire_timed_out_requests_async(self, limit: int = 500) -> int:
         """Transition open requests at or past their deadline to ``expired``.
@@ -193,6 +202,8 @@ class SqlAlchemyRequestStore(RequestStore):
             )
             .order_by(EmergencyRequestRow.response_deadline)
             .limit(limit)
+            .with_for_update(skip_locked=True)
+            .execution_options(populate_existing=True)
         )
         count = 0
         for row in open_requests.all():
@@ -215,14 +226,35 @@ class SqlAlchemyRequestStore(RequestStore):
             .limit(limit)
         )
         rows = result.unique().all()
-        # Report requests past their deadline as expired, as status polling does.
-        newly_expired = False
-        for row in rows:
-            if is_request_expired(_enum_value(row.status), row.response_deadline):
-                row.status = RequestStatusEnum.EXPIRED
-                newly_expired = True
-        if newly_expired:
-            await self.session.commit()
+        # Lock only the overdue candidates and re-check their current status in
+        # PostgreSQL so a concurrent cancel/fulfill is never overwritten as expired.
+        now = datetime.now(UTC)
+        overdue_ids = [
+            row.id
+            for row in rows
+            if is_request_expired(_enum_value(row.status), row.response_deadline, now)
+        ]
+        if overdue_ids:
+            overdue = await self.session.scalars(
+                select(EmergencyRequestRow)
+                .where(
+                    EmergencyRequestRow.id.in_(overdue_ids),
+                    EmergencyRequestRow.status.in_(
+                        [RequestStatusEnum(status) for status in ACTIVE_REQUEST_STATUSES]
+                    ),
+                    EmergencyRequestRow.response_deadline <= now,
+                )
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            changed = False
+            for row in overdue.all():
+                if is_request_expired(_enum_value(row.status), row.response_deadline, now):
+                    row.status = RequestStatusEnum.EXPIRED
+                    row.updated_at = now
+                    changed = True
+            if changed:
+                await self.session.commit()
         records: list[RequestRecord] = []
         for row in rows:
             try:
@@ -294,11 +326,27 @@ class SqlAlchemyRequestStore(RequestStore):
 
     async def set_manual_broadcast_async(self, request_id: str) -> RequestRecord:
         """Move a live request into manual-broadcast mode and return it refreshed."""
-        row = await self.session.get(EmergencyRequestRow, request_id)
+        row = await self.session.scalar(
+            select(EmergencyRequestRow)
+            .where(EmergencyRequestRow.id == request_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
         if row is None:
             raise KeyError(request_id)
         if await self._expire_if_needed(row):
             raise ValueError("This request has expired and cannot be broadcast")
+        if _enum_value(row.status) in {
+            RequestStatusEnum.CANCELLED.value,
+            RequestStatusEnum.EXPIRED.value,
+            RequestStatusEnum.FULFILLED.value,
+        }:
+            raise ValueError("This request is no longer active and cannot be broadcast")
+        if _enum_value(row.status) == RequestStatusEnum.MANUAL_BROADCAST.value:
+            refreshed = await self.get_by_id_async(request_id)
+            if refreshed is None:
+                raise KeyError(request_id)
+            return refreshed
         row.status = RequestStatusEnum.MANUAL_BROADCAST
         await self.session.commit()
         refreshed = await self.get_by_id_async(request_id)
@@ -313,9 +361,24 @@ class SqlAlchemyRequestStore(RequestStore):
         request so the donor inbox and the requester's match/contact lists both
         reflect that the request is no longer active.
         """
-        row = await self.session.get(EmergencyRequestRow, request_id)
+        row = await self.session.scalar(
+            select(EmergencyRequestRow)
+            .where(EmergencyRequestRow.id == request_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
         if row is None:
             raise KeyError(request_id)
+        if await self._expire_if_needed(row):
+            raise ValueError("An expired request cannot be cancelled")
+        current_status = _enum_value(row.status)
+        if current_status == RequestStatusEnum.CANCELLED.value:
+            refreshed = await self.get_by_id_async(request_id)
+            if refreshed is None:
+                raise KeyError(request_id)
+            return refreshed
+        if current_status in {RequestStatusEnum.FULFILLED.value, RequestStatusEnum.EXPIRED.value}:
+            raise ValueError("A fulfilled or expired request cannot be cancelled")
         row.status = RequestStatusEnum.CANCELLED
         now = datetime.now(UTC)
         # Stop the donor search: withdraw every match the broadcast created so the
@@ -354,13 +417,24 @@ class SqlAlchemyRequestStore(RequestStore):
 
     async def set_fulfilled_async(self, request_id: str) -> RequestRecord:
         """Mark a live request fulfilled, rejecting cancelled or expired ones."""
-        row = await self.session.get(EmergencyRequestRow, request_id)
+        row = await self.session.scalar(
+            select(EmergencyRequestRow)
+            .where(EmergencyRequestRow.id == request_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
         if row is None:
             raise KeyError(request_id)
         if await self._expire_if_needed(row):
             raise ValueError("An expired request cannot be fulfilled")
-        if _enum_value(row.status) in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.EXPIRED.value}:
+        current_status = _enum_value(row.status)
+        if current_status in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.EXPIRED.value}:
             raise ValueError("A cancelled or expired request cannot be fulfilled")
+        if current_status == RequestStatusEnum.FULFILLED.value:
+            refreshed = await self.get_by_id_async(request_id)
+            if refreshed is None:
+                raise KeyError(request_id)
+            return refreshed
         row.status = RequestStatusEnum.FULFILLED
         await self.session.commit()
         refreshed = await self.get_by_id_async(request_id)
@@ -380,6 +454,8 @@ class SqlAlchemyRequestStore(RequestStore):
             select(EmergencyRequestRow)
             .options(selectinload(EmergencyRequestRow.matches))
             .where(EmergencyRequestRow.id == request_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         row = row_result.scalar_one_or_none()
         if row is None:
@@ -465,18 +541,27 @@ class SqlAlchemyRequestStore(RequestStore):
         allowed = {"contact_shared", "meeting_arranged", "fulfilled", "cancelled"}
         if status not in allowed:
             raise ValueError("Unsupported contact lifecycle status")
-        request = await self.session.get(EmergencyRequestRow, request_id)
+        request = await self.session.scalar(
+            select(EmergencyRequestRow)
+            .where(EmergencyRequestRow.id == request_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
         if request is None:
             raise KeyError(request_id)
         if await self._expire_if_needed(request):
             raise ValueError("This request has expired; contact actions are closed")
         if _enum_value(request.status) in {RequestStatusEnum.CANCELLED.value, RequestStatusEnum.FULFILLED.value}:
             raise ValueError("This request is terminal; contact actions are closed")
-        contact = await self.session.scalar(select(DonorContactRequest).where(
-            DonorContactRequest.request_id == request_id,
-            DonorContactRequest.donor_id == donor_id,
-            DonorContactRequest.requester_id == requester_id,
-        ))
+        contact = await self.session.scalar(
+            select(DonorContactRequest)
+            .where(
+                DonorContactRequest.request_id == request_id,
+                DonorContactRequest.donor_id == donor_id,
+                DonorContactRequest.requester_id == requester_id,
+            )
+            .with_for_update()
+        )
         if contact is None:
             raise KeyError(request_id)
         transitions = {
