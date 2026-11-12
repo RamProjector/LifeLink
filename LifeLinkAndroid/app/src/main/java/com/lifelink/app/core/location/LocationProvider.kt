@@ -2,16 +2,16 @@ package com.lifelink.app.core.location
 
 import android.annotation.SuppressLint
 import android.content.Context
+import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationSettingsRequest
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationSettingsRequest
 import com.google.android.gms.location.Priority
-import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.math.roundToInt
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
 
 class LocationProvider(context: Context) {
     private val client = LocationServices.getFusedLocationProviderClient(context)
@@ -20,7 +20,7 @@ class LocationProvider(context: Context) {
     fun checkLocationSettings(
         onReady: () -> Unit,
         onNeedsResolution: (ResolvableApiException) -> Unit,
-        onFailure: () -> Unit
+        onFailure: () -> Unit,
     ) {
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, LOCATION_TIMEOUT_MILLIS)
             .setDurationMillis(LOCATION_TIMEOUT_MILLIS)
@@ -67,9 +67,4 @@ class LocationProvider(context: Context) {
     }
 }
 
-data class DeviceLocation(
-    val latitude: Double,
-    val longitude: Double,
-    val precisionMeters: Int,
-    val provider: String,
-)
+data class DeviceLocation(val latitude: Double, val longitude: Double, val precisionMeters: Int, val provider: String)
