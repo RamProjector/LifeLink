@@ -645,6 +645,10 @@ private fun RequestsContent(
         )
         return
     }
+    val showEmptyHistory = state.historyLoaded &&
+        visibleHistory.isEmpty() &&
+        !state.historyRefreshing &&
+        state.historyError == null
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.fillMaxSize().testTag("request-history"),
@@ -848,7 +852,7 @@ private fun RequestsContent(
                     }
                 }
             }
-            if (state.historyLoaded && visibleHistory.isEmpty() && !state.historyRefreshing && state.historyError == null) {
+            if (showEmptyHistory) {
                 item {
                     LifeLinkEmptyState(
                         icon = Icons.AutoMirrored.Filled.Assignment,
