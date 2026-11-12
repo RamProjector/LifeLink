@@ -1643,15 +1643,10 @@ async def send_conversation_message(
     if is_request_expired(enum_value(request.status), request.response_deadline):
         raise HTTPException(status_code=409, detail="This request has expired")
     await enforce_rate_limit(f"message:{principal.subject}", 60, 300)
-    # A block is enforceable state: a blocked participant cannot send messages,
-    # and no push is delivered to the person who blocked them.
-    #
-    # Accepted race (TOCTOU): a block committed concurrently with this check can
-    # land after the lookup but before the insert, so one message may slip
-    # through. The window is milliseconds, the block still takes effect for every
-    # later message, and closing it would require serializing the block and
-    # message writes in one transaction. Documented as accepted rather than
-    # restructured.
+    # Block creation takes the same conversation-row lock. Holding it until
+    # add_message commits serializes the block check and message insert, closing
+    # the former check-then-insert race.
+    conversation = await store.lock_conversation(conversation.id)
     if await store.is_blocked(conversation, principal.subject):
         raise HTTPException(status_code=403, detail="You cannot message this person")
     try:
@@ -1720,6 +1715,8 @@ async def share_contact_details(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
     await enforce_rate_limit(f"contact-share:{principal.subject}", 20, 300)
+    # Keep block state stable until the disclosure and its audit event commit.
+    conversation = await store.lock_conversation(conversation.id)
     if await store.is_blocked(conversation, principal.subject):
         raise HTTPException(status_code=403, detail="You cannot share contact details with this person")
     try:
@@ -1818,6 +1815,9 @@ async def block_conversation_participant(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
     await enforce_rate_limit(f"conversation-block:{principal.subject}", 10, 300)
+    # Message and contact-share routes acquire this same lock before checking
+    # block state; the block becomes atomic with respect to those operations.
+    conversation = await store.lock_conversation(conversation.id)
     other = await store.other_participant_user_id(conversation, principal.subject)
     if other is None:
         raise HTTPException(status_code=400, detail="No other participant to block")
