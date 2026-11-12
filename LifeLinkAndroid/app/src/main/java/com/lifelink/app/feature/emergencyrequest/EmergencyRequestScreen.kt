@@ -949,8 +949,14 @@ private fun LocationStep(
                     locationMessage = "Finding your current location…"
                     provider.currentLocation()?.let { location ->
                         onAction(EmergencyRequestAction.SetGpsLocation(location.latitude, location.longitude, location.precisionMeters))
-                        locationSource = "Current device location"
-                        locationMessage = "Map centered on your current location (accuracy ±${location.precisionMeters} m)."
+                        locationSource = when (location.provider) {
+                            "fused" -> "Fused device location"
+                            "gps" -> "GNSS satellite location"
+                            "network" -> "Network-assisted location"
+                            "passive" -> "Passive device location"
+                            else -> "Device location"
+                        }
+                        locationMessage = "Map centered on $locationSource (accuracy ±${location.precisionMeters} m)."
                     } ?: run { locationMessage = "Could not get a current fix. Try again or choose a location manually." }
                 }
             },
