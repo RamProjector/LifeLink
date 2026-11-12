@@ -607,6 +607,110 @@ def test_exact_location_is_restricted_to_the_requesting_account(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_exact_location_read_waits_for_request_cancellation(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+        location_path = f"/v1/emergency-requests/{request_id}/donors/{donor}/location"
+        current["id"] = requester
+        activated = await client.post(
+            f"/v1/emergency-requests/{request_id}/donors/{donor}/location-share"
+        )
+        assert activated.status_code == 200, activated.text
+
+        sessions = current["sessions"]
+        engine = current["engine"]
+        async with sessions() as locking_session:
+            locked = await locking_session.scalar(
+                select(db_models.EmergencyRequest)
+                .where(db_models.EmergencyRequest.id == request_id)
+                .with_for_update()
+            )
+            assert locked is not None
+
+            lock_requested = asyncio.Event()
+            loop = asyncio.get_running_loop()
+
+            def observe_request_lock(connection, cursor, statement, parameters, context, executemany):
+                if "FOR UPDATE" in statement.upper() and "EMERGENCY_REQUESTS" in statement.upper():
+                    loop.call_soon_threadsafe(lock_requested.set)
+
+            event.listen(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+            try:
+                read_task = asyncio.create_task(client.get(location_path))
+                await asyncio.wait_for(lock_requested.wait(), timeout=5)
+                assert not read_task.done()
+                await main_postgres.SqlAlchemyRequestStore(locking_session).set_cancelled_async(request_id)
+            finally:
+                event.remove(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+
+        read = await read_task
+        assert read.status_code == 200, read.text
+        assert read.json()["shared"] is False
+        assert read.json()["latitude"] is None
+        assert read.json()["longitude"] is None
+
+    run_scenario(pg_url, scenario)
+
+
+def test_exact_location_read_waits_for_donor_share_revocation(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+        location_path = f"/v1/emergency-requests/{request_id}/donors/{donor}/location"
+        current["id"] = requester
+        activated = await client.post(
+            f"/v1/emergency-requests/{request_id}/donors/{donor}/location-share"
+        )
+        assert activated.status_code == 200, activated.text
+
+        sessions = current["sessions"]
+        engine = current["engine"]
+        async with sessions() as locking_session:
+            donor_row = await locking_session.scalar(
+                select(db_models.Donor)
+                .where(db_models.Donor.id == donor)
+                .with_for_update()
+            )
+            assert donor_row is not None
+
+            lock_requested = asyncio.Event()
+            loop = asyncio.get_running_loop()
+
+            def observe_donor_lock(connection, cursor, statement, parameters, context, executemany):
+                sql = statement.upper()
+                if "FOR UPDATE" in sql and "FROM DONORS" in sql:
+                    loop.call_soon_threadsafe(lock_requested.set)
+
+            event.listen(engine.sync_engine, "before_cursor_execute", observe_donor_lock)
+            try:
+                read_task = asyncio.create_task(client.get(location_path))
+                await asyncio.wait_for(lock_requested.wait(), timeout=5)
+                assert not read_task.done()
+
+                from app.privacy_repositories import SqlAlchemyPrivacyStore
+
+                await SqlAlchemyPrivacyStore(locking_session).revoke_location_share(
+                    request_id,
+                    donor,
+                    actor_id=donor,
+                )
+            finally:
+                event.remove(engine.sync_engine, "before_cursor_execute", observe_donor_lock)
+
+        read = await read_task
+        assert read.status_code == 200, read.text
+        assert read.json()["shared"] is False
+        assert read.json()["latitude"] is None
+        assert read.json()["longitude"] is None
+
+    run_scenario(pg_url, scenario)
+
+
 def test_exact_location_expires_when_request_is_cancelled(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
