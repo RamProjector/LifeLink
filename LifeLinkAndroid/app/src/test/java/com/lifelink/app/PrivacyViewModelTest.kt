@@ -48,6 +48,58 @@ class PrivacyViewModelTest {
         Dispatchers.resetMain()
     }
 
+    /** Prevents an older conversation-list response from replacing a newer successful refresh. */
+    @Test
+    fun stale_conversation_list_result_cannot_overwrite_newer_result() = runTest {
+        val olderResponse = CompletableDeferred<Result<List<Conversation>>>()
+        var calls = 0
+        repository.conversationList = {
+            calls++
+            if (calls == 1) {
+                olderResponse.await()
+            } else {
+                Result.success(listOf(conversation("chat-new", "request-new", "donor-new")))
+            }
+        }
+
+        viewModel.onAction(PrivacyAction.LoadConversations)
+        viewModel.onAction(PrivacyAction.LoadConversations)
+
+        assertEquals(listOf("chat-new"), viewModel.state.value.conversations.map { it.conversationId })
+        assertFalse(viewModel.state.value.conversationsLoading)
+
+        olderResponse.complete(
+            Result.success(listOf(conversation("chat-stale", "request-stale", "donor-stale"))),
+        )
+
+        assertEquals(listOf("chat-new"), viewModel.state.value.conversations.map { it.conversationId })
+        assertFalse(viewModel.state.value.conversationsLoading)
+        assertNull(viewModel.state.value.conversationsError)
+    }
+
+    /** Prevents an older failed conversation-list request from surfacing an error after a newer success. */
+    @Test
+    fun stale_conversation_list_failure_cannot_replace_newer_success() = runTest {
+        val olderResponse = CompletableDeferred<Result<List<Conversation>>>()
+        var calls = 0
+        repository.conversationList = {
+            calls++
+            if (calls == 1) {
+                olderResponse.await()
+            } else {
+                Result.success(listOf(conversation("chat-new", "request-new", "donor-new")))
+            }
+        }
+
+        viewModel.onAction(PrivacyAction.LoadConversations)
+        viewModel.onAction(PrivacyAction.LoadConversations)
+        olderResponse.complete(Result.failure(IllegalStateException("Stale network failure")))
+
+        assertEquals(listOf("chat-new"), viewModel.state.value.conversations.map { it.conversationId })
+        assertFalse(viewModel.state.value.conversationsLoading)
+        assertNull(viewModel.state.value.conversationsError)
+    }
+
     /** Prevents an older, slower map refresh from overwriting the latest successful result. */
     @Test
     fun stale_map_refresh_result_cannot_overwrite_newer_result() = runTest {
@@ -393,6 +445,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
     var loadedShares = listOf(contactShare("chat-old"))
     var loadedSavedMessages = emptyList<ChatMessage>()
     var failHistory = false
+    var conversationList: suspend () -> Result<List<Conversation>> = { Result.success(emptyList()) }
     var sendFailure: Throwable? = null
     var shareFailure: Throwable? = null
     var open: suspend (String, String) -> Result<Conversation> = { requestId, donorId ->
@@ -405,7 +458,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
         return open(requestId, donorId)
     }
 
-    override suspend fun conversations(): Result<List<Conversation>> = Result.success(emptyList())
+    override suspend fun conversations(): Result<List<Conversation>> = conversationList()
 
     /** Records the history lookup and returns seeded messages or the configured failure. */
     override suspend fun messages(conversationId: String): Result<List<ChatMessage>> {
