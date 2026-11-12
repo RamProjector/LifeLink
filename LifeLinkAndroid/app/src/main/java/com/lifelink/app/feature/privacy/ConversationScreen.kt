@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -78,6 +79,92 @@ private fun ConversationRefreshEffect(
     }
 }
 
+private data class ConversationListActions(
+    val onContactFieldChange: (String) -> Unit,
+    val onContactValueChange: (String) -> Unit,
+    val onShareContact: () -> Unit,
+    val onReport: () -> Unit,
+    val onBlock: () -> Unit,
+    val onAction: (PrivacyAction) -> Unit,
+)
+
+private data class ConversationDialogState(
+    val showReport: Boolean,
+    val reportReason: String,
+    val showBlockConfirm: Boolean,
+)
+
+private data class ConversationDialogActions(
+    val onReportReasonChange: (String) -> Unit,
+    val onDismissReport: () -> Unit,
+    val onDismissBlock: () -> Unit,
+    val onAction: (PrivacyAction) -> Unit,
+    val onReportSubmitted: () -> Unit,
+)
+
+@Composable
+private fun ConversationOpenEffect(
+    requestId: String,
+    donorId: String,
+    onReset: () -> Unit,
+    onAction: (PrivacyAction) -> Unit,
+) {
+    LaunchedEffect(requestId, donorId) {
+        onReset()
+        onAction(PrivacyAction.OpenConversation(requestId, donorId))
+    }
+}
+
+@Composable
+private fun ConversationDraftAcknowledgementEffect(
+    sentMessage: ChatMessage?,
+    sending: Boolean,
+    message: String?,
+    currentUserId: String,
+    draft: String,
+    draftRevision: Int,
+    submittedDraftRevision: Int?,
+    onClearDraft: () -> Unit,
+    onClearSubmittedRevision: () -> Unit,
+) {
+    LaunchedEffect(sentMessage?.messageId, sending, message) {
+        if (sentMessage?.senderId == currentUserId && submittedDraftRevision != null) {
+            if (draftRevision == submittedDraftRevision && draft.trim() == sentMessage.body) {
+                onClearDraft()
+            }
+            onClearSubmittedRevision()
+        } else if (!sending && message != null) {
+            onClearSubmittedRevision()
+        }
+    }
+}
+
+@Composable
+private fun ConversationContactShareEffect(
+    lastSharedContact: ContactShare?,
+    currentUserId: String,
+    contactField: String,
+    contactValue: String,
+    onClearValue: () -> Unit,
+) {
+    LaunchedEffect(lastSharedContact?.shareId) {
+        if (
+            lastSharedContact?.sharedBy == currentUserId &&
+            lastSharedContact.field == contactField &&
+            lastSharedContact.value == contactValue
+        ) {
+            onClearValue()
+        }
+    }
+}
+
+@Composable
+private fun ConversationAutoScrollEffect(messages: List<ChatMessage>, listState: LazyListState) {
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+    }
+}
+
 /**
  * In-app conversation between the requester and donor of one request. Messages
  * are stored server-side and readable only by those two users. Phone and email
@@ -95,49 +182,48 @@ fun ConversationScreen(
     var draft by remember { mutableStateOf("") }
     var draftRevision by remember { mutableStateOf(0) }
     var submittedDraftRevision by remember { mutableStateOf<Int?>(null) }
-    LaunchedEffect(requestId, donorId) {
-        draft = ""
-        draftRevision += 1
-        submittedDraftRevision = null
-        onAction(PrivacyAction.OpenConversation(requestId, donorId))
-    }
+    ConversationOpenEffect(
+        requestId = requestId,
+        donorId = donorId,
+        onReset = {
+            draft = ""
+            draftRevision += 1
+            submittedDraftRevision = null
+        },
+        onAction = onAction,
+    )
     ConversationRefreshEffect(state.conversationId, onAction)
-    // Clear only the unchanged draft version acknowledged by the server. Text
-    // equality alone is insufficient if the user retypes the same message.
-    LaunchedEffect(state.lastSentMessage?.messageId, state.sending, state.message) {
-        val sentMessage = state.lastSentMessage
-        val sentRevision = submittedDraftRevision
-        if (sentMessage?.senderId == currentUserId && sentRevision != null) {
-            if (draftRevision == sentRevision && draft.trim() == sentMessage.body) {
-                draft = ""
-                draftRevision += 1
-            }
-            submittedDraftRevision = null
-        } else if (!state.sending && state.message != null) {
-            submittedDraftRevision = null
-        }
-    }
+    // Clear only the unchanged draft version acknowledged by the server.
+    ConversationDraftAcknowledgementEffect(
+        sentMessage = state.lastSentMessage,
+        sending = state.sending,
+        message = state.message,
+        currentUserId = currentUserId,
+        draft = draft,
+        draftRevision = draftRevision,
+        submittedDraftRevision = submittedDraftRevision,
+        onClearDraft = {
+            draft = ""
+            draftRevision += 1
+        },
+        onClearSubmittedRevision = { submittedDraftRevision = null },
+    )
     var contactField by remember { mutableStateOf("phone") }
     var contactValue by remember { mutableStateOf("") }
-    LaunchedEffect(state.lastSharedContact?.shareId) {
-        val sharedContact = state.lastSharedContact
-        if (
-            sharedContact?.sharedBy == currentUserId &&
-            sharedContact.field == contactField &&
-            sharedContact.value == contactValue
-        ) {
-            contactValue = ""
-        }
-    }
+    ConversationContactShareEffect(
+        lastSharedContact = state.lastSharedContact,
+        currentUserId = currentUserId,
+        contactField = contactField,
+        contactValue = contactValue,
+        onClearValue = { contactValue = "" },
+    )
     var showReport by remember { mutableStateOf(false) }
     var reportReason by remember { mutableStateOf("") }
     var showBlockConfirm by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val chatReady = !state.chatLoading && state.conversationId != null
-    // Chat convention: keep the newest message in view as the thread grows.
-    LaunchedEffect(state.messages.size) {
-        if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
-    }
+    // Keep the newest message in view as the thread grows.
+    ConversationAutoScrollEffect(state.messages, listState)
 
     Column(
         Modifier
