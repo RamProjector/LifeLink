@@ -175,6 +175,25 @@ class EmergencyRequestViewModelTest {
     }
 
     @Test
+    fun active_request_blocks_a_second_submission_before_network_call() = runTest {
+        val repository = FakeRepository().apply {
+            activeRequest = ActiveRequestSnapshot(
+                "already-active",
+                com.lifelink.app.domain.ActiveRequestStatus.AWAITING_RESPONSES,
+            )
+        }
+        val viewModel = EmergencyRequestViewModel(repository, enablePolling = false)
+        advanceUntilIdle()
+
+        viewModel.onAction(EmergencyRequestAction.Submit)
+        advanceUntilIdle()
+
+        assertEquals(0, repository.submitCalls)
+        val error = viewModel.uiState.value.submission as SubmissionState.Error
+        assertTrue(error.message.contains("already have an active request"))
+    }
+
+    @Test
     fun rapid_duplicate_submit_actions_start_only_one_repository_request() = runTest {
         val repository = FakeRepository()
         val pendingResult = CompletableDeferred<SubmitResult>()
