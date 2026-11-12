@@ -67,12 +67,10 @@ fun MessagingScreen(
     var handledNotificationKey by rememberSaveable(currentUserId) { mutableStateOf<String?>(null) }
     var selectedConversationId by rememberSaveable(currentUserId) { mutableStateOf<String?>(null) }
     MessagingNotificationEffect(
-        targetConversationId = targetConversationId,
-        targetConversationEventId = targetConversationEventId,
+        target = targetConversationId?.let { ConversationNotificationTarget(it, targetConversationEventId) },
         handledNotificationKey = handledNotificationKey,
         onHandledNotification = { handledNotificationKey = it },
-        conversations = state.conversations,
-        conversationsLoading = state.conversationsLoading,
+        state = state,
         useListDetailLayout = useListDetailLayout,
         onSelectConversation = { selectedConversationId = it.conversationId },
         onOpenConversation = onOpenConversation,
@@ -119,24 +117,27 @@ fun MessagingScreen(
     }
 }
 
+private data class ConversationNotificationTarget(
+    val conversationId: String,
+    val eventId: String?,
+)
+
 @Composable
 private fun MessagingNotificationEffect(
-    targetConversationId: String?,
-    targetConversationEventId: String?,
+    target: ConversationNotificationTarget?,
     handledNotificationKey: String?,
     onHandledNotification: (String) -> Unit,
-    conversations: List<Conversation>,
-    conversationsLoading: Boolean,
+    state: PrivacyUiState,
     useListDetailLayout: Boolean,
     onSelectConversation: (Conversation) -> Unit,
     onOpenConversation: (String, String) -> Unit,
 ) {
-    val notificationKey = targetConversationId?.let { "$it|${targetConversationEventId.orEmpty()}" }
-    LaunchedEffect(notificationKey, conversations, conversationsLoading, useListDetailLayout) {
-        if (notificationKey == null || notificationKey == handledNotificationKey || conversationsLoading) {
+    val notificationKey = target?.let { "\${it.conversationId}|\${it.eventId.orEmpty()}" }
+    LaunchedEffect(notificationKey, state.conversations, state.conversationsLoading, useListDetailLayout) {
+        if (notificationKey == null || notificationKey == handledNotificationKey || state.conversationsLoading) {
             return@LaunchedEffect
         }
-        conversations.firstOrNull { it.conversationId == targetConversationId }?.let { conversation ->
+        state.conversations.firstOrNull { it.conversationId == target?.conversationId }?.let { conversation ->
             onHandledNotification(notificationKey)
             if (useListDetailLayout) {
                 onSelectConversation(conversation)
@@ -146,7 +147,6 @@ private fun MessagingNotificationEffect(
         }
     }
 }
-
 @Composable
 private fun ConversationListPane(
     state: PrivacyUiState,
