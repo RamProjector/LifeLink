@@ -129,6 +129,7 @@ fun ActiveRequestScreen(
         }
     }
     var showCancelConfirmation by remember { mutableStateOf(false) }
+    var showFulfillConfirmation by remember { mutableStateOf(false) }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -170,9 +171,11 @@ fun ActiveRequestScreen(
                 }
             }
             if (!active.isTerminal) {
-                Button(onClick = {
-                    onAction(EmergencyRequestAction.FulfillRequest)
-                }, enabled = !state.statusRefreshing, modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = { showFulfillConfirmation = true },
+                    enabled = !state.statusRefreshing,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Mark request fulfilled")
@@ -187,6 +190,29 @@ fun ActiveRequestScreen(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
+    }
+    if (showFulfillConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showFulfillConfirmation = false },
+            title = { Text("Mark request as fulfilled?") },
+            text = {
+                Text(
+                    "Only continue if the request has been met. This closes the active request " +
+                        "and stops further matching.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showFulfillConfirmation = false
+                        onAction(EmergencyRequestAction.FulfillRequest)
+                    },
+                ) { Text("Confirm fulfillment") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFulfillConfirmation = false }) { Text("Not yet") }
+            },
+        )
     }
     if (showCancelConfirmation) {
         AlertDialog(
