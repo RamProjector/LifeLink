@@ -131,6 +131,10 @@ fun AuthScreen(
     val busy = state is AuthState.Loading
     val resetReady = state is AuthState.PasswordResetReady
     val resetComplete = state is AuthState.PasswordResetComplete && !resetCompleteDismissed
+    val isCreatingOrResettingPassword = resetReady || (createAccount && !recoveryMode)
+    val shouldShowPasswordConfirmation = isCreatingOrResettingPassword && !resetComplete
+    val isRegularSignIn = !createAccount && !recoveryMode && !resetReady
+    val shouldShowForgotPassword = isRegularSignIn && !resetComplete
     val emailValid = emailPattern.matcher(email.trim()).matches()
     val passwordValid = password.length >= 6
     val passwordsMatch = !(createAccount || resetReady) || password == confirmPassword
@@ -310,9 +314,9 @@ fun AuthScreen(
                                 onFocusLost = { if (password.isNotEmpty()) passwordTouched = true },
                                 enabled = !busy,
                                 contentType = if (createAccount || resetReady) ContentType.NewPassword else ContentType.Password,
-                                imeAction = if ((!recoveryMode && createAccount) || resetReady) ImeAction.Next else ImeAction.Done,
+                                imeAction = if (isCreatingOrResettingPassword) ImeAction.Next else ImeAction.Done,
                                 onImeAction = {
-                                    if ((!recoveryMode && createAccount) || resetReady) {
+                                    if (isCreatingOrResettingPassword) {
                                         focusManager.moveFocus(FocusDirection.Down)
                                     } else if (canSubmit) {
                                         focusManager.clearFocus()
@@ -323,7 +327,7 @@ fun AuthScreen(
                         )
                     }
 
-                    if (((!recoveryMode && createAccount) || resetReady) && !resetComplete) {
+                    if (shouldShowPasswordConfirmation) {
                         PasswordStrengthMeter(password)
                         PasswordField(
                             value = confirmPassword,
@@ -475,7 +479,7 @@ fun AuthScreen(
                         }
                     }
 
-                    if (!resetComplete && !createAccount && !recoveryMode && !resetReady) {
+                    if (shouldShowForgotPassword) {
                         TextButton(onClick = { recoveryMode = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                             Text("Forgot password?")
                         }
