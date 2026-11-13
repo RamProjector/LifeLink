@@ -1072,4 +1072,4 @@ def test_startup_upgrade_adds_requester_location_source_to_existing_schema(pg_ur
         await engine.dispose()
 
     asyncio.run(scenario())
-\n
+
