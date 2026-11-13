@@ -87,6 +87,28 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 async def create_all_tables() -> None:
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+        # create_all() creates new tables but does not add columns to tables that
+        # already exist. Keep the requester location-source upgrade here as well
+        # as sql/014_requester_location_source.sql so existing Render databases
+        # receive it during the normal API startup path.
+        await connection.execute(text(
+            "ALTER TABLE emergency_requests "
+            "ADD COLUMN IF NOT EXISTS requester_location_source VARCHAR(32) "
+            "NOT NULL DEFAULT 'unknown'"
+        ))
+        request_source_constraint_exists = await connection.scalar(text(
+            "SELECT EXISTS (SELECT 1 FROM pg_constraint "
+            "WHERE conname = 'ck_emergency_requests_requester_location_source' "
+            "AND conrelid = 'emergency_requests'::regclass)"
+        ))
+        if not request_source_constraint_exists:
+            await connection.execute(text(
+                "ALTER TABLE emergency_requests "
+                "ADD CONSTRAINT ck_emergency_requests_requester_location_source "
+                "CHECK (requester_location_source IN "
+                "('fused', 'gps', 'network', 'passive', 'unknown', "
+                "'manual_pin', 'manual_coordinates', 'facility'))"
+            ))
         await connection.execute(text(
             "ALTER TABLE lifelink_profiles ADD COLUMN IF NOT EXISTS fcm_token VARCHAR(4096)"
         ))
@@ -101,8 +123,19 @@ async def create_all_tables() -> None:
             "ADD COLUMN IF NOT EXISTS map_visible BOOLEAN NOT NULL DEFAULT FALSE, "
             "ADD COLUMN IF NOT EXISTS map_visibility_updated_at TIMESTAMPTZ, "
             "ADD COLUMN IF NOT EXISTS exact_location_sharing_enabled BOOLEAN NOT NULL DEFAULT FALSE, "
-            "ADD COLUMN IF NOT EXISTS last_presence_at TIMESTAMPTZ"
+            "ADD COLUMN IF NOT EXISTS last_presence_at TIMESTAMPTZ, "
+            "ADD COLUMN IF NOT EXISTS last_location_provider VARCHAR(24)"
         ))
+        provider_constraint_exists = await connection.scalar(text(
+            "SELECT EXISTS (SELECT 1 FROM pg_constraint "
+            "WHERE conname = 'ck_donors_last_location_provider')"
+        ))
+        if not provider_constraint_exists:
+            await connection.execute(text(
+                "ALTER TABLE donors ADD CONSTRAINT ck_donors_last_location_provider "
+                "CHECK (last_location_provider IS NULL OR "
+                "last_location_provider IN ('fused', 'gps', 'network', 'passive', 'unknown'))"
+            ))
         # Legacy availability timestamps are not evidence of a GPS fix. Keep
         # last_presence_at NULL until the server records an actual presence update.
         await connection.execute(text(

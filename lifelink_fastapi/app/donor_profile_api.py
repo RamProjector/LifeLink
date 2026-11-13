@@ -9,6 +9,7 @@ write their own donor profile.
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -43,6 +44,9 @@ class DonorPresenceIn(BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     precision_meters: int = Field(ge=1, le=10000)
+    # Client-reported Android location provider. This is diagnostic metadata,
+    # not proof of the physical sensor or accuracy of a location fix.
+    provider: Literal["fused", "gps", "network", "passive", "unknown"] | None = None
 
 
 class DonorProfileMeOut(BaseModel):

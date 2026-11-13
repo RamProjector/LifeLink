@@ -10,12 +10,15 @@ import com.lifelink.app.domain.DonorProfile
 import com.lifelink.app.domain.DonorRepository
 import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
+import java.io.IOException
 
 data class DonorUiState(
     val profile: DonorProfile = DonorProfile(),
@@ -173,7 +176,22 @@ class DonorViewModel(
             messageLevel = LifeLinkFeedbackLevel.Info,
         )
         launchDurableWrite {
-            repository.respond(requestId, response)
+            val result = try {
+                repository.respond(requestId, response)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: IOException) {
+                Result.failure(error)
+            } catch (error: HttpException) {
+                Result.failure(error)
+            } catch (error: IllegalStateException) {
+                Result.failure(error)
+            } catch (error: IllegalArgumentException) {
+                Result.failure(error)
+            } catch (error: SecurityException) {
+                Result.failure(error)
+            }
+            result
                 .onSuccess {
                     _state.value = _state.value.copy(
                         saving = false,

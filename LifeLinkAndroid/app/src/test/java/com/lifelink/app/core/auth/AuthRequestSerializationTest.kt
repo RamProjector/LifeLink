@@ -24,10 +24,9 @@ class AuthRequestSerializationTest {
     }
 
     @Test
-    fun passwordRecoveryRequestUsesEmailAndRedirectTo() {
-        val json = gson.toJson(PasswordRecoveryRequest("user@example.test", "lifelink://auth/recovery"))
-        assertTrue(json.contains("\"email\":\"user@example.test\""))
-        assertTrue(json.contains("\"redirect_to\":\"lifelink://auth/recovery\""))
+    fun passwordRecoveryRequestUsesEmailFieldInJsonBody() {
+        val json = gson.toJson(PasswordRecoveryRequest("user@example.test"))
+        assertEquals("""{"email":"user@example.test"}""", json)
     }
 
     @Test

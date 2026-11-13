@@ -4,7 +4,11 @@ Native Kotlin/Jetpack Compose app for emergency blood requests and donor coordin
 
 ## Build and validate
 
-Use Java 21, the included Gradle 9.6.0 wrapper, and an Android SDK with API 37. The Android Gradle plugin also installs its required build tools when SDK licenses are accepted.
+Use JDK 21, the included Gradle 9.8.2 wrapper, Android Gradle Plugin 9.5.1, and Android SDK Platform 37. Android Studio may prompt to install missing SDK components during project sync.
+
+For Android Studio, clone the repository and open the `LifeLinkAndroid/` directory (not the repository root) as the project. Install/select JDK 21 in **Settings → Build, Execution, Deployment → Build Tools → Gradle**, install Android SDK Platform 37 in SDK Manager, accept its licenses, then run **Sync Project with Gradle Files**. The Firebase client configuration is already included at `app/google-services.json`; debug builds use Android's automatic debug signing and do not need a release keystore.
+
+The Android app uses the hosted Render API and Supabase Auth. The project's Supabase **publishable client key** (`sb_publishable_…`) is embedded as a public client default, so a fresh clone can build and sign in without manually adding a key. This key is intended to be present in client apps; data access still relies on authenticated user tokens and Supabase/backend authorization. Never put a Supabase `service_role`, secret API key, database password, or JWT signing secret in the app or repository. Android Studio writes `sdk.dir` to the git-ignored `local.properties`; you may copy `local.properties.example` and override endpoints or the key for another project. Gradle overrides are available through `SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_URL` environment variables or `-PsupabasePublishableKey=...` / `-PsupabaseUrl=...` properties; nonblank project properties and environment values take precedence over local properties and the embedded client default. CI continues to validate and use the repository's corresponding Supabase values.
 
 ```bash
 export ANDROID_HOME="$HOME/Android/Sdk"
@@ -26,7 +30,9 @@ The default API URL is `https://lifelink-api-uzje.onrender.com/`. To use a local
   -PsupabasePublishableKey=your-publishable-client-key
 ```
 
-The equivalent environment variables are `LIFELINK_API_BASE_URL`, `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY`. Gradle properties take precedence. Supabase sign-in requires the project URL and publishable client key; never bundle a service-role key. The authenticated client sends the user's access token and refreshes it when needed. A temporary refresh failure keeps the local session; a rejected refresh credential expires it.
+The equivalent environment variables are `LIFELINK_API_BASE_URL`, `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY`. Supabase sign-in requires the project URL and publishable client key; never bundle a service-role key. The authenticated client sends the user's access token and refreshes it when needed. A temporary refresh failure keeps the local session; a rejected refresh credential expires it.
+
+Password-recovery links return to `lifelink://auth/recovery`. Ensure this URI is allowed in the Supabase project's Auth URL Configuration (Additional Redirect URLs) and that its reset email template links to the Supabase recovery endpoint. The app confirms only after the recovery API accepts the email request; opening a valid recovery link lets the user set a new password, and a success screen appears only after Supabase accepts the password update.
 
 Firebase Messaging uses the project's `app/google-services.json`. Remote delivery requires the corresponding backend Firebase credentials and push-token registration. Deploy the included backend notification update with this Android version: FCM data messages now carry the recipient’s authenticated user ID, title, and body so Android can check ownership before displaying them. A push with a `user_id` destination is stored only for that signed-in account; pushes without a destination are neither displayed nor added to account history.
 

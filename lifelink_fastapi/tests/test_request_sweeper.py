@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, call
 
 import pytest
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,6 +44,7 @@ def session():
 def test_batch_expires_each_active_status_at_the_deadline(session, frozen_clock, status, plain_status):
     """Expire every active status at the exact deadline, accepting both enum and string values."""
     row = SimpleNamespace(
+        id="request-1",
         status=status if plain_status else RequestStatusEnum(status),
         response_deadline=NOW,
         updated_at=NOW - timedelta(days=1),
@@ -60,7 +62,12 @@ def test_batch_counts_only_expired_rows_and_commits_once(session, frozen_clock):
     """Count and timestamp only eligible transitions, then commit the batch once."""
     previous_update = NOW - timedelta(days=1)
     rows = [
-        SimpleNamespace(status=status, response_deadline=deadline, updated_at=previous_update)
+        SimpleNamespace(
+            id=f"request-{status}",
+            status=status,
+            response_deadline=deadline,
+            updated_at=previous_update,
+        )
         for status, deadline in [
             ("matching", NOW - timedelta(seconds=1)),
             ("awaiting_responses", NOW.replace(tzinfo=None)),
@@ -105,15 +112,29 @@ def test_batch_bounds_the_database_query_before_loading_rows(session, limit, exp
     statement = session.scalars.await_args.args[0]
     # Check the bound sent to SQL, not just the returned count: limiting after
     # materializing rows would still load an unbounded backlog into memory.
-    query = str(statement.compile(compile_kwargs={"literal_binds": True}))
-    assert query.endswith(f"LIMIT {expected}")
+    # Compile with PostgreSQL's dialect so the test verifies the actual
+    # queue-worker locking clause rather than a lightweight test dialect that
+    # may omit unsupported SKIP LOCKED syntax.
+    query = str(
+        statement.compile(
+            dialect=postgresql.dialect(),
+            compile_kwargs={"literal_binds": True},
+        )
+    )
+    assert f"LIMIT {expected}" in query
+    assert query.endswith("FOR UPDATE SKIP LOCKED")
 
 
 @pytest.mark.parametrize("operation", ["scalars", "commit"])
 def test_batch_propagates_database_failures_to_the_retry_loop(session, frozen_clock, operation):
     """Let query and commit failures escape the store so the background loop can retry."""
     session.scalars.return_value.all.return_value = [
-        SimpleNamespace(status="matching", response_deadline=NOW, updated_at=NOW)
+        SimpleNamespace(
+            id="request-failure",
+            status="matching",
+            response_deadline=NOW,
+            updated_at=NOW,
+        )
     ]
     getattr(session, operation).side_effect = SQLAlchemyError("database unavailable")
 

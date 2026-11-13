@@ -14,7 +14,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Refresh
@@ -27,7 +26,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -73,7 +71,51 @@ fun ActiveRequestScreen(
     onBack: () -> Unit,
     onReviewContacts: () -> Unit,
 ) {
-    val active = state.activeRequest ?: return
+    val active = state.activeRequest
+    if (active == null) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                TopAppBar(
+                    title = { Text("Active request", fontWeight = FontWeight.SemiBold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                )
+            },
+        ) { padding ->
+            Column(
+                Modifier.fillMaxSize().padding(padding).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Icon(
+                    Icons.Default.HourglassEmpty,
+                    contentDescription = null,
+                    modifier = Modifier.size(44.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.size(16.dp))
+                Text(
+                    "No active request found",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    "This request may have been completed, cancelled, or is no longer available. " +
+                        "Return to Home to check your request history or start a new request.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.size(20.dp))
+                Button(onClick = onBack) { Text("Return to Home") }
+            }
+        }
+        return
+    }
     LaunchedEffect(active.requestId) {
         onAction(EmergencyRequestAction.RefreshContacts(active.requestId))
     }
@@ -86,6 +128,7 @@ fun ActiveRequestScreen(
         }
     }
     var showCancelConfirmation by remember { mutableStateOf(false) }
+    var showFulfillConfirmation by remember { mutableStateOf(false) }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -110,21 +153,41 @@ fun ActiveRequestScreen(
         ) {
             StatusCard(active)
             requestDetails?.let { RequestDetailsCard(it) }
-            ProgressCard(active)
+            val contactedDonors = when {
+                state.contacts.isNotEmpty() -> state.contacts.size
+                state.contactsRefreshing || state.contactsError != null -> null
+                else -> 0
+            }
+            ProgressCard(active, contactedDonors)
             ContactActivityCard(state, active, onAction, onReviewContacts)
             if (active.status == ActiveRequestStatus.MANUAL_BROADCAST) {
-                Button(onClick = {
-                    onAction(EmergencyRequestAction.SendManualBroadcast)
-                }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Campaign, contentDescription = null, Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Send manual broadcast")
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    ),
+                ) {
+                    Column(
+                        Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text("Manual review pending", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Automatic matching could not be completed. This status does not send donor " +
+                                "notifications; donor contact is a separate, explicit action. Follow your " +
+                                "official blood-service coordination process for urgent assistance.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             }
             if (!active.isTerminal) {
-                Button(onClick = {
-                    onAction(EmergencyRequestAction.FulfillRequest)
-                }, enabled = !state.statusRefreshing, modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = { showFulfillConfirmation = true },
+                    enabled = !state.statusRefreshing,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Mark request fulfilled")
@@ -139,6 +202,29 @@ fun ActiveRequestScreen(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
+    }
+    if (showFulfillConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showFulfillConfirmation = false },
+            title = { Text("Mark request as fulfilled?") },
+            text = {
+                Text(
+                    "Only continue if the request has been met. This closes the active request " +
+                        "and stops further matching.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showFulfillConfirmation = false
+                        onAction(EmergencyRequestAction.FulfillRequest)
+                    },
+                ) { Text("Confirm fulfillment") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFulfillConfirmation = false }) { Text("Not yet") }
+            },
+        )
     }
     if (showCancelConfirmation) {
         AlertDialog(
@@ -234,46 +320,19 @@ private fun StatusCard(active: ActiveRequestSnapshot) {
 
 /** Two metric tiles summarizing how many donors were notified and how many responded. */
 @Composable
-private fun ProgressCard(active: ActiveRequestSnapshot) {
+private fun ProgressCard(active: ActiveRequestSnapshot, contactedDonors: Int?) {
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Response activity", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricTile("Donors notified", active.notificationsCreated.toString(), Modifier.weight(1f))
-                MetricTile("Responses", active.matchesResponded.toString(), Modifier.weight(1f))
+                MetricTile("Contacted donors", contactedDonors?.toString() ?: "—", Modifier.weight(1f))
+                MetricTile("Donor responses", active.matchesResponded.toString(), Modifier.weight(1f))
             }
-            val responseRatio =
-                if (active.notificationsCreated > 0) {
-                    (active.matchesResponded.toFloat() / active.notificationsCreated.toFloat()).coerceIn(0f, 1f)
-                } else {
-                    0f
-                }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                LinearProgressIndicator(
-                    progress = { responseRatio },
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .semantics {
-                            contentDescription =
-                                if (active.notificationsCreated == 0) {
-                                    "No donors notified yet"
-                                } else {
-                                    "${active.matchesResponded} of ${active.notificationsCreated} notified donors responded"
-                                }
-                        },
-                )
-                Text(
-                    if (active.notificationsCreated == 0) {
-                        "No donors have been notified yet."
-                    } else {
-                        "${active.matchesResponded} of ${active.notificationsCreated} notified donors responded " +
-                            "(${(responseRatio * 100).toInt()}%)."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(
+                "Contacted donors are counted from saved contact requests. Notification delivery is tracked separately.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -307,13 +366,13 @@ private fun ContactActivityCard(
             when {
                 state.contactsRefreshing && state.contacts.isEmpty() ->
                     LifeLinkLoadingIndicator(label = "Refreshing contact activity\u2026")
-                state.contacts.isEmpty() ->
+                state.contacts.isEmpty() && state.contactsError == null ->
                     LifeLinkEmptyState(
                         icon = Icons.Default.VolunteerActivism,
                         title = "No contact activity yet",
                         body = "Selected donors and their responses will appear here.",
                     )
-                else -> {
+                state.contacts.isNotEmpty() -> {
                     state.contacts.forEachIndexed { index, contact ->
                         if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         ContactActivityRow(contact)

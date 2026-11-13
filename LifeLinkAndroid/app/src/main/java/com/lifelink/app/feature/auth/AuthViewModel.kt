@@ -1,13 +1,12 @@
 package com.lifelink.app.feature.auth
 
 import android.net.Uri
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.lifelink.app.core.auth.AuthCallbackKind
 import com.lifelink.app.core.auth.AuthResult
 import com.lifelink.app.core.auth.AuthSession
-import com.lifelink.app.core.auth.AuthCallbackKind
 import com.lifelink.app.core.auth.SupabaseAuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,8 +32,12 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
     init {
         viewModelScope.launch {
             repository.session.collect { session ->
-                if (session != null) _state.value = AuthState.SignedIn(session)
-                else if (_state.value !is AuthState.EmailConfirmationRequired && _state.value !is AuthState.PasswordResetReady && _state.value !is AuthState.PasswordResetComplete) _state.value = AuthState.SignedOut
+                // A recovery callback takes priority over a previously persisted session.
+                // Otherwise opening a reset link while already signed in immediately
+                // routes to the app shell before the user can choose a new password.
+                if (_state.value !is AuthState.PasswordResetReady && _state.value !is AuthState.PasswordResetComplete) {
+                    _state.value = if (session != null) AuthState.SignedIn(session) else AuthState.SignedOut
+                }
             }
         }
         viewModelScope.launch {
@@ -60,7 +63,10 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
                         _state.value = AuthState.Loading
                         repository.completeEmailConfirmation(callback)
                             .onSuccess { session -> _state.value = AuthState.SignedIn(session) }
-                            .onFailure { _state.value = AuthState.Message(it.message ?: "Account confirmation could not be completed. Please sign in.", true) }
+                            .onFailure {
+                                _state.value =
+                                    AuthState.Message(it.message ?: "Account confirmation could not be completed. Please sign in.", true)
+                            }
                     }
                 }
             }
@@ -93,9 +99,19 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
         viewModelScope.launch {
             _state.value = AuthState.Loading
             action()
-            _state.value = AuthState.Message(
-                "If that email has a LifeLink account, check your inbox for a reset link. If none arrives, try again later."
-            )
+                .onSuccess {
+                    _state.value = AuthState.Message(
+                        "If that email has a LifeLink account, check your inbox for a reset link. If none arrives, try again later.",
+                    )
+                }
+                .onFailure {
+                    // Keep account existence private while making a real delivery/API
+                    // failure distinguishable from a successful request.
+                    _state.value = AuthState.Message(
+                        "We could not send the reset link right now. Check your connection and try again.",
+                        isError = true,
+                    )
+                }
         }
     }
 

@@ -80,7 +80,7 @@ class SupabaseAuthRepository(
 
     suspend fun requestPasswordReset(email: String): Result<Unit> =
         simpleAuthAction {
-            api?.recover(publishableKey, PasswordRecoveryRequest(email, RECOVERY_REDIRECT_URI))
+            api?.recover(publishableKey, RECOVERY_REDIRECT_URI, PasswordRecoveryRequest(email))
                 ?: error("Supabase URL is not configured")
         }
 
@@ -235,7 +235,10 @@ class SupabaseAuthRepository(
         return when {
             statusCode == 429 -> "Too many attempts. Please wait a few minutes and try again."
             message?.contains("already registered", ignoreCase = true) == true -> "This email already has an account. Select Sign in."
-            message?.contains("invalid", ignoreCase = true) == true -> "Please enter a valid email address."
+            message?.contains("api key", ignoreCase = true) == true || message?.contains("apikey", ignoreCase = true) == true ->
+                "LifeLink could not authenticate with Supabase. Check the Supabase URL and publishable key in local.properties."
+            message?.contains("email", ignoreCase = true) == true && message.contains("invalid", ignoreCase = true) ->
+                "Please enter a valid email address."
             else -> message ?: "Authentication failed ($statusCode). Please try again."
         }
     }
@@ -285,6 +288,7 @@ private interface SupabaseAuthApi {
     @POST("auth/v1/recover")
     suspend fun recover(
         @Header("apikey") publishableKey: String,
+        @Query("redirect_to") redirectTo: String,
         @Body request: PasswordRecoveryRequest,
     ): Response<Unit>
 
@@ -323,7 +327,7 @@ data class AuthRequest(
 
 data class RefreshRequest(@SerializedName("refresh_token") val refreshToken: String)
 
-data class PasswordRecoveryRequest(@SerializedName("email") val email: String, @SerializedName("redirect_to") val redirectTo: String)
+data class PasswordRecoveryRequest(@SerializedName("email") val email: String)
 
 data class ResendRequest(@SerializedName("type") val type: String, @SerializedName("email") val email: String)
 

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // Kotlin support is built into AGP 9; do not apply kotlin.android here.
@@ -12,6 +14,14 @@ plugins {
 // Keep the Maven fallback for ordinary local development when the prefetch task
 // has not been run.
 val robolectricDependencyDir = providers.gradleProperty("robolectricDependencyDir").orNull
+val lifelinkLocalProperties =
+    Properties().apply {
+        rootProject
+            .file("local.properties")
+            .takeIf { it.isFile }
+            ?.inputStream()
+            ?.use(::load)
+    }
 
 // --- Release signing inputs -------------------------------------------------
 // Resolved once, at the top level, so the signingConfig below and the
@@ -59,20 +69,21 @@ android {
         providers
             .gradleProperty("lifelinkApiBaseUrl")
             .orElse(providers.environmentVariable("LIFELINK_API_BASE_URL"))
-            .orElse("https://lifelink-api-uzje.onrender.com/")
+            .orElse(lifelinkLocalProperties.getProperty("lifelinkApiBaseUrl") ?: "https://lifelink-api-uzje.onrender.com/")
             .get()
     val supabaseUrl =
         providers
             .gradleProperty("supabaseUrl")
             .orElse(providers.environmentVariable("SUPABASE_URL"))
-            .orElse("")
+            .orElse(lifelinkLocalProperties.getProperty("supabaseUrl") ?: "https://nphbhlxnujmylhubzmne.supabase.co")
             .get()
+    // Supabase publishable keys are designed for client apps; never put a service-role key here.
+    val defaultSupabasePublishableKey = "sb_publishable_0BnXY2k96nRr0k0zaZvMgQ_IQYSlyQu"
     val supabasePublishableKey =
-        providers
-            .gradleProperty("supabasePublishableKey")
-            .orElse(providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY"))
-            .orElse("")
-            .get()
+        providers.gradleProperty("supabasePublishableKey").orNull?.takeIf { it.isNotBlank() }
+            ?: providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY").orNull?.takeIf { it.isNotBlank() }
+            ?: lifelinkLocalProperties.getProperty("supabasePublishableKey")?.takeIf { it.isNotBlank() }
+            ?: defaultSupabasePublishableKey
 
     // --- Release signing -----------------------------------------------------
     // The keystore location and credentials are resolved once at the top of this

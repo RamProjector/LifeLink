@@ -14,12 +14,14 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -45,6 +47,58 @@ class PrivacyViewModelTest {
     fun tearDown() {
         store.clear()
         Dispatchers.resetMain()
+    }
+
+    /** Prevents an older conversation-list response from replacing a newer successful refresh. */
+    @Test
+    fun stale_conversation_list_result_cannot_overwrite_newer_result() = runTest {
+        val olderResponse = CompletableDeferred<Result<List<Conversation>>>()
+        var calls = 0
+        repository.conversationList = {
+            calls++
+            if (calls == 1) {
+                olderResponse.await()
+            } else {
+                Result.success(listOf(conversation("chat-new", "request-new", "donor-new")))
+            }
+        }
+
+        viewModel.onAction(PrivacyAction.LoadConversations)
+        viewModel.onAction(PrivacyAction.LoadConversations)
+
+        assertEquals(listOf("chat-new"), viewModel.state.value.conversations.map { it.conversationId })
+        assertFalse(viewModel.state.value.conversationsLoading)
+
+        olderResponse.complete(
+            Result.success(listOf(conversation("chat-stale", "request-stale", "donor-stale"))),
+        )
+
+        assertEquals(listOf("chat-new"), viewModel.state.value.conversations.map { it.conversationId })
+        assertFalse(viewModel.state.value.conversationsLoading)
+        assertNull(viewModel.state.value.conversationsError)
+    }
+
+    /** Prevents an older failed conversation-list request from surfacing an error after a newer success. */
+    @Test
+    fun stale_conversation_list_failure_cannot_replace_newer_success() = runTest {
+        val olderResponse = CompletableDeferred<Result<List<Conversation>>>()
+        var calls = 0
+        repository.conversationList = {
+            calls++
+            if (calls == 1) {
+                olderResponse.await()
+            } else {
+                Result.success(listOf(conversation("chat-new", "request-new", "donor-new")))
+            }
+        }
+
+        viewModel.onAction(PrivacyAction.LoadConversations)
+        viewModel.onAction(PrivacyAction.LoadConversations)
+        olderResponse.complete(Result.failure(IllegalStateException("Stale network failure")))
+
+        assertEquals(listOf("chat-new"), viewModel.state.value.conversations.map { it.conversationId })
+        assertFalse(viewModel.state.value.conversationsLoading)
+        assertNull(viewModel.state.value.conversationsError)
     }
 
     /** Prevents an older, slower map refresh from overwriting the latest successful result. */
@@ -269,7 +323,113 @@ class PrivacyViewModelTest {
 
         assertFalse(viewModel.state.value.sending)
         assertEquals("Message could not be sent.", viewModel.state.value.message)
+        assertNull(viewModel.state.value.lastSentMessage)
         assertEquals(listOf("chat-old" to "Hello"), repository.sends)
+    }
+
+    /** Publishes the server-confirmed message so the composer clears only after success. */
+    @Test
+    fun successful_send_exposes_the_confirmed_message() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+
+        viewModel.onAction(PrivacyAction.SendMessage("Hello"))
+
+        assertFalse(viewModel.state.value.sending)
+        assertEquals("Hello", viewModel.state.value.lastSentMessage?.body)
+        assertEquals("message-chat-old", viewModel.state.value.lastSentMessage?.messageId)
+        assertNull(viewModel.state.value.message)
+    }
+
+    /** Exposes a contact share only after the repository confirms persistence. */
+    @Test
+    fun duplicate_send_actions_while_a_send_is_in_flight_are_ignored() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+        val sendGate = CompletableDeferred<Result<ChatMessage>>()
+        repository.sendGate = sendGate
+
+        viewModel.onAction(PrivacyAction.SendMessage("first message"))
+        assertTrue(viewModel.state.value.sending)
+        viewModel.onAction(PrivacyAction.SendMessage("duplicate message"))
+
+        assertEquals(listOf("chat-old" to "first message"), repository.sends)
+        sendGate.complete(Result.success(chatMessage("chat-old").copy(body = "first message")))
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.sending)
+        assertEquals("first message", viewModel.state.value.lastSentMessage?.body)
+    }
+
+    @Test
+    fun duplicate_contact_shares_while_a_share_is_in_flight_are_ignored() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+        val shareGate = CompletableDeferred<Result<ContactShare>>()
+        repository.shareGate = shareGate
+
+        viewModel.onAction(PrivacyAction.ShareContact("email", "person@example.invalid"))
+        assertTrue(viewModel.state.value.sharingContact)
+        viewModel.onAction(PrivacyAction.ShareContact("email", "person@example.invalid"))
+
+        assertEquals(
+            listOf(Triple("chat-old", "email", "person@example.invalid")),
+            repository.shares,
+        )
+        shareGate.complete(
+            Result.success(contactShare("chat-old").copy(field = "email", value = "person@example.invalid")),
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.sharingContact)
+        assertEquals("person@example.invalid", viewModel.state.value.lastSharedContact?.value)
+    }
+
+    @Test
+    fun successful_contact_share_exposes_confirmed_record() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+
+        viewModel.onAction(PrivacyAction.ShareContact("phone", "555-0100"))
+
+        assertEquals("phone", viewModel.state.value.lastSharedContact?.field)
+        assertEquals("555-0100", viewModel.state.value.lastSharedContact?.value)
+        assertEquals("requester", viewModel.state.value.lastSharedContact?.sharedBy)
+        assertEquals("Your phone was shared and recorded.", viewModel.state.value.message)
+        assertFalse(viewModel.state.value.sharingContact)
+    }
+
+    /** Leaves the contact form's values available when the server rejects a share. */
+    @Test
+    fun failed_contact_share_does_not_publish_a_confirmed_record() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+        repository.shareFailure = IllegalStateException("server rejected contact share")
+
+        viewModel.onAction(PrivacyAction.ShareContact("phone", "555-0100"))
+
+        assertNull(viewModel.state.value.lastSharedContact)
+        assertFalse(viewModel.state.value.sharingContact)
+        assertEquals("Contact details could not be shared.", viewModel.state.value.message)
+    }
+
+    /** Keeps the last successful history visible when a later refresh fails, then recovers on retry. */
+    @Test
+    fun failed_refresh_preserves_history_and_successful_retry_clears_error() = runTest {
+        viewModel.openConversation("request-old", "donor-old")
+        val previousMessages = viewModel.state.value.messages
+        val previousShares = viewModel.state.value.contactShares
+        repository.failHistory = true
+
+        viewModel.onAction(PrivacyAction.RefreshConversation)
+
+        assertEquals(previousMessages, viewModel.state.value.messages)
+        assertEquals(previousShares, viewModel.state.value.contactShares)
+        assertNotNull(viewModel.state.value.conversationRefreshError)
+
+        repository.failHistory = false
+        val refreshedMessage = chatMessage("chat-old").copy(messageId = "new-message", body = "Recovered")
+        repository.loadedMessages = listOf(refreshedMessage)
+
+        viewModel.onAction(PrivacyAction.RefreshConversation)
+
+        assertEquals(listOf(refreshedMessage), viewModel.state.value.messages)
+        assertNull(viewModel.state.value.conversationRefreshError)
     }
 
     /** Refreshes a visible conversation so messages sent by the other participant appear without reopening chat. */
@@ -327,7 +487,11 @@ private class ConversationRepositoryFake : PrivacyRepository {
     var loadedShares = listOf(contactShare("chat-old"))
     var loadedSavedMessages = emptyList<ChatMessage>()
     var failHistory = false
+    var conversationList: suspend () -> Result<List<Conversation>> = { Result.success(emptyList()) }
     var sendFailure: Throwable? = null
+    var sendGate: CompletableDeferred<Result<ChatMessage>>? = null
+    var shareFailure: Throwable? = null
+    var shareGate: CompletableDeferred<Result<ContactShare>>? = null
     var open: suspend (String, String) -> Result<Conversation> = { requestId, donorId ->
         Result.success(conversation("chat-old", requestId, donorId))
     }
@@ -338,7 +502,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
         return open(requestId, donorId)
     }
 
-    override suspend fun conversations(): Result<List<Conversation>> = Result.success(emptyList())
+    override suspend fun conversations(): Result<List<Conversation>> = conversationList()
 
     /** Records the history lookup and returns seeded messages or the configured failure. */
     override suspend fun messages(conversationId: String): Result<List<ChatMessage>> {
@@ -355,6 +519,7 @@ private class ConversationRepositoryFake : PrivacyRepository {
     /** Records the destination and body, then returns a synthetic message for that conversation. */
     override suspend fun sendMessage(conversationId: String, body: String): Result<ChatMessage> {
         sends += conversationId to body
+        sendGate?.let { return it.await() }
         sendFailure?.let { return Result.failure(it) }
         return Result.success(chatMessage(conversationId).copy(body = body))
     }
@@ -382,6 +547,8 @@ private class ConversationRepositoryFake : PrivacyRepository {
     /** Records the destination and contact field, then returns a synthetic share with those values. */
     override suspend fun shareContact(conversationId: String, field: String, value: String): Result<ContactShare> {
         shares += Triple(conversationId, field, value)
+        shareGate?.let { return it.await() }
+        shareFailure?.let { return Result.failure(it) }
         return Result.success(contactShare(conversationId).copy(field = field, value = value))
     }
 

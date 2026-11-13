@@ -25,6 +25,110 @@ def test_rate_limit_rejects_after_threshold():
         raise AssertionError("Expected the third request to be rate limited")
 
 
+
+def test_shared_rate_limit_uses_postgres_clock_for_all_workers(monkeypatch):
+    from app import db, rate_limit
+
+    class Result:
+        def one(self):
+            return (1, 1_800)
+
+    class Connection:
+        def __init__(self):
+            self.calls = []
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def execute(self, statement, params):
+            self.calls.append((str(statement), params))
+            return Result()
+
+        async def commit(self):
+            return None
+
+    class Engine:
+        def __init__(self, connection):
+            self.connection = connection
+
+        def connect(self):
+            return self.connection
+
+    connection = Connection()
+    monkeypatch.setattr(db, "engine", Engine(connection))
+
+    asyncio.run(rate_limit._enforce_shared("shared-window-test", 3, 300))
+
+    insert_sql, insert_params = connection.calls[0]
+    assert "clock_timestamp()" in insert_sql
+    assert "extract(epoch" in insert_sql
+    assert "monotonic" not in insert_sql
+    assert insert_params == {"key": "shared-window-test", "window_seconds": 300}
+    assert connection.calls[1][1] == {"cutoff": 600}
+
+
+
+
+def test_contact_disclosure_and_audit_can_share_one_transaction():
+    from types import SimpleNamespace
+
+    from app.privacy_api import ContactShareIn
+    from app.privacy_repositories import SqlAlchemyPrivacyStore
+
+    class Session:
+        def __init__(self):
+            self.added = []
+            self.flush_count = 0
+            self.commit_count = 0
+
+        def add(self, value):
+            self.added.append(value)
+
+        async def flush(self):
+            self.flush_count += 1
+
+        async def commit(self):
+            self.commit_count += 1
+
+    session = Session()
+    store = SqlAlchemyPrivacyStore(session)
+    conversation = SimpleNamespace(
+        id="conversation-1",
+        request_id="request-1",
+        donor_id="donor-1",
+        requester_id="requester-1",
+    )
+
+    share = asyncio.run(
+        store.add_contact_share(
+            conversation,
+            "requester-1",
+            ContactShareIn(field="email", value="person@example.test"),
+            commit=False,
+        )
+    )
+    asyncio.run(
+        store.record_audit_async(
+            "requester-1",
+            "contact_share_email",
+            "request-1",
+            "donor-1",
+            {"conversation_id": "conversation-1"},
+            commit=False,
+        )
+    )
+
+    assert share.value == "person@example.test"
+    assert len(session.added) == 2
+    assert session.flush_count == 2
+    assert session.commit_count == 0
+    assert session.added[1].action == "contact_share_email"
+    assert session.added[1].event_metadata == {"conversation_id": "conversation-1"}
+
+
 def test_contact_response_preserves_lifecycle_timestamps():
     accepted_at = datetime.now(UTC)
     shared_at = datetime.now(UTC)

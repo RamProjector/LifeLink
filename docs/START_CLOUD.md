@@ -46,9 +46,9 @@ SUPABASE_JWT_AUDIENCE=authenticated
 SUPABASE_JWT_ISSUER=https://YOUR_PROJECT.supabase.co/auth/v1
 ```
 
-For GitHub Actions, add repository **Actions variables/secrets** named `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The publishable key is safe for the Android client; never add a Supabase service-role key or JWT signing secret to the repository or APK.
+For GitHub Actions, configure repository **Actions variables/secrets** named `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` to match the Android project; CI validates and injects them. The Android source also includes this project's public `sb_publishable_…` client key so a clean local clone can authenticate without access to GitHub secrets. A publishable key is safe for Android clients; never add a Supabase service-role key, database password, or JWT signing secret to the repository or APK.
 
-The Android app will show a sign-in/create-account screen when no Supabase session exists. Build-time values are supplied with `-PsupabaseUrl=...` and `-PsupabasePublishableKey=...`, or automatically by the GitHub Actions workflow from the repository configuration.
+The Android app will show a sign-in/create-account screen when no Supabase session exists. A clean clone uses the checked-in API/Supabase project defaults and the public publishable client key. To target a different project, supply `-PlifelinkApiBaseUrl=...`, `-PsupabaseUrl=...`, and `-PsupabasePublishableKey=...`; GitHub Actions uses the matching repository configuration for CI builds.
 
 ## Important distinction
 

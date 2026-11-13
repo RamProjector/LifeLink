@@ -1,0 +1,187 @@
+# LifeLink backend security and reliability research
+
+**Research date:** 2026-11-12  
+**Scope:** FastAPI + SQLAlchemy + PostgreSQL/Supabase backend, requester/donor lifecycle, conversations, location sharing, auditability, and multi-instance deployment.  
+**Evidence rule:** Findings below distinguish source-confirmed behavior from risks that still require integration testing. This document does not authorize production migrations or deployment.
+
+## Standards and primary references (2020 onward)
+
+1. **NIST SP 800-218, Secure Software Development Framework v1.1 (February 2022).** Use security requirements, threat-informed design, protected build/release practices, and verification as recurring engineering work rather than a final checklist. The publication supersedes NIST's April 2020 SSDF white paper.  
+   https://csrc.nist.gov/pubs/sp/800/218/final
+2. **OWASP API Security Top 10 (2023).** The most relevant risks for LifeLink are API1 Broken Object Level Authorization, API2 Broken Authentication, API3 Broken Object Property Level Authorization, API4 Unrestricted Resource Consumption, API5 Broken Function Level Authorization, and API6 Unrestricted Access to Sensitive Business Flows. Every route accepting request, donor, conversation, message, or contact identifiers needs actor-and-object authorization, not merely a valid session.  
+   https://owasp.org/API-Security/editions/2023/en/0x11-t10/
+3. **OWASP Application Security Verification Standard 4.0.3 (2021).** Use its verification requirements for authentication, access control, validation, error handling, and security logging to turn review findings into testable acceptance criteria.  
+   https://github.com/OWASP/ASVS/tree/v4.0.3
+4. **PostgreSQL 16 documentation — Row Security Policies.** PostgreSQL row security is a database-side defense in depth; table grants and row policies are separate controls. RLS is default-deny when enabled without an applicable policy, but table owners and privileged roles require special attention.  
+   https://www.postgresql.org/docs/16/ddl-rowsecurity.html
+5. **Supabase Row Level Security guidance (official docs, updated 2026-11-03).** For exposed tables, explicitly enable RLS, set grants, create per-operation policies, and test both allowed and denied operations. Policies alone do not revoke existing grants; service-role credentials bypass RLS and must remain server-side.  
+   https://supabase.com/docs/guides/database/postgres/row-level-security
+6. **FastAPI OAuth2 scopes documentation (official).** Scopes can centralize operation-level authorization, but scopes placed into tokens must be derived from permissions the account is actually entitled to receive. LifeLink must continue checking resource ownership/participation as well as any role or scope.  
+   https://fastapi.tiangolo.com/advanced/security/oauth2-scopes/
+7. **PostgreSQL 16 Explicit Locking and Application-Level Consistency Checks.** PostgreSQL documents that `SELECT FOR UPDATE` locks selected rows until transaction end and is appropriate when application-level read/check/write sequences must be serialized. It also warns that locking alone does not prevent every possible concurrent update; the lock must be acquired consistently by all competing operations and held through the protected write.  
+   https://www.postgresql.org/docs/16/explicit-locking.html  
+   https://www.postgresql.org/docs/16/applevel-consistency.html
+
+## Architecture observed in the repository
+
+- The production API is the PostgreSQL-backed FastAPI app in `lifelink_fastapi/app/main_postgres.py`; persistence is implemented through async SQLAlchemy stores and PostgreSQL migrations.
+- The Android client is not the authorization boundary. The API must re-check the authenticated subject, request ownership, donor match membership, conversation participation, current request status, current consent, and location-sharing state on every sensitive operation.
+- LifeLink stores separate request, match, donor-contact, location-share, conversation, message, contact-share, and audit records. Their statuses represent distinct lifecycle stages and must not be collapsed into one “accepted/complete” flag.
+- Existing CI runs backend tests with PostgreSQL integration coverage and checks that each table has an explicit RLS decision. Migration state in the live Supabase project must still be verified independently; CI cannot prove that a production database has applied a migration.
+
+## Source-confirmed findings and implementation decisions
+
+### 1. Shared rate-limit window used a process-local monotonic epoch
+
+**Evidence:** `lifelink_fastapi/app/rate_limit.py` derived `window_start` using Python `monotonic()`, then persisted that value as the shared PostgreSQL bucket key. A monotonic clock is appropriate for elapsed-time measurement within one process, but its epoch is not a cross-host time contract. API instances with different monotonic origins can therefore write separate buckets for the same nominal interval and weaken the shared limit.
+
+**Change committed:** calculate the fixed-window boundary with PostgreSQL `clock_timestamp()` and `extract(epoch ...)` inside the atomic insert/upsert. The database is now the common clock for all instances. The local monotonic clock remains only in the documented per-process fallback.
+
+**Regression test:** a focused test asserts that the shared SQL derives its bucket from the database clock and uses the returned database bucket for cleanup.
+
+**Remaining limitation:** the existing fallback intentionally degrades to per-process limits when the database is unavailable. This protects availability but is not equivalent to a globally enforced limit. Revisit fail-open versus fail-closed policy per endpoint and threat model; do not silently claim distributed enforcement during database outages.
+
+### 2. Contact disclosure and its audit event may commit separately
+
+**Evidence:** `SqlAlchemyPrivacyStore.add_contact_share()` inserts the disclosure and commits. The API route then records the audit event through `record_audit_async()`, which commits separately. If the later audit write fails, the contact disclosure can remain persisted without its corresponding audit event.
+
+**Risk status:** source-confirmed transaction boundary; failure behavior should be reproduced with PostgreSQL integration tests before changing the repository contract.
+
+**Change committed:** repository methods now accept an explicit `commit=False` mode that flushes but leaves transaction ownership to the caller. The contact-share route stages both the disclosure and audit event, commits once, and rolls back on either write failure. Existing standalone callers retain the default immediate-commit behavior.
+
+**Regression coverage:** a focused unit test verifies both records are staged and flushed without an intermediate commit. A PostgreSQL failure-injection test proving that a failed audit insert rolls back the disclosure is still required before calling this path fully verified.
+
+**Required tests:** successful share creates exactly one disclosure and one audit row; injected audit insert failure leaves neither row; duplicate/retried client request follows an explicit idempotency policy; unauthorized participant cannot create either record.
+
+### 3. Location-provider provenance is not yet represented in the visible donor ORM fields
+
+**Evidence:** the current donor ORM model includes coordinates, `last_location_precision_meters`, `last_presence_at`, and availability timestamps. No provider/source identifier is present on that donor row. This does not prove no separate event metadata exists; the location ingestion route and all migrations still need an exhaustive trace.
+
+**Recommended design:** if provenance is needed for diagnostics or data lineage, store a bounded, non-sensitive provider category (for example, fused, GNSS, network, or manual) with the observation timestamp and reported accuracy. Do not treat provider labels as proof of accuracy or authenticity. Never store raw device identifiers, Wi-Fi identifiers, cell identifiers, or continuous location history merely to identify a provider. Define retention and user disclosure before adding a migration.
+
+**Required tests:** provider omitted/unknown, invalid provider rejected, manual selection distinguished from device-derived observation, stale observations cannot be relabeled as fresh, and no provider field leaks through public map or requester-facing DTOs.
+
+### 4. Authorization needs to be evaluated per object and per lifecycle state
+
+Use OWASP API1/API3/API5 as the test map. For every request/donor/conversation/message/contact/location endpoint, build a matrix of requester owner, matched donor, unrelated authenticated user, unverified user, revoked/blocked participant, and admin. A valid JWT alone is insufficient. Test both donor-row ID and owning-user ID where the model supports both identities, and ensure one identity cannot accidentally widen access to another resource.
+
+### 5. Lifecycle writes need race-safe database invariants
+
+Request cancel/fulfill/expiry, donor accept/decline/withdraw, contact creation, block, location-share revoke, and message send can overlap across devices and API workers. Read-then-write checks must be paired with row locks, conditional updates, uniqueness constraints, or transaction isolation appropriate to the operation. Push notifications are best-effort side effects after the durable state transition; clients must reload authoritative state after opening a notification.
+
+### 6. Conversation block/message race (object-level authorization and consistency)
+
+**Evidence:** the message route checked `is_blocked()` and then called `add_message()`, which committed in a later operation. The block route independently inserted and committed a block. A concurrent block could therefore commit after the check but before the message insert, allowing a message after the block action appeared successful.
+
+**Change committed:** added `SqlAlchemyPrivacyStore.lock_conversation()`, using PostgreSQL `SELECT ... FOR UPDATE`. Message send, contact disclosure, and block creation now acquire the same conversation-row lock before checking or changing block state. The lock remains held until the protected write commits, serializing these operations for one conversation.
+
+The block record and its audit event now also share one transaction. If the audit insert fails, the block is rolled back rather than silently becoming active without an audit event. Contact disclosure and block writes both use explicit caller-owned transaction boundaries.
+
+**Regression coverage:** PostgreSQL integration tests verify (a) a second transaction cannot acquire the same conversation lock until the first commits, and (b) injected audit failures roll back both contact disclosure and block records. Both passed in PR #184 validation run `43204315213` (backend suite: 203 passed).
+
+**Boundary:** request cancellation/fulfillment is a separate lifecycle transition and is not serialized by this conversation lock. It requires its own request-row locking/conditional-update analysis.
+
+### 6a. Manual-broadcast status is not an actual notification broadcast
+
+**Evidence:** the PostgreSQL `POST /v1/emergency-requests/{request_id}/manual-broadcast` route changes the request status to `manual_broadcast`, records an audit event, and returns an eligible-audience filter. It does not enqueue or send donor notifications. The cloud README also states that request creation does not broadcast; donors are notified only when the requester contacts selected donors.
+
+**UI correction committed:** removed the misleading “Send manual broadcast” CTA and snackbar action. The Active Request screen now shows “Manual review pending” and explicitly states that this status transition does not send donor notifications. This avoids implying that a broad donor notification or blood supply has been arranged when neither has occurred.
+
+**Remaining work:** a real coordinator/blood-service workflow would require a defined recipient system, delivery channel, permissions, audit trail, operational ownership, and verified delivery status. Do not call a status transition a broadcast.
+
+### 7. Donor location-provider provenance (diagnostic metadata, not sensor attestation)
+
+**Evidence:** Android obtains a single current fix through `FusedLocationProviderClient`; the client retains the returned `Location.provider` string. The fused provider can combine multiple underlying sources, so reporting `fused` is accurate at the API boundary but must not be relabeled as “GPS” or treated as proof that GNSS satellites produced the fix. Android's location API also distinguishes approximate and precise permission levels, and the fused API can return a cached fix within the configured maximum age.
+
+**Change committed:** the Android donor-presence heartbeat now includes a bounded provider category (`fused`, `gps`, `network`, `passive`, or `unknown`). The FastAPI schema accepts only these values; PostgreSQL stores the nullable `last_location_provider` field with a check constraint. Older clients that omit the field remain compatible, and existing rows remain NULL rather than being assigned a guessed provider. The field is not included in public donor-map responses.
+
+**UI correction:** donor location capture no longer labels every fused fix as “GPS”; it describes the reported source category accurately.
+
+**Trust boundary:** this value is client-reported diagnostic metadata. A modified client can lie about it; it must never drive donor eligibility, matching, authorization, or location accuracy. The server timestamp and reported precision remain separate fields.
+
+**Requester follow-up completed in this PR:** requester-created emergency location provenance is now persisted through the request DTO, PostgreSQL request row, Android Room draft, and request-wizard action flow. Manual map pins, manually entered coordinates, device-reported providers, and selected facilities have separate bounded categories. See the `Requester location provenance implementation` section below and `docs/CLIENT_BACKEND_ENGINEERING_RESEARCH_2026-11-12.md` for the cross-layer review.
+
+**Primary Android references (2020 onward/current API docs):**
+- FusedLocationProviderClient and permission behavior: https://developers.google.com/android/reference/com/google/android/gms/location/FusedLocationProviderClient
+- CurrentLocationRequest age/duration controls: https://developers.google.com/android/reference/com/google/android/gms/location/CurrentLocationRequest
+- Android's standard fused provider may combine underlying providers: https://developer.android.com/reference/android/location/LocationManager#FUSED_PROVIDER
+- Android approximate/precise permission behavior: https://developer.android.com/develop/sensors-and-location/location/permissions
+
+## Backend implementation sequence
+
+1. **Rate-limit correctness** — implemented in this PR with PostgreSQL-clock windows and a focused regression test; full PostgreSQL execution is pending CI.
+2. **Atomic disclosure/audit transactions** — contact disclosure and conversation block now commit with their audit events; PostgreSQL failure-injection tests verify rollback behavior.
+3. **Conversation block/message race** — implemented with a shared conversation-row lock and PostgreSQL lock-serialization coverage.
+4. **Requester and donor location provenance** — both paths now carry a bounded client-reported category. Request provenance is persisted on the request row; Android drafts retain it through a Room migration. Older clients and historical rows use `unknown`. It is diagnostic metadata, not sensor attestation, matching input, authorization evidence, or a public response property.
+5. **Authorization matrix** — add cross-role deny tests for every sensitive object route; do not replace object-level checks with role-only checks.
+6. **Lifecycle concurrency** — add concurrent PostgreSQL tests for accept vs cancel/fulfill/expiry, block vs message send, and revoke vs exact-location read.
+7. **Operational safety** — verify migration application state, backup/restore, readiness, rate-limit behavior under multi-instance and DB-outage conditions, and audit retention before any production release.
+
+## Acceptance gates
+
+- Backend lint/type checks and complete backend test suite pass.
+- PostgreSQL integration tests cover allow and deny cases plus transaction rollback and concurrency.
+- RLS/grant checks cover every exposed table and every operation; service-role credentials never enter Android or public client bundles.
+- API responses and logs do not disclose exact coordinates, contact details, auth tokens, FCM tokens, or signed media URLs outside explicitly authorized flows.
+- No production migration, schema mutation, deployment, or release occurs without separate explicit approval and verified migration state.
+
+
+## Requester location provenance implementation
+
+The request wizard captures four distinct actions: a device location fix (`fused`, `gps`, `network`, `passive`, or `unknown`), a map pin (`manual_pin`), manually typed coordinates (`manual_coordinates`), or a selected facility (`facility`). The Android draft persists this category locally and includes it in the request-location payload. Selecting a facility also moves the request coordinates to that facility's coordinates; the approximate facility point is assigned a 500 m precision rather than inheriting a previous device fix.
+
+The PostgreSQL request row stores `requester_location_source` under an explicit CHECK constraint and a non-null `unknown` default. Migration `014_requester_location_source.sql` is additive; existing rows are not retrospectively classified. The Android Room schema advances from version 9 to 10 with a default of `unknown`, preserving saved drafts.
+
+Attribution is deliberately excluded from the idempotency-intent comparison. A retry with the same request intent must resolve to the original request, not be rejected because a client updated its diagnostic category. The stored first-submission source is retained.
+
+The field is not proof that a physical sensor was used or that coordinates are trustworthy. Android documents that the fused provider can combine multiple providers, so `fused` does not identify a single physical sensor ([Android LocationManager reference](https://developer.android.com/reference/android/location/LocationManager)). The database CHECK constraint enforces the controlled vocabulary ([PostgreSQL 16 constraints](https://www.postgresql.org/docs/16/ddl-constraints.html)). The source is not returned to other users; response models should expose only properties required by each flow, following OWASP API3:2023 guidance on object-property authorization and minimizing exposed fields ([OWASP API3:2023](https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/)).
+
+The migration is committed to this PR but has **not** been applied to a hosted or production database. Verify migration order and backup/restore in the target environment before separately approving any production change.
+
+
+## Cross-layer research companion
+
+The broader 2020–2026 review of Android architecture, offline-first state, debugging and observability, SQLAlchemy concurrency, PostgreSQL query diagnostics, accessibility/HCI, open-source messaging implementations, and patent literature is recorded in [`CLIENT_BACKEND_ENGINEERING_RESEARCH_2026-11-12.md`](CLIENT_BACKEND_ENGINEERING_RESEARCH_2026-11-12.md). The report separates source-backed findings from recommendations and labels patent status as a database display rather than legal advice.
+
+
+## 7. Request lifecycle transitions could race donor actions
+
+**Evidence:** the request API originally read a request status, then mutated it in a separate repository operation without locking the parent request row. Donor response processing loaded the match before reading the request. A donor accept could therefore pass its “request is active” check while cancellation or fulfillment was committing on another connection. Similar check-then-write windows existed for selected-donor contact creation, contact lifecycle updates, manual-review status, and expiry sweeping.
+
+**Change committed:** request-scoped mutations now acquire the parent emergency-request row with PostgreSQL `SELECT ... FOR UPDATE` before reading or changing child match/contact rows. Donor response follows the same lock order: request first, then donor match, then contact. Locked reads use SQLAlchemy `populate_existing` so an object already present in the session identity map is refreshed after waiting for another transaction. Lazy and history expiry use an active-state conditional `UPDATE ... RETURNING` compare-and-set; the batch sweeper uses `FOR UPDATE SKIP LOCKED` so concurrent sweepers or lifecycle actions do not overwrite each other.
+
+Exact-location share activation now also locks and re-checks the request row before acquiring the donor-consent lock. This serializes it with request cancellation: activation either commits first and is subsequently expired by cancellation, or cancellation commits first and activation is rejected. The repository repeats requester identity, active-request, deadline, donor-match, and donor opt-in checks rather than relying only on the route pre-check. Exact-location reads now use the same request → donor → share row-lock order with `populate_existing`, holding a consistent view until the response is assembled. This makes a GET wait for an in-flight cancellation, donor opt-out, or share revocation and then return `shared: false` with null coordinates when the other action wins. The tests force the GET to wait on the request or donor lock and verify that no exact coordinates escape after closure or revocation. The donor-match predicate also excludes `declined` and `withdrawn` match rows, so a historical match no longer authorizes a new conversation or exact-location share after the donor has declined or the match has been withdrawn.
+
+**Terminal-state behavior:** repeating cancellation is idempotent; cancellation cannot overwrite fulfilled/expired; fulfillment cannot overwrite cancelled/expired; manual broadcast is rejected for a terminal request; donor acceptance after cancellation/fulfillment/expiry is rejected. The API returns HTTP 409 for conflicting cancellation, fulfillment, manual-review, and closed-request donor-response transitions.
+
+**Regression coverage committed:** a PostgreSQL integration scenario holds the request-row lock, starts a donor acceptance on a second API session, confirms that acceptance is blocked, cancels the request while holding the lock, then verifies the donor acceptance receives 409 and the request remains cancelled with withdrawn matches. End-to-end assertions also cover idempotent cancellation and conflicting cancel/fulfill/manual-review actions.
+
+**Background recomputation fix:** donor-profile matching now locks active request rows in stable ID order using `FOR UPDATE OF emergency_requests` before creating or removing match rows. This follows the request-first lock order used by cancellation, fulfillment, donor response, and exact-location share activation. If cancellation wins first, PostgreSQL rechecks the active-status predicate after the lock wait and the recompute does not receive the terminal request row; if recomputation wins first, cancellation waits and then withdraws the resulting match as part of its own transaction. A deterministic PostgreSQL regression test removes the initial match, pauses recomputation at the request lock, commits cancellation, and verifies no replacement match appears.
+
+**Remaining boundaries:** conversation-level writes still use their separate shared conversation-row lock; do not mix conversation and request lock order without a documented global order. Additional concurrency tests are still needed for request expiry vs contact creation and donor profile opt-out vs match recomputation. The exact-location read races against request cancellation and share revocation now have deterministic PostgreSQL regression tests. This change does not establish that push notifications are delivered or that a donor has physically arrived. A declined-match privacy regression test now verifies that the exact-location activation route rejects the declined donor and that the requester cannot retrieve coordinates. This change does not establish that push notifications are delivered or that a donor has physically arrived.
+
+**Primary references:** PostgreSQL documents row-level locks and lock modes in [Explicit Locking](https://www.postgresql.org/docs/16/explicit-locking.html), and SQLAlchemy documents async session concurrency and stateful transactions in [AsyncIO](https://docs.sqlalchemy.org/en/21/orm/extensions/asyncio.html). These references support the locking/transaction model; the repository race finding is based on the inspected LifeLink code paths and the committed PostgreSQL regression scenario.
+
+
+## 8. Expiry now closes open matches and donor contacts atomically
+
+**Evidence:** three expiry paths changed the parent request to `expired` but did not apply the child-row cleanup used by explicit cancellation: the lazy `_expire_if_needed` path, the scheduled `expire_timed_out_requests_async` sweep, and donor response handling after the deadline. This could leave the requester history serializer returning non-withdrawn matches and the contact list displaying pending contacts against a request that no longer accepted responses.
+
+**Change committed:** `SqlAlchemyRequestStore.close_expired_request_children_async()` performs a bounded set-based-by-request-ID cleanup in the same SQLAlchemy transaction as the parent expiry transition. Non-declined, non-withdrawn matches become `withdrawn`; non-declined, non-cancelled, non-fulfilled contacts become `cancelled`. Declined outcomes and fulfilled contacts remain historical outcomes. Lazy expiry, the background batch sweep, requester-history lazy expiry, and donor-response timeout all use this shared helper. The helper now performs two conditional SQL updates—matches first, pending contacts second—so PostgreSQL acquires the affected child-row locks without loading each row into application memory. The parent request lock remains held across both updates and the parent status transition.
+
+**Regression coverage:** PostgreSQL end-to-end tests now create a real match and pending contact, age the request deadline, and verify the sweep leaves the parent `expired`, match `withdrawn`, and contact `cancelled`. A second test verifies the same cleanup when a donor attempts to accept after the deadline and receives HTTP 409.
+
+**Boundary:** exact-location reads independently verify request state and live-share consent, so stale share rows cannot authorize coordinates after expiry even if the periodic share cleanup runs later. Push delivery remains a separate asynchronous side effect and is not implied by the database state transition.
+
+
+## 9. Exact-location expiry sweeper is now set-based and race-aware
+
+**Evidence:** the location-share sweeper previously selected every active share, then issued one request lookup per share. That was an N+1 query pattern: a backlog of `N` live shares could cause approximately `N + 1` database round trips. The loop also made the decision from an ORM snapshot before updating a share, so a concurrent activation that extended the expiry window could race with a stale application-side expiry decision.
+
+**Change committed:** `expire_stale_shares()` now issues one correlated PostgreSQL `UPDATE ... RETURNING`. It expires an active share when its own `expires_at` has elapsed, or when no parent request exists with both an active lifecycle status and a future response deadline. The `status = 'active'` predicate prevents the sweeper from overwriting a donor's `revoked` state. The `expires_at <= now` predicate is evaluated by PostgreSQL as part of the update, so a concurrent share extension is checked against the current target row rather than a previously materialized ORM object. The operation returns only changed share IDs to calculate the affected count; it does not load every share into Python or issue a per-share request lookup.
+
+The request-scoped expiry helper also uses a single conditional update. Its audit row is now inserted in the same transaction as share expiry, rather than after the share commit, so a reported successful close cannot omit the corresponding audit event.
+
+**Regression coverage:** the existing PostgreSQL test verifies a timed-out request's share is expired by the sweeper. A new PostgreSQL test creates two shares for one still-active request, ages only one share's own expiry, runs the sweeper, and verifies that the elapsed share becomes `expired` while the other remains `active`. Existing revocation tests verify a share already marked `revoked` remains unavailable.
+
+**Performance and safety limits:** the bulk update removes the per-share request query and avoids materializing the full share backlog in application memory. It does not add a new cache, queue, paid telemetry dependency, or hosted service. Continue measuring sweeper duration and rows affected in production-safe logs before adjusting the 300-second cadence or batch behavior; do not infer notification delivery from share-expiry state.

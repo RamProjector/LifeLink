@@ -2,16 +2,16 @@ package com.lifelink.app.core.location
 
 import android.annotation.SuppressLint
 import android.content.Context
+import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationSettingsRequest
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationSettingsRequest
 import com.google.android.gms.location.Priority
-import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.math.roundToInt
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
 
 class LocationProvider(context: Context) {
     private val client = LocationServices.getFusedLocationProviderClient(context)
@@ -20,7 +20,7 @@ class LocationProvider(context: Context) {
     fun checkLocationSettings(
         onReady: () -> Unit,
         onNeedsResolution: (ResolvableApiException) -> Unit,
-        onFailure: () -> Unit
+        onFailure: () -> Unit,
     ) {
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, LOCATION_TIMEOUT_MILLIS)
             .setDurationMillis(LOCATION_TIMEOUT_MILLIS)
@@ -56,7 +56,8 @@ class LocationProvider(context: Context) {
 
     private fun android.location.Location.toDeviceLocation(): DeviceLocation? {
         val accuracy = accuracy.takeIf { it.isFinite() && it > 0f }?.roundToInt() ?: return null
-        return DeviceLocation(latitude, longitude, accuracy.coerceIn(1, 10_000))
+        val reportedProvider = normalizeLocationProvider(provider)
+        return DeviceLocation(latitude, longitude, accuracy.coerceIn(1, 10_000), reportedProvider)
     }
 
     private companion object {
@@ -65,8 +66,14 @@ class LocationProvider(context: Context) {
     }
 }
 
-data class DeviceLocation(
-    val latitude: Double,
-    val longitude: Double,
-    val precisionMeters: Int
-)
+/** Maps platform-specific provider text into the API's bounded attribution vocabulary. */
+internal fun normalizeLocationProvider(provider: String?): String =
+    when (provider?.trim()?.lowercase()) {
+        "fused" -> "fused"
+        "gps" -> "gps"
+        "network" -> "network"
+        "passive" -> "passive"
+        else -> "unknown"
+    }
+
+data class DeviceLocation(val latitude: Double, val longitude: Double, val precisionMeters: Int, val provider: String)
