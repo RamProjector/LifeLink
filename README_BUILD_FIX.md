@@ -8,7 +8,7 @@ and how to build debug and release APKs.
 | Layer | Technology |
 |---|---|
 | Mobile app | Native **Android** (Kotlin + Jetpack Compose), built with the **Gradle** wrapper (`LifeLinkAndroid/`) |
-| Android toolchain | Android Gradle Plugin **9.4.1**, Gradle **9.6.0**, `compileSdk`/`targetSdk` **37**, Kotlin **2.2.10** (built into AGP), KSP 2.3.12, JDK **21** |
+| Android toolchain | Android Gradle Plugin **9.5.1**, Gradle **9.8.2**, `compileSdk`/`targetSdk` **37**, KSP **2.3.13**, JDK **21** |
 | Backend | Python **FastAPI** (`lifelink_fastapi/`) — unaffected by this change |
 | CI | GitHub Actions (`.github/workflows/`) |
 

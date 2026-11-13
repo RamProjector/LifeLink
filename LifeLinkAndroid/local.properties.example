@@ -1,0 +1,8 @@
+# Android Studio writes sdk.dir into local.properties. Keep that file private and append these settings.
+# Safe project endpoint defaults (override only for a different backend/project).
+lifelinkApiBaseUrl=https://lifelink-api-uzje.onrender.com/
+supabaseUrl=https://nphbhlxnujmylhubzmne.supabase.co
+
+# Required for live sign-in, sign-up, password recovery, and authenticated Supabase requests.
+# Use the project's publishable/anon client key only. Never use a service_role or secret API key.
+supabasePublishableKey=

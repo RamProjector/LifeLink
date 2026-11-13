@@ -80,7 +80,7 @@ class SupabaseAuthRepository(
 
     suspend fun requestPasswordReset(email: String): Result<Unit> =
         simpleAuthAction {
-            api?.recover(publishableKey, PasswordRecoveryRequest(email, RECOVERY_REDIRECT_URI))
+            api?.recover(publishableKey, RECOVERY_REDIRECT_URI, PasswordRecoveryRequest(email))
                 ?: error("Supabase URL is not configured")
         }
 
@@ -285,6 +285,7 @@ private interface SupabaseAuthApi {
     @POST("auth/v1/recover")
     suspend fun recover(
         @Header("apikey") publishableKey: String,
+        @Query("redirect_to") redirectTo: String,
         @Body request: PasswordRecoveryRequest,
     ): Response<Unit>
 
@@ -323,7 +324,7 @@ data class AuthRequest(
 
 data class RefreshRequest(@SerializedName("refresh_token") val refreshToken: String)
 
-data class PasswordRecoveryRequest(@SerializedName("email") val email: String, @SerializedName("redirect_to") val redirectTo: String)
+data class PasswordRecoveryRequest(@SerializedName("email") val email: String)
 
 data class ResendRequest(@SerializedName("type") val type: String, @SerializedName("email") val email: String)
 

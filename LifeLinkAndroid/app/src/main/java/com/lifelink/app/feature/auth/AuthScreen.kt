@@ -44,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -118,6 +119,7 @@ fun AuthScreen(
     var showPassword by rememberSaveable { mutableStateOf(false) }
     var showConfirmPassword by rememberSaveable { mutableStateOf(false) }
     var recoveryMode by rememberSaveable { mutableStateOf(false) }
+    var resetCompleteDismissed by rememberSaveable { mutableStateOf(false) }
     var acceptedLegal by rememberSaveable { mutableStateOf(false) }
     // Validation feedback is deferred until a field has been left, so the form does not
     // flag an error on the very first character the user types (Material text-field guidance).
@@ -128,19 +130,26 @@ fun AuthScreen(
     val focusManager = LocalFocusManager.current
     val busy = state is AuthState.Loading
     val resetReady = state is AuthState.PasswordResetReady
+    val resetComplete = state is AuthState.PasswordResetComplete && !resetCompleteDismissed
     val emailValid = emailPattern.matcher(email.trim()).matches()
     val passwordValid = password.length >= 6
     val passwordsMatch = !(createAccount || resetReady) || password == confirmPassword
     // Remind the user to accept the legal documents only once the rest of the form is otherwise valid.
     val showLegalReminder = createAccount && !acceptedLegal && !busy && emailValid && passwordValid && passwordsMatch
     val canSubmit =
-        if (resetReady) {
+        if (resetComplete) {
+            false
+        } else if (resetReady) {
             passwordValid && passwordsMatch && !busy
         } else {
             emailValid &&
                 (recoveryMode || (passwordValid && passwordsMatch && (!createAccount || acceptedLegal))) &&
                 !busy
         }
+
+    LaunchedEffect(state) {
+        if (state !is AuthState.PasswordResetComplete) resetCompleteDismissed = false
+    }
 
     val submit = {
         if (resetReady) {
@@ -209,7 +218,9 @@ fun AuthScreen(
                 Spacer(Modifier.height(8.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(
-                        if (resetReady) {
+                        if (resetComplete) {
+                            "Password updated"
+                        } else if (resetReady) {
                             "Create a new password"
                         } else if (recoveryMode) {
                             "Reset your password"
@@ -223,7 +234,9 @@ fun AuthScreen(
                         modifier = Modifier.semantics { heading() },
                     )
                     Text(
-                        if (resetReady) {
+                        if (resetComplete) {
+                            "Your password was changed successfully. Return to sign in and use your new password."
+                        } else if (resetReady) {
                             "Your recovery link is confirmed. Enter and confirm your new password below."
                         } else if (recoveryMode) {
                             "We\u2019ll email a secure password-reset link."
@@ -236,7 +249,7 @@ fun AuthScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
-                    if (!resetReady) {
+                    if (!resetReady && !resetComplete) {
                         OutlinedTextField(
                             value = email,
                             onValueChange = { email = it },
@@ -278,7 +291,7 @@ fun AuthScreen(
                         )
                     }
 
-                    if (!recoveryMode || resetReady) {
+                    if ((!recoveryMode || resetReady) && !resetComplete) {
                         PasswordField(
                             value = password,
                             onValueChange = { password = it },
@@ -310,7 +323,7 @@ fun AuthScreen(
                         )
                     }
 
-                    if ((!recoveryMode && createAccount) || resetReady) {
+                    if (((!recoveryMode && createAccount) || resetReady) && !resetComplete) {
                         PasswordStrengthMeter(password)
                         PasswordField(
                             value = confirmPassword,
@@ -413,11 +426,12 @@ fun AuthScreen(
                                 "Email confirmed. Your password-reset link is valid. Set a new password below.",
                                 isError = false,
                             )
-                        AuthState.PasswordResetComplete ->
+                        AuthState.PasswordResetComplete -> if (resetComplete) {
                             MessageCard(
                                 "Password updated successfully. Return to sign in with your new password.",
                                 isError = false,
                             )
+                        }
                         AuthState.EmailConfirmationRequired ->
                             MessageCard(
                                 "Account created. Check your inbox and click the confirmation link, then choose Sign in.",
@@ -426,49 +440,52 @@ fun AuthScreen(
                         else -> Unit
                     }
 
-                    Button(
-                        onClick = submit,
-                        enabled = canSubmit,
-                        modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 56.dp)
-                            .semantics { if (busy) stateDescription = "Submitting" },
-                        shape = MaterialTheme.shapes.small,
-                    ) {
-                        if (busy) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.width(22.dp).height(22.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Text("Working\u2026")
-                        } else {
-                            Text(
-                                if (resetReady) {
-                                    "Update password"
-                                } else if (recoveryMode) {
-                                    "Send reset email"
-                                } else if (createAccount) {
-                                    "Create account"
-                                } else {
-                                    "Sign in"
-                                },
-                            )
+                    if (!resetComplete) {
+                        Button(
+                            onClick = submit,
+                            enabled = canSubmit,
+                            modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 56.dp)
+                                .semantics { if (busy) stateDescription = "Submitting" },
+                            shape = MaterialTheme.shapes.small,
+                        ) {
+                            if (busy) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.width(22.dp).height(22.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text("Working\u2026")
+                            } else {
+                                Text(
+                                    if (resetReady) {
+                                        "Update password"
+                                    } else if (recoveryMode) {
+                                        "Send reset email"
+                                    } else if (createAccount) {
+                                        "Create account"
+                                    } else {
+                                        "Sign in"
+                                    },
+                                )
+                            }
                         }
                     }
 
-                    if (!createAccount && !recoveryMode && !resetReady) {
+                    if (!resetComplete && !createAccount && !recoveryMode && !resetReady) {
                         TextButton(onClick = { recoveryMode = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                             Text("Forgot password?")
                         }
                     }
-                    if (recoveryMode &&
-                        !resetReady
-                    ) {
+                    if ((recoveryMode && !resetReady) || resetComplete) {
                         TextButton(onClick = {
                             recoveryMode = false
+                            resetCompleteDismissed = true
+                            password = ""
+                            confirmPassword = ""
                         }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Back to sign in") }
                     }
                     if (state is AuthState.EmailConfirmationRequired) {
@@ -480,7 +497,7 @@ fun AuthScreen(
                         ) { Text("Resend confirmation email") }
                     }
                 }
-                if (!recoveryMode && !resetReady) {
+                if (!recoveryMode && !resetReady && !resetComplete) {
                     TextButton(
                         onClick = {
                             createAccount = !createAccount

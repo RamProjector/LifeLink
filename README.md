@@ -73,8 +73,8 @@ services, and open work) is tracked in
 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md). Known
 limitations before public production use:
 
-- **Android toolchain is on AGP 9.4.1 / Gradle 9.6.0 / `compileSdk` 37**
-  (Kotlin 2.2.10 built into AGP, KSP 2.3.12). The earlier AGP 8.7.3 / Gradle
+- **Android toolchain is on AGP 9.5.1 / Gradle 9.8.2 / `compileSdk` 37**
+  (JDK 21, KSP 2.3.13). The earlier AGP 8.7.3 / Gradle
   8.10.2 / `compileSdk` 35 pin has been migrated.
 - **A signed release keystore is still required before distribution.** The
   release build type is now wired for real signing (keystore supplied through
