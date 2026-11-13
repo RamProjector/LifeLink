@@ -1028,3 +1028,48 @@ def test_going_available_does_not_duplicate_an_existing_match(pg_url):
         assert count == 1, "availability changes must not duplicate a stored match"
 
     run_scenario(pg_url, scenario)
+
+
+def test_startup_upgrade_adds_requester_location_source_to_existing_schema(pg_url, monkeypatch):
+    """The Render startup path must upgrade pre-existing request tables, not only fresh DBs."""
+    from app import db
+
+    async def scenario():
+        engine = create_async_engine(pg_url)
+        async with engine.begin() as connection:
+            await connection.execute(text("DROP SCHEMA public CASCADE"))
+            await connection.execute(text("CREATE SCHEMA public"))
+            await connection.run_sync(db_models.Base.metadata.create_all)
+
+            # Recreate the schema shape of a database deployed before the new
+            # location-source field existed.
+            await connection.execute(
+                text("ALTER TABLE emergency_requests DROP COLUMN requester_location_source")
+            )
+
+        monkeypatch.setattr(db, "engine", engine)
+        await db.create_all_tables()
+
+        async with engine.connect() as connection:
+            column_default = await connection.scalar(
+                text(
+                    "SELECT column_default FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'emergency_requests' "
+                    "AND column_name = 'requester_location_source'"
+                )
+            )
+            constraint_exists = await connection.scalar(
+                text(
+                    "SELECT EXISTS (SELECT 1 FROM pg_constraint "
+                    "WHERE conname = 'ck_emergency_requests_requester_location_source' "
+                    "AND conrelid = 'emergency_requests'::regclass)"
+                )
+            )
+
+        assert column_default is not None
+        assert "unknown" in column_default
+        assert constraint_exists is True
+        await engine.dispose()
+
+    asyncio.run(scenario())
+\n
