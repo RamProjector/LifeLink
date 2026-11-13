@@ -189,11 +189,17 @@ fun DonorScreen(
                             ),
                         )
                         locationCapturedAtElapsedRealtime = SystemClock.elapsedRealtime()
-                        locationSource = "GPS"
-                        locationMessage = "GPS location captured. Save your profile to update matching."
+                        locationSource = when (fix.provider) {
+                            "fused" -> "Fused location"
+                            "gps" -> "GNSS satellite"
+                            "network" -> "Network-assisted location"
+                            "passive" -> "Passive location"
+                            else -> "Device location"
+                        }
+                        locationMessage = "$locationSource captured. Save your profile to update matching."
                         locationMessageLevel = LifeLinkFeedbackLevel.Success
                     } ?: run {
-                        locationMessage = "Could not get a current GPS fix. Turn on device location and try again."
+                        locationMessage = "Could not get a current device location. Turn on device location and try again."
                         locationMessageLevel = LifeLinkFeedbackLevel.Error
                     }
                 }
@@ -487,7 +493,7 @@ private fun DonorRequestsContent(
         }
         if (!state.profile.isSetupComplete) {
             item { SetupRequiredCard(state.profile) }
-        } else if (state.requests.isEmpty()) {
+        } else if (state.requests.isEmpty() && !state.requestsRefreshing && state.messageLevel != LifeLinkFeedbackLevel.Error) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LifeLinkEmptyState(

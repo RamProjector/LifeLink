@@ -160,6 +160,25 @@ class DonorViewModelTest {
     }
 
     @Test
+    fun thrown_donor_response_error_restores_action_state_with_safe_feedback() = runTest {
+        val repository = FakeDonorRepository(
+            persisted = MutableStateFlow(DonorProfile()),
+            responseFailure = IllegalStateException("private backend SQL and access token"),
+        )
+        val viewModel = DonorViewModel(repository, enablePolling = false)
+
+        viewModel.onAction(DonorAction.Respond("req-1", DonorResponse.ACCEPTED))
+
+        assertFalse(viewModel.state.value.saving)
+        assertEquals(LifeLinkFeedbackLevel.Error, viewModel.state.value.messageLevel)
+        assertEquals(
+            "Response could not be sent. Check your connection and try again.",
+            viewModel.state.value.message,
+        )
+        assertFalse(viewModel.state.value.message!!.contains("access token"))
+    }
+
+    @Test
     fun accept_response_survives_view_model_store_being_cleared_mid_write() = runTest {
         val started = CompletableDeferred<Unit>()
         val releaseWrite = CompletableDeferred<Unit>()
@@ -214,6 +233,7 @@ private class SlowRespondDonorRepository(
 private class FakeDonorRepository(
     private val persisted: MutableStateFlow<DonorProfile>,
     private val availabilityFailure: Throwable? = null,
+    private val responseFailure: Throwable? = null,
 ) : DonorRepository {
     override fun observeProfile(): Flow<DonorProfile> = persisted
     override fun observeRequests(): Flow<List<DonorRequest>> = flowOf(emptyList())
@@ -223,7 +243,10 @@ private class FakeDonorRepository(
         persisted.value = persisted.value.copy(availability = availability)
     }
     override suspend fun refresh() = Unit
-    override suspend fun respond(requestId: String, response: DonorResponse): Result<Unit> = Result.success(Unit)
+    override suspend fun respond(requestId: String, response: DonorResponse): Result<Unit> {
+        responseFailure?.let { throw it }
+        return Result.success(Unit)
+    }
 }
 
 private class CountingRefreshDonorRepository(private val persisted: MutableStateFlow<DonorProfile>) : DonorRepository {

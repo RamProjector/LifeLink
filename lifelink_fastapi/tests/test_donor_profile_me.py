@@ -163,9 +163,11 @@ def test_presence_migration_does_not_backfill_availability_timestamps(pg_url, mo
                 await connection.execute(text("DROP SCHEMA public CASCADE"))
                 await connection.execute(text("CREATE SCHEMA public"))
                 await connection.run_sync(db_models.Base.metadata.create_all)
-                # Simulate a database from before last_presence_at was introduced.
-                # A recent availability timestamp does not prove a recent GPS fix.
+                # Simulate a database from before presence freshness and provider
+                # provenance were introduced. A recent availability timestamp does
+                # not prove a recent GPS fix or its reported provider.
                 await connection.execute(text("ALTER TABLE donors DROP COLUMN last_presence_at CASCADE"))
+                await connection.execute(text("ALTER TABLE donors DROP COLUMN last_location_provider CASCADE"))
                 await connection.execute(text(
                     "INSERT INTO donors (id, user_id, display_name, blood_type, latitude, longitude, "
                     "available, availability_updated_at, verified, service_radius_km, "
@@ -181,6 +183,14 @@ def test_presence_migration_does_not_backfill_availability_timestamps(pg_url, mo
                     "SELECT last_presence_at IS NULL "
                     "FROM donors WHERE id = 'legacy-backfill-test'"
                 ))
+                provider_column_exists = await connection.scalar(text(
+                    "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                    "WHERE table_name = 'donors' AND column_name = 'last_location_provider')"
+                ))
+                provider_constraint_exists = await connection.scalar(text(
+                    "SELECT EXISTS (SELECT 1 FROM pg_constraint "
+                    "WHERE conname = 'ck_donors_last_location_provider')"
+                ))
                 await connection.execute(text(
                     "UPDATE donors SET availability_updated_at = now() "
                     "WHERE id = 'legacy-backfill-test'"
@@ -193,6 +203,8 @@ def test_presence_migration_does_not_backfill_availability_timestamps(pg_url, mo
                     "SELECT last_presence_at IS NULL FROM donors WHERE id = 'legacy-backfill-test'"
                 ))
             assert remains_unknown_after_migration is True
+            assert provider_column_exists is True
+            assert provider_constraint_exists is True
             assert remains_null is True
         finally:
             await engine.dispose()
@@ -654,11 +666,28 @@ def test_donor_presence_updates_location_and_server_freshness(pg_url):
                 "latitude": 11.2501,
                 "longitude": 125.0102,
                 "precision_meters": 35,
+                "provider": "fused",
             },
         )
         assert response.status_code == 200, response.text
         assert response.json()["latitude"] == pytest.approx(11.2501)
         assert response.json()["longitude"] == pytest.approx(125.0102)
+        async with current["_session_factory"]() as session:
+            reported_provider = await session.scalar(
+                select(db_models.Donor.last_location_provider).where(db_models.Donor.user_id == donor)
+            )
+        assert reported_provider == "fused"
+
+        invalid_provider = await client.post(
+            "/v1/donor-profile/presence",
+            json={
+                "latitude": 11.2501,
+                "longitude": 125.0102,
+                "precision_meters": 35,
+                "provider": "arbitrary-device-identifier",
+            },
+        )
+        assert invalid_provider.status_code == 422
 
         # Prove a fresh, verified, explicitly available donor is matchable first.
         current["id"] = new_user("requester")

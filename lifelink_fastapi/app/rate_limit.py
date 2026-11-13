@@ -32,31 +32,39 @@ def _enforce_in_process(key: str, limit: int, window_seconds: int) -> None:
 
 
 async def _enforce_shared(key: str, limit: int, window_seconds: int) -> None:
-    """Fixed-window counter in PostgreSQL, shared across every worker.
+    """Fixed-window counter in PostgreSQL, shared across every API instance.
 
-    A single atomic upsert increments the counter for the current window and
-    returns the new value, so concurrent workers cannot each keep their own
-    tally. The row is keyed by (key, window_start) and old windows are pruned
-    opportunistically.
+    PostgreSQL computes the window boundary from its own wall clock. Python's
+    monotonic clock is suitable for measuring elapsed time inside one process,
+    but its epoch is not portable across hosts or independent API instances.
+    Computing the bucket in the database keeps every worker on the same window.
+    The atomic upsert serializes concurrent increments for one key/window.
     """
     from sqlalchemy import text
 
     from .db import engine
 
-    window_start = int(monotonic() // window_seconds) * window_seconds
     statement = text(
         """
         INSERT INTO rate_limit_counters (bucket_key, window_start, hits)
-        VALUES (:key, :window_start, 1)
+        SELECT
+            :key,
+            floor(extract(epoch FROM clock_timestamp()) / :window_seconds)::bigint
+                * :window_seconds,
+            1
         ON CONFLICT (bucket_key, window_start)
         DO UPDATE SET hits = rate_limit_counters.hits + 1
-        RETURNING hits
+        RETURNING hits, window_start
         """
     )
     async with engine.connect() as connection:
-        hits = (
-            await connection.execute(statement, {"key": key, "window_start": window_start})
-        ).scalar_one()
+        row = (
+            await connection.execute(
+                statement,
+                {"key": key, "window_seconds": window_seconds},
+            )
+        ).one()
+        hits, window_start = row
         # Opportunistic cleanup keeps the table small without a background job.
         await connection.execute(
             text("DELETE FROM rate_limit_counters WHERE window_start < :cutoff"),

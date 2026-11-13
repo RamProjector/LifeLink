@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -32,6 +33,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.core.ui.LifeLinkPageHeader
@@ -88,15 +90,13 @@ fun UpdatesScreen(
 @Composable
 private fun UpdateRow(update: UpdateItem, onOpen: (UpdateItem) -> Unit) {
     Card(
-        modifier =
-        Modifier
+        modifier = Modifier
             .fillMaxWidth()
             .clickable(
                 onClickLabel = if (update.requestId != null) "Open request activity" else "Open activity",
                 onClick = { onOpen(update) },
             ),
-        colors =
-        CardDefaults.cardColors(
+        colors = CardDefaults.cardColors(
             containerColor = if (update.isRead) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primaryContainer,
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = if (update.isRead) 1.dp else 2.dp),
@@ -106,39 +106,63 @@ private fun UpdateRow(update: UpdateItem, onOpen: (UpdateItem) -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Top,
         ) {
-            Surface(
-                modifier = Modifier.size(36.dp),
-                shape = MaterialTheme.shapes.medium,
-                color = if (update.isRead) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.primary,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.NotificationsNone,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = if (update.isRead) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
-                    )
-                }
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(update.title, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                    Text(
-                        DateUtils
-                            .getRelativeTimeSpanString(
-                                update.createdAtEpochMillis,
-                                System.currentTimeMillis(),
-                                DateUtils.MINUTE_IN_MILLIS,
-                            ).toString(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(update.body, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                update.requestId?.let {
-                    Text("Tap to open request", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                }
-            }
+            UpdateStatusIcon(update)
+            UpdateContent(update)
+        }
+    }
+}
+
+/** Keeps the status marker visually distinct from the activity text. */
+@Composable
+private fun UpdateStatusIcon(update: UpdateItem) {
+    Surface(
+        modifier = Modifier.size(36.dp),
+        shape = MaterialTheme.shapes.medium,
+        color = if (update.isRead) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.primary,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.Default.NotificationsNone,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = if (update.isRead) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
+            )
+        }
+    }
+}
+
+/** Shows the activity title, time, preview, and request destination hint. */
+@Composable
+private fun RowScope.UpdateContent(update: UpdateItem) {
+    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(
+            update.title,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            DateUtils.getRelativeTimeSpanString(
+                update.createdAtEpochMillis,
+                System.currentTimeMillis(),
+                DateUtils.MINUTE_IN_MILLIS,
+            ).toString(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            update.body,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (update.requestId != null) {
+            Text(
+                "Tap to open request",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }

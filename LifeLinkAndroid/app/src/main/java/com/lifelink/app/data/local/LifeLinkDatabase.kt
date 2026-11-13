@@ -53,7 +53,7 @@ interface EmergencyRequestDraftDao {
         DonorRequestEntity::class,
         UpdateEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 abstract class LifeLinkDatabase : RoomDatabase() {
@@ -84,6 +84,7 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                     migration6To7,
                     migration7To8,
                     migration8To9,
+                    migration9To10,
                 ).fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5).build().also {
                     instance =
                         it
@@ -134,6 +135,16 @@ abstract class LifeLinkDatabase : RoomDatabase() {
                 for (table in listOf("emergency_request_drafts", "pending_submissions", "updates")) {
                     migrateOwnedTable(database, table)
                 }
+            }
+        }
+
+        internal val migration9To10 = object : Migration(9, 10) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Existing drafts predate source attribution; never infer it from coordinates.
+                database.execSQL(
+                    "ALTER TABLE emergency_request_drafts " +
+                        "ADD COLUMN locationSource TEXT NOT NULL DEFAULT 'unknown'",
+                )
             }
         }
 

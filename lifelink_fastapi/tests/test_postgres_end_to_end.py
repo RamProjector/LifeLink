@@ -20,7 +20,7 @@ import pytest
 pgserver = pytest.importorskip("pgserver")
 
 import httpx
-from sqlalchemy import text
+from sqlalchemy import event, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app import db_models, main_postgres
@@ -51,7 +51,7 @@ def run_scenario(pg_url: str, scenario):
             await conn.execute(text("CREATE SCHEMA public"))
             await conn.run_sync(db_models.Base.metadata.create_all)
         sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
-        current = {"id": "nobody"}
+        current = {"id": "nobody", "sessions": sessions, "engine": engine}
 
         async def session_dependency():
             async with sessions() as session:
@@ -64,6 +64,8 @@ def run_scenario(pg_url: str, scenario):
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
         try:
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                # The end-to-end concurrency scenario can coordinate independent
+                # database sessions while requests use the same API dependency.
 
                 async def run_sql(statement: str):
                     async with engine.begin() as conn:
@@ -335,21 +337,22 @@ def test_cancel_stops_the_donor_search_broadcast(pg_url):
     run_scenario(pg_url, scenario)
 
 
-def test_sweeper_expires_requests_past_their_deadline(pg_url):
-    """An open request must expire on its own once its deadline passes.
-
-    The lazy read paths only expire a request that something reads. The
-    background sweeper must close a timed-out request even when nothing reads
-    it, so its status reflects the deadline without any client action.
-    """
+def test_sweeper_expires_requests_and_closes_open_matches_and_contacts(pg_url):
+    """The background sweep expires requests and closes their active child rows."""
 
     async def scenario(client, current, run_sql):
-        """Age a request, run the store sweep, and verify persisted expiry via SQL."""
         donor, requester = new_user("donor"), new_user("requester")
         await setup_donor(client, current, donor)
         created = await submit_request(client, current, requester)
 
-        # The deadline passes with no further cancel/fulfil and no read.
+        current["id"] = requester
+        contacted = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/contact",
+            json={"donor_ids": [donor]},
+        )
+        assert contacted.status_code == 200, contacted.text
+
+        # The deadline passes with a pending donor contact and no client read.
         await run_sql(
             f"UPDATE emergency_requests SET response_deadline = now() - interval '1 hour' "
             f"WHERE id = '{created['request_id']}'"
@@ -367,25 +370,72 @@ def test_sweeper_expires_requests_past_their_deadline(pg_url):
         await engine.dispose()
         assert expired >= 1
 
-        async with create_async_engine(pg_url).connect() as conn:
-            result = await conn.execute(
-                text(
-                    "SELECT id, status::text, updated_at > created_at "
-                    "FROM emergency_requests WHERE id IN (:rid, :open)"
-                ),
-                {"rid": created["request_id"], "open": still_open["request_id"]},
-            )
-            rows = {row[0]: (row[1], row[2]) for row in result.all()}
-        assert rows[created["request_id"]][0] == "expired"
-        # The sweep stamps updated_at so the transition is observable.
-        assert rows[created["request_id"]][1] is True
-        # A request still inside its deadline is untouched.
-        assert rows[still_open["request_id"]][0] in {
+        rows = await run_sql(
+            "SELECT id, status::text, updated_at > created_at "
+            f"FROM emergency_requests WHERE id IN ('{created['request_id']}', '{still_open['request_id']}')"
+        )
+        by_id = {row[0]: (row[1], row[2]) for row in rows}
+        assert by_id[created["request_id"]] == ("expired", True)
+        assert by_id[still_open["request_id"]][0] in {
             "matching",
             "awaiting_responses",
             "partially_fulfilled",
             "manual_broadcast",
         }
+
+        match_rows = await run_sql(
+            "SELECT status::text FROM request_matches "
+            f"WHERE request_id = '{created['request_id']}'"
+        )
+        contact_rows = await run_sql(
+            "SELECT status FROM donor_contact_requests "
+            f"WHERE request_id = '{created['request_id']}'"
+        )
+        assert match_rows == [("withdrawn",)]
+        assert contact_rows == [("cancelled",)]
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_response_after_deadline_expires_request_and_closes_children(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        contacted = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/contact",
+            json={"donor_ids": [donor]},
+        )
+        assert contacted.status_code == 200, contacted.text
+
+        await run_sql(
+            f"UPDATE emergency_requests SET response_deadline = now() - interval '1 second' "
+            f"WHERE id = '{created['request_id']}'"
+        )
+        current["id"] = donor
+        response = await client.post(
+            f"/v1/donors/{donor}/requests/{created['request_id']}/response",
+            json={"response": "accepted"},
+        )
+        assert response.status_code == 409, response.text
+
+        request_rows = await run_sql(
+            "SELECT status::text FROM emergency_requests "
+            f"WHERE id = '{created['request_id']}'"
+        )
+        match_rows = await run_sql(
+            "SELECT status::text FROM request_matches "
+            f"WHERE request_id = '{created['request_id']}'"
+        )
+        contact_rows = await run_sql(
+            "SELECT status FROM donor_contact_requests "
+            f"WHERE request_id = '{created['request_id']}'"
+        )
+        assert request_rows == [("expired",)]
+        assert match_rows == [("withdrawn",)]
+        assert contact_rows == [("cancelled",)]
 
     run_scenario(pg_url, scenario)
 
@@ -652,10 +702,21 @@ def test_cancel_fulfill_and_manual_broadcast_succeed(pg_url):
         assert cancelled.status_code == 200, cancelled.text
         assert cancelled.json()["status"] == "cancelled"
 
+        # Repeating cancellation is idempotent, but a terminal request cannot
+        # be reopened through a conflicting lifecycle action.
+        repeated_cancel = await client.post(f"/v1/emergency-requests/{first['request_id']}/cancel")
+        assert repeated_cancel.status_code == 200, repeated_cancel.text
+        rejected_fulfill = await client.post(f"/v1/emergency-requests/{first['request_id']}/fulfill")
+        assert rejected_fulfill.status_code == 409, rejected_fulfill.text
+
         second = await submit_request(client, current, requester)
         fulfilled = await client.post(f"/v1/emergency-requests/{second['request_id']}/fulfill")
         assert fulfilled.status_code == 200, fulfilled.text
         assert fulfilled.json()["status"] == "fulfilled"
+        rejected_cancel = await client.post(f"/v1/emergency-requests/{second['request_id']}/cancel")
+        assert rejected_cancel.status_code == 409, rejected_cancel.text
+        rejected_broadcast = await client.post(f"/v1/emergency-requests/{second['request_id']}/manual-broadcast")
+        assert rejected_broadcast.status_code == 409, rejected_broadcast.text
 
         third = await submit_request(client, current, requester)
         broadcast = await client.post(f"/v1/emergency-requests/{third['request_id']}/manual-broadcast")
@@ -667,6 +728,60 @@ def test_cancel_fulfill_and_manual_broadcast_succeed(pg_url):
         assert statuses[first["request_id"]] == "cancelled"
         assert statuses[second["request_id"]] == "fulfilled"
         assert statuses[third["request_id"]] == "manual_broadcast"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_acceptance_waits_for_request_cancellation(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        sessions = current["sessions"]
+
+        async with sessions() as locking_session:
+            request_row = await locking_session.scalar(
+                select(db_models.EmergencyRequest)
+                .where(db_models.EmergencyRequest.id == created["request_id"])
+                .with_for_update()
+            )
+            assert request_row is not None
+
+            lock_requested = asyncio.Event()
+            loop = asyncio.get_running_loop()
+
+            def observe_request_lock(connection, cursor, statement, parameters, context, executemany):
+                if "FOR UPDATE" in statement.upper() and "EMERGENCY_REQUESTS" in statement.upper():
+                    loop.call_soon_threadsafe(lock_requested.set)
+
+            engine = current["engine"]
+            event.listen(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+            try:
+                current["id"] = donor
+                response_task = asyncio.create_task(
+                    client.post(
+                        f"/v1/donors/{donor}/requests/{created['request_id']}/response",
+                        json={"response": "accepted"},
+                    )
+                )
+                # Observe the donor query reaching the database before asserting
+                # it is blocked by the request lock (avoids a timing-only test).
+                await asyncio.wait_for(lock_requested.wait(), timeout=5)
+                assert not response_task.done()
+
+                await main_postgres.SqlAlchemyRequestStore(locking_session).set_cancelled_async(
+                    created["request_id"]
+                )
+            finally:
+                event.remove(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+
+        response = await response_task
+        assert response.status_code == 409, response.text
+        current["id"] = requester
+        restored = await client.get(f"/v1/emergency-requests/{created['request_id']}")
+        assert restored.status_code == 200, restored.text
+        assert restored.json()["status"] == "cancelled"
+        assert restored.json()["matches"] == []
 
     run_scenario(pg_url, scenario)
 
@@ -913,3 +1028,48 @@ def test_going_available_does_not_duplicate_an_existing_match(pg_url):
         assert count == 1, "availability changes must not duplicate a stored match"
 
     run_scenario(pg_url, scenario)
+
+
+def test_startup_upgrade_adds_requester_location_source_to_existing_schema(pg_url, monkeypatch):
+    """The Render startup path must upgrade pre-existing request tables, not only fresh DBs."""
+    from app import db
+
+    async def scenario():
+        engine = create_async_engine(pg_url)
+        async with engine.begin() as connection:
+            await connection.execute(text("DROP SCHEMA public CASCADE"))
+            await connection.execute(text("CREATE SCHEMA public"))
+            await connection.run_sync(db_models.Base.metadata.create_all)
+
+            # Recreate the schema shape of a database deployed before the new
+            # location-source field existed.
+            await connection.execute(
+                text("ALTER TABLE emergency_requests DROP COLUMN requester_location_source")
+            )
+
+        monkeypatch.setattr(db, "engine", engine)
+        await db.create_all_tables()
+
+        async with engine.connect() as connection:
+            column_default = await connection.scalar(
+                text(
+                    "SELECT column_default FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'emergency_requests' "
+                    "AND column_name = 'requester_location_source'"
+                )
+            )
+            constraint_exists = await connection.scalar(
+                text(
+                    "SELECT EXISTS (SELECT 1 FROM pg_constraint "
+                    "WHERE conname = 'ck_emergency_requests_requester_location_source' "
+                    "AND conrelid = 'emergency_requests'::regclass)"
+                )
+            )
+
+        assert column_default is not None
+        assert "unknown" in column_default
+        assert constraint_exists is True
+        await engine.dispose()
+
+    asyncio.run(scenario())
+

@@ -49,7 +49,7 @@ def test_request_returns_eligible_ranked_matches():
     body = response.json()
     assert body["status"] == "awaiting_responses"
     assert body["matching_version"] == "v1-explainable-weighted"
-    assert body["notifications_created"] >= 1
+    assert body["notifications_created"] == 0
     assert all(match["explanation"]["eligible"] for match in body["matches"])
     assert all("Blood type" in match["explanation"]["factors"][0] for match in body["matches"])
     assert body["matches"] == sorted(
@@ -66,6 +66,8 @@ def test_idempotency_returns_same_request():
     assert first.status_code == 201
     assert second.status_code == 201
     assert first.json()["request_id"] == second.json()["request_id"]
+    assert first.json()["notifications_created"] == 0
+    assert second.json()["notifications_created"] == 0
 
 
 def test_request_history_returns_owned_summary_without_coordinates():
@@ -76,7 +78,7 @@ def test_request_history_returns_owned_summary_without_coordinates():
     item = next(entry for entry in response.json() if entry["request_id"] == created["request_id"])
     assert item["blood_type"] == "O-"
     assert item["status"] == "awaiting_responses"
-    assert item["notifications_created"] >= 1
+    assert item["notifications_created"] == 0
     assert "latitude" not in item
     assert "longitude" not in item
 
@@ -89,6 +91,23 @@ def test_request_status_restores_safe_donor_matches():
     body = response.json()
     assert [match["donor_id"] for match in body["matches"]] == [match["donor_id"] for match in created["matches"]]
     assert all("latitude" not in match and "longitude" not in match for match in body["matches"])
+
+
+def test_request_location_source_accepts_known_categories_and_rejects_unknown_values():
+    supported = (
+        "fused", "gps", "network", "passive", "unknown",
+        "manual_pin", "manual_coordinates", "facility",
+    )
+    for index, source in enumerate(supported):
+        payload = make_payload(idempotency_key=f"request-location-source-{index:02}")
+        payload["location"]["source"] = source
+        response = client.post("/v1/emergency-requests", json=payload)
+        assert response.status_code == 201, (source, response.text)
+
+    invalid = make_payload(idempotency_key="request-location-source-invalid")
+    invalid["location"]["source"] = "wifi"
+    response = client.post("/v1/emergency-requests", json=invalid)
+    assert response.status_code == 422
 
 
 def test_mismatched_idempotency_header_is_rejected():

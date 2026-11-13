@@ -183,6 +183,8 @@ class SqlAlchemyDonorProfileStore:
         donor_row.latitude = Decimal(str(payload.latitude))
         donor_row.longitude = Decimal(str(payload.longitude))
         donor_row.last_location_precision_meters = payload.precision_meters
+        if payload.provider is not None:
+            donor_row.last_location_provider = payload.provider
         donor_row.availability_updated_at = now
         donor_row.last_presence_at = now
         donor_row.available = effective_available(row.availability_status, row.verified)

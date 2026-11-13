@@ -12,7 +12,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import exists, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +24,7 @@ from .db_models import (
     DonorLocationShare,
     Message,
     RequestMatch,
+    RequestStatusEnum,
     SavedMessage,
 )
 from .db_models import (
@@ -54,6 +55,10 @@ class LocationShareRevokedError(Exception):
 
 class LocationSharingDisabledError(Exception):
     """Raised when donor-level location sharing is no longer enabled."""
+
+
+class LocationRequestInactiveError(Exception):
+    """Raised when the request ends before exact-location sharing is activated."""
 
 
 # Contact details are only accepted in a plausible shape, so a typo cannot be
@@ -195,9 +200,26 @@ class SqlAlchemyPrivacyStore:
         Called only after the request has matched the donor. The share expires
         with the request deadline, or sooner if the donor disabled sharing.
         """
-        # Serialize activation and revocation for this donor. Locking the donor
-        # row also covers the first-share case, where no share row exists yet
-        # and therefore cannot itself be locked.
+        # Lock the request first, matching the global request -> donor -> share
+        # ordering used by other request-scoped mutations. The API pre-check is
+        # not enough: cancellation may commit while this write is waiting.
+        request = await self.session.scalar(
+            select(RequestRow)
+            .where(RequestRow.id == request_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if request is None:
+            raise KeyError(request_id)
+        if request.requester_id != requester_id:
+            raise PermissionError("Not the requester for this request")
+        if (
+            _enum_value(request.status) not in ACTIVE_REQUEST_STATUSES
+            or is_request_expired(_enum_value(request.status), request.response_deadline)
+        ):
+            raise LocationRequestInactiveError(request_id)
+        # Serialize activation and donor opt-out. Locking the donor row also
+        # covers the first-share case, where no share row exists yet.
         donor = await self.session.scalar(
             select(DonorRow)
             .where(DonorRow.id == donor_id)
@@ -208,6 +230,8 @@ class SqlAlchemyPrivacyStore:
             raise KeyError(donor_id)
         if not donor.map_visible or not donor.exact_location_sharing_enabled:
             raise LocationSharingDisabledError(donor_id)
+        if not await self.donor_matched_to_request(request_id, donor.id):
+            raise PermissionError("Donor is not matched to this request")
         now = datetime.now(UTC)
         share = await self.session.scalar(
             select(DonorLocationShare).where(
@@ -295,19 +319,44 @@ class SqlAlchemyPrivacyStore:
         self, request_id: str, donor_id: str, requester_id: str
     ) -> dict:
         """Return exact coordinates only while a live share authorizes them."""
-        request = await self.session.get(RequestRow, request_id)
+        # Keep request, donor consent, and share state stable until the
+        # response is assembled. This uses the same request -> donor -> share
+        # lock order as activation and prevents a late GET from returning exact
+        # coordinates after cancellation, opt-out, or revocation commits.
+        request = await self.session.scalar(
+            select(RequestRow)
+            .where(RequestRow.id == request_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
         if request is None:
             raise KeyError(request_id)
         if request.requester_id != requester_id:
             raise PermissionError("Not the requester for this request")
-        donor = await self._donor_row(donor_id)
+        donor = await self.session.scalar(
+            select(DonorRow)
+            .where(DonorRow.id == donor_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if donor is None:
+            donor = await self.session.scalar(
+                select(DonorRow)
+                .where(DonorRow.user_id == donor_id)
+                .limit(1)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
         if donor is None:
             raise KeyError(donor_id)
         share = await self.session.scalar(
-            select(DonorLocationShare).where(
+            select(DonorLocationShare)
+            .where(
                 DonorLocationShare.request_id == request_id,
                 DonorLocationShare.donor_id == donor.id,
             )
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         now = datetime.now(UTC)
         # Profile edits and account creation are not evidence of a fresh GPS observation.
@@ -362,54 +411,66 @@ class SqlAlchemyPrivacyStore:
         }
 
     async def expire_shares_for_request(self, request_id: str) -> int:
-        """Expire every live share for a request that has ended."""
+        """Expire live shares and persist the audit event in the same transaction."""
         now = datetime.now(UTC)
-        shares = await self.session.scalars(
-            select(DonorLocationShare).where(
+        result = await self.session.execute(
+            update(DonorLocationShare)
+            .where(
                 DonorLocationShare.request_id == request_id,
                 DonorLocationShare.status == "active",
             )
+            .values(status="expired", updated_at=now)
+            .returning(DonorLocationShare.id)
         )
-        count = 0
-        for share in shares.all():
-            share.status = "expired"
-            share.updated_at = now
-            count += 1
-        if count:
-            await self.session.commit()
-            await self.record_audit_async(
-                "system",
-                "location_shares_expired",
-                request_id=request_id,
-                metadata={"expired_count": count},
+        expired_ids = result.scalars().all()
+        if expired_ids:
+            self.session.add(
+                AuditEvent(
+                    id=f"audit_{uuid4().hex}",
+                    actor_id="system",
+                    action="location_shares_expired",
+                    request_id=request_id,
+                    event_metadata={"expired_count": len(expired_ids)},
+                )
             )
-        return count
+            await self.session.commit()
+        return len(expired_ids)
 
     async def expire_stale_shares(self) -> int:
-        """Expire every live share whose window or request deadline has passed.
+        """Expire stale shares in one conditional update rather than an N+1 scan.
 
-        Called by the background sweeper so a request that simply times out
-        (without an explicit cancel/fulfil) still closes its exact-location
-        shares. Returns the number of shares closed.
+        A share expires when its own window has elapsed or no open request with
+        a future response deadline exists for it. The active-status and expiry
+        predicates are re-evaluated by PostgreSQL when the row is updated, so a
+        share extended by a concurrent activation is not expired from a stale
+        application-side snapshot.
         """
         now = datetime.now(UTC)
-        shares = await self.session.scalars(
-            select(DonorLocationShare).where(DonorLocationShare.status == "active")
-        )
-        count = 0
-        for share in shares.all():
-            request = await self.session.get(RequestRow, share.request_id)
-            request_ended = request is None or (
-                _enum_value(request.status) not in ACTIVE_REQUEST_STATUSES
-                or is_request_expired(_enum_value(request.status), request.response_deadline, now)
+        has_live_request = exists(
+            select(RequestRow.id).where(
+                RequestRow.id == DonorLocationShare.request_id,
+                RequestRow.status.in_(
+                    [RequestStatusEnum(status) for status in ACTIVE_REQUEST_STATUSES]
+                ),
+                RequestRow.response_deadline > now,
             )
-            if _as_utc(share.expires_at) <= now or request_ended:
-                share.status = "expired"
-                share.updated_at = now
-                count += 1
-        if count:
+        )
+        result = await self.session.execute(
+            update(DonorLocationShare)
+            .where(
+                DonorLocationShare.status == "active",
+                or_(
+                    DonorLocationShare.expires_at <= now,
+                    ~has_live_request,
+                ),
+            )
+            .values(status="expired", updated_at=now)
+            .returning(DonorLocationShare.id)
+        )
+        expired_ids = result.scalars().all()
+        if expired_ids:
             await self.session.commit()
-        return count
+        return len(expired_ids)
 
     # --------------------------------------------------------- conversations
     async def get_or_create_conversation(
@@ -439,7 +500,40 @@ class SqlAlchemyPrivacyStore:
                 requester_id=requester_id,
             )
             self.session.add(conversation)
-            await self.session.commit()
+            try:
+                # The unique (request_id, donor_id) constraint is the
+                # authority when two devices open the same chat at once.
+                # Flush inside a savepoint so a losing request can recover
+                # the winner without poisoning the caller's transaction.
+                async with self.session.begin_nested():
+                    await self.session.flush()
+            except IntegrityError:
+                conversation = await self.session.scalar(
+                    select(Conversation).where(
+                        Conversation.request_id == request_id,
+                        Conversation.donor_id == donor.id,
+                    )
+                )
+                if conversation is None:
+                    raise
+            else:
+                await self.session.commit()
+        return conversation
+
+    async def lock_conversation(self, conversation_id: str) -> Conversation:
+        """Serialize message/contact writes against participant block changes.
+
+        Call before checking block state and keep the transaction open until the
+        protected write commits. The block route takes the same row lock before
+        inserting a block, so either the action commits first or the block does.
+        """
+        conversation = await self.session.scalar(
+            select(Conversation)
+            .where(Conversation.id == conversation_id)
+            .with_for_update()
+        )
+        if conversation is None:
+            raise KeyError(conversation_id)
         return conversation
 
     async def conversation_for_participant(self, conversation_id: str, user_id: str) -> Conversation:
@@ -601,7 +695,12 @@ class SqlAlchemyPrivacyStore:
 
     # -------------------------------------------------------- contact shares
     async def add_contact_share(
-        self, conversation: Conversation, shared_by: str, payload: ContactShareIn
+        self,
+        conversation: Conversation,
+        shared_by: str,
+        payload: ContactShareIn,
+        *,
+        commit: bool = True,
     ) -> ContactShare:
         """Record an explicit phone/email disclosure inside a conversation.
 
@@ -623,7 +722,10 @@ class SqlAlchemyPrivacyStore:
             value=value,
         )
         self.session.add(share)
-        await self.session.commit()
+        if commit:
+            await self.session.commit()
+        else:
+            await self.session.flush()
         return share
 
     async def list_contact_shares(self, conversation_id: str) -> list[ContactShare]:
@@ -651,7 +753,13 @@ class SqlAlchemyPrivacyStore:
         return None
 
     async def block_participant(
-        self, conversation: Conversation, blocker_id: str, blocked_id: str, reason: str = ""
+        self,
+        conversation: Conversation,
+        blocker_id: str,
+        blocked_id: str,
+        reason: str = "",
+        *,
+        commit: bool = True,
     ) -> ConversationBlock:
         """Persist an enforceable block. Idempotent for the same (blocker, blocked) pair."""
         existing = await self.session.scalar(
@@ -672,7 +780,10 @@ class SqlAlchemyPrivacyStore:
             reason=reason,
         )
         self.session.add(block)
-        await self.session.commit()
+        if commit:
+            await self.session.commit()
+        else:
+            await self.session.flush()
         return block
 
     async def is_blocked(self, conversation: Conversation, sender_id: str) -> bool:
@@ -714,8 +825,10 @@ class SqlAlchemyPrivacyStore:
         request_id: str | None = None,
         donor_id: str | None = None,
         metadata: dict | None = None,
+        *,
+        commit: bool = True,
     ) -> None:
-        """Append an audit event and commit it immediately."""
+        """Append an audit event, optionally leaving commit ownership to the caller."""
         self.session.add(AuditEvent(
             id=f"audit_{uuid4().hex}",
             actor_id=actor_id,
@@ -724,14 +837,22 @@ class SqlAlchemyPrivacyStore:
             donor_id=donor_id,
             event_metadata=metadata or {},
         ))
-        await self.session.commit()
+        if commit:
+            await self.session.commit()
+        else:
+            await self.session.flush()
 
     async def donor_matched_to_request(self, request_id: str, donor_row_id: str) -> bool:
-        """True when the donor row is one of the request's matches."""
+        """True only while the donor match remains actionable for this request.
+
+        A historical match row is not enough: declined and withdrawn matches
+        must no longer authorize chat creation or exact-location disclosure.
+        """
         match = await self.session.scalar(
             select(RequestMatch).where(
                 RequestMatch.request_id == request_id,
                 RequestMatch.donor_id == donor_row_id,
+                RequestMatch.status.notin_({"declined", "withdrawn"}),
             )
         )
         return match is not None

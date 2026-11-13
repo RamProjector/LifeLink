@@ -28,11 +28,15 @@ data class PrivacyUiState(
     val conversations: List<Conversation> = emptyList(),
     val conversationsLoading: Boolean = false,
     val conversationsError: String? = null,
+    val conversationRefreshError: String? = null,
     val messages: List<ChatMessage> = emptyList(),
     val savedMessages: List<ChatMessage> = emptyList(),
     val contactShares: List<ContactShare> = emptyList(),
     val chatLoading: Boolean = false,
     val sending: Boolean = false,
+    val lastSentMessage: ChatMessage? = null,
+    val lastSharedContact: ContactShare? = null,
+    val sharingContact: Boolean = false,
     val message: String? = null,
 )
 
@@ -83,6 +87,7 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
      */
     private var conversationGeneration = 0
     private var conversationRefreshJob: kotlinx.coroutines.Job? = null
+    private var conversationsGeneration = 0
     private var mapLoadGeneration = 0
 
     fun onAction(action: PrivacyAction) {
@@ -137,12 +142,18 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     }
 
     private fun loadConversations() {
+        // Ignore stale results when a retry or screen re-entry starts a newer load.
+        val generation = ++conversationsGeneration
         viewModelScope.launch {
             _state.value = _state.value.copy(conversationsLoading = true, conversationsError = null)
             repository
                 .conversations()
-                .onSuccess { _state.value = _state.value.copy(conversations = it, conversationsLoading = false) }
+                .onSuccess { conversations ->
+                    if (generation != conversationsGeneration) return@onSuccess
+                    _state.value = _state.value.copy(conversations = conversations, conversationsLoading = false)
+                }
                 .onFailure { error ->
+                    if (generation != conversationsGeneration) return@onFailure
                     _state.value =
                         _state.value.copy(
                             conversationsLoading = false,
@@ -250,6 +261,11 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
                     messages = emptyList(),
                     savedMessages = emptyList(),
                     contactShares = emptyList(),
+                    conversationRefreshError = null,
+                    lastSentMessage = null,
+                    lastSharedContact = null,
+                    sharingContact = false,
+                    sending = false,
                 )
             repository
                 .openConversation(requestId, donorId)
@@ -276,15 +292,25 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     private fun refreshConversation(conversationId: String, generation: Int) {
         conversationRefreshJob?.cancel()
         conversationRefreshJob = viewModelScope.launch {
-            val messages = repository.messages(conversationId).getOrDefault(emptyList())
-            val shares = repository.contactShares(conversationId).getOrDefault(emptyList())
-            val savedMessages = repository.savedMessages(conversationId).getOrDefault(_state.value.savedMessages)
+            val messagesResult = repository.messages(conversationId)
+            val sharesResult = repository.contactShares(conversationId)
+            val savedMessagesResult = repository.savedMessages(conversationId)
             if (generation != conversationGeneration) return@launch
-            _state.value = _state.value.copy(
-                messages = messages,
-                savedMessages = savedMessages,
-                contactShares = shares,
+            val current = _state.value
+            val refreshFailed = messagesResult.isFailure || sharesResult.isFailure || savedMessagesResult.isFailure
+            _state.value = current.copy(
+                // A transient read failure must never erase a conversation that was
+                // already displayed. A newly opened conversation starts empty, so it
+                // still fails closed while showing the retry state.
+                messages = messagesResult.getOrElse { current.messages },
+                savedMessages = savedMessagesResult.getOrElse { current.savedMessages },
+                contactShares = sharesResult.getOrElse { current.contactShares },
                 chatLoading = false,
+                conversationRefreshError = if (refreshFailed) {
+                    "Some conversation details could not be refreshed. Your existing messages are still shown."
+                } else {
+                    null
+                },
             )
         }
     }
@@ -315,38 +341,56 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     }
 
     private fun sendMessage(body: String) {
-        val conversationId = _state.value.conversationId ?: return
-        if (body.isBlank()) return
+        val current = _state.value
+        val conversationId = current.conversationId ?: return
+        if (body.isBlank() || current.sending) return
         val generation = conversationGeneration
+        // Reserve the send synchronously so two actions in the same UI frame
+        // cannot enqueue duplicate POST requests before the coroutine starts.
+        _state.value = current.copy(sending = true, message = null, lastSentMessage = null)
         viewModelScope.launch {
-            _state.value = _state.value.copy(sending = true)
             repository
                 .sendMessage(conversationId, body)
-                .onSuccess {
+                .onSuccess { sentMessage ->
                     if (generation != conversationGeneration) return@onSuccess
-                    _state.value = _state.value.copy(sending = false)
+                    _state.value = _state.value.copy(sending = false, lastSentMessage = sentMessage)
                     refreshConversation(conversationId, generation)
                 }.onFailure { error ->
                     if (generation != conversationGeneration) return@onFailure
-                    _state.value = _state.value.copy(sending = false, message = userFacingError(error, "Message could not be sent."))
+                    _state.value = _state.value.copy(
+                        sending = false,
+                        lastSentMessage = null,
+                        message = userFacingError(error, "Message could not be sent."),
+                    )
                 }
         }
     }
 
     private fun shareContact(field: String, value: String) {
-        val conversationId = _state.value.conversationId ?: return
-        if (value.isBlank()) return
+        val current = _state.value
+        val conversationId = current.conversationId ?: return
+        if (value.isBlank() || current.sharingContact) return
         val generation = conversationGeneration
+        // Record the operation before launching to reject rapid duplicate shares.
+        _state.value = current.copy(message = null, lastSharedContact = null, sharingContact = true)
         viewModelScope.launch {
             repository
                 .shareContact(conversationId, field, value)
-                .onSuccess {
+                .onSuccess { sharedContact ->
                     if (generation != conversationGeneration) return@onSuccess
-                    _state.value = _state.value.copy(message = "Your $field was shared and recorded.")
+                    _state.value = _state.value.copy(
+                        message = "Your $field was shared and recorded.",
+                        lastSharedContact = sharedContact,
+                        sharingContact = false,
+                    )
                     refreshConversation(conversationId, generation)
                 }.onFailure { error ->
                     if (generation != conversationGeneration) return@onFailure
-                    _state.value = _state.value.copy(message = userFacingError(error, "Contact details could not be shared."))
+                    _state.value = _state.value.copy(
+                        lastSharedContact = null,
+                        sharingContact = false,
+                        message = userFacingError(error, "Contact details could not be shared."),
+                    )
                 }
         }
     }

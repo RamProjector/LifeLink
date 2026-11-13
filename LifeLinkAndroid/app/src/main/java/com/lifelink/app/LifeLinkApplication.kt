@@ -183,6 +183,7 @@ class LifeLinkApplication : Application() {
                 MIN_DONOR_LOCATION_PRECISION_METERS,
                 MAX_DONOR_LOCATION_PRECISION_METERS,
             ),
+            provider = location.provider,
         )
     }
 

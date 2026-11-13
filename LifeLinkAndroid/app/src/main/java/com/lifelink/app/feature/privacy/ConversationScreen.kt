@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -20,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.AlertDialog
@@ -77,6 +79,104 @@ private fun ConversationRefreshEffect(
     }
 }
 
+private data class ConversationListActions(
+    val onContactFieldChange: (String) -> Unit,
+    val onContactValueChange: (String) -> Unit,
+    val onShareContact: () -> Unit,
+    val onReport: () -> Unit,
+    val onBlock: () -> Unit,
+    val onAction: (PrivacyAction) -> Unit,
+)
+
+private data class ConversationDraftAcknowledgementState(
+    val sentMessage: ChatMessage?,
+    val sending: Boolean,
+    val message: String?,
+    val currentUserId: String,
+    val draft: String,
+    val draftRevision: Int,
+    val submittedDraftRevision: Int?,
+)
+
+private data class ConversationDraftAcknowledgementActions(val onClearDraft: () -> Unit, val onClearSubmittedRevision: () -> Unit)
+
+private data class ConversationMessagesListParams(
+    val modifier: Modifier,
+    val listState: LazyListState,
+    val state: PrivacyUiState,
+    val currentUserId: String,
+    val chatReady: Boolean,
+    val contactField: String,
+    val contactValue: String,
+    val actions: ConversationListActions,
+)
+
+private data class ConversationDialogState(val showReport: Boolean, val reportReason: String, val showBlockConfirm: Boolean)
+
+private data class ConversationDialogActions(
+    val onReportReasonChange: (String) -> Unit,
+    val onDismissReport: () -> Unit,
+    val onDismissBlock: () -> Unit,
+    val onAction: (PrivacyAction) -> Unit,
+    val onReportSubmitted: () -> Unit,
+)
+
+@Composable
+private fun ConversationOpenEffect(
+    requestId: String,
+    donorId: String,
+    onReset: () -> Unit,
+    onAction: (PrivacyAction) -> Unit,
+) {
+    LaunchedEffect(requestId, donorId) {
+        onReset()
+        onAction(PrivacyAction.OpenConversation(requestId, donorId))
+    }
+}
+
+@Composable
+private fun ConversationDraftAcknowledgementEffect(
+    state: ConversationDraftAcknowledgementState,
+    actions: ConversationDraftAcknowledgementActions,
+) {
+    LaunchedEffect(state.sentMessage?.messageId, state.sending, state.message) {
+        if (state.sentMessage?.senderId == state.currentUserId && state.submittedDraftRevision != null) {
+            if (state.draftRevision == state.submittedDraftRevision && state.draft.trim() == state.sentMessage.body) {
+                actions.onClearDraft()
+            }
+            actions.onClearSubmittedRevision()
+        } else if (!state.sending && state.message != null) {
+            actions.onClearSubmittedRevision()
+        }
+    }
+}
+
+@Composable
+private fun ConversationContactShareEffect(
+    lastSharedContact: ContactShare?,
+    currentUserId: String,
+    contactField: String,
+    contactValue: String,
+    onClearValue: () -> Unit,
+) {
+    LaunchedEffect(lastSharedContact?.shareId) {
+        if (
+            lastSharedContact?.sharedBy == currentUserId &&
+            lastSharedContact.field == contactField &&
+            lastSharedContact.value == contactValue
+        ) {
+            onClearValue()
+        }
+    }
+}
+
+@Composable
+private fun ConversationAutoScrollEffect(messages: List<ChatMessage>, listState: LazyListState) {
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+    }
+}
+
 /**
  * In-app conversation between the requester and donor of one request. Messages
  * are stored server-side and readable only by those two users. Phone and email
@@ -91,20 +191,55 @@ fun ConversationScreen(
     onAction: (PrivacyAction) -> Unit,
     onBack: () -> Unit,
 ) {
-    LaunchedEffect(requestId, donorId) { onAction(PrivacyAction.OpenConversation(requestId, donorId)) }
-    ConversationRefreshEffect(state.conversationId, onAction)
     var draft by remember { mutableStateOf("") }
+    var draftRevision by remember { mutableStateOf(0) }
+    var submittedDraftRevision by remember { mutableStateOf<Int?>(null) }
+    ConversationOpenEffect(
+        requestId = requestId,
+        donorId = donorId,
+        onReset = {
+            draft = ""
+            draftRevision += 1
+            submittedDraftRevision = null
+        },
+        onAction = onAction,
+    )
+    ConversationRefreshEffect(state.conversationId, onAction)
+    // Clear only the unchanged draft version acknowledged by the server.
+    ConversationDraftAcknowledgementEffect(
+        state = ConversationDraftAcknowledgementState(
+            sentMessage = state.lastSentMessage,
+            sending = state.sending,
+            message = state.message,
+            currentUserId = currentUserId,
+            draft = draft,
+            draftRevision = draftRevision,
+            submittedDraftRevision = submittedDraftRevision,
+        ),
+        actions = ConversationDraftAcknowledgementActions(
+            onClearDraft = {
+                draft = ""
+                draftRevision += 1
+            },
+            onClearSubmittedRevision = { submittedDraftRevision = null },
+        ),
+    )
     var contactField by remember { mutableStateOf("phone") }
     var contactValue by remember { mutableStateOf("") }
+    ConversationContactShareEffect(
+        lastSharedContact = state.lastSharedContact,
+        currentUserId = currentUserId,
+        contactField = contactField,
+        contactValue = contactValue,
+        onClearValue = { contactValue = "" },
+    )
     var showReport by remember { mutableStateOf(false) }
     var reportReason by remember { mutableStateOf("") }
     var showBlockConfirm by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val chatReady = !state.chatLoading && state.conversationId != null
-    // Chat convention: keep the newest message in view as the thread grows.
-    LaunchedEffect(state.messages.size) {
-        if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
-    }
+    // Keep the newest message in view as the thread grows.
+    ConversationAutoScrollEffect(state.messages, listState)
 
     Column(
         Modifier
@@ -121,10 +256,12 @@ fun ConversationScreen(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
-            TextButton(onClick = onBack) { Text("Back") }
+            androidx.compose.material3.IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
         }
         Text(
-            "Only you and the other person can read these messages. Contact details stay hidden until you share them.",
+            "Messages are shared with the matched requester and donor. Contact details stay hidden until you choose to share them.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -135,157 +272,190 @@ fun ConversationScreen(
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
-
-        ConversationMessagesList(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            listState = listState,
-            state = state,
-            currentUserId = currentUserId,
-            chatReady = chatReady,
-            onAction = onAction,
-        )
-
-        if (state.savedMessages.isNotEmpty()) SavedMessagesCard(state.savedMessages)
-
-        if (state.contactShares.isNotEmpty()) {
-            SharedContactsCard(shares = state.contactShares)
-        }
-
-        MessageComposer(
-            draft = draft,
-            sending = state.sending,
-            enabled = chatReady,
-            onDraftChange = { if (it.length <= MAX_MESSAGE_LENGTH) draft = it },
-            onSend = {
-                if (chatReady) {
-                    onAction(PrivacyAction.SendMessage(draft))
-                    draft = ""
-                }
-            },
-        )
-
-        ShareContactCard(
-            contactField = contactField,
-            contactValue = contactValue,
-            enabled = chatReady,
-            onFieldChange = { contactField = it },
-            onValueChange = { if (it.length <= MAX_CONTACT_VALUE_LENGTH) contactValue = it },
-            onShare = {
-                onAction(PrivacyAction.ShareContact(contactField, contactValue))
-                contactValue = ""
-            },
-        )
-
-        // Report and Block are surfaced here so a participant can act on an unsafe
-        // interaction without leaving the conversation.
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Safety", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
-                Text(
-                    "If this conversation feels unsafe, report or block the other person. Reports are reviewed by our team.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { showReport = true }, modifier = Modifier.weight(1f)) { Text("Report") }
-                    OutlinedButton(onClick = { showBlockConfirm = true }, modifier = Modifier.weight(1f)) { Text("Block") }
+        state.conversationRefreshError?.let { refreshError ->
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        refreshError,
+                        Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    TextButton(onClick = { onAction(PrivacyAction.RefreshConversation) }) {
+                        Text("Retry")
+                    }
                 }
             }
         }
-    }
 
-    if (showReport) {
-        AlertDialog(
-            onDismissRequest = { showReport = false },
-            title = { Text("Report this person") },
-            text = {
-                OutlinedTextField(
-                    value = reportReason,
-                    onValueChange = { if (it.length <= 500) reportReason = it },
-                    label = { Text("What happened? (optional)") },
-                    minLines = 2,
-                    maxLines = 4,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    onAction(PrivacyAction.ReportParticipant(state.conversationId.orEmpty(), reportReason))
-                    reportReason = ""
-                    showReport = false
-                }) { Text("Submit report") }
-            },
-            dismissButton = { TextButton(onClick = { showReport = false }) { Text("Cancel") } },
+        ConversationMessagesList(
+            ConversationMessagesListParams(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                listState = listState,
+                state = state,
+                currentUserId = currentUserId,
+                chatReady = chatReady,
+                contactField = contactField,
+                contactValue = contactValue,
+                actions = ConversationListActions(
+                    onContactFieldChange = { contactField = it },
+                    onContactValueChange = { if (it.length <= MAX_CONTACT_VALUE_LENGTH) contactValue = it },
+                    onShareContact = { onAction(PrivacyAction.ShareContact(contactField, contactValue)) },
+                    onReport = { showReport = true },
+                    onBlock = { showBlockConfirm = true },
+                    onAction = onAction,
+                ),
+            ),
         )
+
+        if (state.conversationId == null && !state.chatLoading) {
+            Button(
+                onClick = { onAction(PrivacyAction.OpenConversation(requestId, donorId)) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Try again")
+            }
+        } else {
+            MessageComposer(
+                draft = draft,
+                sending = state.sending,
+                enabled = chatReady,
+                onDraftChange = {
+                    if (it.length <= MAX_MESSAGE_LENGTH) {
+                        draft = it
+                        draftRevision += 1
+                    }
+                },
+                onSend = {
+                    if (chatReady) {
+                        submittedDraftRevision = draftRevision
+                        onAction(PrivacyAction.SendMessage(draft))
+                    }
+                },
+            )
+        }
     }
 
-    if (showBlockConfirm) {
-        AlertDialog(
-            onDismissRequest = { showBlockConfirm = false },
-            title = { Text("Block this person?") },
-            text = { Text("They will no longer be able to contact you through LifeLink.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onAction(PrivacyAction.BlockParticipant(state.conversationId.orEmpty()))
-                    showBlockConfirm = false
-                }) { Text("Block") }
+    ConversationSafetyDialogs(
+        conversationId = state.conversationId.orEmpty(),
+        dialogState = ConversationDialogState(
+            showReport = showReport,
+            reportReason = reportReason,
+            showBlockConfirm = showBlockConfirm,
+        ),
+        actions = ConversationDialogActions(
+            onReportReasonChange = { reportReason = it },
+            onDismissReport = { showReport = false },
+            onDismissBlock = { showBlockConfirm = false },
+            onAction = onAction,
+            onReportSubmitted = {
+                reportReason = ""
+                showReport = false
             },
-            dismissButton = { TextButton(onClick = { showBlockConfirm = false }) { Text("Cancel") } },
+        ),
+    )
+}
+
+@Composable
+private fun ConversationMessagesList(params: ConversationMessagesListParams) {
+    LazyColumn(
+        params.modifier,
+        state = params.listState,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        conversationStatusItems(params.state)
+        conversationMessageItems(params.state, params.currentUserId, params.chatReady, params.actions.onAction)
+        conversationSupplementalItems(
+            params.state,
+            params.chatReady,
+            params.contactField,
+            params.contactValue,
+            params.actions,
         )
     }
 }
 
-@Composable
-private fun ConversationMessagesList(
-    modifier: Modifier,
-    listState: LazyListState,
+private fun LazyListScope.conversationStatusItems(state: PrivacyUiState) {
+    when {
+        state.chatLoading -> item {
+            Column(
+                Modifier.fillMaxWidth().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CircularProgressIndicator(Modifier.size(28.dp))
+                Text("Loading conversation…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        state.conversationId == null -> item {
+            LifeLinkEmptyState(
+                icon = Icons.AutoMirrored.Filled.Chat,
+                title = "Conversation unavailable",
+                body = "This conversation could not be opened. Go back and try again.",
+            )
+        }
+        state.messages.isEmpty() -> item {
+            LifeLinkEmptyState(
+                icon = Icons.AutoMirrored.Filled.Chat,
+                title = "No messages yet",
+                body = "Say hello to start the conversation.",
+            )
+        }
+    }
+}
+
+private fun LazyListScope.conversationMessageItems(
     state: PrivacyUiState,
     currentUserId: String,
     chatReady: Boolean,
     onAction: (PrivacyAction) -> Unit,
 ) {
-    LazyColumn(modifier, state = listState, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (state.chatLoading) {
-            item {
-                Column(
-                    Modifier.fillMaxWidth().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    CircularProgressIndicator(Modifier.size(28.dp))
-                    Text("Loading conversation…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        } else if (state.conversationId == null) {
-            item {
-                LifeLinkEmptyState(
-                    icon = Icons.AutoMirrored.Filled.Chat,
-                    title = "Conversation unavailable",
-                    body = "This conversation could not be opened. Go back and try again.",
-                )
-            }
-        } else if (state.messages.isEmpty()) {
-            item {
-                LifeLinkEmptyState(
-                    icon = Icons.AutoMirrored.Filled.Chat,
-                    title = "No messages yet",
-                    body = "Say hello to start the conversation.",
-                )
-            }
-        }
-        items(state.messages, key = { it.messageId }) { message ->
-            Column(
-                Modifier.fillMaxWidth(),
-                horizontalAlignment = if (message.senderId == currentUserId) Alignment.End else Alignment.Start,
+    items(state.messages, key = { it.messageId }) { message ->
+        val mine = message.senderId == currentUserId
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
+            MessageBubble(message, mine)
+            TextButton(
+                onClick = { onAction(PrivacyAction.ToggleSavedMessage(message.messageId)) },
+                enabled = chatReady,
             ) {
-                MessageBubble(message, message.senderId == currentUserId)
-                TextButton(
-                    onClick = { onAction(PrivacyAction.ToggleSavedMessage(message.messageId)) },
-                    enabled = chatReady,
-                ) {
-                    Text(if (message.isSaved) "Remove saved message" else "Save message")
-                }
+                Text(if (message.isSaved) "Remove saved message" else "Save message")
             }
         }
+    }
+}
+
+private fun LazyListScope.conversationSupplementalItems(
+    state: PrivacyUiState,
+    chatReady: Boolean,
+    contactField: String,
+    contactValue: String,
+    actions: ConversationListActions,
+) {
+    if (state.savedMessages.isNotEmpty()) {
+        item(key = "saved-messages") { SavedMessagesCard(state.savedMessages) }
+    }
+    if (state.contactShares.isNotEmpty()) {
+        item(key = "shared-contacts") { SharedContactsCard(shares = state.contactShares) }
+    }
+    item(key = "share-contact") {
+        ShareContactCard(
+            contactField = contactField,
+            contactValue = contactValue,
+            enabled = chatReady && !state.sharingContact,
+            onFieldChange = actions.onContactFieldChange,
+            onValueChange = actions.onContactValueChange,
+            onShare = actions.onShareContact,
+        )
+    }
+    item(key = "conversation-safety") {
+        ConversationSafetyCard(onReport = actions.onReport, onBlock = actions.onBlock)
     }
 }
 
@@ -421,8 +591,79 @@ private fun MessageBubble(message: ChatMessage, mine: Boolean) {
         ) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(message.body)
-                Text(message.createdAt, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    formatConversationTimestamp(message.createdAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
+    }
+}
+
+/** Keeps safety actions and confirmation dialogs separate from conversation layout. */
+@Composable
+private fun ConversationSafetyCard(
+    onReport: () -> Unit,
+    onBlock: () -> Unit,
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Safety", fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+            Text(
+                "If this conversation feels unsafe, report or block the other person. Reports are reviewed by our team.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onReport, modifier = Modifier.weight(1f)) { Text("Report") }
+                OutlinedButton(onClick = onBlock, modifier = Modifier.weight(1f)) { Text("Block") }
+            }
+        }
+    }
+}
+
+/** Keeps report and block confirmation behavior isolated and easy to regression-test. */
+@Composable
+private fun ConversationSafetyDialogs(
+    conversationId: String,
+    dialogState: ConversationDialogState,
+    actions: ConversationDialogActions,
+) {
+    if (dialogState.showReport) {
+        AlertDialog(
+            onDismissRequest = actions.onDismissReport,
+            title = { Text("Report this person") },
+            text = {
+                OutlinedTextField(
+                    value = dialogState.reportReason,
+                    onValueChange = { if (it.length <= 500) actions.onReportReasonChange(it) },
+                    label = { Text("What happened? (optional)") },
+                    minLines = 2,
+                    maxLines = 4,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    actions.onAction(PrivacyAction.ReportParticipant(conversationId, dialogState.reportReason))
+                    actions.onReportSubmitted()
+                }) { Text("Submit report") }
+            },
+            dismissButton = { TextButton(onClick = actions.onDismissReport) { Text("Cancel") } },
+        )
+    }
+    if (dialogState.showBlockConfirm) {
+        AlertDialog(
+            onDismissRequest = actions.onDismissBlock,
+            title = { Text("Block this person?") },
+            text = { Text("They will no longer be able to contact you through LifeLink.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    actions.onAction(PrivacyAction.BlockParticipant(conversationId))
+                    actions.onDismissBlock()
+                }) { Text("Block") }
+            },
+            dismissButton = { TextButton(onClick = actions.onDismissBlock) { Text("Cancel") } },
+        )
     }
 }

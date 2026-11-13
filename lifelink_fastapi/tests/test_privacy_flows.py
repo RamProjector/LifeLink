@@ -26,10 +26,10 @@ import pytest
 pgserver = pytest.importorskip("pgserver")
 
 import httpx
-from sqlalchemy import text
+from sqlalchemy import event, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app import db_models
+from app import db_models, main_postgres
 from app.db import get_db_session
 from app.main_postgres import app
 from app.security import Principal, get_postgres_principal
@@ -53,7 +53,7 @@ def run_scenario(pg_url: str, scenario):
             await conn.execute(text("CREATE SCHEMA public"))
             await conn.run_sync(db_models.Base.metadata.create_all)
         sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
-        current = {"id": "nobody"}
+        current = {"id": "nobody", "sessions": sessions, "engine": engine}
 
         async def session_dependency():
             async with sessions() as session:
@@ -107,6 +107,50 @@ def request_payload(requester_id: str, *, blood_type: str = "O+", hours: float =
         "ai_matching_enabled": True,
         "idempotency_key": uuid.uuid4().hex,
     }
+
+
+def test_requester_location_source_is_persisted_and_idempotency_ignores_attribution(pg_url):
+    async def scenario(client, current, run_sql):
+        requester = new_user("requester")
+        payload = request_payload(requester)
+        payload["location"]["source"] = "manual_pin"
+        current["id"] = requester
+
+        created = await client.post("/v1/emergency-requests", json=payload)
+        assert created.status_code == 201, created.text
+        request_id = created.json()["request_id"]
+        stored = await run_sql(
+            "SELECT requester_location_source FROM emergency_requests "
+            f"WHERE id = '{request_id}'"
+        )
+        assert stored == [("manual_pin",)]
+
+        # Attribution is not request intent: retrying the same request with a
+        # different client-reported source must return the original request.
+        retry_payload = {**payload, "location": {**payload["location"], "source": "facility"}}
+        retried = await client.post("/v1/emergency-requests", json=retry_payload)
+        assert retried.status_code == 201, retried.text
+        assert retried.json()["request_id"] == request_id
+        stored_after_retry = await run_sql(
+            "SELECT requester_location_source FROM emergency_requests "
+            f"WHERE id = '{request_id}'"
+        )
+        assert stored_after_retry == [("manual_pin",)]
+
+        # Older app versions omit the field. They are recorded honestly as
+        # unknown rather than having provenance guessed from coordinates.
+        legacy_payload = request_payload(new_user("legacy-requester"))
+        current["id"] = legacy_payload["requester_id"]
+        legacy_created = await client.post("/v1/emergency-requests", json=legacy_payload)
+        assert legacy_created.status_code == 201, legacy_created.text
+        legacy_id = legacy_created.json()["request_id"]
+        legacy_source = await run_sql(
+            "SELECT requester_location_source FROM emergency_requests "
+            f"WHERE id = '{legacy_id}'"
+        )
+        assert legacy_source == [("unknown",)]
+
+    run_scenario(pg_url, scenario)
 
 
 async def setup_donor(
@@ -279,6 +323,58 @@ def test_hiding_from_map_revokes_live_location_share(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_location_share_activation_waits_for_request_cancellation(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        sessions = current["sessions"]
+        engine = current["engine"]
+        request_id = created["request_id"]
+        share_path = f"/v1/emergency-requests/{request_id}/donors/{donor}/location-share"
+
+        async with sessions() as locking_session:
+            request_row = await locking_session.scalar(
+                select(db_models.EmergencyRequest)
+                .where(db_models.EmergencyRequest.id == request_id)
+                .with_for_update()
+            )
+            assert request_row is not None
+
+            lock_requested = asyncio.Event()
+            loop = asyncio.get_running_loop()
+
+            def observe_request_lock(connection, cursor, statement, parameters, context, executemany):
+                if "FOR UPDATE" in statement.upper() and "EMERGENCY_REQUESTS" in statement.upper():
+                    loop.call_soon_threadsafe(lock_requested.set)
+
+            event.listen(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+            try:
+                current["id"] = requester
+                activation_task = asyncio.create_task(client.post(share_path))
+                # The API's final repository write must reach its request lock
+                # before cancellation commits, not just pass the route pre-check.
+                await asyncio.wait_for(lock_requested.wait(), timeout=5)
+                assert not activation_task.done()
+
+                await main_postgres.SqlAlchemyRequestStore(locking_session).set_cancelled_async(request_id)
+            finally:
+                event.remove(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+
+        activation = await activation_task
+        assert activation.status_code == 409, activation.text
+        current["id"] = requester
+        location = await client.get(
+            f"/v1/emergency-requests/{request_id}/donors/{donor}/location"
+        )
+        assert location.status_code == 200, location.text
+        assert location.json()["shared"] is False
+        assert location.json()["latitude"] is None
+        assert location.json()["longitude"] is None
+
+    run_scenario(pg_url, scenario)
+
+
 def test_location_share_activation_refreshes_locked_donor_consent(pg_url):
     """A stale ORM identity-map object must not override a newer donor opt-out."""
     async def scenario(client, current, run_sql):
@@ -353,6 +449,108 @@ def test_exact_location_requires_a_match_and_donor_opt_in(pg_url):
 
 
 
+def test_donor_match_recompute_cannot_add_match_after_request_cancellation(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+
+        # Remove the initial request-time match to reproduce the worker's
+        # "newly eligible" insert path during donor-profile recomputation.
+        await run_sql(
+            "DELETE FROM request_matches "
+            f"WHERE request_id = '{request_id}' AND donor_id = '{donor}'"
+        )
+        assert await run_sql(
+            "SELECT COUNT(*) FROM request_matches "
+            f"WHERE request_id = '{request_id}' AND donor_id = '{donor}'"
+        ) == [(0,)]
+
+        from app.donor_repositories import SqlAlchemyDonorStore
+
+        sessions = current["sessions"]
+        engine = current["engine"]
+        async with sessions() as locking_session:
+            locked = await locking_session.scalar(
+                select(db_models.EmergencyRequest)
+                .where(db_models.EmergencyRequest.id == request_id)
+                .with_for_update()
+            )
+            assert locked is not None
+
+            lock_requested = asyncio.Event()
+            loop = asyncio.get_running_loop()
+
+            def observe_request_lock(connection, cursor, statement, parameters, context, executemany):
+                if "FOR UPDATE" in statement.upper() and "EMERGENCY_REQUESTS" in statement.upper():
+                    loop.call_soon_threadsafe(lock_requested.set)
+
+            event.listen(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+            try:
+                async def recompute():
+                    async with sessions() as recompute_session:
+                        await SqlAlchemyDonorStore(recompute_session).recompute_matches_for_donor(donor)
+
+                recompute_task = asyncio.create_task(recompute())
+                # Wait until the background recompute reaches its parent-request
+                # lock; the earlier unlocked eligibility snapshot is not enough.
+                await asyncio.wait_for(lock_requested.wait(), timeout=5)
+                assert not recompute_task.done()
+
+                await main_postgres.SqlAlchemyRequestStore(locking_session).set_cancelled_async(
+                    request_id
+                )
+            finally:
+                event.remove(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+
+        await recompute_task
+        current["id"] = requester
+        restored = await client.get(f"/v1/emergency-requests/{request_id}")
+        assert restored.status_code == 200, restored.text
+        assert restored.json()["status"] == "cancelled"
+        remaining = await run_sql(
+            "SELECT COUNT(*) FROM request_matches "
+            f"WHERE request_id = '{request_id}' AND donor_id = '{donor}'"
+        )
+        assert remaining == [(0,)]
+
+    run_scenario(pg_url, scenario)
+
+
+def test_declined_match_cannot_activate_exact_location_share(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        assert donor in [match["donor_id"] for match in created["matches"]]
+
+        # A donor can decline before the requester selects or contacts them.
+        current["id"] = donor
+        declined = await client.post(
+            f"/v1/donors/{donor}/requests/{created['request_id']}/response",
+            json={"response": "declined"},
+        )
+        assert declined.status_code == 200, declined.text
+
+        # Historical match rows must not continue to authorize exact GPS access.
+        current["id"] = requester
+        share_path = (
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
+        )
+        activation = await client.post(share_path)
+        assert activation.status_code == 403, activation.text
+        location = await client.get(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location"
+        )
+        assert location.status_code == 200, location.text
+        assert location.json()["shared"] is False
+        assert location.json()["latitude"] is None
+        assert location.json()["longitude"] is None
+
+    run_scenario(pg_url, scenario)
+
+
 def test_exact_location_is_restricted_to_the_requesting_account(pg_url):
     """A live share must not become readable by a donor or unrelated account.
 
@@ -405,6 +603,110 @@ def test_exact_location_is_restricted_to_the_requesting_account(pg_url):
         assert body["shared"] is True
         assert body["latitude"] == 11.2447
         assert body["longitude"] == 125.0023
+
+    run_scenario(pg_url, scenario)
+
+
+def test_exact_location_read_waits_for_request_cancellation(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+        location_path = f"/v1/emergency-requests/{request_id}/donors/{donor}/location"
+        current["id"] = requester
+        activated = await client.post(
+            f"/v1/emergency-requests/{request_id}/donors/{donor}/location-share"
+        )
+        assert activated.status_code == 200, activated.text
+
+        sessions = current["sessions"]
+        engine = current["engine"]
+        async with sessions() as locking_session:
+            locked = await locking_session.scalar(
+                select(db_models.EmergencyRequest)
+                .where(db_models.EmergencyRequest.id == request_id)
+                .with_for_update()
+            )
+            assert locked is not None
+
+            lock_requested = asyncio.Event()
+            loop = asyncio.get_running_loop()
+
+            def observe_request_lock(connection, cursor, statement, parameters, context, executemany):
+                if "FOR UPDATE" in statement.upper() and "EMERGENCY_REQUESTS" in statement.upper():
+                    loop.call_soon_threadsafe(lock_requested.set)
+
+            event.listen(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+            try:
+                read_task = asyncio.create_task(client.get(location_path))
+                await asyncio.wait_for(lock_requested.wait(), timeout=5)
+                assert not read_task.done()
+                await main_postgres.SqlAlchemyRequestStore(locking_session).set_cancelled_async(request_id)
+            finally:
+                event.remove(engine.sync_engine, "before_cursor_execute", observe_request_lock)
+
+        read = await read_task
+        assert read.status_code == 200, read.text
+        assert read.json()["shared"] is False
+        assert read.json()["latitude"] is None
+        assert read.json()["longitude"] is None
+
+    run_scenario(pg_url, scenario)
+
+
+def test_exact_location_read_waits_for_donor_share_revocation(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+        location_path = f"/v1/emergency-requests/{request_id}/donors/{donor}/location"
+        current["id"] = requester
+        activated = await client.post(
+            f"/v1/emergency-requests/{request_id}/donors/{donor}/location-share"
+        )
+        assert activated.status_code == 200, activated.text
+
+        sessions = current["sessions"]
+        engine = current["engine"]
+        async with sessions() as locking_session:
+            donor_row = await locking_session.scalar(
+                select(db_models.Donor)
+                .where(db_models.Donor.id == donor)
+                .with_for_update()
+            )
+            assert donor_row is not None
+
+            lock_requested = asyncio.Event()
+            loop = asyncio.get_running_loop()
+
+            def observe_donor_lock(connection, cursor, statement, parameters, context, executemany):
+                sql = statement.upper()
+                if "FOR UPDATE" in sql and "FROM DONORS" in sql:
+                    loop.call_soon_threadsafe(lock_requested.set)
+
+            event.listen(engine.sync_engine, "before_cursor_execute", observe_donor_lock)
+            try:
+                read_task = asyncio.create_task(client.get(location_path))
+                await asyncio.wait_for(lock_requested.wait(), timeout=5)
+                assert not read_task.done()
+
+                from app.privacy_repositories import SqlAlchemyPrivacyStore
+
+                await SqlAlchemyPrivacyStore(locking_session).revoke_location_share(
+                    request_id,
+                    donor,
+                    actor_id=donor,
+                )
+            finally:
+                event.remove(engine.sync_engine, "before_cursor_execute", observe_donor_lock)
+
+        read = await read_task
+        assert read.status_code == 200, read.text
+        assert read.json()["shared"] is False
+        assert read.json()["latitude"] is None
+        assert read.json()["longitude"] is None
 
     run_scenario(pg_url, scenario)
 
@@ -510,6 +812,24 @@ def test_conversation_is_scoped_to_the_two_participants(pg_url):
         )
         assert opened.status_code == 200, opened.text
         conversation_id = opened.json()["conversation_id"]
+        contacts = await client.get(f"/v1/emergency-requests/{created['request_id']}/contacts")
+        assert contacts.status_code == 200, contacts.text
+        assert [(item["donor_id"], item["status"]) for item in contacts.json()] == [(donor, "pending")]
+
+        # Repeated taps must reopen the same room without duplicating the
+        # pending contact request or creating a second conversation.
+        reopened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert reopened.status_code == 200, reopened.text
+        assert reopened.json()["conversation_id"] == conversation_id
+        contacts_after_retry = await client.get(
+            f"/v1/emergency-requests/{created['request_id']}/contacts"
+        )
+        assert contacts_after_retry.status_code == 200, contacts_after_retry.text
+        assert [
+            (item["donor_id"], item["status"]) for item in contacts_after_retry.json()
+        ] == [(donor, "pending")]
 
         sent = await client.post(
             f"/v1/conversations/{conversation_id}/messages",
@@ -606,6 +926,152 @@ def test_contact_share_audit_row_exists(pg_url):
             rows = result.all()
         assert len(rows) == 1
         assert rows[0][0] == requester
+
+    run_scenario(pg_url, scenario)
+
+
+
+def test_contact_disclosure_rolls_back_when_audit_insert_fails(pg_url):
+    """A failed audit write must not leave a contact disclosure committed."""
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert opened.status_code == 200, opened.text
+        conversation_id = opened.json()["conversation_id"]
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_contact_share_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'contact_share_email' THEN "
+                + "RAISE EXCEPTION 'injected audit write failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_contact_share_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_contact_share_audit()"
+            )
+        await trigger_engine.dispose()
+
+        failed = await client.post(
+            f"/v1/conversations/{conversation_id}/contact-shares",
+            json={"field": "email", "value": "donor@example.test"},
+        )
+        assert failed.status_code == 503
+
+        contact_rows = await run_sql(
+            f"SELECT id FROM contact_shares WHERE conversation_id = '{conversation_id}'"
+        )
+        audit_rows = await run_sql(
+            "SELECT id FROM audit_events WHERE action = 'contact_share_email'"
+        )
+        assert contact_rows == []
+        assert audit_rows == []
+
+    run_scenario(pg_url, scenario)
+
+
+
+
+def test_conversation_block_rolls_back_when_audit_insert_fails(pg_url):
+    """A failed block audit must not leave an unaudited block active."""
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert opened.status_code == 200, opened.text
+        conversation_id = opened.json()["conversation_id"]
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_conversation_block_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'conversation_blocked' THEN "
+                + "RAISE EXCEPTION 'injected block audit failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_conversation_block_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_conversation_block_audit()"
+            )
+        await trigger_engine.dispose()
+
+        failed = await client.post(
+            f"/v1/conversations/{conversation_id}/block",
+            json={"reason": "test"},
+        )
+        assert failed.status_code == 503
+
+        block_rows = await run_sql(
+            f"SELECT id FROM conversation_blocks WHERE conversation_id = '{conversation_id}'"
+        )
+        audit_rows = await run_sql(
+            "SELECT id FROM audit_events WHERE action = 'conversation_blocked'"
+        )
+        assert block_rows == []
+        assert audit_rows == []
+
+
+def test_conversation_row_lock_serializes_against_block_changes(pg_url):
+    """A second participant action waits until the first transaction commits."""
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert opened.status_code == 200, opened.text
+        conversation_id = opened.json()["conversation_id"]
+
+        from app.privacy_repositories import SqlAlchemyPrivacyStore
+
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        async with sessions() as first, sessions() as second:
+            await SqlAlchemyPrivacyStore(first).lock_conversation(conversation_id)
+            waiting = asyncio.Event()
+            acquired = asyncio.Event()
+
+            async def acquire_from_second_transaction():
+                waiting.set()
+                await SqlAlchemyPrivacyStore(second).lock_conversation(conversation_id)
+                acquired.set()
+
+            task = asyncio.create_task(acquire_from_second_transaction())
+            await waiting.wait()
+            await asyncio.sleep(0.05)
+            assert not acquired.is_set(), "second transaction must wait for the conversation lock"
+
+            await first.commit()
+            await asyncio.wait_for(acquired.wait(), timeout=2)
+            await second.rollback()
+            await task
+
+        await engine.dispose()
 
     run_scenario(pg_url, scenario)
 
@@ -810,6 +1276,49 @@ def test_location_share_cannot_be_activated_on_an_inactive_request(pg_url):
             f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
         )
         assert blocked.status_code == 409
+
+    run_scenario(pg_url, scenario)
+
+
+def test_sweeper_expires_elapsed_window_and_preserves_live_share(pg_url):
+    async def scenario(client, current, run_sql):
+        expired_donor, live_donor = new_user("donor"), new_user("donor")
+        requester = new_user("requester")
+        await setup_donor(client, current, expired_donor, map_visible=True, exact_sharing=True)
+        await setup_donor(client, current, live_donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+        current["id"] = requester
+
+        for donor in (expired_donor, live_donor):
+            activated = await client.post(
+                f"/v1/emergency-requests/{request_id}/donors/{donor}/location-share"
+            )
+            assert activated.status_code == 200, activated.text
+
+        # Only one share's own time window has passed; the request is still open.
+        await run_sql(
+            "UPDATE donor_location_shares "
+            "SET expires_at = now() - interval '1 hour' "
+            f"WHERE request_id = '{request_id}' AND donor_id = '{expired_donor}'"
+        )
+
+        from app.privacy_repositories import SqlAlchemyPrivacyStore
+
+        engine = create_async_engine(pg_url)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        async with sessions() as session:
+            closed = await SqlAlchemyPrivacyStore(session).expire_stale_shares()
+        await engine.dispose()
+        assert closed == 1
+
+        rows = await run_sql(
+            "SELECT donor_id, status FROM donor_location_shares "
+            f"WHERE request_id = '{request_id}'"
+        )
+        statuses = dict(rows)
+        assert statuses[expired_donor] == "expired"
+        assert statuses[live_donor] == "active"
 
     run_scenario(pg_url, scenario)
 
@@ -1165,6 +1674,11 @@ def test_donor_with_distinct_user_id_can_use_the_conversation(pg_url):
 
         # The donor, acting as the owning user, can read, message, report, block.
         current["id"] = donor_user
+        donor_reopen = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert donor_reopen.status_code == 200, donor_reopen.text
+        assert donor_reopen.json()["conversation_id"] == conversation_id
         assert (
             await client.get(f"/v1/conversations/{conversation_id}/messages")
         ).status_code == 200

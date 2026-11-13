@@ -7,7 +7,9 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -132,6 +134,9 @@ class Donor(Base):
     verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     service_radius_km: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False, default=15)
     last_location_precision_meters: Mapped[int] = mapped_column(Integer, nullable=False, default=500)
+    # Client-reported provider category from Android's fused location result.
+    # Diagnostic only: it does not prove which underlying sensor contributed.
+    last_location_provider: Mapped[str | None] = mapped_column(String(24), nullable=True)
     estimated_response_probability: Mapped[Decimal] = mapped_column(
         Numeric(4, 3), nullable=False, default=Decimal("0.50")
     )
@@ -224,6 +229,9 @@ class EmergencyRequest(Base):
     requester_latitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
     requester_longitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
     location_precision_meters: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    requester_location_source: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="unknown", server_default="unknown"
+    )
     blood_type: Mapped[BloodTypeEnum] = mapped_column(
         SqlEnum(BloodTypeEnum, name="blood_type_enum", native_enum=True, values_callable=enum_values), nullable=False
     )
@@ -254,6 +262,12 @@ class EmergencyRequest(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "requester_location_source IN "
+            "('fused', 'gps', 'network', 'passive', 'unknown', "
+            "'manual_pin', 'manual_coordinates', 'facility')",
+            name="ck_emergency_requests_requester_location_source",
+        ),
         Index("ix_requests_status_deadline", "status", "response_deadline"),
         Index("ix_requests_requester_created", "requester_id", "created_at"),
     )
@@ -478,5 +492,5 @@ class RateLimitCounter(Base):
     __tablename__ = "rate_limit_counters"
 
     bucket_key: Mapped[str] = mapped_column(String(256), primary_key=True)
-    window_start: Mapped[int] = mapped_column(Integer, primary_key=True)
+    window_start: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

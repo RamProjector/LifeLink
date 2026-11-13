@@ -98,11 +98,13 @@ import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.LifeLinkEmptyState
 import com.lifelink.app.domain.BloodType
 import com.lifelink.app.domain.ContactMethod
+import com.lifelink.app.domain.DiscoveredDonor
 import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.Facility
 import com.lifelink.app.domain.NearbyFacility
 import com.lifelink.app.domain.RequestStep
 import com.lifelink.app.domain.Urgency
+import com.lifelink.app.feature.privacy.MatchedDonorProfileScreen
 import kotlinx.coroutines.launch
 
 /** Renders the emergency request flow using the supplied state and action handler. */
@@ -139,7 +141,11 @@ fun EmergencyRequestScreen(
             when (val submission = state.submission) {
                 is SubmissionState.Error -> submission.message to if (submission.retryable) "Retry" else null
                 is SubmissionState.Matching -> "Request submitted. Matching donors nearby…" to null
-                is SubmissionState.ManualFallback -> "No automatic matches yet. You can broadcast to more potential donors." to "Broadcast"
+                is SubmissionState.ManualFallback ->
+                    (
+                        "Automatic matching is unavailable. Manual review is pending; " +
+                            "this status change does not send donor notifications."
+                        ) to null
                 is SubmissionState.QueuedOffline -> "Saved offline. It will sync when connection returns." to null
                 else -> null
             }
@@ -152,7 +158,6 @@ fun EmergencyRequestScreen(
                 )
             if (result == SnackbarResult.ActionPerformed) {
                 if (feedback.second == "Retry") onAction(EmergencyRequestAction.Retry)
-                if (feedback.second == "Broadcast") onAction(EmergencyRequestAction.SendManualBroadcast)
             }
         }
         if (state.contactRequestSent) snackbarHostState.showSnackbar("Contact request sent")
@@ -259,10 +264,24 @@ private fun DonorPicker(
     onOpenConversation: (String, String) -> Unit,
 ) {
     var showMap by rememberSaveable { mutableStateOf(false) }
+    var profileDonor by remember { mutableStateOf<DiscoveredDonor?>(null) }
     val donorsWithinFiveKm = state.discoveredDonors.count { it.distanceKm <= 5.0 }
     val donorsWithinTenKm = state.discoveredDonors.count { it.distanceKm > 5.0 && it.distanceKm <= 10.0 }
     val donorsBeyondTenKm = state.discoveredDonors.count { it.distanceKm > 10.0 }
     val requestId = state.resultsRequestId ?: (state.submission as? SubmissionState.Matching)?.requestId
+    profileDonor?.let { donor ->
+        MatchedDonorProfileScreen(
+            donor = donor,
+            onBack = { profileDonor = null },
+            onRequestChat = requestId?.let { id ->
+                {
+                    profileDonor = null
+                    onOpenConversation(id, donor.donorId)
+                }
+            },
+        )
+        return
+    }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Heading("Potential donors", "Review matches and choose who to contact.")
         if (state.matchesRefreshing) {
@@ -367,13 +386,14 @@ private fun DonorPicker(
             state.discoveredDonors.forEach { donor ->
                 val isSelected = donor.donorId in state.selectedDonorIds
                 Card(
-                    modifier =
-                    Modifier
+                    modifier = Modifier
                         .fillMaxWidth()
                         .toggleable(
                             value = isSelected,
                             role = Role.Checkbox,
-                            onValueChange = { onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId)) },
+                            onValueChange = {
+                                onAction(EmergencyRequestAction.ToggleDonorSelection(donor.donorId))
+                            },
                         ),
                     colors =
                     CardDefaults.cardColors(
@@ -389,7 +409,14 @@ private fun DonorPicker(
                         Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Checkbox(checked = isSelected, onCheckedChange = null)
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = null,
+                            modifier = Modifier.semantics {
+                                contentDescription =
+                                    if (isSelected) "Remove ${donor.displayName} from selection" else "Select ${donor.displayName}"
+                            },
+                        )
                         Column(Modifier.weight(1f).padding(start = 8.dp)) {
                             Text(donor.displayName, fontWeight = FontWeight.SemiBold)
                             Text(
@@ -398,6 +425,9 @@ private fun DonorPicker(
                             )
                             donor.explanation.firstOrNull()?.let {
                                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            TextButton(onClick = { profileDonor = donor }, contentPadding = PaddingValues(0.dp)) {
+                                Text("View profile")
                             }
                         }
                     }
@@ -564,22 +594,6 @@ private fun AcceptedContactCard(
                             true
                     }) { Text("Cancel contact") }
                 }
-                // Open the in-app conversation with this matched donor. The chat was
-                // previously unreachable: ConversationScreen existed but nothing
-                // navigated to it, so an accepted contact had no way to message.
-                if (requestId != null) {
-                    OutlinedButton(
-                        onClick = { onOpenConversation(requestId, contact.donorId) },
-                        enabled = !actionInFlight,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        if (actionInFlight) {
-                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text("Message ${contact.displayName}")
-                        }
-                    }
-                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { reportDialogVisible = true }) { Text("Report") }
                     TextButton(onClick = { blockDialogVisible = true }) { Text("Block") }
@@ -595,6 +609,19 @@ private fun AcceptedContactCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            if (requestId != null && status in setOf("pending", "accepted", "arrived", "contact_shared", "meeting_arranged")) {
+                OutlinedButton(
+                    onClick = { onOpenConversation(requestId, contact.donorId) },
+                    enabled = !actionInFlight,
+                    modifier = Modifier.fillMaxWidth().testTag("request-chat-${contact.donorId}"),
+                ) {
+                    if (actionInFlight) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text(if (status == "pending") "Request chat" else "Open chat")
+                    }
+                }
             }
         }
     }
@@ -879,7 +906,7 @@ private fun LocationStep(
     val scope = rememberCoroutineScope()
     var locationCaptureRequest by remember { mutableStateOf(0) }
     var locationMessage by remember { mutableStateOf<String?>(null) }
-    var locationSource by rememberSaveable { mutableStateOf<String?>(null) }
+    val locationSource = locationSourceLabel(draft.locationSource)
     var fullMapVisible by remember { mutableStateOf(false) }
     val settingsResolutionLauncher =
         rememberLauncherForActivityResult(
@@ -924,9 +951,16 @@ private fun LocationStep(
                 scope.launch {
                     locationMessage = "Finding your current location…"
                     provider.currentLocation()?.let { location ->
-                        onAction(EmergencyRequestAction.SetGpsLocation(location.latitude, location.longitude, location.precisionMeters))
-                        locationSource = "Current device location"
-                        locationMessage = "Map centered on your current location (accuracy ±${location.precisionMeters} m)."
+                        onAction(
+                            EmergencyRequestAction.SetGpsLocation(
+                                location.latitude,
+                                location.longitude,
+                                location.precisionMeters,
+                                source = location.provider,
+                            ),
+                        )
+                        locationMessage =
+                            "Map centered on ${locationSourceLabel(location.provider)} (accuracy ±${location.precisionMeters} m)."
                     } ?: run { locationMessage = "Could not get a current fix. Try again or choose a location manually." }
                 }
             },
@@ -973,15 +1007,21 @@ private fun LocationStep(
         LocationMapPicker(
             draft = draft,
             onLocationSelected = { latitude, longitude ->
-                locationSource = "Pin selected manually"
-                onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+                onAction(
+                    EmergencyRequestAction.SetGpsLocation(
+                        latitude,
+                        longitude,
+                        500,
+                        source = "manual_pin",
+                    ),
+                )
             },
             recenterRequest = locationCaptureRequest,
             modifier = Modifier.height(260.dp),
         )
-        locationSource?.let { source ->
+        if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
             Text(
-                "$source · accuracy about ${draft.locationPrecisionMeters} m",
+                "$locationSource · reported accuracy about ${draft.locationPrecisionMeters} m",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1002,7 +1042,9 @@ private fun LocationStep(
                         ),
                     )
                 },
-                onSelect = { onAction(EmergencyRequestAction.SelectNearbyFacility(it)) },
+                onSelect = {
+                    onAction(EmergencyRequestAction.SelectNearbyFacility(it))
+                },
             )
         }
         OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { fullMapVisible = true }) {
@@ -1040,8 +1082,14 @@ private fun LocationStep(
                     latitude !in -90.0..90.0 || longitude !in -180.0..180.0 ->
                         locationMessage = "Latitude must be between -90 and 90, and longitude between -180 and 180."
                     else -> {
-                        locationSource = "Coordinates entered manually"
-                        onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+                        onAction(
+                            EmergencyRequestAction.SetGpsLocation(
+                                latitude,
+                                longitude,
+                                500,
+                                source = "manual_coordinates",
+                            ),
+                        )
                         locationMessage = "Approximate location set from your coordinates."
                     }
                 }
@@ -1063,7 +1111,7 @@ private fun LocationStep(
                     null
                 ) {
                     Text(
-                        "${locationSource ?: "Approximate location"} · accuracy about ${draft.locationPrecisionMeters} m",
+                        "$locationSource · reported accuracy about ${draft.locationPrecisionMeters} m",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1088,8 +1136,14 @@ private fun LocationStep(
                             latitude,
                             longitude,
                         ->
-                        locationSource = "Pin selected manually"
-                        onAction(EmergencyRequestAction.SetGpsLocation(latitude, longitude, 500))
+                        onAction(
+                            EmergencyRequestAction.SetGpsLocation(
+                                latitude,
+                                longitude,
+                                500,
+                                source = "manual_pin",
+                            ),
+                        )
                     },
                     modifier = Modifier.height(520.dp),
                 )
@@ -1491,22 +1545,6 @@ private fun NearbyFacilityRow(facility: NearbyFacility, selected: Boolean, onCli
     }
 }
 
-/** Explains why automatic matching is unavailable and offers the manual broadcast action. */
-@Composable private fun ManualFallbackBanner(reason: String, onSend: () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.medium) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Automatic matching is unavailable", fontWeight = FontWeight.SemiBold)
-            Text(reason, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-            Text(
-                "A manual broadcast may reach more eligible donors.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Button(onClick = onSend) { Text("Send manual broadcast") }
-        }
-    }
-}
-
 /** Displays an outlined request field with optional supporting text and configurable line count. */
 @Composable
 private fun TextField(
@@ -1566,6 +1604,17 @@ private fun CriticalSheet(draft: EmergencyRequestDraft, onAction: (EmergencyRequ
 }
 
 /** Reports whether both request coordinates are present without exposing their values. */
+private fun locationSourceLabel(source: String): String = when (source) {
+    "fused" -> "Fused location provider"
+    "gps" -> "GNSS provider"
+    "network" -> "Network-assisted provider"
+    "passive" -> "Passive location provider"
+    "manual_pin" -> "Manually selected map point"
+    "manual_coordinates" -> "Manually entered coordinates"
+    "facility" -> "Selected nearby facility"
+    else -> "Location source not reported"
+}
+
 private fun locationSummary(draft: EmergencyRequestDraft): String =
     if (draft.requesterLatitude != null && draft.requesterLongitude != null) {
         "Approximate GPS location captured"

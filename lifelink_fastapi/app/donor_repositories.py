@@ -140,6 +140,13 @@ class SqlAlchemyDonorStore:
                 RequestRow.status.in_(ACTIVE_REQUEST_STATUSES),
                 RequestRow.response_deadline > now,
             )
+            # Every request-scoped mutation locks the request row first. Taking
+            # the same locks here prevents a delayed donor-profile recompute
+            # from inserting a match after cancellation or fulfillment commits.
+            # A stable order avoids deadlocks between concurrent donor recomputes.
+            .order_by(RequestRow.id)
+            .with_for_update(of=RequestRow)
+            .execution_options(populate_existing=True)
         )
         active_requests = list(result.unique().all())
 
@@ -265,20 +272,39 @@ class SqlAlchemyDonorStore:
 
     async def respond(self, donor_id: str, request_id: str, response: DonorResponseIn) -> MatchRow:
         """Record a donor's accept/decline/arrive response, rejecting stale requests."""
+        # All request-scoped mutations acquire the parent request lock first.
+        # This serializes donor responses with requester cancellation, fulfillment,
+        # contact selection, and expiry without relying on a check-then-write gap.
+        request = await self.session.scalar(
+            select(RequestRow)
+            .where(RequestRow.id == request_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if request is None:
+            raise KeyError(request_id)
         result = await self.session.execute(
-            select(MatchRow).where(MatchRow.donor_id == donor_id, MatchRow.request_id == request_id)
+            select(MatchRow)
+            .where(MatchRow.donor_id == donor_id, MatchRow.request_id == request_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         match = result.scalar_one_or_none()
         if match is None:
-            raise KeyError(request_id)
-        request = await self.session.get(RequestRow, request_id)
-        if request is None:
             raise KeyError(request_id)
         if request.requester_id == donor_id:
             raise ValueError("You cannot accept or decline your own request")
         current_status = getattr(request.status, "value", request.status)
         if is_request_expired(current_status, request.response_deadline):
+            now = datetime.now(UTC)
             request.status = RequestStatusEnum.EXPIRED
+            request.updated_at = now
+            from .repositories import SqlAlchemyRequestStore
+
+            await SqlAlchemyRequestStore(self.session).close_expired_request_children_async(
+                [request_id],
+                now,
+            )
             await self.session.commit()
             raise ValueError("This request has expired and is no longer accepting donor responses")
         if current_status in {"cancelled", "expired", "fulfilled"}:

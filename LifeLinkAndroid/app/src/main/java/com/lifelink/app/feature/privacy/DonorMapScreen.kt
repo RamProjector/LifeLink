@@ -65,6 +65,7 @@ import com.lifelink.app.core.location.MapLibrePrivacySafeDonorMap
 import com.lifelink.app.core.ui.LifeLinkFeedbackCard
 import com.lifelink.app.core.ui.LifeLinkFeedbackLevel
 import com.lifelink.app.core.ui.LifeLinkLoadingIndicator
+import com.lifelink.app.domain.DiscoveredDonor
 import com.lifelink.app.domain.DonorMapArea
 
 private fun donorAreaKey(area: DonorMapArea): String =
@@ -139,12 +140,14 @@ private const val DEFAULT_MAP_LONGITUDE = 120.9842
  * exact coordinates or donor identities. Donors control their own
  * visibility from the same screen.
  */
-@Suppress("LongMethod", "CyclomaticComplexMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod", "LongParameterList")
 @Composable
 fun DonorMapScreen(
     state: PrivacyUiState,
     onAction: (PrivacyAction) -> Unit,
     onBack: () -> Unit,
+    eligibleDonors: List<DiscoveredDonor> = emptyList(),
+    onRequestChat: ((DiscoveredDonor) -> Unit)? = null,
     centerLatitude: Double? = null,
     centerLongitude: Double? = null,
     showCloseButton: Boolean = true,
@@ -158,8 +161,18 @@ fun DonorMapScreen(
     var selectedBloodType by rememberSaveable { mutableStateOf("All") }
     var availableOnly by rememberSaveable { mutableStateOf(false) }
     var selectedAreaKey by rememberSaveable { mutableStateOf("") }
+    var selectedDonorId by rememberSaveable { mutableStateOf<String?>(null) }
     val areas = state.map?.areas.orEmpty()
     val selectedArea = areas.firstOrNull { donorAreaKey(it) == selectedAreaKey }
+    val selectedDonor = eligibleDonors.firstOrNull { it.donorId == selectedDonorId }
+    if (selectedDonor != null) {
+        MatchedDonorProfileScreen(
+            donor = selectedDonor,
+            onBack = { selectedDonorId = null },
+            onRequestChat = onRequestChat?.let { callback -> { callback(selectedDonor) } },
+        )
+        return
+    }
     if (selectedArea != null) {
         BackHandler { selectedAreaKey = "" }
         DonorAreaDetailsScreen(selectedArea) { selectedAreaKey = "" }
@@ -184,7 +197,7 @@ fun DonorMapScreen(
                 Modifier.fillMaxSize().padding(top = 80.dp, bottom = 8.dp),
             ) {
                 Text(
-                    "Donor areas",
+                    if (eligibleDonors.isNotEmpty()) "Eligible donors" else "Donor areas",
                     Modifier.padding(horizontal = 20.dp, vertical = 8.dp).semantics { heading() },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
@@ -194,6 +207,68 @@ fun DonorMapScreen(
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    if (eligibleDonors.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Matched to your active request",
+                                Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        items(eligibleDonors, key = { it.donorId }) { donor ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .sizeIn(minHeight = 72.dp)
+                                    .clickable(
+                                        role = Role.Button,
+                                        onClickLabel = "View donor profile",
+                                    ) { selectedDonorId = donor.donorId }
+                                    .testTag("eligible-donor-card"),
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text(
+                                        donor.displayName,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    Text(
+                                        "${donor.bloodType} · ${"%.1f".format(donor.distanceKm)} km · " +
+                                            "about ${donor.travelMinutes} min",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                    Text(
+                                        "View privacy-safe profile",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                        }
+                        item {
+                            Text(
+                                "Approximate donor areas",
+                                Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (filteredAreas.isEmpty()) {
+                            item {
+                                Text(
+                                    "No approximate area pins are available for these filters. " +
+                                        "Matched donor profiles remain available above.",
+                                    Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
                     items(filteredAreas) { area ->
                         Card(
                             modifier = Modifier
@@ -251,7 +326,12 @@ fun DonorMapScreen(
 
         // Never show an empty result while a request is loading or has failed.
         // Those states need their own truthful feedback and recovery action.
-        if (!state.mapLoading && state.mapError == null && filteredAreas.isEmpty()) {
+        val shouldShowEmptyState =
+            !state.mapLoading &&
+                state.mapError == null &&
+                filteredAreas.isEmpty() &&
+                (!showList || eligibleDonors.isEmpty())
+        if (shouldShowEmptyState) {
             Surface(
                 Modifier.align(Alignment.BottomCenter)
                     .padding(start = 24.dp, end = 24.dp, bottom = 88.dp)
@@ -453,11 +533,16 @@ fun DonorMapScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(
-                        "Approximate donor pins only",
-                        Modifier.padding(start = 8.dp).weight(1f),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    Column(Modifier.padding(start = 8.dp).weight(1f)) {
+                        Text("Approximate donor pins only", style = MaterialTheme.typography.bodySmall)
+                        if (eligibleDonors.isNotEmpty()) {
+                            Text(
+                                "${eligibleDonors.size} eligible match${if (eligibleDonors.size == 1) "" else "es"} in your request",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
                     Text(donorAreaCountLabel(filteredAreas.size, ""), style = MaterialTheme.typography.labelMedium)
                 }
             }
@@ -506,9 +591,8 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
             )
             VisibilitySwitchRow(
                 title = "Show my exact location to matched requesters",
-                subtitle =
-                "Only a requester whose active request has matched you can see your exact location, " +
-                    "and it expires when the request ends.",
+                subtitle = "Only a requester whose active request has matched you can see your exact " +
+                    "location, and it expires when the request ends.",
                 checked = visibility?.exactLocationSharingEnabled == true,
                 enabled = !state.visibilitySaving,
                 onCheckedChange = { checked ->
@@ -539,7 +623,13 @@ private fun DonorVisibilityControls(state: PrivacyUiState, onAction: (PrivacyAct
  * via [toggleable]; the inner [Switch] is non-interactive so the two never double-toggle.
  */
 @Composable
-private fun VisibilitySwitchRow(title: String, subtitle: String, checked: Boolean, enabled: Boolean, onCheckedChange: (Boolean) -> Unit) {
+private fun VisibilitySwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth()
             .sizeIn(minHeight = 56.dp)
@@ -573,7 +663,12 @@ private fun VisibilitySwitchRow(title: String, subtitle: String, checked: Boolea
  * the server confirms a live share; otherwise it explains why it is hidden.
  */
 @Composable
-fun MatchedDonorLocationCard(state: PrivacyUiState, requestId: String, donorId: String, onAction: (PrivacyAction) -> Unit) {
+fun MatchedDonorLocationCard(
+    state: PrivacyUiState,
+    requestId: String,
+    donorId: String,
+    onAction: (PrivacyAction) -> Unit,
+) {
     LaunchedEffect(requestId, donorId) { onAction(PrivacyAction.LoadMatchedLocation(requestId, donorId)) }
     val location = state.matchedLocation
     Card(Modifier.fillMaxWidth()) {
@@ -598,7 +693,11 @@ fun MatchedDonorLocationCard(state: PrivacyUiState, requestId: String, donorId: 
                     Text("Latitude ${location.latitude}, longitude ${location.longitude}")
                     location.precisionMeters?.let { Text("Precision \u00b1$it m", style = MaterialTheme.typography.bodySmall) }
                     location.expiresAt?.let {
-                        Text("Expires: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "Expires: $it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
                 else -> {
@@ -606,7 +705,9 @@ fun MatchedDonorLocationCard(state: PrivacyUiState, requestId: String, donorId: 
                         location?.reason ?: "Exact location is not available for this donor.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    OutlinedButton(onClick = { onAction(PrivacyAction.ActivateLocationShare(requestId, donorId)) }) {
+                    OutlinedButton(
+                        onClick = { onAction(PrivacyAction.ActivateLocationShare(requestId, donorId)) },
+                    ) {
                         Text("Request exact location")
                     }
                 }
