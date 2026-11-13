@@ -77,13 +77,13 @@ android {
             .orElse(providers.environmentVariable("SUPABASE_URL"))
             .orElse(lifelinkLocalProperties.getProperty("supabaseUrl") ?: "https://nphbhlxnujmylhubzmne.supabase.co")
             .get()
+    // Supabase publishable keys are designed for client apps; never put a service-role key here.
+    val defaultSupabasePublishableKey = "sb_publishable_0BnXY2k96nRr0k0zaZvMgQ_IQYSlyQu"
     val supabasePublishableKey =
-        providers
-            .gradleProperty("supabasePublishableKey")
-            .orElse(providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY"))
-            .orElse(lifelinkLocalProperties.getProperty("supabasePublishableKey") ?: "")
-            .orElse("")
-            .get()
+        providers.gradleProperty("supabasePublishableKey").orNull?.takeIf { it.isNotBlank() }
+            ?: providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY").orNull?.takeIf { it.isNotBlank() }
+            ?: lifelinkLocalProperties.getProperty("supabasePublishableKey")?.takeIf { it.isNotBlank() }
+            ?: defaultSupabasePublishableKey
 
     // --- Release signing -----------------------------------------------------
     // The keystore location and credentials are resolved once at the top of this
