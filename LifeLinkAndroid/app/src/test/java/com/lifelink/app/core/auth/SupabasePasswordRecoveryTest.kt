@@ -50,4 +50,29 @@ class SupabasePasswordRecoveryTest {
         assertEquals("user@example.test", body.get("email").asString)
         assertEquals(1, body.size())
     }
+
+    @Test
+    fun invalidSupabaseApiKeyIsNotReportedAsAnInvalidEmail() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(401).setBody("""{"msg":"Invalid API key"}"""))
+
+        val result = repository.requestPasswordReset("user@example.test")
+
+        assertEquals(
+            "LifeLink could not authenticate with Supabase. Check the Supabase URL and publishable key in local.properties.",
+            result.exceptionOrNull()?.message,
+        )
+    }
+
+    @Test
+    fun emailFormatErrorStillExplainsThatTheEmailIsInvalid() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(400)
+                .setBody("""{"msg":"Unable to validate email address: invalid format"}"""),
+        )
+
+        val result = repository.requestPasswordReset("invalid-email")
+
+        assertEquals("Please enter a valid email address.", result.exceptionOrNull()?.message)
+    }
 }

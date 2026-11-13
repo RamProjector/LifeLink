@@ -235,7 +235,10 @@ class SupabaseAuthRepository(
         return when {
             statusCode == 429 -> "Too many attempts. Please wait a few minutes and try again."
             message?.contains("already registered", ignoreCase = true) == true -> "This email already has an account. Select Sign in."
-            message?.contains("invalid", ignoreCase = true) == true -> "Please enter a valid email address."
+            message?.contains("api key", ignoreCase = true) == true || message?.contains("apikey", ignoreCase = true) == true ->
+                "LifeLink could not authenticate with Supabase. Check the Supabase URL and publishable key in local.properties."
+            message?.contains("email", ignoreCase = true) == true && message.contains("invalid", ignoreCase = true) ->
+                "Please enter a valid email address."
             else -> message ?: "Authentication failed ($statusCode). Please try again."
         }
     }
