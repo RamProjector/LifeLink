@@ -140,8 +140,444 @@ jobs:
             local listing_file="$GITHUB_WORKSPACE/visual-artifacts/evidence-listing-${stage}.txt"
             local listing
             local listing_exit
-            listing="$(timeout 10s adb -s "$device_serial" shell run-as com.lifelink.app ls -1 files/lifelink-evidence 2>&1 | tr -d '\r')"
+            listing="$(timeout 10s adb -s "$device_serial" shell run-as com.lifelink.app ls -1 files/lifelink-evidence 2>&1)"
             listing_exit=$?
+            listing="${listing//
+            printf 'run-as exit=%s\n%s\n' "$listing_exit" "$listing" > "$listing_file"
+            if [[ "$listing_exit" != "0" ]]; then
+              echo "::warning::Could not list app-private visual evidence after ${stage}; see $(basename "$listing_file")."
+              return 0
+            fi
+            while IFS= read -r evidence_file; do
+              [[ "$evidence_file" == lifelink-* && ( "$evidence_file" == *.png || "$evidence_file" == *.txt ) ]] || continue
+              local output_file="$GITHUB_WORKSPACE/visual-artifacts/$evidence_file"
+              if timeout 15s adb -s "$device_serial" exec-out run-as com.lifelink.app cat "files/lifelink-evidence/$evidence_file" > "$output_file"; then
+                if [[ -s "$output_file" ]]; then
+                  echo "Collected $evidence_file after ${stage} ($(wc -c < "$output_file") bytes)."
+                else
+                  echo "::warning::Evidence file was empty after extraction: $evidence_file (${stage})."
+                fi
+              else
+                echo "::warning::Could not extract $evidence_file after ${stage}."
+              fi
+            done <<< "$listing"
+          }
+          collect_diagnostics() {
+            local script_exit=$?
+            mkdir -p "$GITHUB_WORKSPACE/visual-artifacts"
+            adb devices -l > "$GITHUB_WORKSPACE/visual-artifacts/adb-devices.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" get-state > "$GITHUB_WORKSPACE/visual-artifacts/adb-device-state.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" shell getprop sys.boot_completed > "$GITHUB_WORKSPACE/visual-artifacts/boot-completed.txt" 2>&1 || true
+            timeout 15s adb -s "$device_serial" logcat -d -t 5000 > "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" 2>&1 || true
+            grep -Eai 'MapLibre|Mbgl|LifeLinkMapTiles|org\.maplibre|tiles\.openfreemap|UnknownHostException|ConnectException|SSLHandshakeException' "$GITHUB_WORKSPACE/visual-artifacts/logcat.txt" > "$GITHUB_WORKSPACE/visual-artifacts/maplibre-logcat.txt" || true
+            timeout 10s adb -s "$device_serial" shell getprop net.dns1 > "$GITHUB_WORKSPACE/visual-artifacts/emulator-dns1.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" shell getprop net.dns2 > "$GITHUB_WORKSPACE/visual-artifacts/emulator-dns2.txt" 2>&1 || true
+            timeout 15s adb -s "$device_serial" shell dumpsys connectivity > "$GITHUB_WORKSPACE/visual-artifacts/emulator-connectivity.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" shell ip addr > "$GITHUB_WORKSPACE/visual-artifacts/emulator-ip-addresses.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" shell ip route > "$GITHUB_WORKSPACE/visual-artifacts/emulator-ip-route.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" shell cmd wifi status > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-status.txt" 2>&1 || true
+            timeout 15s adb -s "$device_serial" shell dumpsys wifi > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-diagnostics.txt" 2>&1 || true
+            timeout 10s adb -s "$device_serial" shell settings get global private_dns_mode > "$GITHUB_WORKSPACE/visual-artifacts/emulator-private-dns-mode.txt" 2>&1 || true
+            for remote_file in $(timeout 10s adb -s "$device_serial" shell ls /sdcard/Android/data/com.lifelink.app/files/lifelink-*.png 2>/dev/null | tr -d '\r'); do
+              timeout 15s adb -s "$device_serial" pull "$remote_file" "$GITHUB_WORKSPACE/visual-artifacts/" || true
+            done
+            collect_app_evidence "final"
+            echo "$script_exit" > "$GITHUB_WORKSPACE/visual-artifacts/visual-test-exit-code.txt"
+            exit "$script_exit"
+          }
+          trap collect_diagnostics EXIT
+          device_ready=0
+          boot_wait_started=$(date +%s)
+          # Software CPU emulation can take several minutes on runners without KVM.
+          for attempt in $(seq 1 120); do
+            adb reconnect offline >/dev/null 2>&1 || true
+            device_state="$(adb -s "$device_serial" get-state 2>/dev/null || true)"
+            boot_completed="$(adb -s "$device_serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+            if [[ "$device_state" == "device" && "$boot_completed" == "1" ]]; then
+              device_ready=1
+              echo "Emulator became ready after $(( $(date +%s) - boot_wait_started )) seconds."
+              break
+            fi
+            sleep 5
+          done
+          if [[ "$device_ready" != "1" ]]; then
+            adb devices -l || true
+            echo "::error::Emulator did not become ready within 600 seconds after the emulator action returned."
+            exit 2
+          fi
+          # API 34 exposes an AndroidWifi virtual access point. The previous
+          # guest booted with Wi-Fi disabled and no default network. Enabling
+          # Wi-Fi lets the emulator autojoin its built-in open virtual AP; the
+          # shell UID cannot force connect-network on this system image.
+          timeout 15s adb -s "$device_serial" shell settings put global airplane_mode_on 0 >/dev/null 2>&1 || true
+          timeout 15s adb -s "$device_serial" shell cmd wifi set-wifi-enabled enabled \
+            > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-enable.txt" 2>&1 || true
+          network_ready=0
+          for attempt in $(seq 1 30); do
+            wifi_status="$(timeout 10s adb -s "$device_serial" shell cmd wifi status 2>&1 | tr -d '\r' || true)"
+            connectivity="$(timeout 10s adb -s "$device_serial" shell dumpsys connectivity 2>&1 | tr -d '\r' || true)"
+            routes="$(timeout 10s adb -s "$device_serial" shell ip route 2>&1 | tr -d '\r' || true)"
+            active_network="$(sed -n 's/^Active default network: //p' <<< "$connectivity" | head -1)"
+            active_agent_line="$(grep -F "NetworkAgentInfo{network{$active_network}" <<< "$connectivity" | head -1)"
+            if [[ "$active_network" =~ ^[0-9]+$ ]] \
+              && [[ "$active_agent_line" == *'WIFI CONNECTED'* ]] \
+              && [[ "$active_agent_line" == *'SSID: "AndroidWifi"'* ]] \
+              && [[ "$active_agent_line" == *IS_VALIDATED* ]]; then
+              network_ready=1
+              break
+            fi
+            sleep 3
+          done
+          printf '%s\n' "$wifi_status" > "$GITHUB_WORKSPACE/visual-artifacts/emulator-wifi-status.txt"
+          printf '%s\n' "$connectivity" > "$GITHUB_WORKSPACE/visual-artifacts/emulator-connectivity.txt"
+          printf '%s\n' "$routes" > "$GITHUB_WORKSPACE/visual-artifacts/emulator-ip-route.txt"
+          if [[ "$network_ready" != "1" ]]; then
+            echo "::error::Android emulator did not join its AndroidWifi virtual access point or obtain a validated default network."
+            echo "--- Wi-Fi status ---"
+            printf '%s\n' "$wifi_status"
+            echo "--- IP addresses ---"
+            adb -s "$device_serial" shell ip addr || true
+            echo "--- Connectivity ---"
+            printf '%s\n' "$connectivity" | grep -E 'Active default network|NetworkAgentInfo|No default network' | head -60 || true
+            exit 11
+          fi
+          # Host-side curl is not proof that the Android guest can resolve the
+          # same host. Android Emulator networking can lack ICMP replies, so this
+          # probe checks only whether Android's resolver returns a numeric
+          # destination; MapLibre's instrumentation test verifies HTTPS tile IO.
+          dns_probe="$(timeout 15s adb -s "$device_serial" shell ping -c 1 -W 5 tiles.openfreemap.org 2>&1 || true)"
+          printf '%s\n' "$dns_probe" > "$GITHUB_WORKSPACE/visual-artifacts/emulator-openfreemap-dns-probe.txt"
+          if ! grep -Eq 'PING .*\([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\)' "$GITHUB_WORKSPACE/visual-artifacts/emulator-openfreemap-dns-probe.txt"; then
+            echo "::error::Android emulator cannot resolve tiles.openfreemap.org after connecting AndroidWifi. See DNS and connectivity diagnostics."
+            exit 10
+          fi
+          # The cached AVD snapshot may already contain the app installed by a
+          # previous run, signed with that runner's debug keystore. The freshly
+          # built APK is signed with this runner's keystore, so installing over
+          # the stale package fails with INSTALL_FAILED_UPDATE_INCOMPATIBLE.
+          # Uninstall first so the install is always clean.
+          adb -s "$device_serial" uninstall com.lifelink.app >/dev/null 2>&1 || true
+          adb -s "$device_serial" uninstall com.lifelink.app.test >/dev/null 2>&1 || true
+          cd "$GITHUB_WORKSPACE/LifeLinkAndroid" || exit 1
+          echo "Starting connected Android instrumentation tests."
+          # --no-daemon: this step runs while the emulator is live, so avoid
+          # keeping a 4 GB Gradle daemon resident next to the 4 GB emulator.
+          # This workflow is the visual-evidence gate, not the full instrumentation
+          # regression suite. Run the selected map, navigation, and recovery journeys
+          # here; the APK build compiles every instrumentation test, while unit/backend
+          # suites remain separate checks.
+          # A single suite avoids AndroidJUnitRunner silently accepting only the first mixed class/method selector.
+          visual_test_classes="com.lifelink.app.LifeLinkVisualReviewSuite"
+          ./gradlew connectedDebugAndroidTest \
+            -Pandroid.testInstrumentationRunnerArguments.class="$visual_test_classes" \
+            -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
+            --no-daemon --stacktrace
+          test_exit=$?
+          # Preserve the production suite screenshots before the next Gradle
+          # instrumentation invocation can reinstall the app and clear app data.
+          collect_app_evidence "production-suite"
+          if [[ "$test_exit" == "0" ]]; then
+            test_results_dir="$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results"
+            for expected_test in "AuthScreenVisualTest" "MapLibreTileRenderingTest" "LifeLinkVisualSmokeTest" "ConversationNavigationSmokeTest" "DebugFileLoggerTest" "LifeLinkFeedbackCardTest" "openFreeMapLoadsAndParsesNetworkTilesBeforeMapIsReportedRendered" "donor_map_synthetic_fixture_filters_areas_without_live_data" "navigatesCoreWorkflowsAndCapturesEvidence" "donorMapErrorKeepsMapVisibleAndRetryable" "emptyDonorMapKeepsMapVisibleAndOffersRefresh" "selectingDonorAreaOpensPrivacySafeDetailsAndReturnsToMap" "donor_can_open_chat_and_system_back_returns_to_the_donor_workspace" "unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions" "donor_map_is_a_labeled_top_level_destination_and_navigation_remains_available" "donor_map_shows_the_correct_loading_error_and_empty_state" "syntheticMapMarkerTapSelectsTheMatchingApproximateAreaWithoutNetwork" "debugDiagnosticsAreReadableFromDownloads" "errorFeedbackShowsRecoveryActionAndInvokesIt"; do
+              if ! grep -R -Fq "$expected_test" "$test_results_dir"; then
+                echo "::error::Instrumentation result is missing expected visual coverage: $expected_test"
+                find "$test_results_dir" -type f -maxdepth 5 -print 2>/dev/null | sort || true
+                exit 9
+              fi
+            done
+            for expected_test in "DonorGpsFeedbackCardTest" "permission_denial_announces_error_and_offers_app_settings" "disabled_device_location_offers_a_distinct_settings_action" "missing_recent_fix_has_retry_without_misleading_settings_action" "successful_capture_feedback_is_polite_and_includes_accuracy"; do
+              if ! grep -R -Fq "$expected_test" "$test_results_dir"; then
+                echo "::error::Instrumentation result is missing donor GPS recovery coverage: $expected_test"
+                find "$test_results_dir" -type f -maxdepth 5 -print 2>/dev/null | sort || true
+                exit 9
+              fi
+            done
+          fi
+          if [[ "$test_exit" != "0" ]]; then
+            echo "::error::Android instrumentation failed with exit code $test_exit. Inspect the uploaded test-results and logcat artifacts."
+            echo "--- Failed instrumentation result files ---"
+            find "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build" -type f \
+              \( -path '*/outputs/androidTest-results/*' -o -path '*/reports/androidTests/connected/*' \) \
+              -print 2>/dev/null | sort || true
+            echo "--- Failure and error excerpts ---"
+            rg -n -i -C 2 'failure|error|exception|assertion|timeout|no tests found' \
+              "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results" \
+              "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/reports/androidTests/connected" \
+              2>/dev/null | head -240 || true
+          fi
+          if [[ "$test_exit" == "0" ]]; then
+            # Preserve the main production-map visual suite before running a
+            # second isolated process. MapLibre chooses its renderer once per
+            # process; both LifeLink map entry points explicitly select OpenGL.
+            mkdir -p "$GITHUB_WORKSPACE/visual-artifacts/production-map-suite-test-results"
+            cp -R "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results/." \
+              "$GITHUB_WORKSPACE/visual-artifacts/production-map-suite-test-results/" 2>/dev/null || true
+            if [[ -d "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/reports/androidTests/connected" ]]; then
+              cp -R "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/reports/androidTests/connected" \
+                "$GITHUB_WORKSPACE/visual-artifacts/production-map-suite-report" || true
+            fi
+            echo "Starting isolated MapLibre OpenGL viewport compatibility test."
+            timeout 20s adb -s "$device_serial" shell am force-stop com.lifelink.app >/dev/null 2>&1 || true
+            timeout 20s adb -s "$device_serial" shell am force-stop com.lifelink.app.test >/dev/null 2>&1 || true
+            ./gradlew connectedDebugAndroidTest \
+              -Pandroid.testInstrumentationRunnerArguments.class="com.lifelink.app.MapLibreOpenGlViewportTest" \
+              -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
+              --no-daemon --stacktrace
+            opengl_exit=$?
+            collect_app_evidence "opengl-probe"
+            if [[ "$opengl_exit" != "0" ]]; then
+              echo "::error::Isolated MapLibre OpenGL viewport test failed with exit code $opengl_exit."
+              echo "--- OpenGL instrumentation failure excerpts ---"
+              rg -n -i -C 2 'failure|error|exception|assertion|timeout' \
+                "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results" \
+                "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/reports/androidTests/connected" \
+                2>/dev/null | head -200 || true
+              exit "$opengl_exit"
+            fi
+            if ! grep -R -Fq "openGlRendererCoversMapViewportAndLoadsTiles" \
+              "$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/androidTest-results"; then
+              echo "::error::OpenGL viewport instrumentation result is missing from the report."
+              exit 9
+            fi
+            echo "OpenGL renderer test passed and its instrumentation result is present."
+          fi
+          if [[ "$test_exit" == "0" ]]; then
+            echo "Starting isolated fake-backend UI APK smoke test."
+            ui_apk="$GITHUB_WORKSPACE/LifeLinkAndroid/app/build/outputs/apk/uiTest/app-uiTest.apk"
+            if [[ ! -s "$ui_apk" ]]; then
+              echo "::error::The fake-backend UI APK was not built."
+              exit 3
+            fi
+            adb -s "$device_serial" uninstall com.lifelink.app.uitest >/dev/null 2>&1 || true
+            adb -s "$device_serial" install "$ui_apk" || exit 4
+            adb -s "$device_serial" logcat -c
+            adb -s "$device_serial" shell monkey -p com.lifelink.app.uitest 1
+            dialog_xml="$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-dialog.xml"
+            dialog_deadline=$((SECONDS + 180))
+            dialog_ready=0
+            while (( SECONDS < dialog_deadline )); do
+              if timeout 15s adb -s "$device_serial" shell uiautomator dump /sdcard/lifelink-ui-test-window.xml >/dev/null 2>&1 &&
+                timeout 10s adb -s "$device_serial" shell cat /sdcard/lifelink-ui-test-window.xml > "$dialog_xml" 2>/dev/null &&
+                grep -Fq "UI test build" "$dialog_xml"; then
+                dialog_ready=1
+                break
+              fi
+              if adb -s "$device_serial" logcat -d -t 3000 | grep -Fq "FATAL EXCEPTION"; then
+                adb -s "$device_serial" logcat -d -t 3000 | tail -160
+                echo "::error::The fake-backend UI app crashed before showing its warning."
+                exit 8
+              fi
+              sleep 3
+            done
+            if [[ "$dialog_ready" != "1" ]]; then
+              adb -s "$device_serial" logcat -d -t 3000 | tail -160
+              echo "::error::The UI-test app did not show its fake-backend warning within 180 seconds."
+              exit 5
+            fi
+            bounds=$(grep -o 'text="Continue demo"[^>]*' "$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-dialog.xml" | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | head -1)
+            if [[ "$bounds" =~ ^[0-9]+\ [0-9]+\ [0-9]+\ [0-9]+$ ]]; then
+              read -r x1 y1 x2 y2 <<< "$bounds"
+              adb -s "$device_serial" shell input tap "$(((x1+x2)/2))" "$(((y1+y2)/2))"
+            else
+              echo "::error::Could not locate the fake-backend warning's Continue demo button."
+              exit 6
+            fi
+            home_xml="$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-home.xml"
+            home_deadline=$((SECONDS + 120))
+            home_ready=0
+            welcome_dismissed=0
+            while (( SECONDS < home_deadline )); do
+              if timeout 15s adb -s "$device_serial" shell uiautomator dump /sdcard/lifelink-ui-test-home.xml >/dev/null 2>&1 &&
+                timeout 10s adb -s "$device_serial" shell cat /sdcard/lifelink-ui-test-home.xml > "$home_xml" 2>/dev/null; then
+                if grep -Fq "Create emergency request" "$home_xml"; then
+                  home_ready=1
+                  break
+                fi
+                # The isolated uiTest variant shows its first-run welcome after
+                # the fake-backend warning. Dismiss it by the labelled control,
+                # using the bounds from the current UI hierarchy rather than a
+                # hard-coded screen coordinate.
+                if [[ "$welcome_dismissed" != "1" ]] && grep -Fq 'text="Go to Home"' "$home_xml"; then
+                  bounds=$(grep -o 'text="Go to Home"[^>]*' "$home_xml" | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/' | head -1)
+                  if [[ "$bounds" =~ ^[0-9]+\ [0-9]+\ [0-9]+\ [0-9]+$ ]]; then
+                    read -r x1 y1 x2 y2 <<< "$bounds"
+                    echo "Dismiss the fake-backend demo welcome via Go to Home."
+                    adb -s "$device_serial" shell input tap "$(((x1+x2)/2))" "$(((y1+y2)/2))"
+                    welcome_dismissed=1
+                    sleep 2
+                    continue
+                  fi
+                  echo "::error::Could not locate the first-run Go to Home control."
+                  exit 9
+                fi
+              fi
+              if adb -s "$device_serial" logcat -d -t 3000 | grep -Fq "FATAL EXCEPTION"; then
+                adb -s "$device_serial" logcat -d -t 3000 | tail -160
+                echo "::error::The fake-backend UI app crashed before reaching the requester workspace."
+                exit 8
+              fi
+              sleep 3
+            done
+            if [[ "$home_ready" != "1" ]]; then
+              adb -s "$device_serial" logcat -d -t 3000 | tail -160
+              echo "::error::The fake-backend UI did not reach the requester workspace within 120 seconds."
+              exit 7
+            fi
+            adb -s "$device_serial" shell screencap -p /sdcard/lifelink-ui-test-home.png
+            adb -s "$device_serial" pull /sdcard/lifelink-ui-test-home.png "$GITHUB_WORKSPACE/visual-artifacts/lifelink-ui-test-home.png"
+            if adb -s "$device_serial" logcat -d -t 5000 | grep -E 'FATAL EXCEPTION.*|Process: com\.lifelink\.app\.uitest'; then
+              echo "::error::The fake-backend UI app crashed during smoke testing."
+              exit 8
+            fi
+          fi
+          exit "$test_exit"
+          EOF
+          chmod +x "$RUNNER_TEMP/lifelink-visual-test.sh"
+
+      # Restore only the system image. The visual run cold-boots a fresh AVD
+      # and never loads or saves snapshots, so no previous guest state is reused.
+      - name: Restore Android emulator system image
+        id: system-image-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /usr/local/lib/android/sdk/system-images
+          key: android-system-image-${{ env.API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_CACHE_VERSION }}
+
+      # sdkmanager occasionally leaves a truncated system-image archive behind.
+      # Validate the installed package and retry clean downloads before the
+      # emulator action starts, rather than failing deep inside AVD creation.
+      - name: Ensure Android emulator system image is installed
+        id: system-image
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="system-images;android-${API_LEVEL};${AVD_TARGET};${AVD_ARCH}"
+          package_dir="$ANDROID_HOME/system-images/android-${API_LEVEL}/${AVD_TARGET}/${AVD_ARCH}"
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [[ -f "$package_dir/package.xml" && -f "$package_dir/source.properties" ]]; then
+            echo "Android emulator system image is already installed."
+            exit 0
+          fi
+          rm -rf "$package_dir"
+          for attempt in 1 2 3; do
+            echo "Installing $package (attempt $attempt/3)."
+            set +e
+            "$sdkmanager" --sdk_root="$ANDROID_HOME" --install "$package" --channel=0
+            install_exit=$?
+            set -e
+            if [[ "$install_exit" == "0" && -f "$package_dir/package.xml" && -f "$package_dir/source.properties" ]]; then
+              echo "Android emulator system image installed and validated."
+              exit 0
+            fi
+            echo "::warning::System image install attempt $attempt failed or produced an incomplete package."
+            rm -rf "$package_dir" "$HOME/.android/cache"
+            if [[ "$attempt" != "3" ]]; then sleep $((attempt * 10)); fi
+          done
+          echo "::error::Could not install a valid Android emulator system image after three attempts."
+          exit 1
+
+      - name: Save Android emulator system image cache
+        if: steps.system-image-cache.outputs.cache-hit != 'true' && steps.system-image.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: /usr/local/lib/android/sdk/system-images
+          key: android-system-image-${{ env.API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_CACHE_VERSION }}
+
+      - name: Run visual smoke test on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          target: ${{ env.AVD_TARGET }}
+          arch: ${{ env.AVD_ARCH }}
+          profile: ${{ env.AVD_PROFILE }}
+          force-avd-creation: true
+          # Always create and cold-boot a fresh guest. Only the SDK system image
+          # is cached; no prior emulator state or snapshot is reused. This keeps
+          # instrumentation and screenshots deterministic on headless Linux runners.
+          emulator-options: >-
+            -no-snapshot-load -no-snapshot-save -no-window -no-audio -no-boot-anim -no-metrics
+            -camera-back none -camera-front none -netfast -dns-server ${{ steps.map-network.outputs.dns_servers }} -gpu swiftshader_indirect
+
+          cores: 4
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 4096M
+          emulator-boot-timeout: 600
+          disable-spellchecker: true
+          disable-animations: true
+          script: |
+            bash "$RUNNER_TEMP/lifelink-visual-test.sh"
+
+      - name: Collect emulator diagnostics
+        if: always()
+        run: |
+          mkdir -p ../visual-artifacts
+          adb devices -l > ../visual-artifacts/adb-devices-post-step.txt 2>&1 || true
+          timeout 10s adb -s "${ANDROID_SERIAL:-emulator-5554}" shell getprop sys.boot_completed > ../visual-artifacts/boot-completed-post-step.txt 2>&1 || true
+          timeout 15s adb -s "${ANDROID_SERIAL:-emulator-5554}" logcat -d -t 5000 > ../visual-artifacts/logcat-post-step.txt 2>&1 || true
+          timeout 10s adb -s "${ANDROID_SERIAL:-emulator-5554}" shell getprop net.dns1 > ../visual-artifacts/emulator-dns1-post-step.txt 2>&1 || true
+          timeout 10s adb -s "${ANDROID_SERIAL:-emulator-5554}" shell getprop net.dns2 > ../visual-artifacts/emulator-dns2-post-step.txt 2>&1 || true
+          timeout 15s adb -s "${ANDROID_SERIAL:-emulator-5554}" shell dumpsys connectivity > ../visual-artifacts/emulator-connectivity-post-step.txt 2>&1 || true
+          timeout 10s adb -s "${ANDROID_SERIAL:-emulator-5554}" shell ip route > ../visual-artifacts/emulator-ip-route-post-step.txt 2>&1 || true
+          timeout 10s adb -s "${ANDROID_SERIAL:-emulator-5554}" shell settings get global private_dns_mode > ../visual-artifacts/emulator-private-dns-mode-post-step.txt 2>&1 || true
+
+      - name: Collect visual test reports
+        if: always()
+        run: |
+          mkdir -p ../visual-artifacts
+          if [[ -d app/build/reports/androidTests/connected ]]; then
+            cp -R app/build/reports/androidTests/connected ../visual-artifacts/android-test-report
+          fi
+          if [[ -d app/build/outputs/androidTest-results ]]; then
+            cp -R app/build/outputs/androidTest-results ../visual-artifacts/test-results
+          fi
+
+      - name: Require rendered UI screenshots
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_dir="../visual-artifacts"
+          required=(
+            "lifelink-auth-screen.png"
+            "lifelink-phone-light-workflow-home.png"
+            "lifelink-phone-light-workflow-donor-map.png"
+            "lifelink-phone-light-donor-map-loading-state.png"
+            "lifelink-phone-light-workflow-requests.png"
+            "lifelink-phone-light-donor-map-error.png"
+            "lifelink-phone-light-donor-map-empty.png"
+            "lifelink-phone-light-donor-map-synthetic-marker-selected.png"
+            "lifelink-phone-light-donor-map-synthetic-filtered-marker-selected.png"
+            "lifelink-phone-light-donor-map-synthetic-marker-metadata-refreshed.png"
+            "lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"
+            "lifelink-phone-light-donor-map-opengl-full-viewport.png"
+            "lifelink-maplibre-production-tile-summary.txt"
+            "lifelink-maplibre-opengl-summary.txt"
+            "lifelink-phone-light-donor-map-synthetic-list.png"
+            "lifelink-phone-light-donor-map-synthetic-blood-filter.png"
+            "lifelink-phone-light-donor-map-synthetic-available-filter.png"
+            "lifelink-phone-light-donor-map-synthetic-no-matches.png"
+            "lifelink-phone-light-donor-map-synthetic-filters-cleared.png"
+            "lifelink-donor-workspace-after-open.png"
+          )
+          for file in "${required[@]}"; do
+            if [[ ! -s "$evidence_dir/$file" ]]; then
+              echo "::error::Required visual evidence is missing or empty: $file"
+              find "$evidence_dir" -maxdepth 2 -type f -print | sort || true
+              exit 1
+            fi
+          done
+          echo "Required workflow screenshots and MapLibre renderer/tile diagnostic summaries are present."
+
+      - name: Upload visual evidence and reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lifelink-android-visual-review-${{ github.sha }}
+          path: visual-artifacts/**
+          if-no-files-found: error
+          retention-days: 14
+\r'/}"
             printf 'run-as exit=%s\n%s\n' "$listing_exit" "$listing" > "$listing_file"
             if [[ "$listing_exit" != "0" ]]; then
               echo "::warning::Could not list app-private visual evidence after ${stage}; see $(basename "$listing_file")."
