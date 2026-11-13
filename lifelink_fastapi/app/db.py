@@ -87,6 +87,28 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 async def create_all_tables() -> None:
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+        # create_all() creates new tables but does not add columns to tables that
+        # already exist. Keep the requester location-source upgrade here as well
+        # as sql/014_requester_location_source.sql so existing Render databases
+        # receive it during the normal API startup path.
+        await connection.execute(text(
+            "ALTER TABLE emergency_requests "
+            "ADD COLUMN IF NOT EXISTS requester_location_source VARCHAR(32) "
+            "NOT NULL DEFAULT 'unknown'"
+        ))
+        request_source_constraint_exists = await connection.scalar(text(
+            "SELECT EXISTS (SELECT 1 FROM pg_constraint "
+            "WHERE conname = 'ck_emergency_requests_requester_location_source' "
+            "AND conrelid = 'emergency_requests'::regclass)"
+        ))
+        if not request_source_constraint_exists:
+            await connection.execute(text(
+                "ALTER TABLE emergency_requests "
+                "ADD CONSTRAINT ck_emergency_requests_requester_location_source "
+                "CHECK (requester_location_source IN "
+                "('fused', 'gps', 'network', 'passive', 'unknown', "
+                "'manual_pin', 'manual_coordinates', 'facility'))"
+            ))
         await connection.execute(text(
             "ALTER TABLE lifelink_profiles ADD COLUMN IF NOT EXISTS fcm_token VARCHAR(4096)"
         ))
