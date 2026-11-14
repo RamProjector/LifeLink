@@ -6,13 +6,14 @@ import android.os.Build
 import android.provider.Settings
 import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -87,6 +88,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -98,12 +100,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import com.lifelink.app.R
+import com.lifelink.app.core.auth.RoleSwitcher
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.ui.LifeLinkEmptyState
-import com.lifelink.app.core.ui.LifeLinkPageHeader
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
 import com.lifelink.app.core.ui.theme.ThemeMode
-import com.lifelink.app.domain.DonorAvailability
 import com.lifelink.app.domain.RequestHistoryItem
 import com.lifelink.app.domain.UpdateItem
 import com.lifelink.app.feature.activeRequest.ActiveRequestScreen
@@ -115,6 +117,7 @@ import com.lifelink.app.feature.donor.BecomeDonorAction
 import com.lifelink.app.feature.donor.BecomeDonorScreen
 import com.lifelink.app.feature.donor.BecomeDonorUiState
 import com.lifelink.app.feature.donor.DonorAction
+import com.lifelink.app.feature.donor.DonorRequestsScreen
 import com.lifelink.app.feature.donor.DonorScreen
 import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestAction
@@ -133,14 +136,22 @@ private enum class ShellTab(val label: String) {
     MAP("Donors"),
     UPDATES("Chats"),
     SETTINGS("Settings"),
+    PROFILE("Profile"),
 }
 
-private enum class SettingsSection(val label: String) {
-    ACCOUNT("Account"),
-    NOTIFICATIONS("Notifications"),
-    PRIVACY("Privacy, Safety & Legal"),
-    THEME("Theme"),
-    HELP("Help & FAQ"),
+private val shellNavigationTabs = listOf(
+    ShellTab.HOME,
+    ShellTab.REQUESTS,
+    ShellTab.MAP,
+    ShellTab.UPDATES,
+    ShellTab.SETTINGS,
+)
+
+private enum class SettingsSection(val label: String, val summary: String) {
+    NOTIFICATIONS("Notifications", "Choose how LifeLink alerts you about activity."),
+    PRIVACY("Privacy & safety", "Review location, account security, and legal information."),
+    APPEARANCE("Appearance", "Choose a theme that works best for you."),
+    HELP("Help & FAQ", "Find guidance for common questions and safer use."),
 }
 
 /**
@@ -181,13 +192,13 @@ fun LifeLinkShell(
     onMarkAllUpdatesRead: () -> Unit,
     notificationOpenUpdates: Boolean = false,
     notificationRequestId: String? = null,
+    canRequest: Boolean = true,
 ) {
     val context = LocalContext.current
     val welcomePrefs = context.getSharedPreferences("lifelink_welcome", 0)
     val screenStateHolder = rememberSaveableStateHolder()
     var showRequest by rememberSaveable { mutableStateOf(false) }
     var showActive by rememberSaveable { mutableStateOf(false) }
-    var showDonor by rememberSaveable { mutableStateOf(false) }
     // Separate donor-profile flow: opt in to donating after account creation.
     var showBecomeDonor by rememberSaveable { mutableStateOf(false) }
     var showNotifications by rememberSaveable { mutableStateOf(false) }
@@ -198,52 +209,29 @@ fun LifeLinkShell(
     var showConversation by rememberSaveable { mutableStateOf(false) }
     var conversationRequestId by rememberSaveable { mutableStateOf("") }
     var conversationDonorId by rememberSaveable { mutableStateOf("") }
-    var conversationOpenedFromDonor by rememberSaveable { mutableStateOf(false) }
     val closeConversation = {
-        // Restore the exact workspace that opened this conversation. Assign both
-        // states explicitly so a stale donor flag cannot leak into requester flows
-        // (or leave a donor returning to the shell after system Back).
-        showDonor = conversationOpenedFromDonor
         showConversation = false
-        conversationOpenedFromDonor = false
-    }
-    val openConversationFrom: (String, String, Boolean) -> Unit = { requestId, donorId, fromDonor ->
-        conversationRequestId = requestId
-        conversationDonorId = donorId
-        conversationOpenedFromDonor = fromDonor
-        if (fromDonor) showDonor = true
-        showConversation = true
     }
     val openConversation: (String, String) -> Unit = { requestId, donorId ->
-        openConversationFrom(requestId, donorId, false)
-    }
-    val openDonorConversation: (String, String) -> Unit = { requestId, donorId ->
-        openConversationFrom(requestId, donorId, true)
+        conversationRequestId = requestId
+        conversationDonorId = donorId
+        showConversation = true
     }
     var showStart by rememberSaveable(accountUserId) {
         mutableStateOf(
-            accountUserId.isNotBlank() && !welcomePrefs.getBoolean("seen_$accountUserId", false),
+            accountUserId.isNotBlank() &&
+                role == UserRole.REQUESTER &&
+                !welcomePrefs.getBoolean("seen_$accountUserId", false),
         )
     }
-    var tab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
-    var donorSelectedTab by rememberSaveable(accountUserId) { mutableStateOf("HOME") }
+    LaunchedEffect(accountUserId, role) {
+        if (role == UserRole.DONOR) showStart = false
+    }
+    var tab by rememberSaveable(accountUserId) { mutableStateOf(ShellTab.HOME) }
+    var profileReturnTab by rememberSaveable(accountUserId) { mutableStateOf(ShellTab.HOME) }
     val markWelcomeSeen = {
         if (accountUserId.isNotBlank()) welcomePrefs.edit().putBoolean("seen_$accountUserId", true).apply()
         showStart = false
-    }
-    // Route changes must close any competing overlay. This keeps a stale request,
-    // notification, or conversation flag from masking the donor workspace.
-    val openDonorWorkspace = {
-        markWelcomeSeen()
-        showRequest = false
-        showActive = false
-        showBecomeDonor = false
-        showNotifications = false
-        showConversation = false
-        conversationOpenedFromDonor = false
-        conversationRequestId = ""
-        conversationDonorId = ""
-        showDonor = true
     }
     LaunchedEffect(notificationRequestId) {
         notificationRequestId?.takeIf { it.isNotBlank() }?.let { destination ->
@@ -289,7 +277,6 @@ fun LifeLinkShell(
                 markWelcomeSeen()
                 showActive = true
             },
-            onOpenDonor = openDonorWorkspace,
         )
         return
     }
@@ -364,21 +351,9 @@ fun LifeLinkShell(
         )
         return
     }
-    if (showDonor) {
-        BackHandler { showDonor = false }
-        screenStateHolder.SaveableStateProvider("donor-workspace") {
-            DonorScreen(
-                state = donorState,
-                onAction = onDonorAction,
-                onBack = { showDonor = false },
-                onOpenConversation = openDonorConversation,
-                selectedTabKey = donorSelectedTab,
-                onSelectedTabKeyChange = { donorSelectedTab = it },
-            )
-        }
-        return
+    BackHandler(enabled = tab != ShellTab.HOME) {
+        tab = if (tab == ShellTab.PROFILE) profileReturnTab else ShellTab.HOME
     }
-    BackHandler(enabled = tab != ShellTab.HOME) { tab = ShellTab.HOME }
     val unreadUpdates = updates.count { !it.isRead }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -387,60 +362,52 @@ fun LifeLinkShell(
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                if (tab != ShellTab.MAP) {
-                    Row(
-                        Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                Row(
+                    Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.lifelink_icon),
+                        contentDescription = "LifeLink app icon",
+                        modifier = Modifier.size(36.dp),
+                    )
+                    Text(
+                        "LifeLink",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                    Spacer(Modifier.weight(1f))
+                    IconButton(
+                        onClick = { showNotifications = true },
+                        modifier = Modifier.testTag("open-notifications"),
                     ) {
-                        Surface(
-                            modifier = Modifier.size(36.dp),
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Default.Shield,
-                                    contentDescription = "LifeLink app",
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(20.dp),
-                                )
+                        BadgedBox(badge = {
+                            if (unreadUpdates > 0) {
+                                Badge { Text(if (unreadUpdates > 99) "99+" else unreadUpdates.toString()) }
                             }
+                        }) {
+                            Icon(
+                                Icons.Default.NotificationsNone,
+                                contentDescription = if (unreadUpdates > 0) "$unreadUpdates unread notifications" else "Notifications",
+                            )
                         }
-                        Text(
-                            tab.label,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 8.dp),
-                        )
-                        Spacer(Modifier.weight(1f))
-                        IconButton(
-                            onClick = { showNotifications = true },
-                            modifier = Modifier.testTag("open-notifications"),
-                        ) {
-                            BadgedBox(badge = {
-                                if (unreadUpdates > 0) {
-                                    Badge { Text(if (unreadUpdates > 99) "99+" else unreadUpdates.toString()) }
-                                }
-                            }) {
-                                Icon(
-                                    Icons.Default.NotificationsNone,
-                                    contentDescription = if (unreadUpdates > 0) "$unreadUpdates unread notifications" else "Notifications",
-                                )
-                            }
-                        }
-                        IconButton(
-                            onClick = { tab = ShellTab.SETTINGS },
-                            modifier = Modifier.testTag("open-profile"),
-                        ) {
-                            Icon(Icons.Default.Person, contentDescription = "Open profile")
-                        }
+                    }
+                    IconButton(
+                        onClick = {
+                            if (tab != ShellTab.PROFILE) profileReturnTab = tab
+                            tab = ShellTab.PROFILE
+                        },
+                        modifier = Modifier.testTag("open-profile"),
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = "Open profile")
                     }
                 }
             },
             bottomBar = {
                 if (!useRail) {
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
-                        ShellTab.entries.forEach { destination ->
+                        shellNavigationTabs.forEach { destination ->
                             ShellNavigationBarItem(destination, tab == destination) {
                                 tab = destination
                             }
@@ -455,7 +422,7 @@ fun LifeLinkShell(
                         modifier = Modifier.fillMaxHeight().testTag("navigation-rail"),
                         containerColor = MaterialTheme.colorScheme.surface,
                     ) {
-                        ShellTab.entries.forEach { destination ->
+                        shellNavigationTabs.forEach { destination ->
                             NavigationRailItem(
                                 selected = tab == destination,
                                 onClick = { tab = destination },
@@ -475,27 +442,55 @@ fun LifeLinkShell(
                         }
                     Surface(destinationModifier, color = MaterialTheme.colorScheme.background) {
                         when (tab) {
-                            ShellTab.HOME ->
-                                HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = {
-                                    showActive =
-                                        true
-                                }, onDonor = openDonorWorkspace, updates = updates, onRequests = {
-                                    tab =
-                                        ShellTab.REQUESTS
-                                }, onOpenUpdate = { update ->
-                                    onUpdateRead(update.id)
-                                    update.requestId?.let { requestId ->
-                                        onAction(EmergencyRequestAction.OpenRequest(requestId))
-                                        showActive = true
-                                    } ?: run { showNotifications = true }
-                                }, onRefreshHistory = {
-                                    onAction(EmergencyRequestAction.RefreshHistory)
-                                })
-                            ShellTab.REQUESTS ->
-                                RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = {
-                                    showRequest =
-                                        true
-                                }, onActive = { showActive = true })
+                            ShellTab.HOME -> {
+                                if (RoleSwitcher.showsDonorHome(role)) {
+                                    screenStateHolder.SaveableStateProvider("donor-home-$accountUserId") {
+                                        DonorScreen(
+                                            state = donorState,
+                                            onAction = onDonorAction,
+                                        )
+                                    }
+                                } else {
+                                    HomeContent(
+                                        state = state,
+                                        canRequest = canRequest,
+                                        onCreate = { showRequest = true },
+                                        onActive = { showActive = true },
+                                        updates = updates,
+                                        onRequests = { tab = ShellTab.REQUESTS },
+                                        onOpenUpdate = { update ->
+                                            onUpdateRead(update.id)
+                                            update.requestId?.let { requestId ->
+                                                onAction(EmergencyRequestAction.OpenRequest(requestId))
+                                                showActive = true
+                                            } ?: run { showNotifications = true }
+                                        },
+                                        onRefreshHistory = {
+                                            onAction(EmergencyRequestAction.RefreshHistory)
+                                        },
+                                    )
+                                }
+                            }
+                            ShellTab.REQUESTS -> {
+                                if (RoleSwitcher.showsDonorHome(role)) {
+                                    screenStateHolder.SaveableStateProvider("donor-requests-$accountUserId") {
+                                        DonorRequestsScreen(
+                                            state = donorState,
+                                            onAction = onDonorAction,
+                                            onOpenConversation = openConversation,
+                                        )
+                                    }
+                                } else {
+                                    RequestsContent(
+                                        state = state,
+                                        canRequest = canRequest,
+                                        onAction = onAction,
+                                        onCreate = { showRequest = true },
+                                        onOpen = { showRequest = true },
+                                        onActive = { showActive = true },
+                                    )
+                                }
+                            }
                             ShellTab.MAP ->
                                 DonorMapScreen(
                                     state = privacyState,
@@ -527,22 +522,25 @@ fun LifeLinkShell(
                                 )
                             ShellTab.SETTINGS ->
                                 SettingsContent(
+                                    themeMode = themeMode,
+                                    onThemeModeChange = onThemeModeChange,
+                                    onRequestPasswordReset = onRequestPasswordReset,
+                                )
+                            ShellTab.PROFILE ->
+                                ProfileContent(
                                     role,
                                     accountEmail,
                                     accountDisplayName,
                                     profileSaving,
                                     profileMessage,
                                     onSaveProfile,
-                                    themeMode,
-                                    onThemeModeChange,
-                                    onRequestPasswordReset,
                                     onSwitchRole,
-                                    onOpenDonor = openDonorWorkspace,
                                     onBecomeDonor = {
                                         showStart = false
                                         showBecomeDonor = true
                                     },
                                     onSignOut = onSignOut,
+                                    onBack = { tab = profileReturnTab },
                                 )
                         }
                     }
@@ -601,6 +599,7 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
             ShellTab.MAP -> Icons.Default.Map
             ShellTab.UPDATES -> Icons.AutoMirrored.Filled.Chat
             ShellTab.SETTINGS -> Icons.Default.Settings
+            ShellTab.PROFILE -> Icons.Default.Person
         }
     Icon(icon, contentDescription = null, modifier = Modifier.size(size))
 }
@@ -610,6 +609,7 @@ private fun ShellNavigationIcon(tab: ShellTab, size: androidx.compose.ui.unit.Dp
 @Composable
 private fun RequestsContent(
     state: EmergencyRequestUiState,
+    canRequest: Boolean,
     onAction: (EmergencyRequestAction) -> Unit,
     onCreate: () -> Unit,
     onOpen: () -> Unit,
@@ -618,13 +618,6 @@ private fun RequestsContent(
     var selectedRequest by remember { mutableStateOf<RequestHistoryItem?>(null) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var historyFilter by rememberSaveable { mutableStateOf("All") }
-    val terminalStatuses = remember {
-        setOf(
-            com.lifelink.app.domain.ActiveRequestStatus.FULFILLED,
-            com.lifelink.app.domain.ActiveRequestStatus.EXPIRED,
-            com.lifelink.app.domain.ActiveRequestStatus.CANCELLED,
-        )
-    }
     val visibleHistory = state.requestHistory.filter { request ->
         val query = searchQuery.trim().lowercase()
         val matchesQuery = query.isBlank() ||
@@ -637,8 +630,9 @@ private fun RequestsContent(
                 request.status.label,
             ).any { it.lowercase().contains(query) }
         val matchesFilter = when (historyFilter) {
-            "Active" -> request.status !in terminalStatuses
-            "Past" -> request.status in terminalStatuses
+            "Active" -> !request.status.isTerminal && request.status.supportsContactReview
+            "Needs review" -> request.status == com.lifelink.app.domain.ActiveRequestStatus.UNKNOWN
+            "Past" -> request.status.isTerminal
             else -> true
         }
         matchesQuery && matchesFilter
@@ -651,6 +645,7 @@ private fun RequestsContent(
             onOpenStatus = {
                 selectedRequest = null
                 onAction(EmergencyRequestAction.OpenRequest(request.requestId))
+                onActive()
             },
         )
         return
@@ -665,7 +660,6 @@ private fun RequestsContent(
             contentPadding = PaddingValues(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item { LifeLinkPageHeader("Requests") }
             item {
                 if (state.step == com.lifelink.app.domain.RequestStep.RESULTS &&
                     state.submission is com.lifelink.app.feature.emergencyrequest.SubmissionState.Matching
@@ -727,7 +721,9 @@ private fun RequestsContent(
                 } else {
                     Button(
                         onClick = onCreate,
-                        enabled = state.historyLoaded && !state.historyRefreshing && state.historyError == null,
+                        enabled = canRequest && state.historyLoaded &&
+                            !state.historyRefreshing &&
+                            state.historyError == null,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                         shape = MaterialTheme.shapes.medium,
                     ) {
@@ -735,7 +731,13 @@ private fun RequestsContent(
                         Spacer(Modifier.width(8.dp))
                         Text("Create emergency request", fontWeight = FontWeight.SemiBold)
                     }
-                    if (!state.historyLoaded || state.historyRefreshing || state.historyError != null) {
+                    if (!canRequest) {
+                        Text(
+                            "Requesting is not enabled for this account.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else if (!state.historyLoaded || state.historyRefreshing || state.historyError != null) {
                         Text(
                             if (!state.historyLoaded || state.historyRefreshing) {
                                 "Checking request status before allowing a new request."
@@ -777,18 +779,19 @@ private fun RequestsContent(
                 )
             }
             item {
-                Row(
+                FlowRow(
                     Modifier
                         .testTag("request-history-filters")
                         .semantics { paneTitle = "Request history filters" },
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    listOf("All", "Active", "Past").forEach { filter ->
+                    listOf("All", "Active", "Needs review", "Past").forEach { filter ->
                         FilterChip(
                             selected = historyFilter == filter,
                             onClick = { historyFilter = filter },
                             label = { Text(filter) },
-                            modifier = Modifier.testTag("request-filter-${filter.lowercase()}"),
+                            modifier = Modifier.testTag("request-filter-${filter.lowercase().replace(' ', '-')}"),
                         )
                     }
                 }
@@ -901,18 +904,17 @@ private fun RequestHistoryCard(request: RequestHistoryItem, onOpen: () -> Unit) 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(request.status.label, modifier = Modifier.weight(1f).padding(end = 12.dp), fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (request.status in
-                        setOf(
-                            com.lifelink.app.domain.ActiveRequestStatus.FULFILLED,
-                            com.lifelink.app.domain.ActiveRequestStatus.EXPIRED,
-                            com.lifelink.app.domain.ActiveRequestStatus.CANCELLED,
-                        )
-                    ) {
-                        "Past"
-                    } else {
-                        "Active"
+                    when {
+                        request.status.isTerminal -> "Past"
+                        request.status == com.lifelink.app.domain.ActiveRequestStatus.UNKNOWN -> "Needs review"
+                        request.status == com.lifelink.app.domain.ActiveRequestStatus.DRAFT -> "Draft"
+                        else -> "Active"
                     },
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                    color = if (request.status == com.lifelink.app.domain.ActiveRequestStatus.UNKNOWN) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        androidx.compose.material3.MaterialTheme.colorScheme.primary
+                    },
                 )
             }
             Text("Request ${request.requestId.take(12)}", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
@@ -993,16 +995,11 @@ private fun RequestHistoryDetailScreen(
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(request.status.label, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text(
-                        if (
-                            request.status in setOf(
-                                com.lifelink.app.domain.ActiveRequestStatus.FULFILLED,
-                                com.lifelink.app.domain.ActiveRequestStatus.EXPIRED,
-                                com.lifelink.app.domain.ActiveRequestStatus.CANCELLED,
-                            )
-                        ) {
-                            "Past request"
-                        } else {
-                            "Active request"
+                        when {
+                            request.status.isTerminal -> "Past request"
+                            request.status == com.lifelink.app.domain.ActiveRequestStatus.UNKNOWN -> "Needs review"
+                            request.status == com.lifelink.app.domain.ActiveRequestStatus.DRAFT -> "Saved draft"
+                            else -> "Active request"
                         },
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
@@ -1010,7 +1007,13 @@ private fun RequestHistoryDetailScreen(
             }
             RequestDetailsContent(request)
             Button(onClick = onOpenStatus, modifier = Modifier.fillMaxWidth()) {
-                Text("Open request status")
+                Text(
+                    if (request.status == com.lifelink.app.domain.ActiveRequestStatus.UNKNOWN) {
+                        "Check request status"
+                    } else {
+                        "Open request status"
+                    },
+                )
             }
             OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
                 Text("Back to requests")
@@ -1052,37 +1055,21 @@ private fun DetailRow(label: String, value: String) {
 @Composable
 private fun HomeContent(
     state: EmergencyRequestUiState,
-    donorState: DonorUiState,
-    role: UserRole,
+    canRequest: Boolean,
     onCreate: () -> Unit,
     onActive: () -> Unit,
-    onDonor: () -> Unit,
     updates: List<UpdateItem>,
     onRequests: () -> Unit,
     onOpenUpdate: (UpdateItem) -> Unit,
     onRefreshHistory: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            LifeLinkPageHeader("Home")
-        }
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        RequesterHomeSection(state, canRequest, onCreate, onActive, onRequests, onRefreshHistory)
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            if (role == UserRole.DONOR) {
-                DonorDashboardSummary(donorState.profile, donorState.requests.size, onDonor)
-            }
-            if (role == UserRole.REQUESTER) {
-                RequesterHomeSection(state, onCreate, onActive, onRequests, onRefreshHistory)
-            }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            HomeRecentActivitySection(updates, onOpenUpdate)
-        }
+        HomeRecentActivitySection(updates, onOpenUpdate)
     }
 }
 
@@ -1090,6 +1077,7 @@ private fun HomeContent(
 @Composable
 private fun RequesterHomeSection(
     state: EmergencyRequestUiState,
+    canRequest: Boolean,
     onCreate: () -> Unit,
     onActive: () -> Unit,
     onRequests: () -> Unit,
@@ -1124,7 +1112,9 @@ private fun RequesterHomeSection(
         } else {
             Button(
                 onClick = onCreate,
-                enabled = state.historyLoaded && !state.historyRefreshing && state.historyError == null,
+                enabled = canRequest && state.historyLoaded &&
+                    !state.historyRefreshing &&
+                    state.historyError == null,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                 shape = MaterialTheme.shapes.medium,
             ) {
@@ -1132,7 +1122,13 @@ private fun RequesterHomeSection(
                 Spacer(Modifier.width(8.dp))
                 Text("Create emergency request", fontWeight = FontWeight.SemiBold)
             }
-            if (!state.historyLoaded || state.historyRefreshing || state.historyError != null) {
+            if (!canRequest) {
+                Text(
+                    "Requesting is not enabled for this account.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (!state.historyLoaded || state.historyRefreshing || state.historyError != null) {
                 Text(
                     if (!state.historyLoaded || state.historyRefreshing) {
                         "Checking request status before allowing a new request."
@@ -1266,7 +1262,12 @@ private fun ActiveRequestSummary(state: EmergencyRequestUiState, onOpen: () -> U
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                if (active.isTerminal) "Latest request" else "Active request",
+                when {
+                    active.status == com.lifelink.app.domain.ActiveRequestStatus.UNKNOWN -> "Request needs attention"
+                    active.status == com.lifelink.app.domain.ActiveRequestStatus.DRAFT -> "Saved draft"
+                    active.isTerminal -> "Latest request"
+                    else -> "Active request"
+                },
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1280,8 +1281,22 @@ private fun ActiveRequestSummary(state: EmergencyRequestUiState, onOpen: () -> U
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (active.status == com.lifelink.app.domain.ActiveRequestStatus.UNKNOWN) {
+                Text(
+                    "Refresh to confirm whether this request is still open. Request actions stay unavailable until its status is recognized.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             TextButton(onClick = onOpen) {
-                Text(if (active.isTerminal) "View request" else "View live status")
+                Text(
+                    when {
+                        active.status == com.lifelink.app.domain.ActiveRequestStatus.UNKNOWN -> "Check request status"
+                        active.status == com.lifelink.app.domain.ActiveRequestStatus.DRAFT -> "Review draft"
+                        active.isTerminal -> "View request"
+                        else -> "View live status"
+                    },
+                )
                 Spacer(Modifier.width(8.dp))
                 Icon(Icons.AutoMirrored.Filled.ArrowForward, null)
             }
@@ -1294,56 +1309,10 @@ private fun ActiveRequestSummary(state: EmergencyRequestUiState, onOpen: () -> U
 @Preview(name = "Home · dark", widthDp = 360, heightDp = 820, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun HomePreview() {
-    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), DonorUiState(), UserRole.REQUESTER, {}, {}, {}, emptyList(), {}, {}, {}) }
+    LifeLinkTheme { HomeContent(EmergencyRequestUiState(), true, {}, {}, emptyList(), {}, {}, {}) }
 }
 
-/** Summarizes donor availability and request count with an action to open donor mode. */
-@Composable
-private fun DonorDashboardSummary(profile: com.lifelink.app.domain.DonorProfile, requestCount: Int, onOpen: () -> Unit) {
-    val statusColor =
-        when (profile.availability) {
-            DonorAvailability.AVAILABLE -> androidx.compose.material3.MaterialTheme.colorScheme.primary
-            DonorAvailability.PAUSED -> androidx.compose.material3.MaterialTheme.colorScheme.tertiary
-            DonorAvailability.OFFLINE -> androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
-        }
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "Donor dashboard",
-                    modifier = Modifier.weight(1f).padding(end = 12.dp).semantics { heading() },
-                    style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
-                )
-                Text(profile.availability.label, color = statusColor, fontWeight = FontWeight.Bold)
-            }
-            if (profile.isSetupComplete) {
-                Text("$requestCount matching request${if (requestCount == 1) "" else "s"} in your inbox")
-                Text(
-                    "Your approximate location and profile are ready for matching.",
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                Text(
-                    "Complete your donor profile before choosing availability or receiving matching requests.",
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Button(onClick = onOpen, Modifier.fillMaxWidth()) {
-                Text(if (profile.isSetupComplete) "Manage donor dashboard" else "Complete donor profile")
-            }
-        }
-    }
-}
-
-/** Shows introductory guidance and delegates request creation or donor navigation to the caller. */
+/** Shows introductory guidance and lets a new requester start or continue a request. */
 @Composable
 private fun StartContent(
     role: UserRole,
@@ -1352,7 +1321,6 @@ private fun StartContent(
     onGetStarted: () -> Unit,
     onCreateRequest: () -> Unit,
     onOpenActiveRequest: () -> Unit,
-    onOpenDonor: () -> Unit,
 ) {
     Surface(color = androidx.compose.material3.MaterialTheme.colorScheme.background) {
         Column(
@@ -1371,7 +1339,6 @@ private fun StartContent(
                 onGetStarted = onGetStarted,
                 onCreateRequest = onCreateRequest,
                 onOpenActiveRequest = onOpenActiveRequest,
-                onOpenDonor = onOpenDonor,
             )
         }
     }
@@ -1438,7 +1405,6 @@ private fun StartActions(
     onGetStarted: () -> Unit,
     onCreateRequest: () -> Unit,
     onOpenActiveRequest: () -> Unit,
-    onOpenDonor: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (role == UserRole.REQUESTER && hasActiveRequest) {
@@ -1448,18 +1414,14 @@ private fun StartActions(
             ) { Text("View active request") }
         } else {
             Button(
-                onClick = if (role == UserRole.DONOR) onOpenDonor else onCreateRequest,
-                enabled = role == UserRole.DONOR || canCreateRequest,
+                onClick = onCreateRequest,
+                enabled = canCreateRequest,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                 shape = MaterialTheme.shapes.medium,
             ) {
-                Icon(
-                    if (role == UserRole.DONOR) Icons.Default.Person else Icons.Default.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                )
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(if (role == UserRole.DONOR) "Open donor workspace" else "Create a request")
+                Text("Create a request")
             }
             if (role == UserRole.REQUESTER && !canCreateRequest) {
                 Text(
@@ -1486,81 +1448,77 @@ private fun StartActions(
     }
 }
 
-/** Routes the selected settings section to account, notifications, privacy, appearance, or guidance. */
-@Suppress("LongParameterList", "LongMethod")
+/** Presents settings categories as a navigable list with dedicated subpages. */
 @Composable
 private fun SettingsContent(
-    role: UserRole,
-    accountEmail: String,
-    accountDisplayName: String,
-    profileSaving: Boolean,
-    profileMessage: String?,
-    onSaveProfile: (String) -> Unit,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
-    onSwitchRole: () -> Unit,
-    onOpenDonor: () -> Unit,
-    onBecomeDonor: () -> Unit,
-    onSignOut: () -> Unit,
 ) {
-    var section by rememberSaveable { mutableStateOf(SettingsSection.ACCOUNT) }
-    val sections =
-        listOf(
-            SettingsSection.ACCOUNT,
-            SettingsSection.NOTIFICATIONS,
-            SettingsSection.PRIVACY,
-            SettingsSection.THEME,
-            SettingsSection.HELP,
-        )
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                "Profile",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.testTag("settings-screen-title").semantics { heading() },
-            )
-            Text(
-                "Profile, notifications, privacy, safety, and app preferences.",
-                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .testTag("settings-sections"),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            sections.forEach { item ->
-                FilterChip(
-                    selected = section == item,
-                    onClick = { section = item },
-                    label = { Text(item.label, maxLines = 1) },
-                    modifier = Modifier.testTag("settings-${item.name}"),
+    var section by rememberSaveable { mutableStateOf<SettingsSection?>(null) }
+    val currentSection = section
+    BackHandler(enabled = currentSection != null) { section = null }
+
+    Column(Modifier.fillMaxSize()) {
+        if (currentSection == null) {
+            Column(
+                Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    "Settings",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.testTag("settings-screen-title").semantics { heading() },
+                )
+                Text(
+                    "Manage your LifeLink preferences.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
-        when (section) {
-            SettingsSection.ACCOUNT ->
-                ProfileContent(
-                    role,
-                    accountEmail,
-                    accountDisplayName,
-                    profileSaving,
-                    profileMessage,
-                    onSaveProfile,
-                    onSwitchRole,
-                    onOpenDonor,
-                    onBecomeDonor,
-                    onSignOut,
+            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SettingsSection.entries.forEachIndexed { index, item ->
+                    ListItem(
+                        headlineContent = { Text(item.label, fontWeight = FontWeight.SemiBold) },
+                        supportingContent = { Text(item.summary) },
+                        trailingContent = {
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { section = item }
+                            .testTag("settings-${item.name}"),
+                    )
+                    if (index < SettingsSection.entries.lastIndex) {
+                        HorizontalDivider(Modifier.padding(start = 16.dp))
+                    }
+                }
+            }
+        } else {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(
+                    onClick = { section = null },
+                    modifier = Modifier.testTag("settings-subpage-back"),
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Settings")
+                }
+                Text(
+                    currentSection.label,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.semantics { heading() },
                 )
-            SettingsSection.NOTIFICATIONS -> NotificationSettingsContent()
-            SettingsSection.PRIVACY -> PrivacySafetyContent(onRequestPasswordReset)
-            SettingsSection.THEME -> ThemeContent(themeMode, onThemeModeChange)
-            SettingsSection.HELP -> HelpFaqContent()
+            }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when (currentSection) {
+                    SettingsSection.NOTIFICATIONS -> NotificationSettingsContent()
+                    SettingsSection.PRIVACY -> PrivacySafetyContent(onRequestPasswordReset)
+                    SettingsSection.APPEARANCE -> ThemeContent(themeMode, onThemeModeChange)
+                    SettingsSection.HELP -> HelpFaqContent()
+                }
+            }
         }
     }
 }
@@ -1592,12 +1550,6 @@ private fun HelpFaqContent() {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            "Help & FAQ",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.semantics { heading() },
-        )
-        Text(
             "Quick guidance for safer use of LifeLink.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1620,12 +1572,6 @@ private fun NotificationSettingsContent() {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            "Notifications",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.semantics { heading() },
-        )
         Text(
             "Choose whether LifeLink can send notifications from Android app settings. " +
                 "Emergency request notifications use the device's notification permission and channel controls.",
@@ -1702,12 +1648,6 @@ private fun PrivacySafetyContent(onRequestPasswordReset: ((String) -> Unit) -> U
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            "Privacy, Safety & Legal",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.semantics { heading() },
-        )
         Text(
             "Review what LifeLink shares, what you control, and which privacy requests still need support processing.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1828,12 +1768,6 @@ private fun PrivacyCapabilityCard(title: String, status: String, body: String) {
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            "Appearance",
-            style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.semantics { heading() },
-        )
         ThemeMode.values().forEach { mode ->
             Card(
                 Modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(selected = themeMode == mode, role = Role.RadioButton, onClick = {
@@ -1883,8 +1817,7 @@ private fun LegalDocumentPicker(onSelect: (LegalDocument) -> Unit) {
 }
 
 /**
- * Edits the account display name and exposes donor navigation and sign-out actions.
- * Donors invoke [onOpenDonor] to open their workspace; other roles invoke [onBecomeDonor] to start setup.
+ * Edits account details, offers donor setup to requesters, and exposes sign-out actions.
  */
 @Suppress("LongParameterList", "LongMethod")
 @Composable
@@ -1896,9 +1829,9 @@ private fun ProfileContent(
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
     onSwitchRole: () -> Unit,
-    onOpenDonor: () -> Unit,
     onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
+    onBack: () -> Unit,
 ) {
     var displayName by rememberSaveable(accountDisplayName) { mutableStateOf(accountDisplayName) }
     Column(
@@ -1908,6 +1841,17 @@ private fun ProfileContent(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.testTag("profile-back")) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+            Text(
+                "Profile",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() },
+            )
+        }
         Card(
             Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer),
@@ -1993,12 +1937,7 @@ private fun ProfileContent(
                     color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (role == UserRole.DONOR) {
-                    OutlinedButton(
-                        onClick = onOpenDonor,
-                        modifier = Modifier.fillMaxWidth().testTag("open-donor-workspace"),
-                    ) {
-                        Text("Open donor workspace")
-                    }
+                    Text("Manage availability and your donor profile from the Home tab.")
                 } else {
                     // Separate donor-profile flow: opt in to donating after account creation.
                     Button(

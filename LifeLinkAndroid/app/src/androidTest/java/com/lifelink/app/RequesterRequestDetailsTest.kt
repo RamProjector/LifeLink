@@ -89,7 +89,7 @@ class RequesterRequestDetailsTest {
         composeRule.onNodeWithText("O+").assertIsDisplayed()
         composeRule.onNodeWithText("Manila General Hospital").assertIsDisplayed()
         composeRule.onNodeWithText("Quezon City").assertIsDisplayed()
-        composeRule.onNodeWithText("Done").performClick()
+        composeRule.onNodeWithText("Back to requests").performClick()
         composeRule.onNodeWithTag("request-history-request-details-1").assertIsDisplayed()
     }
 }

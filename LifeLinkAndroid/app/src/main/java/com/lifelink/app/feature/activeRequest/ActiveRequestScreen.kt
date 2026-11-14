@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material3.AlertDialog
@@ -152,6 +153,17 @@ fun ActiveRequestScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             StatusCard(active)
+            if (active.status == ActiveRequestStatus.UNKNOWN) {
+                OutlinedButton(
+                    onClick = { onAction(EmergencyRequestAction.RefreshStatus) },
+                    enabled = !state.statusRefreshing,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (state.statusRefreshing) "Refreshing status…" else "Refresh request status")
+                }
+            }
             requestDetails?.let { RequestDetailsCard(it) }
             val contactedDonors = when {
                 state.contacts.isNotEmpty() -> state.contacts.size
@@ -182,7 +194,7 @@ fun ActiveRequestScreen(
                     }
                 }
             }
-            if (!active.isTerminal) {
+            if (active.supportsLifecycleActions) {
                 Button(
                     onClick = { showFulfillConfirmation = true },
                     enabled = !state.statusRefreshing,
@@ -192,12 +204,22 @@ fun ActiveRequestScreen(
                     Spacer(Modifier.width(8.dp))
                     Text("Mark request fulfilled")
                 }
-                OutlinedButton(onClick = { showCancelConfirmation = true }, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = { showCancelConfirmation = true },
+                    enabled = !state.statusRefreshing,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Text("Cancel request")
                 }
             }
             Text(
-                "Request ${active.requestId.take(12)} \u00b7 Updates automatically while active.",
+                "Request ${active.requestId.take(12)} \u00b7 " + when {
+                    active.status == ActiveRequestStatus.UNKNOWN ->
+                        "Refresh to confirm whether this request is still active."
+                    active.status == ActiveRequestStatus.DRAFT -> "Saved draft."
+                    active.isTerminal -> "This request is closed."
+                    else -> "Status refreshes automatically while active."
+                },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -271,9 +293,22 @@ private fun DetailRow(label: String, value: String) {
 /** Hero card: the current status, its reason, and what happens next. */
 @Composable
 private fun StatusCard(active: ActiveRequestSnapshot) {
+    val statusIsUnknown = active.status == ActiveRequestStatus.UNKNOWN
+    val containerColor =
+        if (statusIsUnknown) {
+            MaterialTheme.colorScheme.tertiaryContainer
+        } else {
+            MaterialTheme.colorScheme.primaryContainer
+        }
+    val contentColor =
+        if (statusIsUnknown) {
+            MaterialTheme.colorScheme.onTertiaryContainer
+        } else {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        }
     Card(
         Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -281,13 +316,17 @@ private fun StatusCard(active: ActiveRequestSnapshot) {
                 Surface(
                     modifier = Modifier.size(40.dp),
                     shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = if (statusIsUnknown) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = if (active.isTerminal) Icons.Default.CheckCircle else Icons.Default.HourglassEmpty,
+                            imageVector = when {
+                                statusIsUnknown -> Icons.Default.Info
+                                active.isTerminal -> Icons.Default.CheckCircle
+                                else -> Icons.Default.HourglassEmpty
+                            },
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
+                            tint = if (statusIsUnknown) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(22.dp),
                         )
                     }
@@ -295,24 +334,39 @@ private fun StatusCard(active: ActiveRequestSnapshot) {
                 Text(
                     "Current status",
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = contentColor,
                 )
             }
             Text(
                 active.status.label,
-                color = MaterialTheme.colorScheme.primary,
+                color = if (statusIsUnknown) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.semantics { heading() },
             )
-            active.reason?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            active.reason?.let { Text(it, color = contentColor) }
             Text(
-                if (active.isTerminal) {
-                    "This request is no longer accepting responses."
-                } else {
-                    "Eligible donors are notified according to the matching rules."
+                when (active.status) {
+                    ActiveRequestStatus.DRAFT ->
+                        "This request is saved as a draft and has not been submitted for donor matching."
+                    ActiveRequestStatus.MATCHING ->
+                        "LifeLink is finding eligible donors. Check contact activity for responses."
+                    ActiveRequestStatus.AWAITING_RESPONSES ->
+                        "The request is waiting for responses from contacted donors. Check contact activity for their latest status."
+                    ActiveRequestStatus.MANUAL_BROADCAST ->
+                        "Automatic matching needs review. Donor contact is a separate, explicit action."
+                    ActiveRequestStatus.PARTIALLY_FULFILLED ->
+                        "Part of this request has been fulfilled. The remaining need is still open."
+                    ActiveRequestStatus.FULFILLED ->
+                        "This request is fulfilled and is no longer accepting responses."
+                    ActiveRequestStatus.EXPIRED ->
+                        "The response window has ended. This request is no longer accepting responses."
+                    ActiveRequestStatus.CANCELLED ->
+                        "This request was cancelled and is no longer accepting responses."
+                    ActiveRequestStatus.UNKNOWN ->
+                        "The server returned a status this app doesn't recognize. Refresh to confirm the latest state. Request actions are unavailable until the status can be interpreted."
                 },
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = contentColor,
             )
         }
     }
@@ -385,8 +439,16 @@ private fun ContactActivityCard(
                     onRetry = { onAction(EmergencyRequestAction.RefreshContacts(active.requestId)) },
                 )
             }
-            Button(onClick = onReviewContacts, modifier = Modifier.fillMaxWidth()) {
-                Text("Review matches and contacts")
+            if (active.status.supportsContactReview) {
+                Button(onClick = onReviewContacts, modifier = Modifier.fillMaxWidth()) {
+                    Text("Review matches and contacts")
+                }
+            } else {
+                Text(
+                    "Refresh the request status before reviewing contacts.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }

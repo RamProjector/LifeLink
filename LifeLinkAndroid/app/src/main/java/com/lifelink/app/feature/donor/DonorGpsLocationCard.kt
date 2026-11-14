@@ -55,9 +55,9 @@ internal fun GpsLocationCard(
             ) {
                 Text(
                     when {
-                        state.loading -> "Getting GPS location…"
-                        state.capturedThisSession -> "Refresh current GPS location"
-                        else -> "Use current GPS location"
+                        state.loading -> "Getting current location…"
+                        state.capturedThisSession -> "Refresh current location"
+                        else -> "Use current location"
                     },
                 )
             }
@@ -69,13 +69,14 @@ internal fun GpsLocationCard(
 
 @Composable
 private fun GpsLocationSummary(state: GpsLocationCardState) {
-    Text("Required GPS location", fontWeight = FontWeight.SemiBold)
+    Text("Location for matching", fontWeight = FontWeight.SemiBold)
     Text(
         when {
-            state.capturedThisSession -> "A current device location has been captured for this session."
+            state.capturedThisSession -> "A current location has been captured for this session."
             state.latitude != null && state.longitude != null ->
-                "A saved location exists, but it must be refreshed from device GPS before saving."
-            else -> "Capture your device's current GPS location before saving your donor profile."
+                "A saved location exists, but refresh it from this device before saving."
+            else ->
+                "Capture a current location. Approximate access is enough; precise access can improve the estimate."
         },
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,

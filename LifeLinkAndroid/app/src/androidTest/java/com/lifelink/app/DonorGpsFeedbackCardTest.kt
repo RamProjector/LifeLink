@@ -35,7 +35,9 @@ class DonorGpsFeedbackCardTest {
         var appSettingsOpened = 0
         render(
             state = GpsLocationCardState(
-                message = "Precise location permission is required to register as a donor. Enable it in app settings to continue.",
+                message =
+                "Location access is needed to include your area in donor matching. " +
+                    "Approximate access is enough; precise access is optional.",
                 messageLevel = LifeLinkFeedbackLevel.Error,
                 settingsAction = GpsSettingsAction.APP_PERMISSION,
             ),
@@ -45,7 +47,7 @@ class DonorGpsFeedbackCardTest {
         composeRule.onNodeWithTag("donor-gps-message")
             .assertIsDisplayed()
             .assertTextEquals(
-                "Precise location permission is required to register as a donor. Enable it in app settings to continue.",
+                "Location access is needed to include your area in donor matching. Approximate access is enough; precise access is optional.",
             )
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Assertive))
         composeRule.onNodeWithTag("donor-gps-settings").performClick()
@@ -81,7 +83,7 @@ class DonorGpsFeedbackCardTest {
         var retryCount = 0
         render(
             state = GpsLocationCardState(
-                message = "No recent GPS fix was available. Move to an open area and try again.",
+                message = "No recent location fix was available. Move to an open area and try again.",
                 messageLevel = LifeLinkFeedbackLevel.Error,
             ),
             onRequestCurrentGps = { retryCount++ },
@@ -89,7 +91,7 @@ class DonorGpsFeedbackCardTest {
 
         composeRule.onNodeWithTag("donor-gps-message")
             .assertIsDisplayed()
-            .assertTextEquals("No recent GPS fix was available. Move to an open area and try again.")
+            .assertTextEquals("No recent location fix was available. Move to an open area and try again.")
         composeRule.onNodeWithTag("capture-donor-gps").performClick()
 
         assertEquals(1, retryCount)
@@ -102,14 +104,14 @@ class DonorGpsFeedbackCardTest {
         render(
             state = GpsLocationCardState(
                 capturedThisSession = true,
-                message = "Current GPS captured (about ±25 m accuracy).",
+                message = "Current location captured (estimated accuracy ±25 m).",
                 messageLevel = LifeLinkFeedbackLevel.Success,
             ),
         )
 
         composeRule.onNodeWithTag("donor-gps-message")
             .assertIsDisplayed()
-            .assertTextEquals("Current GPS captured (about ±25 m accuracy).")
+            .assertTextEquals("Current location captured (estimated accuracy ±25 m).")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
     }
 

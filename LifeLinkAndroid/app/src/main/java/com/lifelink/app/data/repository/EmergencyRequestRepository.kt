@@ -82,7 +82,7 @@ class EmergencyRequestRepositoryImpl(
         val history = (response.body() ?: throw IOException("Request history returned an empty response.")).map { item ->
             RequestHistoryItem(
                 requestId = item.requestId,
-                status = runCatching { ActiveRequestStatus.valueOf(item.status.uppercase()) }.getOrDefault(ActiveRequestStatus.MATCHING),
+                status = ActiveRequestStatus.fromApi(item.status),
                 createdAt = item.createdAt,
                 expiresAt = item.expiresAt,
                 bloodType = item.bloodType,
@@ -98,9 +98,7 @@ class EmergencyRequestRepositoryImpl(
         // Logout clears local account data. Restore a submitted request from this
         // account's server history so Home and status polling can resume.
         if (activeRequestDao.observeLatest(ownerId).first() == null) {
-            val request = history.firstOrNull {
-                it.status !in setOf(ActiveRequestStatus.FULFILLED, ActiveRequestStatus.EXPIRED, ActiveRequestStatus.CANCELLED)
-            } ?: history.firstOrNull()
+            val request = history.firstOrNull { !it.status.isTerminal } ?: history.firstOrNull()
             request?.let {
                 activeRequestDao.upsert(
                     ActiveRequestSnapshot(
@@ -420,7 +418,7 @@ private fun EmergencyRequestDraftEntity.toDomain() = EmergencyRequestDraft(
 
 private fun com.lifelink.app.data.remote.EmergencyRequestStatusResponse.toSnapshot() = ActiveRequestSnapshot(
     requestId = requestId,
-    status = runCatching { ActiveRequestStatus.valueOf(status.uppercase()) }.getOrDefault(ActiveRequestStatus.MATCHING),
+    status = ActiveRequestStatus.fromApi(status),
     notificationsCreated = notificationsCreated,
     matchesResponded = matchesResponded,
     reason = reason,

@@ -12,19 +12,20 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -40,11 +41,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,7 +64,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import com.google.android.gms.common.api.ResolvableApiException
 import com.lifelink.app.core.location.LocationProvider
 import com.lifelink.app.core.ui.LifeLinkEmptyState
@@ -80,28 +77,15 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/**
- * Displays donor setup, availability, and the request inbox from [state].
- *
- * [onOpenConversation] receives the request ID and donor ID when the donor messages
- * a requester from an accepted or arrived request.
- */
+/** Displays donor availability and profile controls inside the app's Home destination. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DonorScreen(
     state: DonorUiState,
     onAction: (DonorAction) -> Unit,
-    onBack: () -> Unit,
-    onOpenConversation: (String, String) -> Unit = { _, _ -> },
-    selectedTabKey: String? = null,
-    onSelectedTabKeyChange: ((String) -> Unit)? = null,
 ) {
     var profileExpanded by rememberSaveable { mutableStateOf(false) }
     var fullScreenProfile by rememberSaveable { mutableStateOf(false) }
-    var internalSelectedTab by rememberSaveable { mutableStateOf(DonorTab.HOME) }
-    val selectedTab = selectedTabKey
-        ?.let { key -> DonorTab.values().firstOrNull { it.name == key } }
-        ?: internalSelectedTab
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var locationCaptureRequest by remember { mutableStateOf(0) }
@@ -147,19 +131,22 @@ fun DonorScreen(
                 locationCaptureRequest++
             } else {
                 locationMessage =
-                    "Location services remain off. Capture your current device GPS location and try again."
+                    "Location services remain off. Turn them on and capture your current area again."
                 locationMessageLevel = LifeLinkFeedbackLevel.Warning
             }
         }
     val locationLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
-            if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
+            if (
+                (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true) ||
+                (permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true)
+            ) {
                 showAppSettings = false
                 locationCaptureRequest++
             } else {
                 showAppSettings = true
-                locationMessage = "Precise location permission is required. " +
-                    "Approximate location is not enough for donor matching."
+                locationMessage = "Location access is needed to include your area in donor matching. " +
+                    "Approximate access is enough; precise access is optional."
                 locationMessageLevel = LifeLinkFeedbackLevel.Error
             }
         }
@@ -196,7 +183,8 @@ fun DonorScreen(
                             "passive" -> "Passive location"
                             else -> "Device location"
                         }
-                        locationMessage = "$locationSource captured. Save your profile to update matching."
+                        locationMessage = "$locationSource captured (estimated accuracy ±${fix.precisionMeters} m). " +
+                            "Save your profile to update matching."
                         locationMessageLevel = LifeLinkFeedbackLevel.Success
                     } ?: run {
                         locationMessage = "Could not get a current device location. Turn on device location and try again."
@@ -211,13 +199,13 @@ fun DonorScreen(
                     settingsResolutionLauncher.launch(IntentSenderRequest.Builder(error.resolution).build())
                 }.onFailure {
                     locationMessage =
-                        "Location settings could not be opened. Capture your current device GPS location and try again."
+                        "Location settings could not be opened. Turn on device location and try again."
                     locationMessageLevel = LifeLinkFeedbackLevel.Error
                 }
             },
             onFailure = {
                 locationMessage =
-                    "Device location is unavailable. Capture your current device GPS location and try again."
+                    "Device location is unavailable. Turn on location services and try again."
                 locationMessageLevel = LifeLinkFeedbackLevel.Error
             },
         )
@@ -227,19 +215,16 @@ fun DonorScreen(
     // satisfy the () -> Unit parameter of ProfileCard.
     val captureLocation: () -> Unit = {
         val hasPermission =
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_FINE_LOCATION,
-            ) == PackageManager.PERMISSION_GRANTED
+            context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED ||
+                context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
         if (hasPermission) {
             locationCaptureRequest++
         } else {
             showAppSettings = false
             locationLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                ),
+                arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION),
             )
         }
     }
@@ -251,36 +236,13 @@ fun DonorScreen(
             },
         )
     }
-    // Unsaved editor input lives here, not inside ProfileCard, so switching between the
-    // tabbed editor and the full-screen editor does not reset what the donor typed.
+    // Keep editor input here so opening the full-screen profile editor preserves it.
     var serviceRadius by remember(state.profile.donorId) { mutableStateOf(state.profile.serviceRadiusKm.toString()) }
     Scaffold(
-        modifier = Modifier.fillMaxSize().testTag("donor-workspace-screen"),
-        topBar = {
-            TopAppBar(
-                title = { Text("Donor workspace") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-                actions = {
-                    IconButton(
-                        onClick = { fullScreenProfile = !fullScreenProfile },
-                        enabled = profileExpanded || fullScreenProfile,
-                    ) {
-                        Icon(
-                            if (fullScreenProfile) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                            if (fullScreenProfile) "Exit full screen profile" else "Open profile in full screen",
-                        )
-                    }
-                    IconButton(
-                        onClick = { onAction(DonorAction.RefreshRequests) },
-                        enabled = !state.requestsRefreshing && state.profile.isSetupComplete,
-                    ) { Icon(Icons.Default.Refresh, "Refresh requests") }
-                },
-            )
-        },
+        modifier = Modifier.fillMaxSize().testTag("donor-home-screen"),
     ) { padding ->
         if (fullScreenProfile) {
-            // Full-screen profile editor: the whole surface is the form, so a long
-            // donor profile is not cramped inside the tabbed workspace.
+            // The full Home content area keeps the profile form readable on smaller screens.
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 Column(Modifier.fillMaxSize().padding(padding)) {
                     Row(
@@ -319,9 +281,7 @@ fun DonorScreen(
                                 locationCapturedThisSession = locationCapturedThisSession,
                             )
                         }
-                        // Keep the same status feedback the tabbed editor shows, so a
-                        // failed save or a denied location permission is still visible
-                        // while the donor is in full-screen mode.
+                        // Keep save and location-permission feedback visible in full-screen mode.
                         (locationMessage ?: state.message)?.let { message ->
                             item {
                                 StatusMessage(
@@ -337,61 +297,61 @@ fun DonorScreen(
             }
             return@Scaffold
         }
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            TabRow(selectedTabIndex = selectedTab.ordinal) {
-                DonorTab.values().forEach { tab ->
-                    Tab(
-                        selected = selectedTab == tab,
-                        onClick = {
-                            internalSelectedTab = tab
-                            onSelectedTabKeyChange?.invoke(tab.name)
-                        },
-                        text = { Text(tab.label) },
-                        modifier = Modifier.testTag("donor-tab-${tab.name}"),
-                    )
-                }
-            }
-            when (selectedTab) {
-                DonorTab.HOME ->
-                    DonorHomeContent(
-                        state = state,
-                        locationMessage = locationMessage,
-                        locationMessageLevel = locationMessageLevel,
-                        onOpenAppSettings = if (showAppSettings) openAppSettings else null,
-                        profileExpanded = profileExpanded,
-                        onToggleProfile = { profileExpanded = !profileExpanded },
-                        onAction = onAction,
-                        onCaptureLocation = captureLocation,
-                        locationSource = locationSource,
-                        serviceRadius = serviceRadius,
-                        onServiceRadiusChange = { value ->
-                            if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value
-                        },
-                        locationCapturedThisSession = locationCapturedThisSession,
-                    )
-                DonorTab.REQUESTS -> DonorRequestsContent(state, onAction, onOpenConversation)
-            }
+        DonorHomeContent(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            state = state,
+            locationMessage = locationMessage,
+            locationMessageLevel = locationMessageLevel,
+            onOpenAppSettings = if (showAppSettings) openAppSettings else null,
+            profileExpanded = profileExpanded,
+            onToggleProfile = { profileExpanded = !profileExpanded },
+            onOpenFullScreenProfile = { fullScreenProfile = true },
+            onAction = onAction,
+            onCaptureLocation = captureLocation,
+            locationSource = locationSource,
+            serviceRadius = serviceRadius,
+            onServiceRadiusChange = { value ->
+                if (value.length <= 3 && value.all(Char::isDigit)) serviceRadius = value
+            },
+            locationCapturedThisSession = locationCapturedThisSession,
+        )
+    }
+}
+
+/** Shows donor matching opportunities on the Requests destination. */
+@Composable
+fun DonorRequestsScreen(
+    state: DonorUiState,
+    onAction: (DonorAction) -> Unit,
+    onOpenConversation: (String, String) -> Unit = { _, _ -> },
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().testTag("donor-requests-screen"),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        if (state.profile.isSetupComplete) {
+            donorRequestsSection(state, onAction, onOpenConversation)
+        } else {
+            item { SetupRequiredCard(state.profile) }
         }
     }
 }
 
 private const val GPS_CAPTURE_MAX_AGE_MILLIS = 2 * 60 * 1000L
 
-private enum class DonorTab(val label: String) {
-    HOME("Home"),
-    REQUESTS("Requests"),
-}
-
 /** Shows donor availability or setup guidance, status messages, and the expandable profile editor. */
 @Suppress("LongParameterList") // The editor keeps each field callback explicit for Compose state ownership.
 @Composable
 private fun DonorHomeContent(
+    modifier: Modifier,
     state: DonorUiState,
     locationMessage: String?,
     locationMessageLevel: LifeLinkFeedbackLevel,
     onOpenAppSettings: (() -> Unit)?,
     profileExpanded: Boolean,
     onToggleProfile: () -> Unit,
+    onOpenFullScreenProfile: () -> Unit,
     onAction: (DonorAction) -> Unit,
     onCaptureLocation: () -> Unit,
     locationSource: String?,
@@ -400,7 +360,7 @@ private fun DonorHomeContent(
     locationCapturedThisSession: Boolean,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding =
         androidx.compose.foundation.layout
@@ -434,8 +394,25 @@ private fun DonorHomeContent(
             }
         }
         item {
-            OutlinedButton(onClick = onToggleProfile, modifier = Modifier.fillMaxWidth()) {
-                Text(if (profileExpanded) "Hide profile editor" else "Edit donor profile")
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedButton(
+                    onClick = onToggleProfile,
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                ) {
+                    Text(if (profileExpanded) "Hide profile editor" else "Edit donor profile")
+                }
+                if (profileExpanded) {
+                    IconButton(
+                        onClick = onOpenFullScreenProfile,
+                        modifier = Modifier.size(48.dp).testTag("open-full-screen-donor-profile"),
+                    ) {
+                        Icon(Icons.Default.Fullscreen, contentDescription = "Open profile in full screen")
+                    }
+                }
             }
         }
         if (profileExpanded) {
@@ -455,64 +432,53 @@ private fun DonorHomeContent(
     }
 }
 
-/**
- * Shows setup guidance until the donor profile is complete, then renders the inbox.
- *
- * Passes the profile donor ID and [onOpenConversation] to each request card.
- */
-@Composable
-private fun DonorRequestsContent(
+/** Adds matching donor opportunities to the Requests destination. */
+private fun LazyListScope.donorRequestsSection(
     state: DonorUiState,
     onAction: (DonorAction) -> Unit,
     onOpenConversation: (String, String) -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding =
-        androidx.compose.foundation.layout
-            .PaddingValues(vertical = 20.dp),
-    ) {
+    item {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    "Matching requests",
+                    Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "These are requests you can respond to as a donor.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(
+                onClick = { onAction(DonorAction.RefreshRequests) },
+                enabled = !state.requestsRefreshing,
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh requests")
+            }
+        }
+    }
+    if (state.requestsRefreshing) {
+        item { StatusMessage("Refreshing eligible requests…", compact = true, loading = true) }
+    } else if (state.requests.isEmpty() && state.messageLevel != LifeLinkFeedbackLevel.Error) {
         item {
-            Text(
-                "Requests near you",
-                Modifier.semantics { heading() },
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                "Only requests matching your saved profile and availability appear here.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            LifeLinkEmptyState(
+                icon = Icons.Default.Refresh,
+                title = "No matching requests",
+                body = "New requests will appear here when available. Refresh to check again.",
             )
         }
-        if (state.requestsRefreshing) item { StatusMessage("Refreshing eligible requests\u2026", compact = true, loading = true) }
-        state.message?.let { message ->
-            if (!state.requestsRefreshing) {
-                item { StatusMessage(message, compact = true, level = state.messageLevel) }
-            }
-        }
-        if (!state.profile.isSetupComplete) {
-            item { SetupRequiredCard(state.profile) }
-        } else if (state.requests.isEmpty() && !state.requestsRefreshing && state.messageLevel != LifeLinkFeedbackLevel.Error) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    LifeLinkEmptyState(
-                        icon = Icons.Default.Refresh,
-                        title = "No matching requests",
-                        body =
-                        "New requests will appear here when available. Refreshing does not change your availability.",
-                    )
-                    OutlinedButton(
-                        onClick = { onAction(DonorAction.RefreshRequests) },
-                        enabled = !state.requestsRefreshing,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Refresh requests") }
-                }
-            }
-        } else {
-            items(state.requests, key = { it.requestId }) { request ->
-                RequestCard(request, onAction, state.saving, state.profile.donorId, onOpenConversation)
-            }
+    } else {
+        items(state.requests, key = { it.requestId }) { request ->
+            RequestCard(request, onAction, state.saving, state.profile.donorId, onOpenConversation)
         }
     }
 }
@@ -654,8 +620,8 @@ private fun SetupRequiredCard(profile: DonorProfile) {
 /**
  * Edits donor profile fields through [onAction] and the supplied location callbacks.
  *
- * The caller owns unsaved radius and manual coordinate text so it survives switching
- * between the tabbed and full-screen profile editors.
+ * The caller owns unsaved radius and coordinate input so it survives opening the
+ * full-screen profile editor.
  */
 @Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod")
 @Composable
@@ -671,8 +637,7 @@ private fun ProfileCard(
 ) {
     // The editable profile lives in the ViewModel, like the emergency-request draft.
     // GPS can therefore update only coordinates without recreating this form. The
-    // unsaved service radius and manual coordinates are owned by DonorScreen so they
-    // survive switching between the tabbed and full-screen editors.
+    // DonorScreen owns these values so they survive opening the full-screen editor.
     var showMoreSettings by rememberSaveable(profile.donorId) { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

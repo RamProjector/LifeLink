@@ -30,6 +30,7 @@ import com.lifelink.app.domain.DonorRequest
 import com.lifelink.app.domain.DonorResponse
 import com.lifelink.app.domain.RequestStep
 import com.lifelink.app.domain.RequesterContact
+import com.lifelink.app.feature.donor.DonorRequestsScreen
 import com.lifelink.app.feature.donor.DonorScreen
 import com.lifelink.app.feature.donor.DonorUiState
 import com.lifelink.app.feature.emergencyrequest.EmergencyRequestScreen
@@ -91,25 +92,22 @@ open class ConversationNavigationTest {
         assertOpenedTimes(2)
     }
 
-    /** Checks that a donor opens chat once and system Back returns to the donor workspace. */
+    /** Checks donor matching requests live in Requests and back returns to that destination. */
     @Test
-    fun donor_can_open_chat_and_system_back_returns_to_the_donor_workspace() {
+    fun donor_can_open_chat_from_requests_and_system_back_returns_to_requests() {
         renderShell(StateRestorationTester(composeRule), UserRole.DONOR)
-        composeRule.onNodeWithTag("open-profile").assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("Profile, notifications, privacy, safety, and app preferences.").assertIsDisplayed()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithTag("open-donor-workspace").fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithTag("donor-home-screen").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithTag("open-donor-workspace").performScrollTo().assertIsDisplayed().performClick()
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithTag("donor-workspace-screen").fetchSemanticsNodes().isNotEmpty()
-        }
-        // Capture the actual destination before asserting so a regression leaves a useful
-        // screenshot in the CI artifact rather than only a line-number failure.
-        assertTrue(VisualEvidence.capture("lifelink-donor-workspace-after-open.png"))
-        composeRule.onNodeWithTag("donor-workspace-screen").assertIsDisplayed()
-        composeRule.onNodeWithText("Donor workspace", substring = false).assertIsDisplayed()
-        composeRule.onNodeWithTag("donor-tab-REQUESTS").assertIsDisplayed().performClick()
+        assertTrue(VisualEvidence.capture("lifelink-donor-home-bottom-navigation.png"))
+        composeRule.onNodeWithTag("donor-home-screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav-HOME").assertIsSelected()
+        composeRule.onNodeWithText("Matching requests").assertDoesNotExist()
+        composeRule.onNodeWithText("Create emergency request").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("nav-REQUESTS").performClick()
+        composeRule.onNodeWithTag("nav-REQUESTS").assertIsSelected()
+        composeRule.onNodeWithText("Matching requests").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Message requester").performScrollTo().performClick()
 
         composeRule.onNodeWithText("Conversation").assertIsDisplayed()
@@ -117,7 +115,8 @@ open class ConversationNavigationTest {
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
 
         composeRule.onNodeWithText("Conversation").assertDoesNotExist()
-        composeRule.onNodeWithTag("donor-tab-REQUESTS").assertIsDisplayed().assertIsSelected()
+        composeRule.onNodeWithTag("nav-REQUESTS").assertIsSelected()
+        composeRule.onNodeWithText("Matching requests").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Message requester").performScrollTo().assertIsDisplayed()
         assertOpenedTimes(1)
     }
@@ -129,12 +128,11 @@ open class ConversationNavigationTest {
         val opened = mutableListOf<Pair<String, String>>()
         composeRule.setContent {
             LifeLinkTheme {
-                DonorScreen(state.value, onAction = {}, onBack = {}, onOpenConversation = { requestId, donorId ->
+                DonorRequestsScreen(state.value, onAction = {}, onOpenConversation = { requestId, donorId ->
                     opened += requestId to donorId
                 })
             }
         }
-        composeRule.onNodeWithText("Requests", substring = false).performClick()
 
         for (response in listOf(null, DonorResponse.DECLINED, DonorResponse.ACCEPTED, DonorResponse.ARRIVED)) {
             composeRule.runOnIdle { state.value = state.value.copy(requests = listOf(request.copy(response = response))) }
@@ -202,7 +200,7 @@ open class ConversationNavigationTest {
     fun unsaved_profile_radius_and_gps_controls_survive_full_screen_transitions() {
         composeRule.setContent {
             LifeLinkTheme {
-                DonorScreen(DonorUiState(profile = profile), onAction = {}, onBack = {})
+                DonorScreen(DonorUiState(profile = profile), onAction = {})
             }
         }
         composeRule.onNodeWithText("Edit donor profile").performScrollTo().performClick()

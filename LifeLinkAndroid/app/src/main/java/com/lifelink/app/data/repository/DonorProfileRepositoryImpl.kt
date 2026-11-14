@@ -31,8 +31,8 @@ class DonorProfileRepositoryImpl(private val api: LifeLinkApi) : DonorProfileRep
     }
 
     override suspend fun save(profile: DonorProfileMe): DonorProfileMe = withContext(Dispatchers.IO) {
-        val latitude = checkNotNull(profile.latitude) { "Capture your current GPS location before saving." }
-        val longitude = checkNotNull(profile.longitude) { "Capture your current GPS location before saving." }
+        val latitude = checkNotNull(profile.latitude) { "Capture a current location before saving." }
+        val longitude = checkNotNull(profile.longitude) { "Capture a current location before saving." }
         val response = api.upsertDonorProfile(profile.toRequest())
         check(response.isSuccessful) {
             // Do not surface arbitrary backend detail text: it may contain implementation

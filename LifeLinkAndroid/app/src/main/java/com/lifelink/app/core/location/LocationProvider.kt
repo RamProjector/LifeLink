@@ -1,7 +1,9 @@
 package com.lifelink.app.core.location
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.LocationRequest
@@ -14,15 +16,16 @@ import kotlin.coroutines.resume
 import kotlin.math.roundToInt
 
 class LocationProvider(context: Context) {
-    private val client = LocationServices.getFusedLocationProviderClient(context)
-    private val settingsClient = LocationServices.getSettingsClient(context)
+    private val appContext = context.applicationContext
+    private val client = LocationServices.getFusedLocationProviderClient(appContext)
+    private val settingsClient = LocationServices.getSettingsClient(appContext)
 
     fun checkLocationSettings(
         onReady: () -> Unit,
         onNeedsResolution: (ResolvableApiException) -> Unit,
         onFailure: () -> Unit,
     ) {
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, LOCATION_TIMEOUT_MILLIS)
+        val request = LocationRequest.Builder(locationPriority(), LOCATION_TIMEOUT_MILLIS)
             .setDurationMillis(LOCATION_TIMEOUT_MILLIS)
             .build()
         val settings = LocationSettingsRequest.Builder()
@@ -39,7 +42,7 @@ class LocationProvider(context: Context) {
     suspend fun currentLocation(): DeviceLocation? = suspendCancellableCoroutine { continuation ->
         val cancellation = CancellationTokenSource()
         val request = CurrentLocationRequest.Builder()
-            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+            .setPriority(locationPriority())
             .setMaxUpdateAgeMillis(MAX_CACHED_LOCATION_AGE_MILLIS)
             .setDurationMillis(LOCATION_TIMEOUT_MILLIS)
             .build()
@@ -53,6 +56,15 @@ class LocationProvider(context: Context) {
                 if (continuation.isActive) continuation.resume(null)
             }
     }
+
+    private fun locationPriority(): Int =
+        if (appContext.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            Priority.PRIORITY_HIGH_ACCURACY
+        } else {
+            // Coarse-only access should use a balanced request instead of prompting
+            // the device to enable high-accuracy location services.
+            Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        }
 
     private fun android.location.Location.toDeviceLocation(): DeviceLocation? {
         val accuracy = accuracy.takeIf { it.isFinite() && it > 0f }?.roundToInt() ?: return null

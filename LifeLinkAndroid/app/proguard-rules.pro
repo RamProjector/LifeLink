@@ -1,9 +1,8 @@
 # LifeLink R8 / ProGuard rules.
 #
-# The release build currently ships with `isMinifyEnabled = false`, so these
-# rules are inert today. They are committed now so that enabling R8 later is a
-# one-line change (`isMinifyEnabled = true`) rather than a debugging session.
-# They are also exercised by `./gradlew assembleRelease` in CI.
+# Release builds enable R8 minification and resource shrinking. These rules keep
+# runtime-reflected DTOs and Android entry points working in optimized builds.
+# The release rules are exercised by the Android build workflow.
 
 # --- Kotlin / coroutines -----------------------------------------------------
 -dontwarn kotlinx.coroutines.**

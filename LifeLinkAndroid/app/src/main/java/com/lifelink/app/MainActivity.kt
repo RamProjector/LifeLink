@@ -460,6 +460,7 @@ class MainActivity : ComponentActivity() {
                     onMarkAllUpdatesRead = updatesViewModel::markAllRead,
                     notificationOpenUpdates = notificationOpenUpdates,
                     notificationRequestId = notificationRequestId,
+                    canRequest = canRequest,
                 )
             }
         }

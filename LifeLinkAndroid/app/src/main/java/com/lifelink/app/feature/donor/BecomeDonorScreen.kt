@@ -367,7 +367,7 @@ private fun DonorIdentityFields(profile: DonorProfileMe, onAction: (BecomeDonorA
     )
 }
 
-/** Requires a fresh device GPS fix; users cannot type or pin arbitrary coordinates. */
+/** Requires a fresh device location capture; users cannot type or pin arbitrary coordinates. */
 @Composable
 private fun GpsLocationCapture(
     latitude: Double?,
@@ -413,8 +413,8 @@ private fun GpsLocationCapture(
             onCaptureStateChanged(false)
             setState(
                 readState().copy(
-                    message = "Precise location permission is required to register as a donor. " +
-                        "Enable it in app settings to continue.",
+                    message = "Location access is needed to include your area in donor matching. " +
+                        "Approximate access is enough; precise access is optional.",
                     messageLevel = LifeLinkFeedbackLevel.Error,
                     settingsAction = GpsSettingsAction.APP_PERMISSION,
                 ),
@@ -443,15 +443,23 @@ private fun rememberGpsPermissionRequest(
     onDenied: () -> Unit,
 ): () -> Unit {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
-        if (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true) onGranted() else onDenied()
-    }
-    return {
-        val fineGranted = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED
-        if (fineGranted) {
+        if (
+            grants[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        ) {
             onGranted()
         } else {
-            launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+            onDenied()
+        }
+    }
+    return {
+        val locationGranted =
+            context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (locationGranted) {
+            onGranted()
+        } else {
+            launcher.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION))
         }
     }
 }
@@ -494,7 +502,7 @@ private fun checkDeviceLocationSettings(
         onNeedsResolution = { error ->
             setState(
                 readState().copy(
-                    message = "Turn on device location to capture a current GPS fix.",
+                    message = "Turn on device location to capture your current area.",
                     messageLevel = LifeLinkFeedbackLevel.Warning,
                     settingsAction = GpsSettingsAction.DEVICE_LOCATION,
                 ),
@@ -552,7 +560,7 @@ private fun launchGpsCapture(
             if (location == null) {
                 setState(
                     readState().copy(
-                        message = "No recent GPS fix was available. Move to an open area and try again.",
+                        message = "No recent location fix was available. Move to an open area and try again.",
                         messageLevel = LifeLinkFeedbackLevel.Error,
                     ),
                 )
@@ -561,7 +569,7 @@ private fun launchGpsCapture(
                 onCaptureStateChanged(true)
                 setState(
                     readState().copy(
-                        message = "Current GPS captured (about ±${location.precisionMeters} m accuracy).",
+                        message = "Current location captured (estimated accuracy ±${location.precisionMeters} m).",
                         messageLevel = LifeLinkFeedbackLevel.Success,
                     ),
                 )

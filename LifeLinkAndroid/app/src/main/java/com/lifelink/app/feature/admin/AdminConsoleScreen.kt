@@ -388,7 +388,7 @@ private suspend fun updateUser(
         user.userId,
         AdminUserUpdateRequest(
             role = role,
-            canRequest = role == "requester",
+            canRequest = role == "requester" || role == "donor",
             canDonate = role == "donor",
         ),
     )

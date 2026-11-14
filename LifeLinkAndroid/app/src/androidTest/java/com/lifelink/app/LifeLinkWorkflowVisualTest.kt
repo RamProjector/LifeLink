@@ -180,7 +180,7 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.activity.runOnUiThread {
             composeRule.activity.setContent {
                 LifeLinkTheme(themeMode = testTheme) {
-                    DonorScreen(state = DonorUiState(), onAction = {}, onBack = {})
+                    DonorScreen(state = DonorUiState(), onAction = {})
                 }
             }
         }
@@ -576,41 +576,40 @@ open class LifeLinkWorkflowVisualTest {
     private fun verifyProfileSettings() {
         composeRule.onNodeWithTag("open-profile").performClick()
         composeRule.waitForIdle()
-        assertVisible("Profile, notifications, privacy, safety, and app preferences.")
+        assertVisible("Profile")
+        assertVisible("Donor capability")
 
         tapTab("Settings")
         composeRule.onNodeWithTag("settings-screen-title").assertIsDisplayed()
-        capture("workflow-settings-profile")
+        assertVisible("Privacy & safety")
+        capture("workflow-settings")
 
-        tap("Notifications")
+        composeRule.onNodeWithTag("settings-NOTIFICATIONS").performClick()
         assertVisible("Manage device notifications")
         capture("workflow-settings-notifications")
+        composeRule.onNodeWithTag("settings-subpage-back").performClick()
 
-        tap("Privacy")
-        assertVisible("Privacy Center")
+        composeRule.onNodeWithTag("settings-PRIVACY").performClick()
+        assertVisible("Location and matching")
         assertVisible("Consent required")
         assertVisible("Not available in-app yet")
+        assertVisible("Legal documents")
         capture("workflow-settings-privacy")
-
-        tap("Legal")
-        assertVisible("Legal Documents")
         composeRule.onNodeWithText("Privacy Policy").performClick()
         assertVisible("What this app does")
         composeRule.onNodeWithText("Close").performClick()
         composeRule.onNodeWithText("Terms and Conditions").performClick()
         assertVisible("Emergency and medical limitation")
         composeRule.onNodeWithText("Close").performClick()
+        assertVisible("Send password reset link")
+        composeRule.onNodeWithTag("settings-subpage-back").performClick()
 
-        tap("Theme")
+        composeRule.onNodeWithTag("settings-APPEARANCE").performClick()
         assertVisible("Use device setting")
-        capture("workflow-settings-theme")
+        capture("workflow-settings-appearance")
+        composeRule.onNodeWithTag("settings-subpage-back").performClick()
 
-        tap("Security")
-        assertVisible("Reset password")
-        capture("workflow-settings-security")
-
-        tap("Help & FAQ")
-        assertVisible("Help & FAQ")
+        composeRule.onNodeWithTag("settings-HELP").performClick()
         assertVisible("Is LifeLink an emergency service?")
         capture("workflow-settings-help")
     }
@@ -640,7 +639,7 @@ open class LifeLinkWorkflowVisualTest {
         composeRule.onNodeWithTag("nav-MAP").assertIsSelected()
 
         composeRule.onNodeWithTag("nav-UPDATES")
-            .assert(hasText("Updates", substring = false))
+            .assert(hasText("Chats", substring = false))
             .performClick()
         composeRule.onNodeWithTag("nav-UPDATES").assertIsSelected()
         capture("navigation-updates-selected")
@@ -655,9 +654,17 @@ open class LifeLinkWorkflowVisualTest {
     }
 
     @Test
-    fun returningDonorLandsOnHome() {
+    fun donorHomeKeepsRequestCreationOutOfDonorMode() {
         render(role = UserRole.DONOR)
-        assertVisible("Your requests")
+        composeRule.onNodeWithTag("nav-HOME").assertIsSelected()
+        composeRule.onNodeWithTag("donor-home-screen").assertIsDisplayed()
+        assertVisible("Ready to help")
+        composeRule.onNodeWithText("Matching requests").assertDoesNotExist()
+        composeRule.onNodeWithText("Create emergency request").assertDoesNotExist()
+
+        tapTab("Requests")
+        assertVisible("Finish donor setup")
+        composeRule.onNodeWithText("Create emergency request").assertDoesNotExist()
     }
 
     @Test
@@ -709,11 +716,6 @@ open class LifeLinkWorkflowVisualTest {
 
     private fun tapTab(label: String) {
         composeRule.onNodeWithTag("nav-${label.uppercase()}").performClick()
-        composeRule.waitForIdle()
-    }
-
-    private fun tap(label: String) {
-        composeRule.onNodeWithTag("settings-${label.uppercase()}").performClick()
         composeRule.waitForIdle()
     }
 

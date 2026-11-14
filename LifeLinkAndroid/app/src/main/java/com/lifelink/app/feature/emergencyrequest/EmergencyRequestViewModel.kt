@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.lifelink.app.domain.ActiveRequestSnapshot
-import com.lifelink.app.domain.ActiveRequestStatus
 import com.lifelink.app.domain.DiscoveredDonor
 import com.lifelink.app.domain.EmergencyRequestDraft
 import com.lifelink.app.domain.EmergencyRequestRepository
@@ -71,11 +70,7 @@ data class EmergencyRequestUiState(
 ) {
     val hasActiveRequest: Boolean
         get() = activeRequest?.let { !it.isTerminal } ?: requestHistory.any { request ->
-            request.status !in setOf(
-                ActiveRequestStatus.FULFILLED,
-                ActiveRequestStatus.EXPIRED,
-                ActiveRequestStatus.CANCELLED,
-            )
+            !request.status.isTerminal
         }
 }
 

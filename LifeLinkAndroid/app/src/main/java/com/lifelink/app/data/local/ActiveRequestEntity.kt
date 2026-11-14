@@ -17,7 +17,7 @@ data class ActiveRequestEntity(
     val notificationsCreated: Int,
     val matchesResponded: Int,
     val reason: String?,
-    val lastUpdatedEpochMillis: Long
+    val lastUpdatedEpochMillis: Long,
 )
 
 @Dao
@@ -40,11 +40,11 @@ interface ActiveRequestDao {
 
 fun ActiveRequestEntity.toDomain(): ActiveRequestSnapshot = ActiveRequestSnapshot(
     requestId = requestId,
-    status = runCatching { ActiveRequestStatus.valueOf(status) }.getOrDefault(ActiveRequestStatus.MATCHING),
+    status = ActiveRequestStatus.fromApi(status),
     notificationsCreated = notificationsCreated,
     matchesResponded = matchesResponded,
     reason = reason,
-    lastUpdatedEpochMillis = lastUpdatedEpochMillis
+    lastUpdatedEpochMillis = lastUpdatedEpochMillis,
 )
 
 fun ActiveRequestSnapshot.toEntity(ownerId: String): ActiveRequestEntity = ActiveRequestEntity(
@@ -54,5 +54,5 @@ fun ActiveRequestSnapshot.toEntity(ownerId: String): ActiveRequestEntity = Activ
     notificationsCreated = notificationsCreated,
     matchesResponded = matchesResponded,
     reason = reason,
-    lastUpdatedEpochMillis = lastUpdatedEpochMillis
+    lastUpdatedEpochMillis = lastUpdatedEpochMillis,
 )

@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <!-- The file contains Supabase access and refresh tokens. -->
+        <!-- Keep credentials and sensitive emergency request data out of cloud backup. -->
         <exclude domain="sharedpref" path="lifelink_auth.xml" />
+        <exclude domain="sharedpref" path="lifelink_auth_encrypted.xml" />
+        <exclude domain="database" path="lifelink.db" />
     </cloud-backup>
     <device-transfer>
-        <!-- Exclude it from direct device-to-device migration too. -->
+        <!-- Do not transfer credentials or sensitive emergency request data. -->
         <exclude domain="sharedpref" path="lifelink_auth.xml" />
+        <exclude domain="sharedpref" path="lifelink_auth_encrypted.xml" />
+        <exclude domain="database" path="lifelink.db" />
     </device-transfer>
 </data-extraction-rules>

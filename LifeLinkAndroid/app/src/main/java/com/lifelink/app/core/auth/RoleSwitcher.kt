@@ -3,9 +3,8 @@ package com.lifelink.app.core.auth
 /**
  * Pure role-switching rules shared by the UI and its unit tests.
  *
- * Switching roles must swap the whole tab set and its state in both directions,
- * so the meaning of "what does this role allow" lives here instead of being
- * scattered across composables.
+ * Role changes update account capabilities and which Home content is shown;
+ * the app keeps the same bottom-navigation destinations for both modes.
  */
 object RoleSwitcher {
 
@@ -26,8 +25,8 @@ object RoleSwitcher {
             UserRole.DONOR -> RoleCapabilities(canRequest = true, canDonate = true)
         }
 
-    /** Whether the donor workspace should be the landing surface for a role. */
-    fun opensDonorWorkspace(role: UserRole): Boolean = role == UserRole.DONOR
+    /** Whether the Home destination should render donor controls for this role. */
+    fun showsDonorHome(role: UserRole): Boolean = role == UserRole.DONOR
 }
 
 data class RoleCapabilities(val canRequest: Boolean, val canDonate: Boolean)
