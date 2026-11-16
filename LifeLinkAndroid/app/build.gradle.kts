@@ -322,7 +322,7 @@ dependencies {
     add("uiTestImplementation", "com.squareup.okhttp3:mockwebserver:5.5.0")
 
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("androidx.test:core:1.7.0")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.5.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
