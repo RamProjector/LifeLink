@@ -203,7 +203,7 @@ class SupabaseAuthRepository(
             runCatching {
                 require(userId.isNotBlank()) { "Sign in again before changing your password." }
                 require(currentPassword.isNotBlank()) { "Enter your current password." }
-                require(newPassword.length >= 6) { "Use a password with at least 6 characters." }
+                require(newPassword.length >= MIN_PASSWORD_LENGTH) { "Use a password with at least 6 characters." }
                 val currentSession = sessionStore.session.value
                     ?.takeIf { it.userId == userId }
                     ?: error("Your signed-in account changed. Please try again.")
@@ -246,6 +246,7 @@ class SupabaseAuthRepository(
                         email = verified.user?.email ?: currentSession.email,
                     ),
                 )
+                Unit
             }
         }
 
@@ -323,9 +324,14 @@ class SupabaseAuthRepository(
 
     private suspend fun simpleAuthAction(call: suspend () -> Response<Unit>): Result<Unit> =
         withContext(Dispatchers.IO) {
-            runCatching {                if (publishableKey.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
+            runCatching {
+                if (publishableKey.isBlank()) {
+                    error("Add the Supabase URL and publishable key to the Android build")
+                }
                 val response = call()
-                if (!response.isSuccessful) error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+                if (!response.isSuccessful) {
+                    error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+                }
             }
         }
 
@@ -356,6 +362,7 @@ class SupabaseAuthRepository(
         const val RECOVERY_REDIRECT_URI = "lifelink://auth/recovery"
         const val SIGNUP_REDIRECT_URI = "lifelink://auth/confirm"
         const val EMAIL_CHANGE_REDIRECT_URI = "lifelink://auth/email-change"
+        const val MIN_PASSWORD_LENGTH = 6
         val EMAIL_PATTERN = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
     }
 }
