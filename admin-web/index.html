@@ -23,11 +23,12 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
 </main>
 <main id="app-view" class="wrap hidden">
  <div class="headrow"><div><div class="eyebrow">Operations overview</div><h1>Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary">Refresh data</button></div></div>
- <nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview">Overview</button><button class="tab" data-page="users">User management</button><button class="tab" data-page="audit">Security activity</button><button class="tab" data-page="sessions">Sessions</button><button class="tab" data-page="errors">System errors</button></nav>
+ <nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview">Overview</button><button class="tab" data-page="users">User management</button><button class="tab" data-page="audit">Security activity</button><button class="tab" data-page="sessions">Sessions</button><button class="tab" data-page="alerts">Security alerts</button><button class="tab" data-page="errors">System errors</button></nav>
  <section id="page-overview"><div class="grid"><div class="stat"><small>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small>Donor records</small><strong id="stat-donors">—</strong></div><div class="stat"><small>Emergency requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small>Authorization</small><strong style="font-size:20px;color:var(--green)">Verified</strong></div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is checked by the API on every request. User capability changes are audited. Audit records are read-only in this interface. Error entries contain operational context, not passwords or access tokens.</p><p id="generated" class="small muted"></p></div></section>
  <section id="page-users" class="panel hidden"><h2>User management</h2><p class="muted small">Change requester/donor capabilities only. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled>Previous</button><button id="users-next" class="secondary" disabled>Next</button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
  <section id="page-audit" class="panel hidden"><h2>Audit history</h2><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div><div class="actions" style="margin-top:14px"><button id="audit-prev" class="secondary" disabled>Previous</button><button id="audit-next" class="secondary" disabled>Next</button><span id="audit-page" class="muted small" aria-live="polite"></span></div></section>
  <section id="page-sessions" class="panel hidden"><h2>User sessions</h2><p class="muted small">Sessions are recorded when an administrator uses the protected console. Revocation blocks subsequent admin API requests using that session.</p><div id="sessions-table" class="tablewrap"><div class="empty">Select Sessions to load records.</div></div><div class="actions" style="margin-top:14px"><button id="sessions-prev" class="secondary" disabled>Previous</button><button id="sessions-next" class="secondary" disabled>Next</button><span id="sessions-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-alerts" class="panel hidden"><h2>Security alerts</h2><p class="muted small">Detected events are grouped into deduplicated incidents. Review evidence and update the investigation status.</p><div id="alerts-table" class="tablewrap"><div class="empty">Select Security alerts to load incidents.</div></div><div class="actions" style="margin-top:14px"><button id="alerts-prev" class="secondary" disabled>Previous</button><button id="alerts-next" class="secondary" disabled>Next</button><span id="alerts-page" class="muted small" aria-live="polite"></span></div></section>
  <section id="page-errors" class="panel hidden"><h2>Application errors</h2><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div><div class="actions" style="margin-top:14px"><button id="errors-prev" class="secondary" disabled>Previous</button><button id="errors-next" class="secondary" disabled>Next</button><span id="errors-page" class="muted small" aria-live="polite"></span></div></section>
  <div id="app-message" class="notice hidden" role="status" aria-live="polite"></div><p class="foot">LifeLink Admin · Keep this browser session private. Sign out when finished.</p>
 </main>
@@ -38,7 +39,7 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
  const API_BASE_URL = "https://lifelink-api-uzje.onrender.com";
  let accessToken = null, activePage = "overview";
  const pageSize = 50;
- const offsets = { users: 0, audit: 0, sessions: 0, errors: 0 };
+ const offsets = { users: 0, audit: 0, sessions: 0, alerts: 0, errors: 0 };
  const $ = id => document.getElementById(id);
  const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
  const message = (id, text, error=false) => { const el=$(id); el.textContent=text; el.classList.toggle("hidden",!text); el.classList.toggle("error",error); };
@@ -101,6 +102,26 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
      catch(e){message("app-message",e.message,true);}
    }));
  }
+ async function loadAlerts() {
+   const offset=offsets.alerts;
+   const data=await api("/v1/admin/security/alerts?limit="+pageSize+"&offset="+offset);
+   $("alerts-prev").disabled=offset===0;
+   $("alerts-next").disabled=data.items.length<pageSize;
+   $("alerts-page").textContent=data.items.length===0?"No alerts on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
+   $("alerts-table").innerHTML=table(data.items,[
+     {label:"Rule",render:a=>'<strong>'+esc(a.rule_id)+'</strong><br><span class="tag">'+esc(a.severity)+'</span>'},
+     {label:"Status",render:a=>'<span class="tag '+(a.status==="open"?"fail":"")+'">'+esc(a.status)+'</span>'},
+     {label:"User / Session",render:a=>'<code>'+esc(a.user_id)+'</code><br><code>'+esc(a.session_id||"—")+'</code>'},
+     {label:"Incident",render:a=>esc(a.summary)+'<br><span class="muted small">'+esc(a.occurrences)+' occurrences</span>'},
+     {label:"Last seen",render:a=>esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")},
+     {label:"Evidence",render:a=>'<code>'+esc(JSON.stringify(a.evidence||{}))+'</code>'},
+     {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" data-alert="'+esc(a.id)+'" data-status="acknowledged">Acknowledge</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="investigating">Investigate</button><button data-alert="'+esc(a.id)+'" data-status="resolved">Resolve</button></div>'}
+   ]);
+   $("alerts-table").querySelectorAll("button[data-alert]").forEach(btn=>btn.addEventListener("click",async()=>{
+     try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");await loadAlerts();}
+     catch(e){message("app-message",e.message,true);}
+   }));
+ }
  async function loadEvents(kind) {
    const offset=offsets[kind];
    const data=await api("/v1/admin/"+kind+"?limit="+pageSize+"&offset="+offset);
@@ -112,13 +133,14 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
  }
  async function loadPage(page) {
    activePage=page; document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
-   ["overview","users","audit","sessions","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
+   ["overview","users","audit","sessions","alerts","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
    message("app-message","");
    try {
      if(page==="overview"){const d=await api("/v1/admin/dashboard");$("stat-users").textContent=d.users;$("stat-donors").textContent=d.donors;$("stat-requests").textContent=d.requests;$("generated").textContent="Updated "+new Date(d.generated_at).toLocaleString()+" · Correlation ID "+d.correlation_id;}
      if(page==="users") await loadUsers();
      if(page==="audit") await loadEvents("audit");
      if(page==="sessions") await loadSessions();
+     if(page==="alerts") await loadAlerts();
      if(page==="errors") await loadEvents("errors");
    } catch(e) { message("app-message",e.message||"Could not load data.",true); }
  }
@@ -126,7 +148,7 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
  $("password").addEventListener("keydown",e=>{if(e.key==="Enter")signIn()});
  document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>loadPage(b.dataset.page)));
  $("refresh").addEventListener("click",()=>loadPage(activePage));
- ["users","audit","sessions","errors"].forEach(kind=>{
+ ["users","audit","sessions","alerts","errors"].forEach(kind=>{
    $(kind+"-prev").addEventListener("click",()=>{offsets[kind]=Math.max(0,offsets[kind]-pageSize);loadPage(kind==="users"?"users":kind);});
    $(kind+"-next").addEventListener("click",()=>{offsets[kind]+=pageSize;loadPage(kind==="users"?"users":kind);});
  });
