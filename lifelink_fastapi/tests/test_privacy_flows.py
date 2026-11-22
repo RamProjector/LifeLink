@@ -1957,3 +1957,173 @@ def test_profile_change_rolls_back_when_audit_insert_fails(pg_url):
         assert update_events == [(0,)]
 
     run_scenario(pg_url, scenario)
+
+
+
+async def create_separate_donor_profile(client, current, user_id: str) -> None:
+    current["id"] = user_id
+    account = await client.put(
+        "/v1/profile",
+        json={
+            "role": "donor",
+            "display_name": "Separate Donor",
+            "can_request": True,
+            "can_donate": False,
+        },
+    )
+    assert account.status_code == 200, account.text
+    donor = await client.put(
+        "/v1/donor-profile",
+        json={
+            "blood_type": "O+",
+            "latitude": 11.2433,
+            "longitude": 125.0,
+            "area": "Tacloban",
+            "service_radius_km": 15,
+            "availability_status": "offline",
+            "notifications_enabled": True,
+            "display_name": "Separate Donor",
+            "donor_note": "",
+            "preferred_contact_method": "in_app",
+            "profile_visible": True,
+        },
+    )
+    assert donor.status_code == 200, donor.text
+
+
+def test_donor_availability_changes_are_audited_without_location_data(pg_url):
+    async def scenario(client, current, run_sql):
+        user = new_user("separate-donor")
+        await create_separate_donor_profile(client, current, user)
+
+        current["id"] = user
+        changed = await client.patch(
+            "/v1/donor-profile/availability",
+            json={"availability_status": "available"},
+        )
+        assert changed.status_code == 200, changed.text
+
+        events = await run_sql(
+            "SELECT actor_id, action, donor_id, metadata FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_availability_changed'"
+        )
+        assert len(events) == 1
+        assert events[0] == (
+            user,
+            "donor_availability_changed",
+            user,
+            {"from": "offline", "to": "available"},
+        )
+
+        # Repeating the same preference is idempotent and does not create noise.
+        repeated = await client.patch(
+            "/v1/donor-profile/availability",
+            json={"availability_status": "available"},
+        )
+        assert repeated.status_code == 200, repeated.text
+        count = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_availability_changed'"
+        )
+        assert count == [(1,)]
+
+        metadata_text = str(events[0][3])
+        assert "latitude" not in metadata_text
+        assert "longitude" not in metadata_text
+        assert "blood_type" not in metadata_text
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_profile_removal_is_audited_with_capability_reset(pg_url):
+    async def scenario(client, current, run_sql):
+        user = new_user("separate-donor")
+        await create_separate_donor_profile(client, current, user)
+
+        current["id"] = user
+        removed = await client.delete("/v1/donor-profile")
+        assert removed.status_code == 204, removed.text
+
+        profile_rows = await run_sql(
+            "SELECT COUNT(*) FROM donor_profiles "
+            f"WHERE user_id = '{user}'"
+        )
+        account_rows = await run_sql(
+            "SELECT can_donate FROM lifelink_profiles "
+            f"WHERE user_id = '{user}'"
+        )
+        donor_rows = await run_sql(
+            "SELECT available, profile_visible FROM donors "
+            f"WHERE user_id = '{user}'"
+        )
+        events = await run_sql(
+            "SELECT actor_id, action, donor_id, metadata FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_profile_deleted'"
+        )
+
+        assert profile_rows == [(0,)]
+        assert account_rows == [(False,)]
+        assert donor_rows == [(False, False)]
+        assert events == [
+            (
+                user,
+                "donor_profile_deleted",
+                user,
+                {"profile_removed": True, "operational_donor_disabled": True},
+            )
+        ]
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_profile_delete_rolls_back_when_audit_insert_fails(pg_url):
+    """An audit failure must not partially opt out or disable the donor."""
+    async def scenario(client, current, run_sql):
+        user = new_user("separate-donor")
+        await create_separate_donor_profile(client, current, user)
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_donor_profile_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'donor_profile_deleted' THEN "
+                + "RAISE EXCEPTION 'injected donor profile audit failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_donor_profile_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_donor_profile_audit()"
+            )
+        await trigger_engine.dispose()
+
+        current["id"] = user
+        failed = await client.delete("/v1/donor-profile")
+        assert failed.status_code == 503, failed.text
+
+        profile_rows = await run_sql(
+            "SELECT COUNT(*) FROM donor_profiles "
+            f"WHERE user_id = '{user}'"
+        )
+        account_rows = await run_sql(
+            "SELECT can_donate FROM lifelink_profiles "
+            f"WHERE user_id = '{user}'"
+        )
+        donor_rows = await run_sql(
+            "SELECT available, profile_visible FROM donors "
+            f"WHERE user_id = '{user}'"
+        )
+        delete_events = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_profile_deleted'"
+        )
+        assert profile_rows == [(1,)]
+        assert account_rows == [(True,)]
+        assert donor_rows == [(False, True)]
+        assert delete_events == [(0,)]
+
+    run_scenario(pg_url, scenario)
