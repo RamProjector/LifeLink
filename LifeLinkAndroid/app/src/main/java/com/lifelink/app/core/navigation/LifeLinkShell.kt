@@ -509,6 +509,8 @@ fun LifeLinkShell(
                                     centerLongitude = state.draft.requesterLongitude,
                                     showCloseButton = false,
                                     embeddedInShell = true,
+                                    onOpenNotifications = { showNotifications = true },
+                                    onOpenProfile = { tab = ShellTab.SETTINGS },
                                 )
                             ShellTab.UPDATES ->
                                 MessagingScreen(
