@@ -209,6 +209,7 @@ def test_admin_audit_metadata_is_bounded():
         ("GET", "/v1/admin/audit", None),
         ("GET", "/v1/admin/sessions", None),
         ("GET", "/v1/admin/security/alerts", None),
+        ("PATCH", "/v1/admin/security/alerts/00000000-0000-0000-0000-000000000001", {"status": "resolved"}),
         ("GET", "/v1/admin/errors", None),
         ("PATCH", "/v1/admin/users/another-user", {
             "role": "donor",
@@ -273,7 +274,7 @@ def test_admin_requires_session_context(monkeypatch):
 
     async def check():
         with pytest.raises(HTTPException) as error:
-            await require_admin(Principal(subject="admin-1", email_verified=True), session=object())
+            await require_admin(Principal(subject="admin-1", email_verified=True), session=FakeSession(), request=_request_context())
         assert error.value.status_code == 401
         assert "Session context" in error.value.detail
 
