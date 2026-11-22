@@ -75,7 +75,7 @@ def test_admin_allowlist_grants_only_configured_subject(monkeypatch):
 
     async def check():
         principal = await require_admin(
-            Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
             session=FakeSession([0]),
             request=_request_context(),
         )
