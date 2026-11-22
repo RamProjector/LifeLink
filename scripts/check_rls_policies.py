@@ -85,18 +85,18 @@ CREATE_POLICY_RE = re.compile(
 # roles must not retain direct PostgREST privileges on backend-owned objects.
 CLIENT_PRIVILEGE_REVOKES = {
     "existing public tables": re.compile(
-        r"REVOKE\\s+ALL(?:\\s+PRIVILEGES)?\\s+ON\\s+ALL\\s+TABLES\\s+"
-        r"IN\\s+SCHEMA\\s+public\\s+FROM\\s+PUBLIC\\s*,\\s*anon\\s*,\\s*authenticated",
+        r"REVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+ALL\s+TABLES\s+"
+        r"IN\s+SCHEMA\s+public\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
         re.IGNORECASE,
     ),
     "existing public sequences": re.compile(
-        r"REVOKE\\s+ALL(?:\\s+PRIVILEGES)?\\s+ON\\s+ALL\\s+SEQUENCES\\s+"
-        r"IN\\s+SCHEMA\\s+public\\s+FROM\\s+PUBLIC\\s*,\\s*anon\\s*,\\s*authenticated",
+        r"REVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+ALL\s+SEQUENCES\s+"
+        r"IN\s+SCHEMA\s+public\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
         re.IGNORECASE,
     ),
     "existing public functions": re.compile(
-        r"REVOKE\\s+EXECUTE\\s+ON\\s+ALL\\s+FUNCTIONS\\s+"
-        r"IN\\s+SCHEMA\\s+public\\s+FROM\\s+PUBLIC\\s*,\\s*anon\\s*,\\s*authenticated",
+        r"REVOKE\s+EXECUTE\s+ON\s+ALL\s+FUNCTIONS\s+"
+        r"IN\s+SCHEMA\s+public\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
         re.IGNORECASE,
     ),
 }
@@ -104,21 +104,21 @@ CLIENT_PRIVILEGE_REVOKES = {
 DEFAULT_PRIVILEGE_REVOKES = {}
 for _owner in ("postgres", "supabase_admin"):
     DEFAULT_PRIVILEGE_REVOKES[f"{_owner} future tables"] = re.compile(
-        rf"ALTER\\s+DEFAULT\\s+PRIVILEGES\\s+FOR\\s+ROLE\\s+{_owner}\\s+"
-        r"IN\\s+SCHEMA\\s+public\\s+REVOKE\\s+ALL\\s+ON\\s+TABLES\\s+"
-        r"FROM\\s+PUBLIC\\s*,\\s*anon\\s*,\\s*authenticated",
+        rf"ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+{_owner}\s+"
+        r"IN\s+SCHEMA\s+public\s+REVOKE\s+ALL\s+ON\s+TABLES\s+"
+        r"FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
         re.IGNORECASE,
     )
     DEFAULT_PRIVILEGE_REVOKES[f"{_owner} future sequences"] = re.compile(
-        rf"ALTER\\s+DEFAULT\\s+PRIVILEGES\\s+FOR\\s+ROLE\\s+{_owner}\\s+"
-        r"IN\\s+SCHEMA\\s+public\\s+REVOKE\\s+ALL\\s+ON\\s+SEQUENCES\\s+"
-        r"FROM\\s+PUBLIC\\s*,\\s*anon\\s*,\\s*authenticated",
+        rf"ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+{_owner}\s+"
+        r"IN\s+SCHEMA\s+public\s+REVOKE\s+ALL\s+ON\s+SEQUENCES\s+"
+        r"FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
         re.IGNORECASE,
     )
     DEFAULT_PRIVILEGE_REVOKES[f"{_owner} future functions"] = re.compile(
-        rf"ALTER\\s+DEFAULT\\s+PRIVILEGES\\s+FOR\\s+ROLE\\s+{_owner}\\s+"
-        r"IN\\s+SCHEMA\\s+public\\s+REVOKE\\s+EXECUTE\\s+ON\\s+FUNCTIONS\\s+"
-        r"FROM\\s+PUBLIC\\s*,\\s*anon\\s*,\\s*authenticated",
+        rf"ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+{_owner}\s+"
+        r"IN\s+SCHEMA\s+public\s+REVOKE\s+EXECUTE\s+ON\s+FUNCTIONS\s+"
+        r"FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
         re.IGNORECASE,
     )
 
