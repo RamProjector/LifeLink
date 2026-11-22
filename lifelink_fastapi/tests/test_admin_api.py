@@ -14,8 +14,10 @@ from app.security import Principal
 class FakeSession:
     def __init__(self, scalar_values=None):
         self.scalar_values = list(scalar_values or [0])
+        self.statements = []
 
     async def execute(self, statement, params=None):
+        self.statements.append(str(statement))
         return None
 
     async def scalar(self, statement, params=None):
@@ -276,3 +278,28 @@ def test_admin_requires_session_context(monkeypatch):
         assert "Session context" in error.value.detail
 
     asyncio.run(check())
+
+
+
+def test_repeated_denied_admin_access_creates_deduplicated_alert():
+    from app.admin_api import _record_denied_admin_attempt
+
+    session = FakeSession([5])
+    request = _request_context()
+
+    async def check():
+        await _record_denied_admin_attempt(
+            session,
+            Principal(subject="regular-user", email_verified=True),
+            request,
+            rule_id="IDS-03",
+            action="security.admin_access.denied",
+            severity="high",
+            threshold=5,
+            summary="Repeated unauthorized admin access",
+        )
+
+    asyncio.run(check())
+    statements = "\n".join(session.statements)
+    assert "INSERT INTO audit_events" in statements
+    assert "INSERT INTO lifelink_security_alerts" in statements
