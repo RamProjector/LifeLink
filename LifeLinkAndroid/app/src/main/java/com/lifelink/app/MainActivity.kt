@@ -247,8 +247,7 @@ class MainActivity : ComponentActivity() {
                 DisposableEffect(accountModels) {
                     onDispose {
                         if (!this@MainActivity.isChangingConfigurations) accountModels.viewModelStore.clear()
-                    }
-                }
+                    }                }
                 val viewModel: EmergencyRequestViewModel =
                     viewModel(
                         viewModelStoreOwner = accountModels,
@@ -452,9 +451,9 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onRequestEmailChange = { newEmail, showMessage ->
-                        roleSyncScope.launch {
+                        app.launchAccountWrite(accountUserId) {
                             app.authRepository
-                                .requestEmailChange(signedInSession.accessToken, newEmail)
+                                .requestEmailChange(accountUserId, signedInSession.accessToken, newEmail)
                                 .onSuccess {
                                     showMessage("Confirmation sent to the new email. Your current email remains active until you confirm.")
                                 }
@@ -518,14 +517,3 @@ private fun AnimatedLifeLinkIcon() {
             .size((88 * pulse).dp)
             .rotate(if (inspection) 0f else spin)
             .clip(CircleShape),
-    )
-}
-
-/** Keeps account work across rotation and cancels it when the account leaves the UI. */
-class AccountViewModelStore :
-    ViewModel(),
-    ViewModelStoreOwner {
-    override val viewModelStore = ViewModelStore()
-
-    override fun onCleared() = viewModelStore.clear()
-}
