@@ -797,8 +797,7 @@ private fun RequestsContent(
                     }
                 }
             }
-            val activeFilterCount =
-                (if (historyFilter != "All") 1 else 0) +
+            val activeFilterCount =                (if (historyFilter != "All") 1 else 0) +
                     (if (searchQuery.isNotBlank()) 1 else 0)
             if (activeFilterCount > 0) {
                 item {
@@ -1597,8 +1596,7 @@ private fun HelpFaqContent() {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
+    ) {        Text(
             "Help & FAQ",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
@@ -2055,7 +2053,7 @@ private fun AccountEmailChangeControls(
     onRequestEmailChange: (String, (String) -> Unit) -> Unit,
 ) {
     var emailDraft by rememberSaveable(accountEmail) { mutableStateOf(accountEmail) }
-    var emailChangeSaving by rememberSaveable { mutableStateOf(false) }
+    var emailChangeSaving by remember { mutableStateOf(false) }
     var emailChangeMessage by rememberSaveable { mutableStateOf<String?>(null) }
 
     HorizontalDivider()
