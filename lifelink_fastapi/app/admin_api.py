@@ -19,7 +19,12 @@ router = APIRouter(prefix="/v1/admin", tags=["admin"])
 
 def _configured_admin_ids() -> set[str]:
     """Server-managed allowlist; never derive administrative access from user_metadata."""
-    return {item.strip() for item in os.getenv("LIFELINK_ADMIN_USER_IDS", "").split(",") if item.strip()}
+    return {
+        item.strip()
+        for setting in ("LIFELINK_ADMIN_USER_IDS", "LIFELINK_ADDITIONAL_ADMIN_USER_IDS")
+        for item in os.getenv(setting, "").split(",")
+        if item.strip()
+    }
 
 
 def require_admin(principal: Principal = Depends(get_postgres_principal)) -> Principal:
