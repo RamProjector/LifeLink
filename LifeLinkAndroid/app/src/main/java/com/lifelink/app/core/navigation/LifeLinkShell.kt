@@ -2047,7 +2047,10 @@ private fun AccountSecurityControls(
     Text("Account email", fontWeight = FontWeight.SemiBold)
     OutlinedTextField(
         value = emailDraft,
-        onValueChange = { emailDraft = it.take(254); emailChangeMessage = null },
+        onValueChange = {
+            emailDraft = it.take(254)
+            emailChangeMessage = null
+        },
         modifier = Modifier.fillMaxWidth().testTag("account-email-field"),
         label = { Text("New email address") },
         singleLine = true,
