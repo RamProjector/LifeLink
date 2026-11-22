@@ -63,7 +63,8 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
                     AuthCallbackKind.EMAIL_CHANGE_PENDING -> {
                         _state.value =
                             AuthState.Message(
-                                "Your first email confirmation is complete. Check your other email inbox and open its confirmation link to finish changing your address.",
+                                "Your first email confirmation is complete. Check your other email inbox " +
+                                    "and open its confirmation link to finish changing your address.",
                             )
                     }
                     AuthCallbackKind.CONFIRMATION, AuthCallbackKind.EMAIL_CHANGE -> {
@@ -73,7 +74,10 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
                                 .onSuccess { session -> _state.value = AuthState.SignedIn(session) }
                                 .onFailure {
                                     _state.value =
-                                        AuthState.Message(it.message ?: "Account confirmation could not be completed. Please sign in.", true)
+                                        AuthState.Message(
+                                            it.message ?: "Account confirmation could not be completed. Please sign in.",
+                                            true,
+                                        )
                                 }
                         }
                     }
