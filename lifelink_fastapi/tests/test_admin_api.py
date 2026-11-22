@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
@@ -16,7 +17,7 @@ def test_admin_allowlist_is_server_configured_not_user_claim(monkeypatch):
 
     async def check():
         with pytest.raises(HTTPException) as error:
-            await require_admin(Principal(subject="regular-user", role="admin", email_verified=True), session=object())
+            await require_admin(Principal(subject="regular-user", role="admin", email_verified=True), session=object(), request=SimpleNamespace(url=SimpleNamespace(path="/v1/admin/test"), method="GET", client=None, headers={}))
         assert error.value.status_code == 403
 
     asyncio.run(check())
@@ -43,7 +44,7 @@ def test_admin_allowlist_grants_only_configured_subject(monkeypatch):
     async def check():
         principal = await require_admin(
             Principal(subject="admin-1", email_verified=True, session_id="session-1"),
-            session=Session(),
+            session=Session(), request=SimpleNamespace(url=SimpleNamespace(path="/v1/admin/test"), method="GET", client=None, headers={}),
         )
         assert principal.subject == "admin-1"
 
@@ -162,6 +163,7 @@ def test_admin_audit_metadata_is_bounded():
         ("GET", "/v1/admin/users", None),
         ("GET", "/v1/admin/audit", None),
         ("GET", "/v1/admin/sessions", None),
+        ("GET", "/v1/admin/security/alerts", None),
         ("GET", "/v1/admin/errors", None),
         ("PATCH", "/v1/admin/users/another-user", {
             "role": "donor",
