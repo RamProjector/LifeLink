@@ -1031,10 +1031,6 @@ async def delete_donor_profile(
         raise HTTPException(status_code=401, detail="An authenticated user is required")
     require_verified_email(principal)
     await SqlAlchemyDonorProfileStore(session).delete(principal.subject)
-    profile = await session.get(LifeLinkProfile, principal.subject)
-    if profile is not None:
-        profile.can_donate = False
-        await session.commit()
 
 
 @app.get("/v1/donors/{donor_id}", response_model=DonorProfileOut)
