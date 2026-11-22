@@ -10,6 +10,7 @@ The admin console is an additional, restricted interface for the existing FastAP
 - **User management:** the current interface manages requester/donor capabilities only. It cannot assign admin status, delete accounts, or disable authentication identities.
 - **Session registry:** verified admin JWT session IDs are tracked in `lifelink_user_sessions` when the protected admin API is used. Admins can inspect and revoke recorded sessions. Revocation is checked on subsequent admin API requests; it does not claim to revoke Supabase refresh tokens or invalidate sessions on non-admin API routes yet.
 - **Audit trail:** admin session verification, dashboard views, user-list reads, user capability changes, session inventory/revocation, audit-log reads, error-log reads, denied admin requests, and unhandled API/database errors are written to `audit_events`. The IDS/IPS audit envelope adds `session_id`, `log_id`, `actions`, `description`, `ip_address`, `timestamp`, and `device_used`, while retaining legacy columns for compatibility. Event details deliberately omit passwords, bearer tokens, request bodies, blood type, and precise locations.
+- **IDS alerting:** repeated unauthorized admin access (five or more attempts in ten minutes) creates a deduplicated high-severity IDS-03 alert. Reuse of a revoked admin session creates an IDS-05 alert immediately. Alerts can be acknowledged, investigated, resolved, or marked false positive in the admin console.
 - **Read-only audit interface:** there are no API endpoints for editing or deleting audit events. Database administrators must also restrict direct database mutation privileges on this table. The admin security-activity view displays the new audit context alongside the existing event metadata.
 
 ## Database migration
@@ -45,6 +46,8 @@ A verified session whose user UUID is on the server-side allowlist is routed to 
 - PATCH /v1/admin/users/{user_id} — update requester/donor capability fields; records before/after values.
 - GET /v1/admin/audit?limit=50&offset=0 — recent audit events.
 - GET /v1/admin/sessions?limit=50&offset=0 — observed administrator sessions.
+- GET /v1/admin/security/alerts?limit=50&offset=0 — security alert queue.
+- PATCH /v1/admin/security/alerts/{alert_id} — acknowledge, investigate, resolve, or mark an alert as false positive.
 - POST /v1/admin/sessions/{session_id}/revoke — revoke an observed session for subsequent admin API access.
 - GET /v1/admin/errors?limit=50&offset=0 — recorded API errors and denied admin requests.
 
@@ -79,3 +82,6 @@ This is an audit foundation, not a complete IDS/IPS. Role/permission assignment,
 
 
 The current session registry records administrator sessions observed by the admin API. It is not yet a complete inventory of all requester/donor Android and web sessions. Extending session observation and revocation enforcement to every authenticated application endpoint is required before treating the registry as a whole-platform session manager.
+
+
+The first active IDS rules are IDS-03 (repeated denied admin access), IDS-04 (missing session context), and IDS-05 (revoked session reuse). Thresholds are currently deterministic and intentionally narrow; they require tuning against real application traffic before wider automated blocking is enabled. Other planned detection categories are not yet implemented.
