@@ -184,6 +184,9 @@ fun LifeLinkShell(
     onRequestEmailChange: (String, (String) -> Unit) -> Unit = { _, showMessage ->
         showMessage("Email changes are not available right now.")
     },
+    onChangePassword: (String, String, (String, Boolean) -> Unit) -> Unit = { _, _, showResult ->
+        showResult("Password changes are not available right now.", false)
+    },
 ) {
     val context = LocalContext.current
     val welcomePrefs = context.getSharedPreferences("lifelink_welcome", 0)
@@ -540,6 +543,7 @@ fun LifeLinkShell(
                                     themeMode,
                                     onThemeModeChange,
                                     onRequestPasswordReset,
+                                    onChangePassword,
                                     onSwitchRole,
                                     onOpenDonor = openDonorWorkspace,
                                     onBecomeDonor = {
@@ -1503,6 +1507,7 @@ private fun SettingsContent(
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
+    onChangePassword: (String, String, (String, Boolean) -> Unit) -> Unit,
     onSwitchRole: () -> Unit,
     onOpenDonor: () -> Unit,
     onBecomeDonor: () -> Unit,
@@ -1558,6 +1563,7 @@ private fun SettingsContent(
                     onSaveProfile,
                     onRequestEmailChange,
                     onRequestPasswordReset,
+                    onChangePassword,
                     onSwitchRole,
                     onOpenDonor,
                     onBecomeDonor,
@@ -1902,6 +1908,7 @@ private fun ProfileContent(
     onSaveProfile: (String) -> Unit,
     onRequestEmailChange: (String, (String) -> Unit) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
+    onChangePassword: (String, String, (String, Boolean) -> Unit) -> Unit,
     onSwitchRole: () -> Unit,
     onOpenDonor: () -> Unit,
     onBecomeDonor: () -> Unit,
@@ -1988,7 +1995,7 @@ private fun ProfileContent(
                 AccountSecurityControls(
                     accountEmail = accountEmail,
                     onRequestEmailChange = onRequestEmailChange,
-                    onRequestPasswordReset = onRequestPasswordReset,
+                    onChangePassword = onChangePassword,
                 )
             }
         }
@@ -2035,11 +2042,11 @@ private fun ProfileContent(
 private fun AccountSecurityControls(
     accountEmail: String,
     onRequestEmailChange: (String, (String) -> Unit) -> Unit,
-    onRequestPasswordReset: ((String) -> Unit) -> Unit,
+    onChangePassword: (String, String, (String, Boolean) -> Unit) -> Unit,
 ) {
     var accountActionMessage by rememberSaveable { mutableStateOf<String?>(null) }
     AccountEmailChangeControls(accountEmail, onRequestEmailChange)
-    PhoneAndPasswordControls(onRequestPasswordReset) { message ->
+    PhoneAndPasswordControls(onChangePassword) { message ->
         accountActionMessage = message
     }
     accountActionMessage?.let {
@@ -2098,9 +2105,14 @@ private fun AccountEmailChangeControls(
 
 @Composable
 private fun PhoneAndPasswordControls(
-    onRequestPasswordReset: ((String) -> Unit) -> Unit,
+    onChangePassword: (String, String, (String, Boolean) -> Unit) -> Unit,
     onMessage: (String) -> Unit,
 ) {
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var savingPassword by remember { mutableStateOf(false) }
+
     HorizontalDivider()
     Text("Phone number", fontWeight = FontWeight.SemiBold)
     Text(
@@ -2110,13 +2122,61 @@ private fun PhoneAndPasswordControls(
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.testTag("phone-verification-unavailable"),
     )
-    TextButton(
-        onClick = { onRequestPasswordReset(onMessage) },
-        modifier = Modifier.fillMaxWidth().testTag("account-change-password"),
-    ) { Text("Change password") }
-    Text(
-        "We’ll send a secure password-reset link to your current email.",
-        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.bodySmall,
+    HorizontalDivider()
+    Text("Change password", fontWeight = FontWeight.SemiBold)
+    OutlinedTextField(
+        value = currentPassword,
+        onValueChange = { currentPassword = it },
+        modifier = Modifier.fillMaxWidth().testTag("current-password-field"),
+        label = { Text("Current password") },
+        singleLine = true,
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+        ),
     )
+    OutlinedTextField(
+        value = newPassword,
+        onValueChange = { newPassword = it },
+        modifier = Modifier.fillMaxWidth().testTag("new-password-field"),
+        label = { Text("New password") },
+        supportingText = { Text("Use at least 6 characters.") },
+        singleLine = true,
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+        ),
+    )
+    OutlinedTextField(
+        value = confirmPassword,
+        onValueChange = { confirmPassword = it },
+        modifier = Modifier.fillMaxWidth().testTag("confirm-new-password-field"),
+        label = { Text("Confirm new password") },
+        singleLine = true,
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+        ),
+    )
+    TextButton(
+        onClick = {
+            savingPassword = true
+            onChangePassword(currentPassword, newPassword) { message, success ->
+                savingPassword = false
+                if (success) {
+                    currentPassword = ""
+                    newPassword = ""
+                    confirmPassword = ""
+                }
+                onMessage(message)
+            }
+        },
+        enabled = !savingPassword &&
+            currentPassword.isNotBlank() &&
+            newPassword.length >= 6 &&
+            newPassword == confirmPassword,
+        modifier = Modifier.fillMaxWidth().testTag("account-change-password"),
+    ) {
+        Text(if (savingPassword) "Updating password…" else "Change password")
+    }
 }
