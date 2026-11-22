@@ -2103,6 +2103,7 @@ private fun AccountEmailChangeControls(
     }
 }
 
+@Suppress("LongMethod")
 @Composable
 private fun PhoneAndPasswordControls(
     onChangePassword: (String, String, (String, Boolean) -> Unit) -> Unit,
