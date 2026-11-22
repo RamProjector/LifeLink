@@ -2069,7 +2069,11 @@ def test_donor_profile_removal_is_audited_with_capability_reset(pg_url):
                 user,
                 "donor_profile_deleted",
                 user,
-                {"profile_removed": True, "operational_donor_disabled": True},
+                {
+                    "profile_removed": True,
+                    "operational_donor_disabled": True,
+                    "account_capability_reset": True,
+                },
             )
         ]
 
