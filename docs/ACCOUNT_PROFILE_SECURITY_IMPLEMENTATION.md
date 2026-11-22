@@ -46,7 +46,7 @@ The Android manifest accepts the `lifelink://auth/` deep-link path prefix, and t
 
 - Display name can be edited and persists through the existing authenticated profile API.
 - Email change sends a confirmation to the new address; the old email remains authoritative until confirmation succeeds.
-- Expired/invalid email links produce a recoverable message and do not overwrite the session with an unconfirmed address.
+- With Secure Email Change enabled, the first confirmation is treated as pending and directs the user to confirm the other inbox; the final confirmation refreshes the authenticated email. Expired/invalid email links produce a recoverable message and do not overwrite the session with an unconfirmed address.
 - Phone number remains explicitly unverified until a real OTP is delivered and accepted by the configured provider.
 - Password change succeeds only after current-password re-authentication for the same account and then uses the authenticated Supabase user endpoint; invalid/current-session failures are shown safely.
 - Existing password recovery, registration confirmation, sign-in, account switching, and profile loading continue to work.
@@ -56,6 +56,6 @@ The Android manifest accepts the `lifelink://auth/` deep-link path prefix, and t
 ## Implementation sequence
 
 1. The Android Account UI now supports display-name editing, email-change requests, and a current-password-verified password change. Email-change writes are account-scoped, recover from one expired-token response, and reset transient pending UI state after activity recreation.
-2. Supabase email-change confirmation uses a dedicated callback path/type. The old email remains authoritative until confirmation; real email delivery and callback completion still require end-to-end testing against the deployed Supabase Auth settings.
+2. Supabase email-change confirmation uses a dedicated callback path/type. When Secure Email Change is enabled, the first confirmation callback is handled as a pending step (no access token is expected yet) and tells the user to confirm the other inbox; the final callback completes the authenticated session refresh. The old email remains authoritative until Supabase completes both confirmations. Real email delivery and callback completion still require end-to-end testing against the deployed Supabase Auth settings.
 3. Phone verification remains unavailable until a real SMS OTP provider is configured. No fake OTP, paid provider, production schema migration, or production Auth setting change is included.
-4. Tests cover email request serialization/callback parsing/token refresh and password re-authentication/account binding. Profile-name persistence after a fresh launch, full real-device verification, CI, and independent security review remain required before merge.
+4. Tests cover email request serialization, first-step and final-step callback parsing, token refresh, and password re-authentication/account binding. Profile-name persistence after a fresh launch, full real-device verification, CI, and independent security review remain required before merge.
