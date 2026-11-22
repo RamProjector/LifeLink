@@ -452,14 +452,28 @@ class MainActivity : ComponentActivity() {
                     },
                     onRequestEmailChange = { newEmail, showMessage ->
                         app.launchAccountWrite(accountUserId) {
-                            app.authRepository
-                                .requestEmailChange(accountUserId, signedInSession.accessToken, newEmail)
-                                .onSuccess {
-                                    showMessage("Confirmation sent to the new email. Your current email remains active until you confirm.")
+                            val result = app.authRepository.requestEmailChange(
+                                accountUserId,
+                                signedInSession.accessToken,
+                                newEmail,
+                            )
+                            val message = result.fold(
+                                onSuccess = {
+                                    "Confirmation sent to the new email. Your current email remains active until you confirm."
+                                },
+                                onFailure = { error ->
+                                    error.message ?: "Could not request the email change."
+                                },
+                            )
+                            this@MainActivity.runOnUiThread {
+                                if (
+                                    !isFinishing &&
+                                    !isDestroyed &&
+                                    app.authRepository.session.value?.userId == accountUserId
+                                ) {
+                                    showMessage(message)
                                 }
-                                .onFailure { error ->
-                                    showMessage(error.message ?: "Could not request the email change.")
-                                }
+                            }
                         }
                     },
                     onSignOut = {
