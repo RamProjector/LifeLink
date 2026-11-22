@@ -168,3 +168,32 @@ async def create_all_tables() -> None:
             "CREATE INDEX IF NOT EXISTS ix_audit_events_action_created_at "
             "ON audit_events (action, created_at DESC)"
         ))
+        # Add the required IDS/IPS audit context while preserving the existing
+        # audit_events identifiers and query compatibility.
+        await connection.execute(text(
+            "ALTER TABLE audit_events "
+            "ADD COLUMN IF NOT EXISTS log_id UUID, "
+            "ADD COLUMN IF NOT EXISTS actions VARCHAR(16) NOT NULL DEFAULT 'OTHER', "
+            "ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '', "
+            "ADD COLUMN IF NOT EXISTS session_id VARCHAR(128), "
+            "ADD COLUMN IF NOT EXISTS ip_address VARCHAR(64), "
+            "ADD COLUMN IF NOT EXISTS timestamp TIMESTAMPTZ NOT NULL DEFAULT now(), "
+            "ADD COLUMN IF NOT EXISTS device_used VARCHAR(255) NOT NULL DEFAULT 'unknown'"
+        ))
+        await connection.execute(text(
+            "UPDATE audit_events SET log_id = gen_random_uuid() WHERE log_id IS NULL"
+        ))
+        await connection.execute(text(
+            "ALTER TABLE audit_events ALTER COLUMN log_id SET NOT NULL"
+        ))
+        await connection.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_audit_events_log_id ON audit_events (log_id)"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_audit_events_session_timestamp "
+            "ON audit_events (session_id, timestamp DESC)"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_audit_events_actor_timestamp "
+            "ON audit_events (actor_id, timestamp DESC)"
+        ))
