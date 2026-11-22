@@ -256,6 +256,24 @@ open class ConversationNavigationTest {
         composeRule.onNodeWithText("LifeLink", substring = false).assertIsDisplayed()
     }
 
+    /** Ensures map users can still reach notifications and Profile without restoring the full app bar. */
+    @Test
+    fun donor_map_shell_shortcuts_open_notifications_and_profile() {
+        renderShell(StateRestorationTester(composeRule), UserRole.REQUESTER)
+        composeRule.onNodeWithTag("nav-MAP").performClick()
+        composeRule.onNodeWithTag("map-shell-shortcuts").performClick()
+        composeRule.onNodeWithTag("map-open-notifications").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Activity", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Back").performClick()
+
+        composeRule.onNodeWithTag("nav-MAP").performClick()
+        composeRule.onNodeWithTag("map-shell-shortcuts").performClick()
+        composeRule.onNodeWithTag("map-open-profile").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Profile, notifications, privacy, safety, and app preferences.").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav-MAP").performClick()
+        composeRule.onNodeWithText("Find donors", substring = false).assertIsDisplayed()
+    }
+
     /** Verifies that request-history filters expose their active count and can be cleared together. */
     @Test
     fun request_history_filter_summary_can_clear_filter_and_search() {
