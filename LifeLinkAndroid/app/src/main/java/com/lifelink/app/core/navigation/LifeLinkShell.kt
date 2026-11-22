@@ -2039,8 +2039,14 @@ private fun AccountSecurityControls(
     onRequestEmailChange: (String, (String) -> Unit) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
 ) {
+    var accountActionMessage by rememberSaveable { mutableStateOf<String?>(null) }
     AccountEmailChangeControls(accountEmail, onRequestEmailChange)
-    PhoneAndPasswordControls(onRequestPasswordReset)
+    PhoneAndPasswordControls(onRequestPasswordReset) { message ->
+        accountActionMessage = message
+    }
+    accountActionMessage?.let {
+        Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+    }
 }
 
 @Composable
@@ -2093,7 +2099,10 @@ private fun AccountEmailChangeControls(
 }
 
 @Composable
-private fun PhoneAndPasswordControls(onRequestPasswordReset: ((String) -> Unit) -> Unit) {
+private fun PhoneAndPasswordControls(
+    onRequestPasswordReset: ((String) -> Unit) -> Unit,
+    onMessage: (String) -> Unit,
+) {
     HorizontalDivider()
     Text("Phone number", fontWeight = FontWeight.SemiBold)
     Text(
@@ -2104,7 +2113,7 @@ private fun PhoneAndPasswordControls(onRequestPasswordReset: ((String) -> Unit) 
         modifier = Modifier.testTag("phone-verification-unavailable"),
     )
     TextButton(
-        onClick = { onRequestPasswordReset { message -> /* handled by caller */ } },
+        onClick = { onRequestPasswordReset(onMessage) },
         modifier = Modifier.fillMaxWidth().testTag("account-change-password"),
     ) { Text("Change password") }
     Text(
