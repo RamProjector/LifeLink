@@ -51,6 +51,8 @@ BACKEND_ONLY_TABLES: dict[str, str] = {
     "contact_shares": "Explicit contact disclosures; the API enforces participant membership.",
     "conversation_blocks": "Block state; the API enforces participant membership.",
     "rate_limit_counters": "Rate-limit counters; internal API state, never queried by a client role.",
+    "lifelink_user_sessions": "Security session registry; accessed only by FastAPI using the backend database identity, never exposed to client roles.",
+    "lifelink_security_alerts": "IDS/IPS incident records; accessed only by FastAPI using the backend database identity, never exposed to client roles.",
 }
 
 # SQL comments must be removed before matching: a commented-out
