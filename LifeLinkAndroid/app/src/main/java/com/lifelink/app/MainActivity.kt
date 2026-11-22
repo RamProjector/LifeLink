@@ -476,6 +476,30 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     },
+                    onChangePassword = { currentPassword, newPassword, showResult ->
+                        app.launchAccountWrite(accountUserId) {
+                            val result = app.authRepository.changePassword(
+                                accountUserId,
+                                currentPassword,
+                                newPassword,
+                            )
+                            val outcome = result.fold(
+                                onSuccess = { "Your password has been changed." to true },
+                                onFailure = { error ->
+                                    (error.message ?: "Your password could not be changed.") to false
+                                },
+                            )
+                            this@MainActivity.runOnUiThread {
+                                if (
+                                    !isFinishing &&
+                                    !isDestroyed &&
+                                    app.authRepository.session.value?.userId == accountUserId
+                                ) {
+                                    showResult(outcome.first, outcome.second)
+                                }
+                            }
+                        }
+                    },
                     onSignOut = {
                         roleStore.clear(accountUserId)
                         authViewModel.signOut()
