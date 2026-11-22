@@ -53,6 +53,10 @@ BACKEND_ONLY_TABLES: dict[str, str] = {
     "rate_limit_counters": "Rate-limit counters; internal API state, never queried by a client role.",
     "lifelink_user_sessions": "Security session registry; accessed only by FastAPI using the backend database identity, never exposed to client roles.",
     "lifelink_security_alerts": "IDS/IPS incident records; accessed only by FastAPI using the backend database identity, never exposed to client roles.",
+    "lifelink_roles": "RBAC role registry; RLS is enabled and all reads/writes are mediated by FastAPI using the backend database identity; no client role receives direct access.",
+    "lifelink_permissions": "RBAC permission registry; RLS is enabled and all reads/writes are mediated by FastAPI using the backend database identity; no client role receives direct access.",
+    "lifelink_user_roles": "RBAC user-role assignments; RLS is enabled and all reads/writes are mediated by FastAPI using the backend database identity; no client role receives direct access.",
+    "lifelink_role_permissions": "RBAC role-permission mappings; RLS is enabled and all reads/writes are mediated by FastAPI using the backend database identity; no client role receives direct access.",
 }
 
 # SQL comments must be removed before matching: a commented-out
