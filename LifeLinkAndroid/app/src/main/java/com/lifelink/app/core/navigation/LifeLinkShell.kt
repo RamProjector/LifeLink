@@ -801,7 +801,8 @@ private fun RequestsContent(
                     }
                 }
             }
-            val activeFilterCount =                (if (historyFilter != "All") 1 else 0) +
+            val activeFilterCount =
+                (if (historyFilter != "All") 1 else 0) +
                     (if (searchQuery.isNotBlank()) 1 else 0)
             if (activeFilterCount > 0) {
                 item {
