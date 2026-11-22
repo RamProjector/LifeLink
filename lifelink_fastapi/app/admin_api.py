@@ -235,7 +235,7 @@ async def admin_list_users(
     )
     profiles = result.scalars().all()
     total = await session.scalar(select(func.count()).select_from(LifeLinkProfile)) or 0
-    await _write_audit(session, principal.subject, "admin.users.list", request=request, session_id=principal.session_id, target_type="user_list",
+    await _write_audit(session, principal.subject, "admin.users.list", request=request, session_id=principal.session_id, session_expires_at=principal.session_expires_at, target_type="user_list",
                        correlation_id=_correlation_id(x_correlation_id), metadata={"limit": limit, "offset": offset})
     await session.commit()
     return {
@@ -282,7 +282,7 @@ async def admin_update_user(
     row.can_donate = payload.can_donate
     row.updated_at = datetime.now(timezone.utc)
     await _write_audit(
-        session, principal.subject, "admin.user.update", request=request, session_id=principal.session_id, target_type="user", target_id=user_id,
+        session, principal.subject, "admin.user.update", request=request, session_id=principal.session_id, session_expires_at=principal.session_expires_at, target_type="user", target_id=user_id,
         correlation_id=_correlation_id(x_correlation_id),
         metadata={"before": before, "after": payload.model_dump()},
     )
@@ -368,7 +368,7 @@ async def admin_audit_logs(
     x_correlation_id: str | None = Header(default=None),
 ):
     # Record the read before selecting the page; no endpoint permits audit mutation or deletion.
-    await _write_audit(session, principal.subject, "admin.audit.read", request=request, session_id=principal.session_id, target_type="audit_log",
+    await _write_audit(session, principal.subject, "admin.audit.read", request=request, session_id=principal.session_id, session_expires_at=principal.session_expires_at, target_type="audit_log",
                        correlation_id=_correlation_id(x_correlation_id),
                        metadata={"limit": limit, "offset": offset, "filtered": bool(action)})
     query = (
@@ -407,7 +407,7 @@ async def admin_errors(
         {"limit": limit, "offset": offset},
     )
     rows = result.mappings().all()
-    await _write_audit(session, principal.subject, "admin.errors.read", request=request, session_id=principal.session_id, target_type="error_log",
+    await _write_audit(session, principal.subject, "admin.errors.read", request=request, session_id=principal.session_id, session_expires_at=principal.session_expires_at, target_type="error_log",
                        metadata={"limit": limit, "offset": offset})
     await session.commit()
     return {"items": [{**dict(row), "metadata": _safe_audit_metadata(row["metadata"]), "created_at": row["created_at"].isoformat() if row["created_at"] else None}
