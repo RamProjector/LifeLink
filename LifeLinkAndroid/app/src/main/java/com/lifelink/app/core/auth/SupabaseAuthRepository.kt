@@ -86,7 +86,7 @@ class SupabaseAuthRepository(
 
     suspend fun completeEmailConfirmation(callback: AuthCallback): Result<AuthSession> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            cancellableResult {
                 val response =
                     api?.getUser(
                         publishableKey,
@@ -152,7 +152,7 @@ class SupabaseAuthRepository(
      */
     suspend fun requestEmailChange(userId: String, accessToken: String, email: String): Result<Unit> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            cancellableResult {
                 require(userId.isNotBlank()) { "Sign in again before changing your email." }
                 require(accessToken.isNotBlank()) { "Sign in again before changing your email." }
                 require(EMAIL_PATTERN.matches(email.trim())) { "Enter a valid email address." }
@@ -190,7 +190,7 @@ class SupabaseAuthRepository(
 
     suspend fun updatePassword(accessToken: String, password: String): Result<Unit> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            cancellableResult {
                 if (publishableKey.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
                 val response =
                     api?.updateUser(
@@ -209,7 +209,7 @@ class SupabaseAuthRepository(
      */
     suspend fun changePassword(userId: String, currentPassword: String, newPassword: String): Result<Unit> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            cancellableResult {
                 require(userId.isNotBlank()) { "Sign in again before changing your password." }
                 require(currentPassword.isNotBlank()) { "Enter your current password." }
                 require(newPassword.length >= MIN_PASSWORD_LENGTH) { "Use a password with at least 6 characters." }
@@ -307,7 +307,7 @@ class SupabaseAuthRepository(
 
     private suspend fun authenticate(call: suspend () -> Response<SupabaseAuthResponse>): Result<AuthResult> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            cancellableResult {
                 if (publishableKey.isBlank()) {
                     error("Add the Supabase URL and publishable key to the Android build")
                 }
@@ -333,7 +333,7 @@ class SupabaseAuthRepository(
 
     private suspend fun simpleAuthAction(call: suspend () -> Response<Unit>): Result<Unit> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            cancellableResult {
                 if (publishableKey.isBlank()) {
                     error("Add the Supabase URL and publishable key to the Android build")
                 }
@@ -342,6 +342,16 @@ class SupabaseAuthRepository(
                     error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
                 }
             }
+        }
+
+    /** Preserve structured-concurrency cancellation instead of converting it into Result.failure. */
+    private suspend fun <T> cancellableResult(block: suspend () -> T): Result<T> =
+        try {
+            Result.success(block())
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            Result.failure(failure)
         }
 
     private fun readableAuthError(raw: String, statusCode: Int): String {
