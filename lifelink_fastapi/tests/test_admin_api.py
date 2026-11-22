@@ -315,3 +315,19 @@ def test_rbac_manager_allowlist_defaults_to_empty(monkeypatch):
 
     monkeypatch.delenv("LIFELINK_RBAC_MANAGER_USER_IDS", raising=False)
     assert _configured_rbac_manager_ids() == set()
+
+
+
+def test_rbac_role_update_allows_explicit_revoke_all():
+    from app.admin_api import AdminUserRolesUpdate
+
+    payload = AdminUserRolesUpdate(role_keys=[])
+    assert payload.role_keys == []
+
+
+def test_rbac_role_update_limits_assignment_count():
+    from app.admin_api import AdminUserRolesUpdate
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        AdminUserRolesUpdate(role_keys=[f"role-{index}" for index in range(9)])
