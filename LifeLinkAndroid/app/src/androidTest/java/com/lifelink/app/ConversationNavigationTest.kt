@@ -261,6 +261,9 @@ open class ConversationNavigationTest {
     fun donor_map_shell_shortcuts_open_notifications_and_profile() {
         renderShell(StateRestorationTester(composeRule), UserRole.REQUESTER)
         composeRule.onNodeWithTag("nav-MAP").performClick()
+        composeRule.onNodeWithTag("open-notifications").assertDoesNotExist()
+        composeRule.onNodeWithTag("open-profile").assertDoesNotExist()
+        composeRule.onNodeWithText("Find donors", substring = false).assertIsDisplayed()
         composeRule.onNodeWithTag("map-shell-shortcuts").performClick()
         composeRule.onNodeWithTag("map-open-notifications").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Activity", substring = false).assertIsDisplayed()
