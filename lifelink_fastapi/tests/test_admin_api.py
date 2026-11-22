@@ -46,7 +46,7 @@ def test_admin_allowlist_is_server_configured_not_user_claim(monkeypatch):
     async def check():
         with pytest.raises(HTTPException) as error:
             await require_admin(
-                Principal(subject="regular-user", role="admin", email_verified=True),
+                principal=Principal(subject="regular-user", role="admin", email_verified=True),
                 session=FakeSession(),
                 request=_request_context(),
             )
@@ -61,7 +61,7 @@ def test_admin_requires_real_authenticated_subject(monkeypatch):
     async def check():
         with pytest.raises(HTTPException) as error:
             await require_admin(
-                Principal(subject="development-user", email_verified=True),
+                principal=Principal(subject="development-user", email_verified=True),
                 session=FakeSession(),
                 request=_request_context(),
             )
@@ -90,7 +90,7 @@ def test_admin_rejects_revoked_session(monkeypatch):
     async def check():
         with pytest.raises(HTTPException) as error:
             await require_admin(
-                Principal(subject="admin-1", email_verified=True, session_id="session-revoked"),
+                principal=Principal(subject="admin-1", email_verified=True, session_id="session-revoked"),
                 session=FakeSession([1, 0]),
                 request=_request_context(),
             )
@@ -105,7 +105,7 @@ def test_admin_requires_session_context(monkeypatch):
     async def check():
         with pytest.raises(HTTPException) as error:
             await require_admin(
-                Principal(subject="admin-1", email_verified=True),
+                principal=Principal(subject="admin-1", email_verified=True),
                 session=FakeSession(),
                 request=_request_context(),
             )
