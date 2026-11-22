@@ -102,7 +102,7 @@ CLIENT_PRIVILEGE_REVOKES = {
 }
 
 DEFAULT_PRIVILEGE_REVOKES = {}
-for _owner in ("postgres", "supabase_admin"):
+for _owner in ("postgres",):
     DEFAULT_PRIVILEGE_REVOKES[f"{_owner} future tables"] = re.compile(
         rf"ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+{_owner}\s+"
         r"IN\s+SCHEMA\s+public\s+REVOKE\s+ALL\s+ON\s+TABLES\s+"
