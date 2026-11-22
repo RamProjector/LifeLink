@@ -11,13 +11,43 @@ from app.admin_api import _configured_admin_ids, _correlation_id, require_admin
 from app.security import Principal
 
 
+class FakeSession:
+    def __init__(self, scalar_values=None):
+        self.scalar_values = list(scalar_values or [0])
+
+    async def execute(self, statement, params=None):
+        return None
+
+    async def scalar(self, statement, params=None):
+        return self.scalar_values.pop(0) if self.scalar_values else 0
+
+    async def commit(self):
+        return None
+
+    async def rollback(self):
+        return None
+
+
+def _request_context():
+    return SimpleNamespace(
+        url=SimpleNamespace(path="/v1/admin/test"),
+        method="GET",
+        client=None,
+        headers={},
+    )
+
+
 def test_admin_allowlist_is_server_configured_not_user_claim(monkeypatch):
     monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1, admin-2")
     assert _configured_admin_ids() == {"admin-1", "admin-2"}
 
     async def check():
         with pytest.raises(HTTPException) as error:
-            await require_admin(Principal(subject="regular-user", role="admin", email_verified=True), session=object(), request=SimpleNamespace(url=SimpleNamespace(path="/v1/admin/test"), method="GET", client=None, headers={}))
+            await require_admin(
+                Principal(subject="regular-user", role="admin", email_verified=True),
+                session=FakeSession(),
+                request=_request_context(),
+            )
         assert error.value.status_code == 403
 
     asyncio.run(check())
@@ -28,7 +58,11 @@ def test_admin_requires_real_authenticated_subject(monkeypatch):
 
     async def check():
         with pytest.raises(HTTPException) as error:
-            await require_admin(Principal(subject="development-user", email_verified=True), session=object())
+            await require_admin(
+                Principal(subject="development-user", email_verified=True),
+                session=FakeSession(),
+                request=_request_context(),
+            )
         assert error.value.status_code == 401
 
     asyncio.run(check())
@@ -37,14 +71,11 @@ def test_admin_requires_real_authenticated_subject(monkeypatch):
 def test_admin_allowlist_grants_only_configured_subject(monkeypatch):
     monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
 
-    class Session:
-        async def scalar(self, statement, params):
-            return False
-
     async def check():
         principal = await require_admin(
             Principal(subject="admin-1", email_verified=True, session_id="session-1"),
-            session=Session(), request=SimpleNamespace(url=SimpleNamespace(path="/v1/admin/test"), method="GET", client=None, headers={}),
+            session=FakeSession([0]),
+            request=_request_context(),
         )
         assert principal.subject == "admin-1"
 
@@ -54,18 +85,30 @@ def test_admin_allowlist_grants_only_configured_subject(monkeypatch):
 def test_admin_rejects_revoked_session(monkeypatch):
     monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
 
-    class Session:
-        async def scalar(self, statement, params):
-            assert params["session_id"] == "session-revoked"
-            return True
-
     async def check():
         with pytest.raises(HTTPException) as error:
             await require_admin(
                 Principal(subject="admin-1", email_verified=True, session_id="session-revoked"),
-                session=Session(),
+                session=FakeSession([1, 0]),
+                request=_request_context(),
             )
         assert error.value.status_code == 401
+
+    asyncio.run(check())
+
+
+def test_admin_requires_session_context(monkeypatch):
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+
+    async def check():
+        with pytest.raises(HTTPException) as error:
+            await require_admin(
+                Principal(subject="admin-1", email_verified=True),
+                session=FakeSession(),
+                request=_request_context(),
+            )
+        assert error.value.status_code == 401
+        assert "Session context" in error.value.detail
 
     asyncio.run(check())
 
@@ -183,7 +226,7 @@ def test_non_admin_is_denied_by_every_admin_endpoint(monkeypatch, method, path, 
     monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
 
     async def fake_session():
-        yield object()
+        yield FakeSession()
 
     app.dependency_overrides[get_db_session] = fake_session
     app.dependency_overrides[get_postgres_principal] = lambda: Principal(
