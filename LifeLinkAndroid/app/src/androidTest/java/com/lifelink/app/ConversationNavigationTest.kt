@@ -320,6 +320,9 @@ open class ConversationNavigationTest {
             }
         }
 
+        // Shell shortcuts belong only to the embedded map; standalone map flows keep their own chrome.
+        assertTrue(composeRule.onAllNodesWithTag("map-shell-shortcuts").fetchSemanticsNodes().isEmpty())
+
         composeRule.onNodeWithText("Loading donor areas…").assertIsDisplayed()
         composeRule.onNodeWithText("No donor areas available").assertDoesNotExist()
         composeRule.onNodeWithText("0 areas").assertDoesNotExist()
