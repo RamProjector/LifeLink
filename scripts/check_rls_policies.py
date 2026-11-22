@@ -166,7 +166,7 @@ def main() -> int:
         for item in missing_privilege_revokes:
             print(f"  - {item}")
 
-    if unaccounted or missing_privilege_revokes:
+    if unaccounted:
         print("\nFAIL: the following tables have neither an RLS policy nor a documented exemption:")
         for table in unaccounted:
             print(f"  - {table}")
@@ -175,6 +175,8 @@ def main() -> int:
             "`CREATE POLICY ... ON <t>` in a new migration, or add the table to "
             "BACKEND_ONLY_TABLES in scripts/check_rls_policies.py with a justification."
         )
+
+    if unaccounted or missing_privilege_revokes:
         return 1
 
     print("\nOK: every table has an explicit RLS decision.")
