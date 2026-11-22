@@ -141,18 +141,37 @@ class SupabaseAuthRepository(
      * Requests an email change through Supabase Auth. The local session is deliberately
      * left unchanged until the new address is confirmed and the authenticated user is re-read.
      */
-    suspend fun requestEmailChange(accessToken: String, email: String): Result<Unit> =
+    suspend fun requestEmailChange(userId: String, accessToken: String, email: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
+                require(userId.isNotBlank()) { "Sign in again before changing your email." }
                 require(accessToken.isNotBlank()) { "Sign in again before changing your email." }
                 require(EMAIL_PATTERN.matches(email.trim())) { "Enter a valid email address." }
                 if (publishableKey.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
-                val response = api?.updateEmail(
+                val currentSession = sessionStore.session.value
+                    ?.takeIf { it.userId == userId }
+                    ?: error("Your signed-in account changed. Please try again.")
+                var token = currentSession.accessToken.ifBlank { accessToken }
+                var response = api?.updateEmail(
                     publishableKey,
-                    "Bearer $accessToken",
+                    "Bearer $token",
                     EmailUpdateRequest(email.trim()),
                     EMAIL_CHANGE_REDIRECT_URI,
                 ) ?: error("Supabase URL is not configured")
+                if (response.code() == 401) {
+                    token = refreshAccessToken()
+                        ?.takeIf { sessionStore.session.value?.userId == userId }
+                        ?: error("Your session expired. Please sign in again and retry.")
+                    response = api.updateEmail(
+                        publishableKey,
+                        "Bearer $token",
+                        EmailUpdateRequest(email.trim()),
+                        EMAIL_CHANGE_REDIRECT_URI,
+                    )
+                }
+                require(sessionStore.session.value?.userId == userId) {
+                    "Your signed-in account changed. Please sign in again."
+                }
                 if (!response.isSuccessful) {
                     error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
                 }
@@ -247,8 +266,7 @@ class SupabaseAuthRepository(
 
     private suspend fun simpleAuthAction(call: suspend () -> Response<Unit>): Result<Unit> =
         withContext(Dispatchers.IO) {
-            runCatching {
-                if (publishableKey.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
+            runCatching {                if (publishableKey.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
                 val response = call()
                 if (!response.isSuccessful) error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
             }
