@@ -537,6 +537,7 @@ fun LifeLinkShell(
                                     profileSaving,
                                     profileMessage,
                                     onSaveProfile,
+                                    onRequestEmailChange,
                                     themeMode,
                                     onThemeModeChange,
                                     onRequestPasswordReset,
