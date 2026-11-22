@@ -17,7 +17,9 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
  <p class="muted small">Connected to the LifeLink production services. Only your existing account can sign in; administrator access is checked by the server.</p>
  <label for="email">Email</label><input id="email" type="email" autocomplete="username" required>
  <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
- <button id="signin" style="width:100%;margin-top:20px">Sign in</button>\n <a href="#" id="forgot-password" class="link">Forgot password?</a>\n <section id="recovery-view" class="hidden" aria-live="polite"><h2 id="recovery-title" style="font-size:19px;margin:22px 0 6px">Reset your password</h2><p id="recovery-help" class="muted small">Enter your account email and we will send a secure password-reset link.</p><div id="recovery-email-wrap"><label for="recovery-email">Account email</label><input id="recovery-email" type="email" autocomplete="email"></div><div id="new-password-wrap" class="hidden"><label for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="8"><label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8"></div><button id="recovery-submit" style="width:100%;margin-top:14px">Send reset link</button><button id="recovery-cancel" class="secondary" style="width:100%;margin-top:8px">Back to sign in</button></section>
+ <button id="signin" style="width:100%;margin-top:20px">Sign in</button>
+ <a href="#" id="forgot-password" class="link">Forgot password?</a>
+ <section id="recovery-view" class="hidden" aria-live="polite"><h2 id="recovery-title" style="font-size:19px;margin:22px 0 6px">Reset your password</h2><p id="recovery-help" class="muted small">Enter your account email and we will send a secure password-reset link.</p><div id="recovery-email-wrap"><label for="recovery-email">Account email</label><input id="recovery-email" type="email" autocomplete="email"></div><div id="new-password-wrap" class="hidden"><label for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="8"><label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8"></div><button id="recovery-submit" style="width:100%;margin-top:14px">Send reset link</button><button id="recovery-cancel" class="secondary" style="width:100%;margin-top:8px">Back to sign in</button></section>
  <div id="login-message" class="notice hidden" role="status" aria-live="polite"></div>
  <p class="foot">Your session token stays in memory for this tab and is cleared when you sign out or close it. Admin rights are verified server-side.</p>
 </main>
@@ -37,7 +39,8 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
  const SUPABASE_URL = "https://nphbhlxnujmylhubzmne.supabase.co";
  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_0BnXY2k96nRr0k0zaZvMgQ_IQYSlyQu";
  const API_BASE_URL = "https://lifelink-api-uzje.onrender.com";
- let accessToken = null, activePage = "overview", recoveryMode = false;\n const ADMIN_REDIRECT_URL = "https://lifelink-admin-console.onrender.com/";
+ let accessToken = null, activePage = "overview", recoveryMode = false;
+ const ADMIN_REDIRECT_URL = "https://lifelink-admin-console.onrender.com/";
  const pageSize = 50;
  const offsets = { users: 0, audit: 0, sessions: 0, alerts: 0, errors: 0 };
  const $ = id => document.getElementById(id);
@@ -50,7 +53,47 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
    if (!response.ok) throw new Error(data.detail || ("Request failed ("+response.status+")"));
    return data;
  }
- function showRecovery(mode) {\n   recoveryMode=mode;\n   $("recovery-view").classList.remove("hidden");\n   $("recovery-email-wrap").classList.toggle("hidden",mode!=="request");\n   $("new-password-wrap").classList.toggle("hidden",mode!=="update");\n   $("recovery-title").textContent=mode==="update"?"Choose a new password":"Reset your password";\n   $("recovery-help").textContent=mode==="update"?"Use a unique password with at least 8 characters.":"Enter your account email and we will send a secure password-reset link.";\n   $("recovery-submit").textContent=mode==="update"?"Update password":"Send reset link";\n   $("recovery-view").scrollIntoView({behavior:"smooth",block:"nearest"});\n }\n async function requestPasswordReset() {\n   const email=$("recovery-email").value.trim()||$("email").value.trim();\n   if(!email){message("login-message","Enter your account email to receive a reset link.",true);return;}\n   $("recovery-submit").disabled=true; message("login-message","Sending password-reset email…");\n   try {\n     const response=await fetch(SUPABASE_URL+"/auth/v1/recover?redirect_to="+encodeURIComponent(ADMIN_REDIRECT_URL),{method:"POST",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})});\n     const data=await response.json().catch(()=>({}));\n     if(!response.ok) throw new Error(data.msg||data.message||data.error_description||"Could not send the reset email. Check the Supabase Auth redirect allowlist.");\n     message("login-message","If this email belongs to a LifeLink account, a password-reset link has been sent. Check your inbox and spam folder.");\n   } catch(e) { message("login-message",e.message||"Password reset request failed.",true); }\n   finally { $("recovery-submit").disabled=false; }\n }\n async function updateRecoveredPassword() {\n   const password=$("new-password").value, confirmPassword=$("confirm-password").value;\n   if(password.length<8){message("login-message","Use a password with at least 8 characters.",true);return;}\n   if(password!==confirmPassword){message("login-message","The passwords do not match.",true);return;}\n   const hash=new URLSearchParams(location.hash.slice(1));\n   const token=hash.get("access_token");\n   if(!token||hash.get("type")!=="recovery"){message("login-message","This reset link is invalid or expired. Request a new one.",true);return;}\n   $("recovery-submit").disabled=true; message("login-message","Updating your password…");\n   try {\n     const response=await fetch(SUPABASE_URL+"/auth/v1/user",{method:"PUT",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Authorization":"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({password})});\n     const data=await response.json().catch(()=>({}));\n     if(!response.ok) throw new Error(data.msg||data.message||data.error_description||"Password update failed. Request a fresh reset link.");\n     history.replaceState(null,"",location.pathname+location.search);\n     $("new-password").value=""; $("confirm-password").value=""; $("recovery-view").classList.add("hidden");\n     message("login-message","Password updated. Sign in with your new password.");\n   } catch(e){message("login-message",e.message||"Could not update password.",true);}\n   finally{$("recovery-submit").disabled=false;}\n }\n async function signIn() {
+ function showRecovery(mode) {
+   recoveryMode=mode;
+   $("recovery-view").classList.remove("hidden");
+   $("recovery-email-wrap").classList.toggle("hidden",mode!=="request");
+   $("new-password-wrap").classList.toggle("hidden",mode!=="update");
+   $("recovery-title").textContent=mode==="update"?"Choose a new password":"Reset your password";
+   $("recovery-help").textContent=mode==="update"?"Use a unique password with at least 8 characters.":"Enter your account email and we will send a secure password-reset link.";
+   $("recovery-submit").textContent=mode==="update"?"Update password":"Send reset link";
+   $("recovery-view").scrollIntoView({behavior:"smooth",block:"nearest"});
+ }
+ async function requestPasswordReset() {
+   const email=$("recovery-email").value.trim()||$("email").value.trim();
+   if(!email){message("login-message","Enter your account email to receive a reset link.",true);return;}
+   $("recovery-submit").disabled=true; message("login-message","Sending password-reset email…");
+   try {
+     const response=await fetch(SUPABASE_URL+"/auth/v1/recover?redirect_to="+encodeURIComponent(ADMIN_REDIRECT_URL),{method:"POST",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})});
+     const data=await response.json().catch(()=>({}));
+     if(!response.ok) throw new Error(data.msg||data.message||data.error_description||"Could not send the reset email. Check the Supabase Auth redirect allowlist.");
+     message("login-message","If this email belongs to a LifeLink account, a password-reset link has been sent. Check your inbox and spam folder.");
+   } catch(e) { message("login-message",e.message||"Password reset request failed.",true); }
+   finally { $("recovery-submit").disabled=false; }
+ }
+ async function updateRecoveredPassword() {
+   const password=$("new-password").value, confirmPassword=$("confirm-password").value;
+   if(password.length<8){message("login-message","Use a password with at least 8 characters.",true);return;}
+   if(password!==confirmPassword){message("login-message","The passwords do not match.",true);return;}
+   const hash=new URLSearchParams(location.hash.slice(1));
+   const token=hash.get("access_token");
+   if(!token||hash.get("type")!=="recovery"){message("login-message","This reset link is invalid or expired. Request a new one.",true);return;}
+   $("recovery-submit").disabled=true; message("login-message","Updating your password…");
+   try {
+     const response=await fetch(SUPABASE_URL+"/auth/v1/user",{method:"PUT",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Authorization":"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({password})});
+     const data=await response.json().catch(()=>({}));
+     if(!response.ok) throw new Error(data.msg||data.message||data.error_description||"Password update failed. Request a fresh reset link.");
+     history.replaceState(null,"",location.pathname+location.search);
+     $("new-password").value=""; $("confirm-password").value=""; $("recovery-view").classList.add("hidden");
+     message("login-message","Password updated. Sign in with your new password.");
+   } catch(e){message("login-message",e.message||"Could not update password.",true);}
+   finally{$("recovery-submit").disabled=false;}
+ }
+ async function signIn() {
    const supabase=SUPABASE_URL, key=SUPABASE_PUBLISHABLE_KEY;
    if (!$("email").value.trim() || !$("password").value) { message("login-message","Enter your email and password.",true); return; }
    $("signin").disabled=true; message("login-message","Signing in…");
@@ -144,7 +187,12 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
      if(page==="errors") await loadEvents("errors");
    } catch(e) { message("app-message",e.message||"Could not load data.",true); }
  }
- $("signin").addEventListener("click",signIn);\n $("forgot-password").addEventListener("click",e=>{e.preventDefault();$("recovery-email").value=$("email").value.trim();showRecovery("request");});\n $("recovery-submit").addEventListener("click",()=>recoveryMode==="update"?updateRecoveredPassword():requestPasswordReset());\n $("recovery-cancel").addEventListener("click",()=>{$("recovery-view").classList.add("hidden");message("login-message","");});\n const initialHash=new URLSearchParams(location.hash.slice(1));\n if(initialHash.get("type")==="recovery"&&initialHash.get("access_token")){showRecovery("update");message("login-message","Password-reset link verified. Choose a new password.");}
+ $("signin").addEventListener("click",signIn);
+ $("forgot-password").addEventListener("click",e=>{e.preventDefault();$("recovery-email").value=$("email").value.trim();showRecovery("request");});
+ $("recovery-submit").addEventListener("click",()=>recoveryMode==="update"?updateRecoveredPassword():requestPasswordReset());
+ $("recovery-cancel").addEventListener("click",()=>{$("recovery-view").classList.add("hidden");message("login-message","");});
+ const initialHash=new URLSearchParams(location.hash.slice(1));
+ if(initialHash.get("type")==="recovery"&&initialHash.get("access_token")){showRecovery("update");message("login-message","Password-reset link verified. Choose a new password.");}
  $("password").addEventListener("keydown",e=>{if(e.key==="Enter")signIn()});
  document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>loadPage(b.dataset.page)));
  $("refresh").addEventListener("click",()=>loadPage(activePage));
