@@ -25,6 +25,23 @@ Add an **Account** section inside Profile/Settings with separate, clearly labele
 - Keep donor operational profile data (blood type, availability, location, radius) separate from account identity details.
 - Do not change production schema or deployed Auth settings as part of client-only work. Any schema/provider configuration needs a separately reviewed change.
 
+## Deployment integration prerequisites
+
+The Android implementation declares these callback URLs:
+
+- Registration confirmation: `lifelink://auth/confirm`
+- Password recovery: `lifelink://auth/recovery`
+- Email change: `lifelink://auth/email-change`
+
+The Android manifest accepts the `lifelink://auth/` deep-link path prefix, and the callback parser requires the email-change path with Supabase callback type `email_change`. Before enabling this flow in a live environment:
+
+1. Add the exact email-change redirect URI to the Supabase Auth redirect URL allow list. Do not assume that setting the Site URL alone permits a custom mobile scheme.
+2. Verify the **Secure Email Change** setting. When enabled, Supabase requires confirmation at both the current and new email addresses; when disabled, it sends one confirmation to the new address. Test the behavior that the project actually uses and ensure the email template routes the confirmation back to the requested deep link.
+3. Verify the change-email template uses Supabase's confirmation URL and that the configured mail delivery path can send the required message or messages.
+4. Test both the first and final confirmation callbacks on a real device. Confirm that the app only reflects the new address after Supabase reports it as the authenticated user's email.
+
+**Environment verification note (2026-11-23):** The connected Supabase project named `LifeLink` (ref `nphbhlxnujmylhubzmne`) reports `INACTIVE`. Its Auth redirect allow list, Secure Email Change setting, email template, and delivery configuration could not be inspected or exercised while it was inactive. The project was not restored and no production Auth settings were changed. These remain deployment checks, not verified implementation claims.
+
 ## Acceptance criteria
 
 - Display name can be edited and persists through the existing authenticated profile API.
