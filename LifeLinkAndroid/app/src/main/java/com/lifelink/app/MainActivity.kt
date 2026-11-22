@@ -247,7 +247,8 @@ class MainActivity : ComponentActivity() {
                 DisposableEffect(accountModels) {
                     onDispose {
                         if (!this@MainActivity.isChangingConfigurations) accountModels.viewModelStore.clear()
-                    }                }
+                    }
+                }
                 val viewModel: EmergencyRequestViewModel =
                     viewModel(
                         viewModelStoreOwner = accountModels,
