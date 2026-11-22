@@ -265,6 +265,11 @@ open class ConversationNavigationTest {
         composeRule.onNodeWithTag("open-profile").assertDoesNotExist()
         composeRule.onNodeWithText("Find donors", substring = false).assertIsDisplayed()
         composeRule.onNodeWithTag("map-shell-shortcuts").performClick()
+        composeRule.onNodeWithTag("map-open-notifications").assertIsDisplayed()
+        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.onNodeWithTag("map-open-notifications").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("map-shell-shortcuts").performClick()
         composeRule.onNodeWithTag("map-open-notifications").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Activity", substring = false).assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Back").performClick()
