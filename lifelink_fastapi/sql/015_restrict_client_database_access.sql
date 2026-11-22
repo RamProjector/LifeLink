@@ -22,22 +22,15 @@ REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public
     FROM PUBLIC, anon, authenticated;
 
--- Supabase currently has explicit default table grants for both postgres and
--- supabase_admin owners. Remove those defaults so future public tables do not
--- silently regain client access.
+-- The connected project SQL role can alter its own defaults. Supabase's
+-- separate supabase_admin defaults are managed by the platform and are not
+-- alterable from the project's postgres role; its RLS event trigger remains
+-- the default-deny guard for tables created under that owner.
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
     REVOKE ALL ON TABLES FROM PUBLIC, anon, authenticated;
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
-    REVOKE ALL ON TABLES FROM PUBLIC, anon, authenticated;
-
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
     REVOKE ALL ON SEQUENCES FROM PUBLIC, anon, authenticated;
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
-    REVOKE ALL ON SEQUENCES FROM PUBLIC, anon, authenticated;
-
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-    REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated;
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
     REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated;
 
 COMMIT;
