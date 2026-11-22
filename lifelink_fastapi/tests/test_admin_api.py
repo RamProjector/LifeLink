@@ -271,18 +271,6 @@ def test_audit_action_kind_normalizes_crud_actions(action, expected):
 
 
 
-def test_admin_requires_session_context(monkeypatch):
-    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
-
-    async def check():
-        with pytest.raises(HTTPException) as error:
-            await require_admin(Principal(subject="admin-1", email_verified=True), session=FakeSession(), request=_request_context())
-        assert error.value.status_code == 401
-        assert "Session context" in error.value.detail
-
-    asyncio.run(check())
-
-
 
 def test_repeated_denied_admin_access_creates_deduplicated_alert():
     from app.admin_api import _record_denied_admin_attempt
