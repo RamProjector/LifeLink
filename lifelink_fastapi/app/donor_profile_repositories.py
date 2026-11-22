@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db_models import Donor as DonorRow
 from .db_models import DonorProfile as DonorProfileRow
-from .db_models import LifeLinkProfile
+from .db_models import AuditEvent, LifeLinkProfile
 from .donor_api import DonorAvailability, DonorProfileIn
 from .donor_profile_api import DonorPresenceIn, DonorProfileMeOut, DonorProfileUpsertIn
 from .donor_repositories import SqlAlchemyDonorStore
@@ -237,17 +237,25 @@ class SqlAlchemyDonorProfileStore:
         if row is None:
             raise KeyError(user_id)
         now = datetime.now(UTC)
+        previous_status = row.availability_status
         row.availability_status = availability.value
         row.updated_at = now
 
-        # Keep the donor-facing preference and the operational matching row in
-        # one transaction. A failed mirror must not leave the profile saying
-        # "paused" while the matching row still says "available" (or vice versa).
+        # Keep the donor-facing preference, operational matching row, and
+        # audit event in one transaction.
         donor_row = await SqlAlchemyDonorStore(self.session).get_by_identity(user_id)
         if donor_row is not None:
             donor_row.available = effective_available(availability.value, row.verified)
             donor_row.availability_updated_at = now
 
+        if previous_status != availability.value:
+            self.session.add(AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=user_id,
+                action="donor_availability_changed",
+                donor_id=donor_row.id if donor_row is not None else row.donor_id,
+                event_metadata={"from": previous_status, "to": availability.value},
+            ))
         await self.session.commit()
         await self._recompute(user_id)
         return self.to_out(row, donor_row.display_name if donor_row else "LifeLink donor", None)
@@ -255,13 +263,29 @@ class SqlAlchemyDonorProfileStore:
     async def delete(self, user_id: str) -> None:
         """Opt out: remove the profile and stop the donor from being matched."""
         row = await self.session.get(DonorProfileRow, user_id)
+        donor_row = await SqlAlchemyDonorStore(self.session).get_by_identity(user_id)
+        account_profile = await self.session.get(LifeLinkProfile, user_id)
         if row is not None:
             await self.session.delete(row)
-        donor_row = await SqlAlchemyDonorStore(self.session).get_by_identity(user_id)
         if donor_row is not None:
             donor_row.available = False
             donor_row.profile_visible = False
             donor_row.availability_updated_at = datetime.now(UTC)
+        if account_profile is not None:
+            account_profile.can_donate = False
+        if row is not None or donor_row is not None:
+            self.session.add(AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=user_id,
+                action="donor_profile_deleted",
+                donor_id=donor_row.id if donor_row is not None else (row.donor_id if row is not None else None),
+                event_metadata={
+                    "profile_removed": row is not None,
+                    "operational_donor_disabled": donor_row is not None,
+                },
+            ))
+        # Profile removal, account capability reset, donor disablement, and
+        # the audit event must commit or roll back together.
         await self.session.commit()
         await self._recompute(user_id)
 
