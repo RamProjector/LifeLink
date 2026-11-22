@@ -193,6 +193,49 @@ class SupabaseAuthRepository(
             }
         }
 
+    /**
+     * Changes the password only after Supabase has re-authenticated the same signed-in user
+     * with their current password. The re-authentication token is used for the update and is
+     * never written to logs or persisted as a replacement session.
+     */
+    suspend fun changePassword(userId: String, currentPassword: String, newPassword: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                require(userId.isNotBlank()) { "Sign in again before changing your password." }
+                require(currentPassword.isNotBlank()) { "Enter your current password." }
+                require(newPassword.length >= 6) { "Use a password with at least 6 characters." }
+                val currentSession = sessionStore.session.value
+                    ?.takeIf { it.userId == userId }
+                    ?: error("Your signed-in account changed. Please try again.")
+                if (publishableKey.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
+                val authApi = api ?: error("Supabase URL is not configured")
+                val verification = authApi.signIn(
+                    publishableKey,
+                    AuthRequest(currentSession.email, currentPassword),
+                )
+                if (!verification.isSuccessful) {
+                    error(readableAuthError(verification.errorBody()?.string().orEmpty(), verification.code()))
+                }
+                val verified = verification.body() ?: error("Supabase returned an empty sign-in response")
+                require(verified.user?.id == userId) {
+                    "The current password did not verify this signed-in account."
+                }
+                val verifiedToken = verified.accessToken?.takeIf { it.isNotBlank() }
+                    ?: error("Supabase did not return a verified session. Please sign in again.")
+                val response = authApi.updateUser(
+                    publishableKey,
+                    "Bearer $verifiedToken",
+                    PasswordUpdateRequest(newPassword),
+                )
+                require(sessionStore.session.value?.userId == userId) {
+                    "Your signed-in account changed. Please sign in again."
+                }
+                if (!response.isSuccessful) {
+                    error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+                }
+            }
+        }
+
     suspend fun resendConfirmation(email: String): Result<Unit> =
         simpleAuthAction {
             api?.resend(publishableKey, ResendRequest("signup", email))
