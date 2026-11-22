@@ -117,7 +117,13 @@ class SupabasePasswordRecoveryTest {
             MockResponse()
                 .setResponseCode(200)
                 .setBody(
-                    """{"access_token":"verified-token","refresh_token":"verified-refresh","user":{"id":"user-1","email":"user@example.test"}}""",
+                    """
+                    {
+                      "access_token": "verified-token",
+                      "refresh_token": "verified-refresh",
+                      "user": {"id": "user-1", "email": "user@example.test"}
+                    }
+                    """.trimIndent(),
                 ),
         )
         server.enqueue(
