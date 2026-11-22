@@ -8,7 +8,8 @@ The admin console is an additional, restricted interface for the existing FastAP
 - **Authentication:** the web console signs in with Supabase Auth using the project's publishable/anon key and passes the access token to the API. The Android console uses the existing signed-in session. The API verifies the token and then checks the configured UUID allowlist for every admin endpoint.
 - **No service-role key:** never enter a Supabase service-role key in the browser or Android app. The UI only requires the public publishable/anon key.
 - **User management:** the current interface manages requester/donor capabilities only. It cannot assign admin status, delete accounts, or disable authentication identities.
-- **Audit trail:** admin session verification, dashboard views, user-list reads, user capability changes, audit-log reads, error-log reads, denied admin requests, and unhandled API/database errors are written to `audit_events`. The IDS/IPS audit envelope adds `session_id`, `log_id`, `actions`, `description`, `ip_address`, `timestamp`, and `device_used`, while retaining legacy columns for compatibility. Event details deliberately omit passwords, bearer tokens, request bodies, blood type, and precise locations.
+- **Session registry:** verified admin JWT session IDs are tracked in `lifelink_user_sessions` when the protected admin API is used. Admins can inspect and revoke recorded sessions. Revocation is checked on subsequent admin API requests; it does not claim to revoke Supabase refresh tokens or invalidate sessions on non-admin API routes yet.
+- **Audit trail:** admin session verification, dashboard views, user-list reads, user capability changes, session inventory/revocation, audit-log reads, error-log reads, denied admin requests, and unhandled API/database errors are written to `audit_events`. The IDS/IPS audit envelope adds `session_id`, `log_id`, `actions`, `description`, `ip_address`, `timestamp`, and `device_used`, while retaining legacy columns for compatibility. Event details deliberately omit passwords, bearer tokens, request bodies, blood type, and precise locations.
 - **Read-only audit interface:** there are no API endpoints for editing or deleting audit events. Database administrators must also restrict direct database mutation privileges on this table. The admin security-activity view displays the new audit context alongside the existing event metadata.
 
 ## Database migration
@@ -43,6 +44,8 @@ A verified session whose user UUID is on the server-side allowlist is routed to 
 - GET /v1/admin/users?limit=50&offset=0 — paginated profile list.
 - PATCH /v1/admin/users/{user_id} — update requester/donor capability fields; records before/after values.
 - GET /v1/admin/audit?limit=50&offset=0 — recent audit events.
+- GET /v1/admin/sessions?limit=50&offset=0 — observed administrator sessions.
+- POST /v1/admin/sessions/{session_id}/revoke — revoke an observed session for subsequent admin API access.
 - GET /v1/admin/errors?limit=50&offset=0 — recorded API errors and denied admin requests.
 
 All admin endpoints require a valid Supabase access token and an allowlisted user UUID. Admin authorization is not based on the role field returned by the normal profile endpoint.
@@ -73,3 +76,6 @@ The first IDS/IPS implementation slice adds the required seven-field audit envel
 - `device_used` is a bounded User-Agent value; it is not a device fingerprint.
 
 This is an audit foundation, not a complete IDS/IPS. Role/permission assignment, cross-platform operation coverage, session revocation enforcement, detection rules, alert workflows, and the full Security Center remain subsequent implementation work. Do not treat a missing session claim or unavailable peer IP as verified identity evidence.
+
+
+The current session registry records administrator sessions observed by the admin API. It is not yet a complete inventory of all requester/donor Android and web sessions. Extending session observation and revocation enforcement to every authenticated application endpoint is required before treating the registry as a whole-platform session manager.
