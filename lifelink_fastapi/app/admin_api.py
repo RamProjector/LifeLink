@@ -31,6 +31,12 @@ async def require_admin(
     require_verified_email(principal)
     if principal.subject not in _configured_admin_ids():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator access is required")
+    if not principal.session_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session context is missing. Sign in again to establish a secure session.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     if principal.session_id:
         revoked = await session.scalar(
             text(
