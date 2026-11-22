@@ -32,3 +32,13 @@ def test_every_table_has_an_rls_decision() -> None:
         "A table has neither an RLS policy nor a documented backend-only "
         "exemption. See scripts/check_rls_policies.py."
     )
+
+
+
+def test_client_roles_have_no_direct_database_privileges() -> None:
+    """Current and future public-schema objects stay behind the FastAPI boundary."""
+    checker = _load_checker()
+    sql = checker._read_sql()
+    required = checker.CLIENT_PRIVILEGE_REVOKES | checker.DEFAULT_PRIVILEGE_REVOKES
+    missing = [label for label, pattern in required.items() if not pattern.search(sql)]
+    assert not missing, f"Missing public client privilege revokes: {missing}"
