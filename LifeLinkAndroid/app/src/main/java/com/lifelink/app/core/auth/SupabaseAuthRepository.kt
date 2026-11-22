@@ -123,6 +123,10 @@ class SupabaseAuthRepository(
                         require(type == "signup" || type == "email") { "This link is not an account-confirmation link." }
                         AuthCallbackKind.CONFIRMATION
                     }
+                    "/email-change" -> {
+                        require(type == "email_change") { "This link is not an email-change confirmation link." }
+                        AuthCallbackKind.EMAIL_CHANGE
+                    }
                     else -> error("This LifeLink authentication link is no longer supported.")
                 }
             AuthCallback(
@@ -131,6 +135,28 @@ class SupabaseAuthRepository(
                 accessToken = accessToken,
                 refreshToken = uri.getQueryParameter("refresh_token") ?: uri.getFragmentParameter("refresh_token"),
             )
+        }
+
+    /**
+     * Requests an email change through Supabase Auth. The local session is deliberately
+     * left unchanged until the new address is confirmed and the authenticated user is re-read.
+     */
+    suspend fun requestEmailChange(accessToken: String, email: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                require(accessToken.isNotBlank()) { "Sign in again before changing your email." }
+                require(EMAIL_PATTERN.matches(email.trim())) { "Enter a valid email address." }
+                if (publishableKey.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
+                val response = api?.updateEmail(
+                    publishableKey,
+                    "Bearer $accessToken",
+                    EmailUpdateRequest(email.trim()),
+                    EMAIL_CHANGE_REDIRECT_URI,
+                ) ?: error("Supabase URL is not configured")
+                if (!response.isSuccessful) {
+                    error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+                }
+            }
         }
 
     suspend fun updatePassword(accessToken: String, password: String): Result<Unit> =
@@ -254,6 +280,8 @@ class SupabaseAuthRepository(
     private companion object {
         const val RECOVERY_REDIRECT_URI = "lifelink://auth/recovery"
         const val SIGNUP_REDIRECT_URI = "lifelink://auth/confirm"
+        const val EMAIL_CHANGE_REDIRECT_URI = "lifelink://auth/email-change"
+        val EMAIL_PATTERN = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
     }
 }
 
@@ -310,6 +338,14 @@ private interface SupabaseAuthApi {
         @Header("Authorization") authorization: String,
         @Body request: PasswordUpdateRequest,
     ): Response<SupabaseUser>
+
+    @PUT("auth/v1/user")
+    suspend fun updateEmail(
+        @Header("apikey") publishableKey: String,
+        @Header("Authorization") authorization: String,
+        @Body request: EmailUpdateRequest,
+        @Query("redirect_to") redirectTo: String,
+    ): Response<SupabaseUser>
 }
 
 // Every field that crosses the Supabase wire is pinned with an explicit
@@ -331,11 +367,13 @@ data class PasswordRecoveryRequest(@SerializedName("email") val email: String)
 
 data class ResendRequest(@SerializedName("type") val type: String, @SerializedName("email") val email: String)
 
-enum class AuthCallbackKind { RECOVERY, CONFIRMATION }
+enum class AuthCallbackKind { RECOVERY, CONFIRMATION, EMAIL_CHANGE }
 
 data class AuthCallback(val kind: AuthCallbackKind, val email: String?, val accessToken: String, val refreshToken: String?)
 
 data class PasswordUpdateRequest(@SerializedName("password") val password: String)
+
+data class EmailUpdateRequest(@SerializedName("email") val email: String)
 
 data class SupabaseAuthResponse(
     @SerializedName("access_token") val accessToken: String?,
