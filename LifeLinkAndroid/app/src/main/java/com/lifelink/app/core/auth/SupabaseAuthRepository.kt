@@ -243,7 +243,7 @@ class SupabaseAuthRepository(
                         refreshToken = verified.refreshToken?.takeIf { it.isNotBlank() }
                             ?: currentSession.refreshToken,
                         userId = userId,
-                        email = verified.user.email ?: currentSession.email,
+                        email = verified.user?.email ?: currentSession.email,
                     ),
                 )
             }
