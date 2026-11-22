@@ -30,8 +30,8 @@
 | `POST .../cancel`, `POST .../fulfill` | Ends or resolves emergency request | Yes | Retain; ensure actor and prior/new status are represented |
 | `PUT /v1/donor-profile` | Donor identity/profile changes | No | Record profile create/update without blood type, coordinates, or free-text note |
 | `POST /v1/donor-profile/presence` | GPS/presence update | No | Record that a location observation was accepted, provider label if validated, precision band; do not store coordinates in audit metadata |
-| `PATCH /v1/donor-profile/availability` | Changes availability | No | Record previous/new availability |
-| `DELETE /v1/donor-profile` | Deletes donor profile | No | Record deletion intent/result and target reference |
+| `PATCH /v1/donor-profile/availability` | Changes availability | Added in this PR | Atomic `donor_availability_changed` event records previous/new preference only when it changes |
+| `DELETE /v1/donor-profile` | Deletes donor profile and disables donor | Added in this PR | Profile deletion, operational donor disablement, account capability reset, and audit event commit together |
 | `PUT /v1/donors/{donor_id}` | Legacy donor profile create/update | No | Record profile mutation; verify legacy route still required |
 | `POST /v1/donors/{donor_id}/presence` | Legacy GPS/presence update | No | Same privacy-safe event as current presence route |
 | `PATCH /v1/donors/{donor_id}/availability` | Legacy availability change | No | Record previous/new availability |
@@ -50,7 +50,7 @@ Read-only profile, request history, donor inbox, donor map, and conversation-lis
 ## Confirmed coverage gaps
 
 1. **No general denial audit middleware.** Current response middleware audits failures only under `/v1/admin/`. Authorization failures on ordinary routes are not consistently recorded as audit events.
-2. **High-impact successful mutations without explicit audit events.** The current review still identifies emergency-request creation, contact-status transitions, donor profile/availability changes, GPS presence updates, exact-location reads, message sending, and saved-message changes as candidates for explicit events. Profile create/update audit coverage is added in this PR; map visibility, exact-location grant/revocation, and contact disclosure already have atomic audit writes in the inspected repository.
+2. **High-impact successful mutations without explicit audit events.** Remaining candidates include emergency-request creation, contact-status transitions, donor-profile create/update, GPS presence observations, exact-location reads, message sending, and saved-message changes. This PR adds profile account create/update and separate donor availability/delete audit coverage. Map visibility, exact-location grant/revocation, and contact disclosure already have atomic audit writes in the inspected repository.
 3. **Exact-location reads are not explicitly audited.** This should be evaluated as a high-priority privacy access event.
 4. **No complete detection-rule/alert lifecycle demonstrated by these files.** Error records alone do not establish an IDS/IPS engine, alert acknowledgement, deduplication, or automated response.
 5. **Pagination metadata is incomplete.** Admin audit endpoint returns page items but not total count, making total-based pagination and reliable page counts impossible.
@@ -60,7 +60,7 @@ Read-only profile, request history, donor inbox, donor map, and conversation-lis
 
 ### P0 — Audit the highest-impact changes
 - Add explicit audit events for emergency-request creation and cancellation/fulfillment outcome consistency.
-- Add explicit audit events for remaining donor profile/availability changes. Profile create/update and map-visibility consent events are already covered or added in this PR.
+- Add explicit audit events for remaining donor-profile create/update and GPS-presence policy. Profile account create/update, separate donor availability/delete, and map-visibility consent events are already covered or added in this PR.
 - Exact-location grant/revocation events are already implemented atomically; add a minimal exact-location read event only after defining retention and failure semantics.
 - Add audit events for message send and contact status changes, excluding message bodies and sensitive content.
 - Make audit writes part of the same database transaction as the protected mutation where feasible. A failed audit write must not silently leave an untraceable high-risk mutation committed.
@@ -99,6 +99,6 @@ Read-only profile, request history, donor inbox, donor map, and conversation-lis
 
 The source review was cross-checked against the current PostgreSQL-backed implementation before extending this PR. Three earlier gaps in the original matrix were already addressed in the repository and are now marked accurately: donor map visibility changes are audited with their consent/share-revocation transaction; exact-location share activation and revocation each insert an audit row in the same transaction as the share state; and explicit phone/email contact disclosure commits with its audit event.
 
-This PR additionally adds profile create/update audit events in the same transaction as `PUT /v1/profile`. The event contains only the actor ID, action, and changed field names. It deliberately excludes email, display name, role/capability values, and all request payload values. Unchanged profile synchronization calls do not create duplicate audit noise. PostgreSQL regression tests cover create/update event contents, no-op suppression, and rollback when the audit insert fails.
+This PR additionally adds profile create/update audit events in the same transaction as `PUT /v1/profile`, plus donor availability and opt-out audit events. The events contain actor/resource references and minimal state-transition metadata only. Profile events record changed field names without email, display-name, or capability values. Availability events record only the previous/new availability preference. Donor deletion, operational donor disablement, account capability reset, and its audit row now commit together. Repeated unchanged availability/profile synchronization calls do not create duplicate audit noise. PostgreSQL regression tests cover event contents, no-op suppression, and rollback when an audit insert fails.
 
 These are repository-level code and test changes only. CI must validate them on the updated PR head. No production database, migration, or deployment is changed.
