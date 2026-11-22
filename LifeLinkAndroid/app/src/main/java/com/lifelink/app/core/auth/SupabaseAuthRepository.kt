@@ -151,18 +151,19 @@ class SupabaseAuthRepository(
                 val currentSession = sessionStore.session.value
                     ?.takeIf { it.userId == userId }
                     ?: error("Your signed-in account changed. Please try again.")
+                val authApi = api ?: error("Supabase URL is not configured")
                 var token = currentSession.accessToken.ifBlank { accessToken }
-                var response = api?.updateEmail(
+                var response = authApi.updateEmail(
                     publishableKey,
                     "Bearer $token",
                     EmailUpdateRequest(email.trim()),
                     EMAIL_CHANGE_REDIRECT_URI,
-                ) ?: error("Supabase URL is not configured")
+                )
                 if (response.code() == 401) {
                     token = refreshAccessToken()
                         ?.takeIf { sessionStore.session.value?.userId == userId }
                         ?: error("Your session expired. Please sign in again and retry.")
-                    response = api.updateEmail(
+                    response = authApi.updateEmail(
                         publishableKey,
                         "Bearer $token",
                         EmailUpdateRequest(email.trim()),
