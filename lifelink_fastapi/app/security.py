@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from functools import lru_cache
 
 import jwt
@@ -17,6 +18,7 @@ class Principal:
     # None means "the issuer did not state it"; False means explicitly unverified.
     email_verified: bool | None = None
     session_id: str | None = None
+    session_expires_at: datetime | None = None
 
 
 def auth_required(default: bool = False) -> bool:
@@ -83,6 +85,8 @@ def _verify_supabase_token(token: str) -> Principal:
         role=app_metadata.get("role") or user_metadata.get("role"),
         email_verified=not _claim_says_unverified(claims) if _has_verification_claim(claims) else None,
         session_id=claims.get("session_id") if isinstance(claims.get("session_id"), str) else None,
+        session_expires_at=datetime.fromtimestamp(claims["exp"], timezone.utc)
+        if isinstance(claims.get("exp"), (int, float)) else None,
     )
 
 
