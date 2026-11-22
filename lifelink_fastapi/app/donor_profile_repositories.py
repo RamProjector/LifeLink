@@ -267,6 +267,9 @@ class SqlAlchemyDonorProfileStore:
         account_profile = await self.session.get(LifeLinkProfile, user_id)
         if row is not None:
             await self.session.delete(row)
+        operational_donor_needed_disable = bool(
+            donor_row is not None and (donor_row.available or donor_row.profile_visible)
+        )
         if donor_row is not None:
             donor_row.available = False
             donor_row.profile_visible = False
@@ -274,7 +277,7 @@ class SqlAlchemyDonorProfileStore:
         account_capability_was_enabled = bool(account_profile and account_profile.can_donate)
         if account_profile is not None:
             account_profile.can_donate = False
-        if row is not None or donor_row is not None or account_capability_was_enabled:
+        if row is not None or operational_donor_needed_disable or account_capability_was_enabled:
             self.session.add(AuditEvent(
                 id=f"audit_{uuid4().hex}",
                 actor_id=user_id,
@@ -282,7 +285,7 @@ class SqlAlchemyDonorProfileStore:
                 donor_id=donor_row.id if donor_row is not None else (row.donor_id if row is not None else None),
                 event_metadata={
                     "profile_removed": row is not None,
-                    "operational_donor_disabled": donor_row is not None,
+                    "operational_donor_disabled": operational_donor_needed_disable,
                     "account_capability_reset": account_capability_was_enabled,
                 },
             ))
