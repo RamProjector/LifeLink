@@ -60,6 +60,10 @@ Migration `016_secure_location_triggers_and_fk_indexes.sql`:
 
 **Remaining advisor findings:** eleven backend-only tables have RLS enabled without client policies by design; the client roles have no grants. Twelve RLS init-plan performance notices remain on retained policies. Leaked-password protection remains disabled in Supabase Auth and needs dashboard configuration. Unused-index notices are not treated as grounds for index removal because the inspected tables are empty and workload evidence is unavailable.
 
+## Migration-history reconciliation
+
+The live Supabase migration-history query currently returns only version `20260929040902` (`007_donor_map_chat_contact_sharing`). It does not list migrations `015` or `016`, although the PR records their SQL as applied and the live privilege/trigger/index checks as verified. Treat this as migration-history drift: do not blindly reapply either SQL file, and do not treat the migration ledger as complete. Before future automated migration deployment, reconcile the existing live schema and migration ledger with the repository's migration sequence using a reviewed, non-destructive baseline procedure.
+
 ## Validation snapshot (2026-11-23)
 
 - Commit `66431295a834f4f812d1b97822da866f6e70762f` passed the five PR-triggered workflows: Android UI test APK (fake backend), Security scan, Validate cloud package, CodeQL, and Build Android APKs. These results validate that commit, not a later commit.
