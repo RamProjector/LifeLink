@@ -56,17 +56,26 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
         if (uri == null) return
         repository.parseAuthCallback(uri)
             .onSuccess { callback ->
-                if (callback.kind == AuthCallbackKind.RECOVERY) {
-                    _state.value = AuthState.PasswordResetReady(callback.email, callback.accessToken)
-                } else {
-                    viewModelScope.launch {
-                        _state.value = AuthState.Loading
-                        repository.completeEmailConfirmation(callback)
-                            .onSuccess { session -> _state.value = AuthState.SignedIn(session) }
-                            .onFailure {
-                                _state.value =
-                                    AuthState.Message(it.message ?: "Account confirmation could not be completed. Please sign in.", true)
-                            }
+                when (callback.kind) {
+                    AuthCallbackKind.RECOVERY -> {
+                        _state.value = AuthState.PasswordResetReady(callback.email, callback.accessToken)
+                    }
+                    AuthCallbackKind.EMAIL_CHANGE_PENDING -> {
+                        _state.value =
+                            AuthState.Message(
+                                "Your first email confirmation is complete. Check your other email inbox and open its confirmation link to finish changing your address.",
+                            )
+                    }
+                    AuthCallbackKind.CONFIRMATION, AuthCallbackKind.EMAIL_CHANGE -> {
+                        viewModelScope.launch {
+                            _state.value = AuthState.Loading
+                            repository.completeEmailConfirmation(callback)
+                                .onSuccess { session -> _state.value = AuthState.SignedIn(session) }
+                                .onFailure {
+                                    _state.value =
+                                        AuthState.Message(it.message ?: "Account confirmation could not be completed. Please sign in.", true)
+                                }
+                        }
                     }
                 }
             }
