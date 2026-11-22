@@ -23,6 +23,7 @@ def _configured_admin_ids() -> set[str]:
 
 
 async def require_admin(
+    request: Request,
     principal: Principal = Depends(get_postgres_principal),
     session: AsyncSession = Depends(get_db_session),
 ) -> Principal:
@@ -30,8 +31,18 @@ async def require_admin(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in with an authenticated account")
     require_verified_email(principal)
     if principal.subject not in _configured_admin_ids():
+        await _record_denied_admin_attempt(
+            session, principal, request, rule_id="IDS-03", action="security.admin_access.denied",
+            severity="high", threshold=5,
+            summary="Repeated attempts to access administrator endpoints without authorization",
+        )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator access is required")
     if not principal.session_id:
+        await _record_denied_admin_attempt(
+            session, principal, request, rule_id="IDS-04", action="security.admin_session.missing",
+            severity="medium", threshold=3,
+            summary="Administrator endpoint accessed without a Supabase session identifier",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session context is missing. Sign in again to establish a secure session.",
@@ -46,12 +57,85 @@ async def require_admin(
             {"session_id": principal.session_id},
         )
         if revoked:
+            await _record_denied_admin_attempt(
+                session, principal, request, rule_id="IDS-05", action="security.revoked_session.reuse",
+                severity="high", threshold=1,
+                summary="A revoked administrator session attempted to access a protected endpoint",
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="This session has been revoked. Sign in again.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
     return principal
+
+
+async def _record_denied_admin_attempt(
+    session: AsyncSession,
+    principal: Principal,
+    request: Request,
+    *,
+    rule_id: str,
+    action: str,
+    severity: str,
+    threshold: int,
+    summary: str,
+) -> None:
+    """Persist denied admin access and raise a deduplicated alert after a threshold."""
+    correlation_id = _correlation_id(request.headers.get("x-correlation-id"))
+    await _write_audit(
+        session,
+        principal.subject,
+        action,
+        request=request,
+        session_id=principal.session_id,
+        session_expires_at=principal.session_expires_at,
+        outcome="denied",
+        target_type="admin_api",
+        target_id=request.url.path[:128],
+        correlation_id=correlation_id,
+        metadata={"method": request.method, "rule_id": rule_id},
+    )
+    count = await session.scalar(
+        text(
+            "SELECT count(*) FROM audit_events "
+            "WHERE actor_id = :actor_id AND action = :action "
+            "AND timestamp >= now() - interval '10 minutes'"
+        ),
+        {"actor_id": principal.subject, "action": action},
+    ) or 0
+    if count >= threshold:
+        await session.execute(
+            text(
+                "INSERT INTO lifelink_security_alerts "
+                "(rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, correlation_id) "
+                "VALUES (:rule_id, :severity, 'open', :user_id, :session_id, :summary, "
+                "CAST(:evidence AS jsonb), :occurrences, :correlation_id) "
+                "ON CONFLICT (rule_id, user_id) "
+                "WHERE status IN ('open', 'acknowledged', 'investigating') "
+                "DO UPDATE SET last_seen_at = now(), occurrences = lifelink_security_alerts.occurrences + 1, "
+                "session_id = EXCLUDED.session_id, evidence = EXCLUDED.evidence"
+            ),
+            {
+                "rule_id": rule_id,
+                "severity": severity,
+                "user_id": principal.subject,
+                "session_id": principal.session_id,
+                "summary": summary,
+                "evidence": __import__("json").dumps({
+                    "attempt_count_10m": int(count),
+                    "endpoint": request.url.path[:128],
+                    "method": request.method,
+                }),
+                "occurrences": int(count),
+                "correlation_id": correlation_id,
+            },
+        )
+    await session.commit()
+
+
+class AdminAlertUpdate(BaseModel):
+    status: str = Field(pattern="^(acknowledged|investigating|resolved|false_positive)$")
 
 
 class AdminProfileUpdate(BaseModel):
@@ -288,6 +372,85 @@ async def admin_update_user(
     )
     await session.commit()
     return {"user_id": row.user_id, "role": payload.role, "can_request": row.can_request, "can_donate": row.can_donate}
+
+
+@router.get("/security/alerts")
+async def admin_security_alerts(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    alert_status: str | None = Query(default=None, alias="status", pattern="^(open|acknowledged|investigating|resolved|false_positive)$"),
+):
+    result = await session.execute(
+        text(
+            "SELECT id, rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, "
+            "created_at, last_seen_at, acknowledged_at, acknowledged_by, resolved_at, resolved_by, correlation_id "
+            "FROM lifelink_security_alerts "
+            "WHERE (:status IS NULL OR status = :status) "
+            "ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, "
+            "last_seen_at DESC LIMIT :limit OFFSET :offset"
+        ),
+        {"status": alert_status, "limit": limit, "offset": offset},
+    )
+    rows = result.mappings().all()
+    await _write_audit(
+        session, principal.subject, "admin.security.alerts.read", request=request,
+        session_id=principal.session_id, session_expires_at=principal.session_expires_at,
+        target_type="security_alerts", metadata={"limit": limit, "offset": offset, "status": alert_status},
+    )
+    await session.commit()
+    return {
+        "items": [
+            {**dict(row), **{
+                key: row[key].isoformat() if row[key] else None
+                for key in ("created_at", "last_seen_at", "acknowledged_at", "resolved_at")
+            }, "evidence": _safe_audit_metadata(row["evidence"])}
+            for row in rows
+        ],
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.patch("/security/alerts/{alert_id}")
+async def admin_update_security_alert(
+    alert_id: str,
+    payload: AdminAlertUpdate,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin),
+):
+    if payload.status in {"acknowledged", "investigating"}:
+        update_sql = (
+            "UPDATE lifelink_security_alerts SET status = :status, "
+            "acknowledged_at = COALESCE(acknowledged_at, now()), acknowledged_by = :actor_id "
+            "WHERE id = :alert_id AND status IN ('open', 'acknowledged', 'investigating') "
+            "RETURNING id, rule_id, status"
+        )
+    else:
+        update_sql = (
+            "UPDATE lifelink_security_alerts SET status = :status, "
+            "resolved_at = now(), resolved_by = :actor_id "
+            "WHERE id = :alert_id AND status IN ('open', 'acknowledged', 'investigating') "
+            "RETURNING id, rule_id, status"
+        )
+    result = await session.execute(
+        text(update_sql),
+        {"status": payload.status, "actor_id": principal.subject, "alert_id": alert_id},
+    )
+    row = result.mappings().first()
+    if row is None:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail="Open security alert not found")
+    await _write_audit(
+        session, principal.subject, "admin.security.alert.update", request=request,
+        session_id=principal.session_id, session_expires_at=principal.session_expires_at,
+        target_type="security_alert", target_id=alert_id, metadata={"status": payload.status},
+    )
+    await session.commit()
+    return {"id": str(row["id"]), "rule_id": row["rule_id"], "status": row["status"]}
 
 
 @router.get("/sessions")
