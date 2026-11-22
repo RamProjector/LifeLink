@@ -222,6 +222,9 @@ class SupabaseAuthRepository(
                 }
                 val verifiedToken = verified.accessToken?.takeIf { it.isNotBlank() }
                     ?: error("Supabase did not return a verified session. Please sign in again.")
+                require(sessionStore.session.value?.userId == userId) {
+                    "Your signed-in account changed. Please sign in again."
+                }
                 val response = authApi.updateUser(
                     publishableKey,
                     "Bearer $verifiedToken",
