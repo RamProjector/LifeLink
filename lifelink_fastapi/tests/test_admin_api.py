@@ -124,6 +124,8 @@ def test_startup_adds_admin_audit_columns_and_indexes(monkeypatch):
     assert "ix_audit_events_created_at" in statements
     assert "ix_audit_events_action_created_at" in statements
     assert "ux_audit_events_log_id" in statements
+    assert "CREATE TABLE IF NOT EXISTS lifelink_user_sessions" in statements
+    assert "ix_lifelink_user_sessions_user_seen" in statements
 
 
 from app.admin_api import _safe_audit_metadata
@@ -215,3 +217,16 @@ def test_audit_action_kind_normalizes_crud_actions(action, expected):
     from app.admin_api import _audit_action_kind
 
     assert _audit_action_kind(action) == expected
+
+
+
+def test_admin_requires_session_context(monkeypatch):
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+
+    async def check():
+        with pytest.raises(HTTPException) as error:
+            await require_admin(Principal(subject="admin-1", email_verified=True), session=object())
+        assert error.value.status_code == 401
+        assert "Session context" in error.value.detail
+
+    asyncio.run(check())
