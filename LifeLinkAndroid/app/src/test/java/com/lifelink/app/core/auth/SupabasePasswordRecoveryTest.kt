@@ -200,7 +200,8 @@ class SupabasePasswordRecoveryTest {
     fun firstSecureEmailChangeConfirmationIsRecognizedWithoutAnAccessToken() {
         val pending = repository.parseAuthCallback(
             Uri.parse(
-                "lifelink://auth/email-change#message=Confirmation+link+accepted.+Please+proceed+to+confirm+link+sent+to+the+other+email&sb=",
+                "lifelink://auth/email-change#message=Confirmation+link+accepted.+Please+" +
+                    "proceed+to+confirm+link+sent+to+the+other+email&sb=",
             ),
         ).getOrThrow()
 
