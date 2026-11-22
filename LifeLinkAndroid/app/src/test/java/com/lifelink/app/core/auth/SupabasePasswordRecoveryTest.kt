@@ -85,7 +85,9 @@ class SupabasePasswordRecoveryTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
-                .setBody("""{"access_token":"fresh-token","refresh_token":"next-refresh","user":{"id":"user-1","email":"old@example.test"}}"""),
+                .setBody(
+                    """{"access_token":"fresh-token","refresh_token":"next-refresh","user":{"id":"user-1","email":"old@example.test"}}""",
+                ),
         )
         server.enqueue(
             MockResponse()
@@ -114,7 +116,9 @@ class SupabasePasswordRecoveryTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
-                .setBody("""{"access_token":"verified-token","refresh_token":"verified-refresh","user":{"id":"user-1","email":"user@example.test"}}"""),
+                .setBody(
+                    """{"access_token":"verified-token","refresh_token":"verified-refresh","user":{"id":"user-1","email":"user@example.test"}}""",
+                ),
         )
         server.enqueue(
             MockResponse()
