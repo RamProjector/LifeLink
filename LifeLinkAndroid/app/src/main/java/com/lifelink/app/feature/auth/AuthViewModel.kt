@@ -19,6 +19,7 @@ sealed interface AuthState {
     data object SessionExpired : AuthState
     data class SignedIn(val session: AuthSession) : AuthState
     data object EmailConfirmationRequired : AuthState
+    data object EmailChangePending : AuthState
     data class PasswordResetReady(val email: String?, val accessToken: String) : AuthState
     data object PasswordResetComplete : AuthState
     data class Message(val text: String, val isError: Boolean = false) : AuthState
@@ -35,7 +36,11 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
                 // A recovery callback takes priority over a previously persisted session.
                 // Otherwise opening a reset link while already signed in immediately
                 // routes to the app shell before the user can choose a new password.
-                if (_state.value !is AuthState.PasswordResetReady && _state.value !is AuthState.PasswordResetComplete) {
+                if (
+                    _state.value !is AuthState.PasswordResetReady &&
+                    _state.value !is AuthState.PasswordResetComplete &&
+                    _state.value != AuthState.EmailChangePending
+                ) {
                     _state.value = if (session != null) AuthState.SignedIn(session) else AuthState.SignedOut
                 }
             }
@@ -61,11 +66,7 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
                         _state.value = AuthState.PasswordResetReady(callback.email, callback.accessToken)
                     }
                     AuthCallbackKind.EMAIL_CHANGE_PENDING -> {
-                        _state.value =
-                            AuthState.Message(
-                                "Your first email confirmation is complete. Check your other email inbox " +
-                                    "and open its confirmation link to finish changing your address.",
-                            )
+                        _state.value = AuthState.EmailChangePending
                     }
                     AuthCallbackKind.CONFIRMATION, AuthCallbackKind.EMAIL_CHANGE -> {
                         viewModelScope.launch {
