@@ -440,7 +440,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onRequestPasswordReset = { showMessage ->
                         roleSyncScope.launch {
-                            val email = signedInSession?.email.orEmpty()
+                            val email = signedInSession.email
                             if (email.isBlank()) {
                                 showMessage("No account email is available for password recovery.")
                             } else {
@@ -449,6 +449,18 @@ class MainActivity : ComponentActivity() {
                                     .onSuccess { showMessage("Reset link sent. Check your inbox.") }
                                     .onFailure { showMessage(it.message ?: "Could not send the reset link.") }
                             }
+                        }
+                    },
+                    onRequestEmailChange = { newEmail, showMessage ->
+                        roleSyncScope.launch {
+                            app.authRepository
+                                .requestEmailChange(signedInSession.accessToken, newEmail)
+                                .onSuccess {
+                                    showMessage("Confirmation sent to the new email. Your current email remains active until you confirm.")
+                                }
+                                .onFailure { error ->
+                                    showMessage(error.message ?: "Could not request the email change.")
+                                }
                         }
                     },
                     onSignOut = {
