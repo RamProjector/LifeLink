@@ -2077,6 +2077,16 @@ def test_donor_profile_removal_is_audited_with_capability_reset(pg_url):
             )
         ]
 
+        # Repeating an already-completed opt-out is idempotent and does not
+        # create duplicate security events.
+        repeated = await client.delete("/v1/donor-profile")
+        assert repeated.status_code == 204, repeated.text
+        repeated_count = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_profile_deleted'"
+        )
+        assert repeated_count == [(1,)]
+
     run_scenario(pg_url, scenario)
 
 
