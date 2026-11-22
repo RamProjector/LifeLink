@@ -1602,7 +1602,8 @@ private fun HelpFaqContent() {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {        Text(
+    ) {
+        Text(
             "Help & FAQ",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
