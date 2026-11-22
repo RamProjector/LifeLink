@@ -273,6 +273,9 @@ open class ConversationNavigationTest {
         composeRule.onNodeWithTag("map-open-notifications").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Activity", substring = false).assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Back").performClick()
+        // Notifications are a temporary destination; closing them must restore the map.
+        composeRule.onNodeWithText("Find donors", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithTag("nav-MAP").assertIsSelected()
 
         composeRule.onNodeWithTag("nav-MAP").performClick()
         composeRule.onNodeWithTag("map-shell-shortcuts").performClick()
