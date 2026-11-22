@@ -2022,6 +2022,14 @@ private fun ProfileContent(
                 emailChangeMessage?.let {
                     Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 }
+                HorizontalDivider()
+                Text("Phone number", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Phone verification is not configured yet. LifeLink will not save or mark a number as verified until a real SMS verification provider is available.",
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.testTag("phone-verification-unavailable"),
+                )
                 TextButton(
                     onClick = { onRequestPasswordReset { message -> emailChangeMessage = message } },
                     modifier = Modifier.fillMaxWidth().testTag("account-change-password"),
