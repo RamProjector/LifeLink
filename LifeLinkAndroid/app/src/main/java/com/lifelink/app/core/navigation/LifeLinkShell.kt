@@ -1500,6 +1500,7 @@ private fun SettingsContent(
     profileSaving: Boolean,
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
+    onRequestEmailChange: (String, (String) -> Unit) -> Unit,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
