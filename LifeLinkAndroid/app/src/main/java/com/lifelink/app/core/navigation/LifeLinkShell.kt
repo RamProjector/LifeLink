@@ -181,6 +181,9 @@ fun LifeLinkShell(
     onMarkAllUpdatesRead: () -> Unit,
     notificationOpenUpdates: Boolean = false,
     notificationRequestId: String? = null,
+    onRequestEmailChange: (String, (String) -> Unit) -> Unit = { _, showMessage ->
+        showMessage("Email changes are not available right now.")
+    },
 ) {
     val context = LocalContext.current
     val welcomePrefs = context.getSharedPreferences("lifelink_welcome", 0)
@@ -1552,6 +1555,8 @@ private fun SettingsContent(
                     profileSaving,
                     profileMessage,
                     onSaveProfile,
+                    onRequestEmailChange,
+                    onRequestPasswordReset,
                     onSwitchRole,
                     onOpenDonor,
                     onBecomeDonor,
@@ -1895,12 +1900,17 @@ private fun ProfileContent(
     profileSaving: Boolean,
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
+    onRequestEmailChange: (String, (String) -> Unit) -> Unit,
+    onRequestPasswordReset: ((String) -> Unit) -> Unit,
     onSwitchRole: () -> Unit,
     onOpenDonor: () -> Unit,
     onBecomeDonor: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     var displayName by rememberSaveable(accountDisplayName) { mutableStateOf(accountDisplayName) }
+    var emailDraft by rememberSaveable(accountEmail) { mutableStateOf(accountEmail) }
+    var emailChangeSaving by rememberSaveable { mutableStateOf(false) }
+    var emailChangeMessage by rememberSaveable { mutableStateOf<String?>(null) }
     Column(
         Modifier
             .fillMaxSize()
@@ -1978,6 +1988,49 @@ private fun ProfileContent(
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
+                HorizontalDivider()
+                Text("Account email", fontWeight = FontWeight.SemiBold)
+                OutlinedTextField(
+                    value = emailDraft,
+                    onValueChange = { emailDraft = it.take(254); emailChangeMessage = null },
+                    modifier = Modifier.fillMaxWidth().testTag("account-email-field"),
+                    label = { Text("New email address") },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Email,
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                    ),
+                )
+                OutlinedButton(
+                    onClick = {
+                        emailChangeSaving = true
+                        emailChangeMessage = null
+                        onRequestEmailChange(emailDraft) { message ->
+                            emailChangeSaving = false
+                            emailChangeMessage = message
+                        }
+                    },
+                    enabled = !emailChangeSaving && emailDraft.trim().isNotBlank() &&
+                        emailDraft.trim().lowercase() != accountEmail.trim().lowercase(),
+                    modifier = Modifier.fillMaxWidth().testTag("request-email-change"),
+                ) { Text(if (emailChangeSaving) "Sending confirmation…" else "Change email") }
+                Text(
+                    "Your current email stays active until you confirm the link sent to the new address.",
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                emailChangeMessage?.let {
+                    Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                }
+                TextButton(
+                    onClick = { onRequestPasswordReset { message -> emailChangeMessage = message } },
+                    modifier = Modifier.fillMaxWidth().testTag("account-change-password"),
+                ) { Text("Change password") }
+                Text(
+                    "We’ll send a secure password-reset link to your current email.",
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
         Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
