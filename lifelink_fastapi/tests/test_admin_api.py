@@ -294,3 +294,24 @@ def test_repeated_denied_admin_access_creates_deduplicated_alert():
     statements = "\n".join(session.statements)
     assert "INSERT INTO audit_events" in statements
     assert "INSERT INTO lifelink_security_alerts" in statements
+
+
+def test_rbac_manager_uses_separate_server_allowlist(monkeypatch):
+    from app.admin_api import _configured_rbac_manager_ids, _require_rbac_manager
+
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "ordinary-admin")
+    monkeypatch.setenv("LIFELINK_RBAC_MANAGER_USER_IDS", "security-owner, security-backup")
+    assert _configured_rbac_manager_ids() == {"security-owner", "security-backup"}
+
+    with pytest.raises(HTTPException) as error:
+        _require_rbac_manager(Principal(subject="ordinary-admin"))
+    assert error.value.status_code == 403
+
+    _require_rbac_manager(Principal(subject="security-owner"))
+
+
+def test_rbac_manager_allowlist_defaults_to_empty(monkeypatch):
+    from app.admin_api import _configured_rbac_manager_ids
+
+    monkeypatch.delenv("LIFELINK_RBAC_MANAGER_USER_IDS", raising=False)
+    assert _configured_rbac_manager_ids() == set()
