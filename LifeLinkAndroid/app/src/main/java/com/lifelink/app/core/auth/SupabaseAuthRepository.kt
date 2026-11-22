@@ -236,6 +236,16 @@ class SupabaseAuthRepository(
                 if (!response.isSuccessful) {
                     error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
                 }
+                sessionStore.replace(
+                    currentSession,
+                    AuthSession(
+                        accessToken = verifiedToken,
+                        refreshToken = verified.refreshToken?.takeIf { it.isNotBlank() }
+                            ?: currentSession.refreshToken,
+                        userId = userId,
+                        email = verified.user.email ?: currentSession.email,
+                    ),
+                )
             }
         }
 
