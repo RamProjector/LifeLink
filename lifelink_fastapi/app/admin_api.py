@@ -575,3 +575,143 @@ async def admin_errors(
     await session.commit()
     return {"items": [{**dict(row), "metadata": _safe_audit_metadata(row["metadata"]), "created_at": row["created_at"].isoformat() if row["created_at"] else None}
                       for row in rows], "limit": limit, "offset": offset}
+
+
+# RBAC management is deliberately gated by a separate server-side allowlist.
+# Existing admin access does not automatically imply permission to grant roles.
+def _configured_rbac_manager_ids() -> set[str]:
+    return {
+        item.strip()
+        for item in os.getenv("LIFELINK_RBAC_MANAGER_USER_IDS", "").split(",")
+        if item.strip()
+    }
+
+
+def _require_rbac_manager(principal: Principal) -> None:
+    if principal.subject not in _configured_rbac_manager_ids():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Role assignment requires a separately authorized RBAC manager",
+        )
+
+
+class AdminUserRolesUpdate(BaseModel):
+    role_keys: list[str] = Field(min_length=1, max_length=8)
+
+
+@router.get("/roles")
+async def admin_list_roles(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin),
+):
+    result = await session.execute(
+        text(
+            "SELECT r.role_key, r.display_name, r.description, "
+            "COALESCE(array_agg(p.permission_key ORDER BY p.permission_key) "
+            "FILTER (WHERE p.permission_key IS NOT NULL), ARRAY[]::varchar[]) AS permissions "
+            "FROM lifelink_roles r "
+            "LEFT JOIN lifelink_role_permissions rp ON rp.role_id = r.id "
+            "LEFT JOIN lifelink_permissions p ON p.id = rp.permission_id "
+            "GROUP BY r.id ORDER BY r.display_name"
+        )
+    )
+    rows = result.mappings().all()
+    await _write_audit(
+        session, principal.subject, "admin.roles.list", request=request,
+        session_id=principal.session_id, target_type="role_registry",
+    )
+    await session.commit()
+    return {"items": [dict(row) for row in rows]}
+
+
+@router.get("/users/{user_id}/roles")
+async def admin_get_user_roles(
+    user_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin),
+):
+    result = await session.execute(
+        text(
+            "SELECT r.role_key, r.display_name, ur.assigned_at, ur.expires_at "
+            "FROM lifelink_user_roles ur JOIN lifelink_roles r ON r.id = ur.role_id "
+            "WHERE ur.user_id = CAST(:user_id AS uuid) "
+            "AND (ur.expires_at IS NULL OR ur.expires_at > now()) "
+            "ORDER BY r.display_name"
+        ),
+        {"user_id": user_id},
+    )
+    rows = result.mappings().all()
+    await _write_audit(
+        session, principal.subject, "admin.user.roles.read", request=request,
+        session_id=principal.session_id, target_type="user_roles", target_id=user_id,
+    )
+    await session.commit()
+    return {"user_id": user_id, "items": [dict(row) for row in rows]}
+
+
+@router.put("/users/{user_id}/roles")
+async def admin_replace_user_roles(
+    user_id: str,
+    payload: AdminUserRolesUpdate,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin),
+):
+    _require_rbac_manager(principal)
+    if user_id == principal.subject:
+        raise HTTPException(status_code=409, detail="RBAC managers cannot change their own role assignments")
+    role_keys = sorted(set(payload.role_keys))
+    if len(role_keys) != len(payload.role_keys):
+        raise HTTPException(status_code=422, detail="Duplicate role keys are not allowed")
+    allowed = await session.execute(
+        text("SELECT role_key FROM lifelink_roles WHERE role_key = ANY(:role_keys)"),
+        {"role_keys": role_keys},
+    )
+    known = {row[0] for row in allowed.all()}
+    unknown = sorted(set(role_keys) - known)
+    if unknown:
+        await _write_audit(
+            session, principal.subject, "security.rbac.unknown_role_assignment", request=request,
+            session_id=principal.session_id, outcome="denied", target_type="user", target_id=user_id,
+            metadata={"unknown_role_keys": unknown},
+        )
+        await session.commit()
+        raise HTTPException(status_code=422, detail="One or more requested roles do not exist")
+    user_exists = await session.scalar(
+        text("SELECT EXISTS (SELECT 1 FROM auth.users WHERE id = CAST(:user_id AS uuid))"),
+        {"user_id": user_id},
+    )
+    if not user_exists:
+        raise HTTPException(status_code=404, detail="User account not found")
+    before_result = await session.execute(
+        text(
+            "SELECT r.role_key FROM lifelink_user_roles ur "
+            "JOIN lifelink_roles r ON r.id = ur.role_id "
+            "WHERE ur.user_id = CAST(:user_id AS uuid) "
+            "AND (ur.expires_at IS NULL OR ur.expires_at > now())"
+        ),
+        {"user_id": user_id},
+    )
+    before = sorted(row[0] for row in before_result.all())
+    await session.execute(
+        text("DELETE FROM lifelink_user_roles WHERE user_id = CAST(:user_id AS uuid)"),
+        {"user_id": user_id},
+    )
+    if role_keys:
+        await session.execute(
+            text(
+                "INSERT INTO lifelink_user_roles (user_id, role_id, assigned_by) "
+                "SELECT CAST(:user_id AS uuid), id, CAST(:actor_id AS uuid) "
+                "FROM lifelink_roles WHERE role_key = ANY(:role_keys)"
+            ),
+            {"user_id": user_id, "actor_id": principal.subject, "role_keys": role_keys},
+        )
+    await _write_audit(
+        session, principal.subject, "admin.user.roles.update", request=request,
+        session_id=principal.session_id, target_type="user", target_id=user_id,
+        metadata={"before_role_keys": before, "after_role_keys": role_keys},
+    )
+    await session.commit()
+    return {"user_id": user_id, "role_keys": role_keys}
