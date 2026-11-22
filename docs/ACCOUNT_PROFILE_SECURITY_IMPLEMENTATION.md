@@ -60,6 +60,12 @@ Migration `016_secure_location_triggers_and_fk_indexes.sql`:
 
 **Remaining advisor findings:** eleven backend-only tables have RLS enabled without client policies by design; the client roles have no grants. Twelve RLS init-plan performance notices remain on retained policies. Leaked-password protection remains disabled in Supabase Auth and needs dashboard configuration. Unused-index notices are not treated as grounds for index removal because the inspected tables are empty and workload evidence is unavailable.
 
+## Validation snapshot (2026-11-23)
+
+- Commit `66431295a834f4f812d1b97822da866f6e70762f` passed the five PR-triggered workflows: Android UI test APK (fake backend), Security scan, Validate cloud package, CodeQL, and Build Android APKs. These results validate that commit, not a later commit.
+- The three CodeRabbit inline threads are resolved/outdated, but the recorded review submission still has state `CHANGES_REQUESTED`. A fresh independent review is required; resolved threads alone do not clear the submitted review state.
+- Live database hardening is documented above. Supabase Auth email delivery/callback and real-device flows remain unverified; phone OTP remains unavailable until an approved SMS provider is configured.
+
 ## Acceptance criteria
 
 - Display name can be edited and persists through the existing authenticated profile API.
