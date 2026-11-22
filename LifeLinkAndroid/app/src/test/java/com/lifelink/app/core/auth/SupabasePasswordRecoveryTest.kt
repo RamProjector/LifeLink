@@ -76,6 +76,11 @@ class SupabasePasswordRecoveryTest {
         val body = JsonParser.parseString(request.body.readUtf8()).asJsonObject
         assertEquals("new@example.test", body.get("email").asString)
         assertEquals(1, body.size())
+        assertEquals(
+            "old@example.test",
+            sessionStore.session.value?.email,
+            "The local account email must remain unchanged until Supabase confirms the new address",
+        )
     }
 
     @Test
@@ -107,6 +112,27 @@ class SupabasePasswordRecoveryTest {
         assertEquals("Bearer fresh-token", retry.getHeader("Authorization"))
         assertEquals("new@example.test", JsonParser.parseString(retry.body.readUtf8()).asJsonObject.get("email").asString)
         assertEquals("user-1", sessionStore.session.value?.userId)
+        assertEquals("fresh-token", sessionStore.session.value?.accessToken)
+    }
+
+    @Test
+    fun emailChangeStopsAfterOneRefreshRetryWhenAuthorizationStillFails() = runBlocking {
+        sessionStore.save(AuthSession("expired-token", "refresh-token", "user-1", "old@example.test"))
+        server.enqueue(MockResponse().setResponseCode(401).setBody("""{"msg":"JWT expired"}"""))
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """{"access_token":"fresh-token","refresh_token":"next-refresh","user":{"id":"user-1","email":"old@example.test"}}""",
+                ),
+        )
+        server.enqueue(MockResponse().setResponseCode(401).setBody("""{"msg":"JWT expired"}"""))
+
+        val result = repository.requestEmailChange("user-1", "expired-token", "new@example.test")
+
+        assertTrue("A second authorization failure must be returned to the caller", result.isFailure)
+        assertEquals("The request must not loop through repeated token refreshes", 3, server.requestCount)
+        assertEquals("old@example.test", sessionStore.session.value?.email)
         assertEquals("fresh-token", sessionStore.session.value?.accessToken)
     }
 
