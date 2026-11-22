@@ -1824,3 +1824,136 @@ def test_map_visibility_change_and_audit_are_atomic(pg_url):
         assert audit_rows == baseline_audit_rows
 
     run_scenario(pg_url, scenario)
+
+
+
+def test_profile_mutations_are_audited_without_pii(pg_url):
+    async def scenario(client, current, run_sql):
+        user = new_user("profile-user")
+        current["id"] = user
+
+        created = await client.put(
+            "/v1/profile",
+            json={
+                "role": "requester",
+                "display_name": "Private Display Name",
+                "can_request": True,
+                "can_donate": False,
+            },
+        )
+        assert created.status_code == 200, created.text
+
+        create_events = await run_sql(
+            "SELECT actor_id, action, metadata FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'profile.created'"
+        )
+        assert len(create_events) == 1
+        assert create_events[0][0] == user
+        assert create_events[0][2] == {
+            "changed_fields": ["email", "role", "can_request", "can_donate", "display_name"]
+        }
+
+        updated = await client.put(
+            "/v1/profile",
+            json={
+                "role": "donor",
+                "display_name": "Private Display Name",
+                "can_request": True,
+                "can_donate": True,
+            },
+        )
+        assert updated.status_code == 200, updated.text
+
+        update_events = await run_sql(
+            "SELECT actor_id, action, metadata FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'profile.updated'"
+        )
+        assert len(update_events) == 1
+        assert update_events[0][0] == user
+        assert update_events[0][2] == {
+            "changed_fields": ["role", "can_donate"]
+        }
+
+        # A repeated profile sync with no changes must not flood the audit log.
+        repeated = await client.put(
+            "/v1/profile",
+            json={
+                "role": "donor",
+                "display_name": "Private Display Name",
+                "can_request": True,
+                "can_donate": True,
+            },
+        )
+        assert repeated.status_code == 200, repeated.text
+        unchanged_count = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'profile.updated'"
+        )
+        assert unchanged_count == [(1,)]
+
+        # Neither email nor display-name values are stored in audit metadata.
+        metadata_text = str(create_events[0][2]) + str(update_events[0][2])
+        assert "@" not in metadata_text
+        assert "Private Display Name" not in metadata_text
+
+    run_scenario(pg_url, scenario)
+
+
+def test_profile_change_rolls_back_when_audit_insert_fails(pg_url):
+    """A failed profile audit must not leave a capability change committed."""
+    async def scenario(client, current, run_sql):
+        user = new_user("profile-user")
+        current["id"] = user
+        created = await client.put(
+            "/v1/profile",
+            json={
+                "role": "requester",
+                "display_name": "Test User",
+                "can_request": True,
+                "can_donate": False,
+            },
+        )
+        assert created.status_code == 200, created.text
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_profile_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'profile.updated' THEN "
+                + "RAISE EXCEPTION 'injected profile audit failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_profile_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_profile_audit()"
+            )
+        await trigger_engine.dispose()
+
+        failed = await client.put(
+            "/v1/profile",
+            json={
+                "role": "donor",
+                "display_name": "Test User",
+                "can_request": True,
+                "can_donate": True,
+            },
+        )
+        assert failed.status_code == 503, failed.text
+
+        stored = await run_sql(
+            "SELECT role::text, can_request, can_donate FROM lifelink_profiles "
+            f"WHERE user_id = '{user}'"
+        )
+        assert stored == [("requester", True, False)]
+        update_events = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'profile.updated'"
+        )
+        assert update_events == [(0,)]
+
+    run_scenario(pg_url, scenario)
