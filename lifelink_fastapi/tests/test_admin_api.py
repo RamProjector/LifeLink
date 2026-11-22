@@ -161,6 +161,7 @@ def test_admin_audit_metadata_is_bounded():
         ("GET", "/v1/admin/dashboard", None),
         ("GET", "/v1/admin/users", None),
         ("GET", "/v1/admin/audit", None),
+        ("GET", "/v1/admin/sessions", None),
         ("GET", "/v1/admin/errors", None),
         ("PATCH", "/v1/admin/users/another-user", {
             "role": "donor",
