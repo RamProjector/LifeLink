@@ -139,6 +139,8 @@ class SupabasePasswordRecoveryTest {
             "new-password-123",
             JsonParser.parseString(update.body.readUtf8()).asJsonObject.get("password").asString,
         )
+        assertEquals("verified-token", sessionStore.session.value?.accessToken)
+        assertEquals("verified-refresh", sessionStore.session.value?.refreshToken)
     }
 
     @Test
