@@ -24,6 +24,14 @@ Role assignment requires both ordinary administrator authentication and membersh
 
 The current admin allowlist remains the bootstrap gate for the existing console. This is intentionally not yet a complete permission-enforcement migration: existing admin routes have not all been converted to granular permission dependencies, and requester/donor application authorization still uses its existing policy.
 
+## Personal activity history
+
+- `GET /v1/audit/me` returns a paginated activity history for the authenticated account.
+- The actor filter is derived exclusively from the verified Supabase token subject; callers cannot supply another account ID.
+- Sensitive metadata is redacted using the same bounded audit-metadata sanitizer used by the Admin Console.
+- Reading personal history is itself recorded as `audit.self.read`.
+- This endpoint exposes only events already written to `audit_events`; it does not imply that every existing requester/donor operation is instrumented yet.
+
 ## Rollout safety
 
 1. Reconcile the live database migration ledger before applying migration 020.
