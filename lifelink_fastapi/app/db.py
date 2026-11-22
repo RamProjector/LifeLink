@@ -197,3 +197,27 @@ async def create_all_tables() -> None:
             "CREATE INDEX IF NOT EXISTS ix_audit_events_actor_timestamp "
             "ON audit_events (actor_id, timestamp DESC)"
         ))
+        # Server-observed sessions support administrator session inventory and
+        # immediate application-level revocation on protected admin endpoints.
+        await connection.execute(text(
+            "CREATE TABLE IF NOT EXISTS lifelink_user_sessions ("
+            "session_id VARCHAR(128) PRIMARY KEY, "
+            "user_id VARCHAR(128) NOT NULL, "
+            "device_used VARCHAR(255) NOT NULL DEFAULT 'unknown', "
+            "ip_address VARCHAR(64), "
+            "created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+            "last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+            "expires_at TIMESTAMPTZ, "
+            "revoked_at TIMESTAMPTZ, "
+            "revoked_by VARCHAR(128), "
+            "status VARCHAR(16) NOT NULL DEFAULT 'active' "
+            "CHECK (status IN ('active', 'revoked', 'expired')))"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_lifelink_user_sessions_user_seen "
+            "ON lifelink_user_sessions (user_id, last_seen_at DESC)"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_lifelink_user_sessions_status_seen "
+            "ON lifelink_user_sessions (status, last_seen_at DESC)"
+        ))
