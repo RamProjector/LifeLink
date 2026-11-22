@@ -80,6 +80,49 @@ CREATE_POLICY_RE = re.compile(
 )
 
 
+
+# Android and the admin console use FastAPI for data access. Public client
+# roles must not retain direct PostgREST privileges on backend-owned objects.
+CLIENT_PRIVILEGE_REVOKES = {
+    "existing public tables": re.compile(
+        r"REVOKE\\s+ALL(?:\\s+PRIVILEGES)?\\s+ON\\s+ALL\\s+TABLES\\s+"
+        r"IN\\s+SCHEMA\\s+public\\s+FROM\\s+PUBLIC\\s*,\\s*anon\\s*,\\s*authenticated",
+        re.IGNORECASE,
+    ),
+    "existing public sequences": re.compile(
+        r"REVOKE\\s+ALL(?:\\s+PRIVILEGES)?\\s+ON\\s+ALL\\s+SEQUENCES\\s+"
+        r"IN\\s+SCHEMA\\s+public\\s+FROM\\s+PUBLIC\\s*,\\s*anon\\s*,\\s*authenticated",
+        re.IGNORECASE,
+    ),
+    "existing public functions": re.compile(
+        r"REVOKE\\s+EXECUTE\\s+ON\\s+ALL\\s+FUNCTIONS\\s+"
+        r"IN\\s+SCHEMA\\s+public\\s+FROM\\s+PUBLIC\\s*,\\s*anon\\s*,\\s*authenticated",
+        re.IGNORECASE,
+    ),
+}
+
+DEFAULT_PRIVILEGE_REVOKES = {}
+for _owner in ("postgres", "supabase_admin"):
+    DEFAULT_PRIVILEGE_REVOKES[f"{_owner} future tables"] = re.compile(
+        rf"ALTER\\s+DEFAULT\\s+PRIVILEGES\\s+FOR\\s+ROLE\\s+{_owner}\\s+"
+        r"IN\\s+SCHEMA\\s+public\\s+REVOKE\\s+ALL\\s+ON\\s+TABLES\\s+"
+        r"FROM\\s+PUBLIC\\s*,\\s*anon\\s*,\\s*authenticated",
+        re.IGNORECASE,
+    )
+    DEFAULT_PRIVILEGE_REVOKES[f"{_owner} future sequences"] = re.compile(
+        rf"ALTER\\s+DEFAULT\\s+PRIVILEGES\\s+FOR\\s+ROLE\\s+{_owner}\\s+"
+        r"IN\\s+SCHEMA\\s+public\\s+REVOKE\\s+ALL\\s+ON\\s+SEQUENCES\\s+"
+        r"FROM\\s+PUBLIC\\s*,\\s*anon\\s*,\\s*authenticated",
+        re.IGNORECASE,
+    )
+    DEFAULT_PRIVILEGE_REVOKES[f"{_owner} future functions"] = re.compile(
+        rf"ALTER\\s+DEFAULT\\s+PRIVILEGES\\s+FOR\\s+ROLE\\s+{_owner}\\s+"
+        r"IN\\s+SCHEMA\\s+public\\s+REVOKE\\s+EXECUTE\\s+ON\\s+FUNCTIONS\\s+"
+        r"FROM\\s+PUBLIC\\s*,\\s*anon\\s*,\\s*authenticated",
+        re.IGNORECASE,
+    )
+
+
 def _read_sql() -> str:
     """Read every migration, with SQL comments stripped.
 
@@ -106,13 +149,24 @@ def main() -> int:
     protected = {t for t in tables if t in rls_enabled and t in policies}
     acknowledged = {t for t in tables if t in BACKEND_ONLY_TABLES}
     unaccounted = sorted(tables - protected - acknowledged)
+    missing_privilege_revokes = [
+        label
+        for label, pattern in (CLIENT_PRIVILEGE_REVOKES | DEFAULT_PRIVILEGE_REVOKES).items()
+        if not pattern.search(sql)
+    ]
 
     print(f"Tables found: {len(tables)}")
     print(f"  RLS-enabled with a policy: {len(protected)}")
     print(f"  Documented backend-only:   {len(acknowledged)}")
     print(f"  Unaccounted for:           {len(unaccounted)}")
+    print(f"  Client privilege revokes missing: {len(missing_privilege_revokes)}")
 
-    if unaccounted:
+    if missing_privilege_revokes:
+        print("\\nFAIL: public client privileges must be revoked for current and future objects:")
+        for item in missing_privilege_revokes:
+            print(f"  - {item}")
+
+    if unaccounted or missing_privilege_revokes:
         print("\nFAIL: the following tables have neither an RLS policy nor a documented exemption:")
         for table in unaccounted:
             print(f"  - {table}")
