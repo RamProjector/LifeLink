@@ -21,13 +21,15 @@ import org.robolectric.annotation.Config
 class SupabasePasswordRecoveryTest {
     private lateinit var server: MockWebServer
     private lateinit var repository: SupabaseAuthRepository
+    private lateinit var sessionStore: AuthSessionStore
 
     @Before
     fun setUp() {
         server = MockWebServer()
         server.start()
+        sessionStore = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>()).also { it.clear() }
         repository = SupabaseAuthRepository(
-            sessionStore = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>()),
+            sessionStore = sessionStore,
             baseUrl = server.url("/").toString(),
             publishableKey = "test-publishable-key",
         )
@@ -56,13 +58,14 @@ class SupabasePasswordRecoveryTest {
 
     @Test
     fun emailChangeUsesAuthenticatedUserEndpointAndDedicatedConfirmationRedirect() = runBlocking {
+        sessionStore.save(AuthSession("access-token", "refresh-token", "user-1", "old@example.test"))
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
                 .setBody("""{"id":"user-1","email":"old@example.test"}"""),
         )
 
-        val result = repository.requestEmailChange("access-token", "new@example.test")
+        val result = repository.requestEmailChange("user-1", "access-token", "new@example.test")
 
         assertTrue("Supabase should accept the email-change request", result.isSuccess)
         val request = server.takeRequest()
@@ -73,6 +76,36 @@ class SupabasePasswordRecoveryTest {
         val body = JsonParser.parseString(request.body.readUtf8()).asJsonObject
         assertEquals("new@example.test", body.get("email").asString)
         assertEquals(1, body.size())
+    }
+
+    @Test
+    fun emailChangeRefreshesExpiredAccessTokenAndRetriesOnce() = runBlocking {
+        sessionStore.save(AuthSession("expired-token", "refresh-token", "user-1", "old@example.test"))
+        server.enqueue(MockResponse().setResponseCode(401).setBody("""{"msg":"JWT expired"}"""))
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"access_token":"fresh-token","refresh_token":"next-refresh","user":{"id":"user-1","email":"old@example.test"}}"""),
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"id":"user-1","email":"old@example.test"}"""),
+        )
+
+        val result = repository.requestEmailChange("user-1", "expired-token", "new@example.test")
+
+        assertTrue("The request should succeed after one token refresh", result.isSuccess)
+        val first = server.takeRequest()
+        assertEquals("Bearer expired-token", first.getHeader("Authorization"))
+        val refresh = server.takeRequest()
+        assertEquals("/auth/v1/token", refresh.requestUrl?.encodedPath)
+        assertEquals("refresh_token", refresh.requestUrl?.queryParameter("grant_type"))
+        val retry = server.takeRequest()
+        assertEquals("Bearer fresh-token", retry.getHeader("Authorization"))
+        assertEquals("new@example.test", JsonParser.parseString(retry.body.readUtf8()).asJsonObject.get("email").asString)
+        assertEquals("user-1", sessionStore.session.value?.userId)
+        assertEquals("fresh-token", sessionStore.session.value?.accessToken)
     }
 
     @Test
@@ -90,7 +123,7 @@ class SupabasePasswordRecoveryTest {
 
     @Test
     fun invalidEmailChangeIsRejectedBeforeNetworkRequest() = runBlocking {
-        val result = repository.requestEmailChange("access-token", "not-an-email")
+        val result = repository.requestEmailChange("user-1", "access-token", "not-an-email")
 
         assertEquals("Enter a valid email address.", result.exceptionOrNull()?.message)
         assertEquals(0, server.requestCount)
