@@ -596,7 +596,9 @@ def _require_rbac_manager(principal: Principal) -> None:
 
 
 class AdminUserRolesUpdate(BaseModel):
-    role_keys: list[str] = Field(min_length=1, max_length=8)
+    # An empty list is a deliberate revoke-all operation; it must remain possible
+    # to remove stale or excessive role assignments without assigning a replacement.
+    role_keys: list[str] = Field(max_length=8)
 
 
 @router.get("/roles")
