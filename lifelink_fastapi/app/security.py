@@ -16,6 +16,7 @@ class Principal:
     role: str | None = None
     # None means "the issuer did not state it"; False means explicitly unverified.
     email_verified: bool | None = None
+    session_id: str | None = None
 
 
 def auth_required(default: bool = False) -> bool:
@@ -81,6 +82,7 @@ def _verify_supabase_token(token: str) -> Principal:
         email=claims.get("email"),
         role=app_metadata.get("role") or user_metadata.get("role"),
         email_verified=not _claim_says_unverified(claims) if _has_verification_claim(claims) else None,
+        session_id=claims.get("session_id") if isinstance(claims.get("session_id"), str) else None,
     )
 
 
