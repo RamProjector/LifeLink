@@ -152,7 +152,7 @@ private enum class SettingsSection(val label: String) {
  */
 // This root composable intentionally coordinates shared navigation and saveable shell state.
 // Keep feature UI in destination composables; extract routing/state only when ownership can move safely.
-@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
+@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount", "LongParameterList")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3WindowSizeClassApi::class)
 @Composable
 fun LifeLinkShell(
@@ -172,6 +172,7 @@ fun LifeLinkShell(
     profileSaving: Boolean,
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
+    onRequestEmailChange: (String, (String) -> Unit) -> Unit,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
