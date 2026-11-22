@@ -555,3 +555,14 @@ private fun AnimatedLifeLinkIcon() {
             .size((88 * pulse).dp)
             .rotate(if (inspection) 0f else spin)
             .clip(CircleShape),
+    )
+}
+
+/** Keeps account work across rotation and cancels it when the account leaves the UI. */
+class AccountViewModelStore :
+    ViewModel(),
+    ViewModelStoreOwner {
+    override val viewModelStore = ViewModelStore()
+
+    override fun onCleared() = viewModelStore.clear()
+}
