@@ -1,6 +1,7 @@
 package com.lifelink.app.core.auth
 
 import android.content.Context
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import com.google.gson.JsonParser
 import kotlinx.coroutines.runBlocking
@@ -51,6 +52,48 @@ class SupabasePasswordRecoveryTest {
         val body = JsonParser.parseString(request.body.readUtf8()).asJsonObject
         assertEquals("user@example.test", body.get("email").asString)
         assertEquals(1, body.size())
+    }
+
+    @Test
+    fun emailChangeUsesAuthenticatedUserEndpointAndDedicatedConfirmationRedirect() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"id":"user-1","email":"old@example.test"}"""),
+        )
+
+        val result = repository.requestEmailChange("access-token", "new@example.test")
+
+        assertTrue("Supabase should accept the email-change request", result.isSuccess)
+        val request = server.takeRequest()
+        assertEquals("PUT", request.method)
+        assertEquals("/auth/v1/user", request.requestUrl?.encodedPath)
+        assertEquals("lifelink://auth/email-change", request.requestUrl?.queryParameter("redirect_to"))
+        assertEquals("Bearer access-token", request.getHeader("Authorization"))
+        val body = JsonParser.parseString(request.body.readUtf8()).asJsonObject
+        assertEquals("new@example.test", body.get("email").asString)
+        assertEquals(1, body.size())
+    }
+
+    @Test
+    fun emailChangeConfirmationRequiresTheDedicatedCallbackType() {
+        val valid = repository.parseAuthCallback(
+            Uri.parse("lifelink://auth/email-change?type=email_change&access_token=confirmed-token"),
+        ).getOrThrow()
+        assertEquals(AuthCallbackKind.EMAIL_CHANGE, valid.kind)
+
+        val invalid = repository.parseAuthCallback(
+            Uri.parse("lifelink://auth/email-change?type=signup&access_token=untrusted-token"),
+        )
+        assertTrue(invalid.isFailure)
+    }
+
+    @Test
+    fun invalidEmailChangeIsRejectedBeforeNetworkRequest() = runBlocking {
+        val result = repository.requestEmailChange("access-token", "not-an-email")
+
+        assertEquals("Enter a valid email address.", result.exceptionOrNull()?.message)
+        assertEquals(0, server.requestCount)
     }
 
     @Test
