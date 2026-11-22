@@ -109,10 +109,22 @@ class SupabaseAuthRepository(
     fun parseAuthCallback(uri: Uri): Result<AuthCallback> =
         runCatching {
             require(uri.scheme == "lifelink" && uri.host == "auth") { "This is not a LifeLink authentication link." }
+            val path = uri.path.orEmpty().trimEnd('/')
             val type = uri.getQueryParameter("type") ?: uri.getFragmentParameter("type")
             val accessToken = uri.getQueryParameter("access_token") ?: uri.getFragmentParameter("access_token")
+            if (path == "/email-change") {
+                val message = uri.getQueryParameter("message") ?: uri.getFragmentParameter("message")
+                if (message?.replace("+", " ") == EMAIL_CHANGE_FIRST_CONFIRMATION_MESSAGE) {
+                    return@runCatching AuthCallback(
+                        kind = AuthCallbackKind.EMAIL_CHANGE_PENDING,
+                        email = null,
+                        accessToken = "",
+                        refreshToken = null,
+                    )
+                }
+                require(type == "email_change") { "This link is not an email-change confirmation link." }
+            }
             require(!accessToken.isNullOrBlank()) { "The authentication link is missing its confirmation token." }
-            val path = uri.path.orEmpty().trimEnd('/')
             val kind =
                 when (path) {
                     "/recovery" -> {
@@ -123,10 +135,7 @@ class SupabaseAuthRepository(
                         require(type == "signup" || type == "email") { "This link is not an account-confirmation link." }
                         AuthCallbackKind.CONFIRMATION
                     }
-                    "/email-change" -> {
-                        require(type == "email_change") { "This link is not an email-change confirmation link." }
-                        AuthCallbackKind.EMAIL_CHANGE
-                    }
+                    "/email-change" -> AuthCallbackKind.EMAIL_CHANGE
                     else -> error("This LifeLink authentication link is no longer supported.")
                 }
             AuthCallback(
@@ -362,6 +371,8 @@ class SupabaseAuthRepository(
         const val RECOVERY_REDIRECT_URI = "lifelink://auth/recovery"
         const val SIGNUP_REDIRECT_URI = "lifelink://auth/confirm"
         const val EMAIL_CHANGE_REDIRECT_URI = "lifelink://auth/email-change"
+        const val EMAIL_CHANGE_FIRST_CONFIRMATION_MESSAGE =
+            "Confirmation link accepted. Please proceed to confirm link sent to the other email"
         const val MIN_PASSWORD_LENGTH = 6
         val EMAIL_PATTERN = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
     }
@@ -449,7 +460,7 @@ data class PasswordRecoveryRequest(@SerializedName("email") val email: String)
 
 data class ResendRequest(@SerializedName("type") val type: String, @SerializedName("email") val email: String)
 
-enum class AuthCallbackKind { RECOVERY, CONFIRMATION, EMAIL_CHANGE }
+enum class AuthCallbackKind { RECOVERY, CONFIRMATION, EMAIL_CHANGE, EMAIL_CHANGE_PENDING }
 
 data class AuthCallback(val kind: AuthCallbackKind, val email: String?, val accessToken: String, val refreshToken: String?)
 
