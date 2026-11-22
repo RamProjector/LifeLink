@@ -8,12 +8,12 @@ The admin console is an additional, restricted interface for the existing FastAP
 - **Authentication:** the web console signs in with Supabase Auth using the project's publishable/anon key and passes the access token to the API. The Android console uses the existing signed-in session. The API verifies the token and then checks the configured UUID allowlist for every admin endpoint.
 - **No service-role key:** never enter a Supabase service-role key in the browser or Android app. The UI only requires the public publishable/anon key.
 - **User management:** the current interface manages requester/donor capabilities only. It cannot assign admin status, delete accounts, or disable authentication identities.
-- **Audit trail:** admin session verification, dashboard views, user-list reads, user capability changes, audit-log reads, error-log reads, denied admin requests, and unhandled API/database errors are written to audit_events. Event details deliberately omit passwords, bearer tokens, request bodies, blood type, and precise locations.
-- **Read-only audit interface:** there are no API endpoints for editing or deleting audit events. Database administrators must also restrict direct database mutation privileges on this table.
+- **Audit trail:** admin session verification, dashboard views, user-list reads, user capability changes, audit-log reads, error-log reads, denied admin requests, and unhandled API/database errors are written to `audit_events`. The IDS/IPS audit envelope adds `session_id`, `log_id`, `actions`, `description`, `ip_address`, `timestamp`, and `device_used`, while retaining legacy columns for compatibility. Event details deliberately omit passwords, bearer tokens, request bodies, blood type, and precise locations.
+- **Read-only audit interface:** there are no API endpoints for editing or deleting audit events. Database administrators must also restrict direct database mutation privileges on this table. The admin security-activity view displays the new audit context alongside the existing event metadata.
 
 ## Database migration
 
-The API startup path also applies the same idempotent, additive column/index changes as `lifelink_fastapi/sql/011_admin_audit_metadata.sql`, because this service already performs schema upgrades during startup. The standalone SQL migration remains the canonical script for separately managed databases and manual rollout. It does not delete or rewrite existing audit events. Review the SQL and take the normal database backup before any separately managed production rollout.
+The API startup path applies idempotent, additive column/index changes for the existing audit table. The IDS/IPS foundation is also captured in `lifelink_fastapi/sql/017_ids_ips_audit_foundation.sql`. It backfills a stable `log_id` for existing events and retains the legacy `id`, `action`, and `created_at` columns. It does not delete existing audit events. Review the SQL and take the normal database backup before any separately managed production rollout.
 
 The API uses the existing audit_events table. Ensure the application database identity can insert and select audit records, and restrict direct update/delete access as appropriate for your database roles and existing deployment. Do not make broad RLS or role changes without reviewing the current production policies.
 
@@ -58,3 +58,18 @@ All admin endpoints require a valid Supabase access token and an allowlisted use
 - [ ] Confirm a denied admin request and a simulated unhandled API error appear in the error view.
 - [ ] Confirm no access tokens, passwords, exact locations, or request bodies are present in audit metadata.
 - [ ] Configure exact-origin CORS and HTTPS before exposing the web console.
+
+
+## IDS/IPS audit foundation status
+
+The first IDS/IPS implementation slice adds the required seven-field audit envelope to the existing audit table and exposes those fields in the admin security-activity view.
+
+- `session_id` is taken from the verified Supabase JWT claim when present.
+- `log_id` is a generated UUID with a unique index.
+- `actions` classifies CRUD changes as ADD, EDIT, or DELETE; non-CRUD activity is OTHER.
+- `description` records the bounded event code, not a request body.
+- `ip_address` uses the ASGI peer address. Forwarded IP headers are intentionally not trusted until Render's trusted-proxy behavior is verified.
+- `timestamp` is generated server-side in UTC.
+- `device_used` is a bounded User-Agent value; it is not a device fingerprint.
+
+This is an audit foundation, not a complete IDS/IPS. Role/permission assignment, cross-platform operation coverage, session revocation enforcement, detection rules, alert workflows, and the full Security Center remain subsequent implementation work. Do not treat a missing session claim or unavailable peer IP as verified identity evidence.
