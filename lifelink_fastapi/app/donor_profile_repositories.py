@@ -271,9 +271,10 @@ class SqlAlchemyDonorProfileStore:
             donor_row.available = False
             donor_row.profile_visible = False
             donor_row.availability_updated_at = datetime.now(UTC)
+        account_capability_was_enabled = bool(account_profile and account_profile.can_donate)
         if account_profile is not None:
             account_profile.can_donate = False
-        if row is not None or donor_row is not None:
+        if row is not None or donor_row is not None or account_capability_was_enabled:
             self.session.add(AuditEvent(
                 id=f"audit_{uuid4().hex}",
                 actor_id=user_id,
@@ -282,6 +283,7 @@ class SqlAlchemyDonorProfileStore:
                 event_metadata={
                     "profile_removed": row is not None,
                     "operational_donor_disabled": donor_row is not None,
+                    "account_capability_reset": account_capability_was_enabled,
                 },
             ))
         # Profile removal, account capability reset, donor disablement, and
