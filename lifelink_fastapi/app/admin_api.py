@@ -37,29 +37,56 @@ class AdminProfileUpdate(BaseModel):
     can_donate: bool
 
 
+def _audit_action_kind(action: str) -> str:
+    """Map CRUD events to the required normalized action vocabulary."""
+    verb = action.rsplit(".", 1)[-1].lower()
+    if verb in {"add", "create", "insert"}:
+        return "ADD"
+    if verb in {"edit", "update", "patch"}:
+        return "EDIT"
+    if verb in {"delete", "remove", "revoke"}:
+        return "DELETE"
+    return "OTHER"
+
+
 async def _write_audit(
     session: AsyncSession,
     actor_id: str,
     action: str,
     *,
+    request: Request | None = None,
+    session_id: str | None = None,
     outcome: str = "success",
     target_type: str | None = None,
     target_id: str | None = None,
     correlation_id: str | None = None,
     metadata: dict | None = None,
 ) -> None:
-    # Deliberately excludes email, location, blood type, credentials, and request bodies.
+    # IP and device context are derived from the ASGI request, never client-supplied
+    # headers. Do not trust X-Forwarded-For until the deployment's trusted-proxy
+    # configuration is explicitly verified.
+    peer_ip = request.client.host if request and request.client else None
+    user_agent = request.headers.get("user-agent", "unknown")[:255] if request else "unknown"
     await session.execute(
         text(
             "INSERT INTO audit_events "
-            "(id, actor_id, action, metadata, created_at, outcome, target_type, target_id, correlation_id) "
-            "VALUES (:id, :actor_id, :action, CAST(:metadata AS jsonb), :created_at, :outcome, "
+            "(id, log_id, actor_id, action, actions, description, session_id, ip_address, "
+            "timestamp, device_used, metadata, created_at, outcome, target_type, target_id, correlation_id) "
+            "VALUES (:id, :log_id, :actor_id, :action, :actions, :description, :session_id, "
+            ":ip_address, :timestamp, :device_used, CAST(:metadata AS jsonb), :created_at, :outcome, "
             ":target_type, :target_id, :correlation_id)"
         ),
         {
             "id": str(uuid4()),
+            "log_id": str(uuid4()),
             "actor_id": actor_id,
             "action": action[:64],
+            "actions": _audit_action_kind(action),
+            "description": action[:500],
+            "session_id": session_id,
+            "ip_address": peer_ip,
+            "timestamp": datetime.now(timezone.utc),
+            "device_used": user_agent,
             "metadata": __import__("json").dumps(metadata or {}),
             "created_at": datetime.now(timezone.utc),
             "outcome": outcome,
@@ -112,12 +139,13 @@ def _correlation_id(value: str | None) -> str:
 
 @router.get("/me")
 async def admin_me(
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(require_admin),
     x_correlation_id: str | None = Header(default=None),
 ):
     await _write_audit(
-        session, principal.subject, "admin.session.verified", target_type="admin_session",
+        session, principal.subject, "admin.session.verified", request=request, session_id=principal.session_id, target_type="admin_session",
         correlation_id=_correlation_id(x_correlation_id),
     )
     await session.commit()
@@ -135,7 +163,7 @@ async def admin_dashboard(
     users = await session.scalar(select(func.count()).select_from(LifeLinkProfile)) or 0
     donors = await session.scalar(select(func.count()).select_from(Donor)) or 0
     requests = await session.scalar(select(func.count()).select_from(EmergencyRequest)) or 0
-    await _write_audit(session, principal.subject, "admin.dashboard.view", target_type="dashboard",
+    await _write_audit(session, principal.subject, "admin.dashboard.view", request=request, session_id=principal.session_id, target_type="dashboard",
                        correlation_id=correlation_id)
     await session.commit()
     return {
@@ -149,6 +177,7 @@ async def admin_dashboard(
 
 @router.get("/users")
 async def admin_list_users(
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(require_admin),
     limit: int = Query(default=50, ge=1, le=100),
@@ -160,7 +189,7 @@ async def admin_list_users(
     )
     profiles = result.scalars().all()
     total = await session.scalar(select(func.count()).select_from(LifeLinkProfile)) or 0
-    await _write_audit(session, principal.subject, "admin.users.list", target_type="user_list",
+    await _write_audit(session, principal.subject, "admin.users.list", request=request, session_id=principal.session_id, target_type="user_list",
                        correlation_id=_correlation_id(x_correlation_id), metadata={"limit": limit, "offset": offset})
     await session.commit()
     return {
@@ -207,7 +236,7 @@ async def admin_update_user(
     row.can_donate = payload.can_donate
     row.updated_at = datetime.now(timezone.utc)
     await _write_audit(
-        session, principal.subject, "admin.user.update", target_type="user", target_id=user_id,
+        session, principal.subject, "admin.user.update", request=request, session_id=principal.session_id, target_type="user", target_id=user_id,
         correlation_id=_correlation_id(x_correlation_id),
         metadata={"before": before, "after": payload.model_dump()},
     )
@@ -217,6 +246,7 @@ async def admin_update_user(
 
 @router.get("/audit")
 async def admin_audit_logs(
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(require_admin),
     limit: int = Query(default=50, ge=1, le=100),
@@ -225,11 +255,12 @@ async def admin_audit_logs(
     x_correlation_id: str | None = Header(default=None),
 ):
     # Record the read before selecting the page; no endpoint permits audit mutation or deletion.
-    await _write_audit(session, principal.subject, "admin.audit.read", target_type="audit_log",
+    await _write_audit(session, principal.subject, "admin.audit.read", request=request, session_id=principal.session_id, target_type="audit_log",
                        correlation_id=_correlation_id(x_correlation_id),
                        metadata={"limit": limit, "offset": offset, "filtered": bool(action)})
     query = (
-        "SELECT id, actor_id, action, metadata, created_at, outcome, target_type, target_id, correlation_id "
+        "SELECT id, log_id, actor_id, action, actions, description, session_id, ip_address, timestamp, device_used, "
+            "metadata, created_at, outcome, target_type, target_id, correlation_id "
         "FROM audit_events WHERE (:action IS NULL OR action = :action) "
         "ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
     )
@@ -248,6 +279,7 @@ async def admin_audit_logs(
 
 @router.get("/errors")
 async def admin_errors(
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(require_admin),
     limit: int = Query(default=50, ge=1, le=100),
@@ -262,7 +294,7 @@ async def admin_errors(
         {"limit": limit, "offset": offset},
     )
     rows = result.mappings().all()
-    await _write_audit(session, principal.subject, "admin.errors.read", target_type="error_log",
+    await _write_audit(session, principal.subject, "admin.errors.read", request=request, session_id=principal.session_id, target_type="error_log",
                        metadata={"limit": limit, "offset": offset})
     await session.commit()
     return {"items": [{**dict(row), "metadata": _safe_audit_metadata(row["metadata"]), "created_at": row["created_at"].isoformat() if row["created_at"] else None}
