@@ -142,6 +142,21 @@ class SupabasePasswordRecoveryTest {
     }
 
     @Test
+    fun passwordChangeDoesNotUpdateWhenCurrentPasswordIsRejected() = runBlocking {
+        sessionStore.save(AuthSession("existing-token", "refresh-token", "user-1", "user@example.test"))
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(400)
+                .setBody("""{"msg":"Invalid login credentials"}"""),
+        )
+
+        val result = repository.changePassword("user-1", "wrong-current-password", "new-password-123")
+
+        assertEquals("Invalid login credentials", result.exceptionOrNull()?.message)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
     fun passwordChangeRejectsAReauthenticatedDifferentAccount() = runBlocking {
         sessionStore.save(AuthSession("existing-token", "refresh-token", "user-1", "user@example.test"))
         server.enqueue(
