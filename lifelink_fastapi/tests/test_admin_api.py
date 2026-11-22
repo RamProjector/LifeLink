@@ -331,3 +331,40 @@ def test_rbac_role_update_limits_assignment_count():
 
     with pytest.raises(ValidationError):
         AdminUserRolesUpdate(role_keys=[f"role-{index}" for index in range(9)])
+
+
+
+def test_ordinary_admin_cannot_assign_roles_through_http(monkeypatch):
+    import httpx
+
+    from app.db import get_db_session
+    from app.main_postgres import app
+    from app.security import get_postgres_principal
+
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "ordinary-admin")
+    monkeypatch.delenv("LIFELINK_RBAC_MANAGER_USER_IDS", raising=False)
+
+    async def fake_session():
+        yield FakeSession([0])
+
+    app.dependency_overrides[get_db_session] = fake_session
+    app.dependency_overrides[get_postgres_principal] = lambda: Principal(
+        subject="ordinary-admin",
+        email_verified=True,
+        session_id="ordinary-admin-session",
+    )
+
+    async def make_request():
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            return await client.put(
+                "/v1/admin/users/00000000-0000-0000-0000-000000000001/roles",
+                json={"role_keys": ["auditor"]},
+            )
+
+    try:
+        response = asyncio.run(make_request())
+        assert response.status_code == 403
+        assert "RBAC manager" in response.json()["detail"]
+    finally:
+        app.dependency_overrides.clear()
