@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import create_all_tables, get_db_session
-from .db_models import Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum, Message
+from .db_models import AuditEvent, Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum, Message
 from .fcm import send_push_safely
 from .main import (
     EmergencyRequestIn,
@@ -371,7 +371,8 @@ async def upsert_profile(
     require_verified_email(principal)
     await enforce_rate_limit(f"profile-upsert:{principal.subject}", 20, 300)
     row = await session.get(LifeLinkProfile, principal.subject)
-    if row is None:
+    is_new_profile = row is None
+    if is_new_profile:
         row = LifeLinkProfile(
             user_id=principal.subject,
             email=principal.email or "",
@@ -381,12 +382,37 @@ async def upsert_profile(
             display_name=payload.display_name,
         )
         session.add(row)
+        changed_fields = ["email", "role", "can_request", "can_donate", "display_name"]
     else:
+        before = {
+            "email": row.email,
+            "role": enum_value(row.role),
+            "can_request": row.can_request,
+            "can_donate": row.can_donate,
+            "display_name": row.display_name,
+        }
         row.email = principal.email or row.email
         row.role = LifeLinkRoleEnum(payload.role)
         row.can_request = payload.can_request
         row.can_donate = payload.can_donate
         row.display_name = payload.display_name
+        after = {
+            "email": row.email,
+            "role": enum_value(row.role),
+            "can_request": row.can_request,
+            "can_donate": row.can_donate,
+            "display_name": row.display_name,
+        }
+        changed_fields = [field for field, value in after.items() if before[field] != value]
+    # Keep the audit event in the same transaction as the profile mutation.
+    # Store field names only: never copy email or display-name values to audit.
+    if is_new_profile or changed_fields:
+        session.add(AuditEvent(
+            id=f"audit_{uuid4().hex}",
+            actor_id=principal.subject,
+            action="profile.created" if is_new_profile else "profile.updated",
+            event_metadata={"changed_fields": changed_fields},
+        ))
     await session.commit()
     return ProfileOut(
         user_id=row.user_id,
