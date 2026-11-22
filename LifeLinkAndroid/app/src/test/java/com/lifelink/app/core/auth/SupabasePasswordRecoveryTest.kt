@@ -109,6 +109,54 @@ class SupabasePasswordRecoveryTest {
     }
 
     @Test
+    fun passwordChangeReauthenticatesSameUserBeforeUpdatingPassword() = runBlocking {
+        sessionStore.save(AuthSession("existing-token", "refresh-token", "user-1", "user@example.test"))
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"access_token":"verified-token","refresh_token":"verified-refresh","user":{"id":"user-1","email":"user@example.test"}}"""),
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"id":"user-1","email":"user@example.test"}"""),
+        )
+
+        val result = repository.changePassword("user-1", "current-password", "new-password-123")
+
+        assertTrue("A successfully re-authenticated account should be allowed to change its password", result.isSuccess)
+        val verification = server.takeRequest()
+        assertEquals("/auth/v1/token", verification.requestUrl?.encodedPath)
+        assertEquals("password", verification.requestUrl?.queryParameter("grant_type"))
+        val verificationBody = JsonParser.parseString(verification.body.readUtf8()).asJsonObject
+        assertEquals("user@example.test", verificationBody.get("email").asString)
+        assertEquals("current-password", verificationBody.get("password").asString)
+        val update = server.takeRequest()
+        assertEquals("PUT", update.method)
+        assertEquals("/auth/v1/user", update.requestUrl?.encodedPath)
+        assertEquals("Bearer verified-token", update.getHeader("Authorization"))
+        assertEquals(
+            "new-password-123",
+            JsonParser.parseString(update.body.readUtf8()).asJsonObject.get("password").asString,
+        )
+    }
+
+    @Test
+    fun passwordChangeRejectsAReauthenticatedDifferentAccount() = runBlocking {
+        sessionStore.save(AuthSession("existing-token", "refresh-token", "user-1", "user@example.test"))
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"access_token":"verified-token","user":{"id":"user-2","email":"other@example.test"}}"""),
+        )
+
+        val result = repository.changePassword("user-1", "current-password", "new-password-123")
+
+        assertEquals("The current password did not verify this signed-in account.", result.exceptionOrNull()?.message)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
     fun emailChangeConfirmationRequiresTheDedicatedCallbackType() {
         val valid = repository.parseAuthCallback(
             Uri.parse("lifelink://auth/email-change?type=email_change&access_token=confirmed-token"),
