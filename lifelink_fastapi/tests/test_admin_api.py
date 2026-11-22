@@ -77,10 +77,14 @@ def test_startup_adds_admin_audit_columns_and_indexes(monkeypatch):
     asyncio.run(db.create_all_tables())
 
     statements = "\n".join(connection.statements)
-    for column in ("outcome", "target_type", "target_id", "correlation_id"):
+    for column in (
+        "outcome", "target_type", "target_id", "correlation_id", "log_id",
+        "actions", "description", "session_id", "ip_address", "timestamp", "device_used",
+    ):
         assert f"ADD COLUMN IF NOT EXISTS {column}" in statements
     assert "ix_audit_events_created_at" in statements
     assert "ix_audit_events_action_created_at" in statements
+    assert "ux_audit_events_log_id" in statements
 
 
 from app.admin_api import _safe_audit_metadata
@@ -155,3 +159,20 @@ def test_non_admin_is_denied_by_every_admin_endpoint(monkeypatch, method, path, 
     finally:
         app.dependency_overrides.clear()
 
+
+
+
+@pytest.mark.parametrize(
+    ("action", "expected"),
+    [
+        ("user.create", "ADD"),
+        ("admin.user.update", "EDIT"),
+        ("account.delete", "DELETE"),
+        ("admin.dashboard.view", "OTHER"),
+        ("admin.audit.read", "OTHER"),
+    ],
+)
+def test_audit_action_kind_normalizes_crud_actions(action, expected):
+    from app.admin_api import _audit_action_kind
+
+    assert _audit_action_kind(action) == expected
