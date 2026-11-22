@@ -16,6 +16,9 @@ It seeds requester/donor and four administrative role types plus a super-adminis
 - `GET /v1/admin/roles` lists role definitions and mapped permissions.
 - `GET /v1/admin/users/{user_id}/roles` lists current role assignments.
 - `PUT /v1/admin/users/{user_id}/roles` replaces a user's active role assignments.
+  - Supply one or more known `role_keys` to replace the assignment set.
+  - Supply an empty `role_keys` array to revoke all RBAC assignments; this is intentionally distinct from omitting the field.
+  - Requests are limited to eight roles, reject duplicates and unknown keys, and cannot modify the manager's own assignments.
 
 Role assignment requires both ordinary administrator authentication and membership in the separate server-side `LIFELINK_RBAC_MANAGER_USER_IDS` allowlist. Do not populate this variable from user-editable profile metadata or public signup. Use verified Supabase Auth UUIDs and keep the list in the backend's private environment configuration.
 
