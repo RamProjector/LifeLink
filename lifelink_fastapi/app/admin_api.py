@@ -22,12 +22,29 @@ def _configured_admin_ids() -> set[str]:
     return {item.strip() for item in os.getenv("LIFELINK_ADMIN_USER_IDS", "").split(",") if item.strip()}
 
 
-def require_admin(principal: Principal = Depends(get_postgres_principal)) -> Principal:
+async def require_admin(
+    principal: Principal = Depends(get_postgres_principal),
+    session: AsyncSession = Depends(get_db_session),
+) -> Principal:
     if principal.subject == "development-user":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in with an authenticated account")
     require_verified_email(principal)
     if principal.subject not in _configured_admin_ids():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator access is required")
+    if principal.session_id:
+        revoked = await session.scalar(
+            text(
+                "SELECT EXISTS (SELECT 1 FROM lifelink_user_sessions "
+                "WHERE session_id = :session_id AND revoked_at IS NOT NULL)"
+            ),
+            {"session_id": principal.session_id},
+        )
+        if revoked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="This session has been revoked. Sign in again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
     return principal
 
 
@@ -56,6 +73,7 @@ async def _write_audit(
     *,
     request: Request | None = None,
     session_id: str | None = None,
+    session_expires_at: datetime | None = None,
     outcome: str = "success",
     target_type: str | None = None,
     target_id: str | None = None,
@@ -67,6 +85,28 @@ async def _write_audit(
     # configuration is explicitly verified.
     peer_ip = request.client.host if request and request.client else None
     user_agent = request.headers.get("user-agent", "unknown")[:255] if request else "unknown"
+    if session_id:
+        await session.execute(
+            text(
+                "INSERT INTO lifelink_user_sessions "
+                "(session_id, user_id, device_used, ip_address, created_at, last_seen_at, expires_at, status) "
+                "VALUES (:session_id, :user_id, :device_used, :ip_address, :now, :now, :expires_at, 'active') "
+                "ON CONFLICT (session_id) DO UPDATE SET "
+                "last_seen_at = EXCLUDED.last_seen_at, "
+                "device_used = EXCLUDED.device_used, "
+                "ip_address = COALESCE(EXCLUDED.ip_address, lifelink_user_sessions.ip_address), "
+                "expires_at = COALESCE(EXCLUDED.expires_at, lifelink_user_sessions.expires_at), "
+                "status = CASE WHEN lifelink_user_sessions.revoked_at IS NULL THEN 'active' ELSE 'revoked' END"
+            ),
+            {
+                "session_id": session_id,
+                "user_id": actor_id,
+                "device_used": user_agent,
+                "ip_address": peer_ip,
+                "now": datetime.now(timezone.utc),
+                "expires_at": session_expires_at,
+            },
+        )
     await session.execute(
         text(
             "INSERT INTO audit_events "
@@ -145,7 +185,7 @@ async def admin_me(
     x_correlation_id: str | None = Header(default=None),
 ):
     await _write_audit(
-        session, principal.subject, "admin.session.verified", request=request, session_id=principal.session_id, target_type="admin_session",
+        session, principal.subject, "admin.session.verified", request=request, session_id=principal.session_id, session_expires_at=principal.session_expires_at, target_type="admin_session",
         correlation_id=_correlation_id(x_correlation_id),
     )
     await session.commit()
@@ -163,7 +203,7 @@ async def admin_dashboard(
     users = await session.scalar(select(func.count()).select_from(LifeLinkProfile)) or 0
     donors = await session.scalar(select(func.count()).select_from(Donor)) or 0
     requests = await session.scalar(select(func.count()).select_from(EmergencyRequest)) or 0
-    await _write_audit(session, principal.subject, "admin.dashboard.view", request=request, session_id=principal.session_id, target_type="dashboard",
+    await _write_audit(session, principal.subject, "admin.dashboard.view", request=request, session_id=principal.session_id, session_expires_at=principal.session_expires_at, target_type="dashboard",
                        correlation_id=correlation_id)
     await session.commit()
     return {
@@ -242,6 +282,73 @@ async def admin_update_user(
     )
     await session.commit()
     return {"user_id": row.user_id, "role": payload.role, "can_request": row.can_request, "can_donate": row.can_donate}
+
+
+@router.get("/sessions")
+async def admin_list_sessions(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+):
+    result = await session.execute(
+        text(
+            "SELECT session_id, user_id, device_used, ip_address, created_at, last_seen_at, "
+            "expires_at, revoked_at, status "
+            "FROM lifelink_user_sessions ORDER BY last_seen_at DESC LIMIT :limit OFFSET :offset"
+        ),
+        {"limit": limit, "offset": offset},
+    )
+    rows = result.mappings().all()
+    await _write_audit(
+        session, principal.subject, "admin.sessions.list", request=request,
+        session_id=principal.session_id, session_expires_at=principal.session_expires_at,
+        target_type="session_list", metadata={"limit": limit, "offset": offset},
+    )
+    await session.commit()
+    return {
+        "items": [
+            {**dict(row), **{
+                key: row[key].isoformat() if row[key] else None
+                for key in ("created_at", "last_seen_at", "expires_at", "revoked_at")
+            }}
+            for row in rows
+        ],
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.post("/sessions/{session_id}/revoke")
+async def admin_revoke_session(
+    session_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin),
+):
+    if principal.session_id and session_id == principal.session_id:
+        raise HTTPException(status_code=409, detail="Use sign-out to end your current administrator session")
+    result = await session.execute(
+        text(
+            "UPDATE lifelink_user_sessions SET revoked_at = now(), revoked_by = :actor_id, "
+            "status = 'revoked' WHERE session_id = :session_id AND revoked_at IS NULL "
+            "RETURNING session_id, user_id"
+        ),
+        {"actor_id": principal.subject, "session_id": session_id},
+    )
+    row = result.mappings().first()
+    if row is None:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail="Active session not found")
+    await _write_audit(
+        session, principal.subject, "admin.session.revoke", request=request,
+        session_id=principal.session_id, session_expires_at=principal.session_expires_at,
+        target_type="user_session", target_id=session_id,
+        metadata={"affected_user_id": row["user_id"]},
+    )
+    await session.commit()
+    return {"session_id": session_id, "status": "revoked"}
 
 
 @router.get("/audit")
