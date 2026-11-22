@@ -197,6 +197,18 @@ class SupabasePasswordRecoveryTest {
     }
 
     @Test
+    fun firstSecureEmailChangeConfirmationIsRecognizedWithoutAnAccessToken() {
+        val pending = repository.parseAuthCallback(
+            Uri.parse(
+                "lifelink://auth/email-change#message=Confirmation+link+accepted.+Please+proceed+to+confirm+link+sent+to+the+other+email&sb=",
+            ),
+        ).getOrThrow()
+
+        assertEquals(AuthCallbackKind.EMAIL_CHANGE_PENDING, pending.kind)
+        assertEquals("", pending.accessToken)
+    }
+
+    @Test
     fun invalidEmailChangeIsRejectedBeforeNetworkRequest() = runBlocking {
         val result = repository.requestEmailChange("user-1", "access-token", "not-an-email")
 
