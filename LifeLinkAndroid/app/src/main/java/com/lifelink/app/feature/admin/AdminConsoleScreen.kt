@@ -396,10 +396,13 @@ private suspend fun updateUser(
     if (response.isSuccessful) {
         "User capabilities updated and audited."
     } else {
-        "User update failed (${response.code()})."
+        userFacingError(
+            IllegalStateException("User update failed (${response.code()})"),
+            "User update failed. Please try again.",
+        )
     }
 } catch (failure: IOException) {
-    failure.message ?: "Network error while updating the user."
+    userFacingError(failure, "The user update could not be completed. Check your connection and try again.")
 } catch (failure: JsonParseException) {
-    failure.message ?: "The server returned unreadable update data."
+    userFacingError(failure, "The server returned unreadable update data. Please try again.")
 }
