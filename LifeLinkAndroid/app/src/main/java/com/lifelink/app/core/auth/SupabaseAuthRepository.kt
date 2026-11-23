@@ -204,8 +204,8 @@ class SupabaseAuthRepository(
 
     /**
      * Changes the password only after Supabase has re-authenticated the same signed-in user
-     * with their current password. The re-authentication token is used for the update and is
-     * never written to logs or persisted as a replacement session.
+     * with their current password. The verified session replaces the local session only after
+     * the password update succeeds; access and refresh tokens are never written to logs.
      */
     suspend fun changePassword(userId: String, currentPassword: String, newPassword: String): Result<Unit> =
         withContext(Dispatchers.IO) {
@@ -245,16 +245,16 @@ class SupabaseAuthRepository(
                 if (!response.isSuccessful) {
                     error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
                 }
-                sessionStore.replace(
-                    currentSession,
-                    AuthSession(
-                        accessToken = verifiedToken,
-                        refreshToken = verified.refreshToken?.takeIf { it.isNotBlank() }
-                            ?: currentSession.refreshToken,
-                        userId = userId,
-                        email = verified.user?.email ?: currentSession.email,
-                    ),
+                val verifiedSession = AuthSession(
+                    accessToken = verifiedToken,
+                    refreshToken = verified.refreshToken?.takeIf { it.isNotBlank() }
+                        ?: currentSession.refreshToken,
+                    userId = userId,
+                    email = verified.user?.email ?: currentSession.email,
                 )
+                if (!sessionStore.replaceForUser(userId, verifiedSession)) {
+                    error("Your session changed during the password update. Please sign in again.")
+                }
                 Unit
             }
         }
