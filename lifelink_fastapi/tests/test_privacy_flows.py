@@ -153,6 +153,87 @@ def test_requester_location_source_is_persisted_and_idempotency_ignores_attribut
     run_scenario(pg_url, scenario)
 
 
+def test_emergency_request_creation_is_audited_without_sensitive_payload(pg_url):
+    async def scenario(client, current, run_sql):
+        requester = new_user("audited-requester")
+        current["id"] = requester
+        payload = request_payload(requester)
+        payload["note"] = "private clinical context"
+        created = await client.post("/v1/emergency-requests", json=payload)
+        assert created.status_code == 201, created.text
+        request_id = created.json()["request_id"]
+
+        events = await run_sql(
+            "SELECT actor_id, action, request_id, metadata FROM audit_events "
+            f"WHERE request_id = '{request_id}' AND action = 'emergency_request_created'"
+        )
+        assert len(events) == 1
+        assert events[0][0:3] == (requester, "emergency_request_created", request_id)
+        assert events[0][3] == {
+            "status": "awaiting_responses",
+            "matching_mode": "weighted",
+            "match_count": 0,
+        }
+        assert "private clinical context" not in str(events[0][3])
+        assert "latitude" not in str(events[0][3])
+        assert "longitude" not in str(events[0][3])
+
+        # Idempotent retries return the original request and must not add a
+        # second creation event.
+        retried = await client.post("/v1/emergency-requests", json=payload)
+        assert retried.status_code == 201, retried.text
+        assert retried.json()["request_id"] == request_id
+        count = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE request_id = '{request_id}' AND action = 'emergency_request_created'"
+        )
+        assert count == [(1,)]
+
+    run_scenario(pg_url, scenario)
+
+
+def test_emergency_request_rolls_back_when_creation_audit_fails(pg_url):
+    async def scenario(client, current, run_sql):
+        requester = new_user("audit-failure-requester")
+        current["id"] = requester
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_request_creation_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'emergency_request_created' THEN "
+                + "RAISE EXCEPTION 'injected request audit failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_request_creation_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_request_creation_audit()"
+            )
+        await trigger_engine.dispose()
+
+        failed = await client.post(
+            "/v1/emergency-requests",
+            json=request_payload(requester),
+        )
+        assert failed.status_code == 503, failed.text
+        stored = await run_sql(
+            "SELECT COUNT(*) FROM emergency_requests "
+            f"WHERE requester_id = '{requester}'"
+        )
+        events = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE actor_id = '{requester}' AND action = 'emergency_request_created'"
+        )
+        assert stored == [(0,)]
+        assert events == [(0,)]
+
+    run_scenario(pg_url, scenario)
+
+
 async def setup_donor(
     client,
     current,
