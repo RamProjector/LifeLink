@@ -1578,7 +1578,7 @@ def test_conversation_moderation_is_available_to_either_participant(pg_url):
 
 async def _create_accepted_contact(client, current, donor: str, requester: str) -> str:
     """Create an accepted donor contact ready for requester lifecycle updates."""
-    await setup_donor(client, current, donor)
+    await setup_donor(client, current, donor, map_visible=True)
     created = await submit_request(client, current, requester)
     request_id = created["request_id"]
 
