@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .db import create_all_tables, get_db_session
+from .db import AsyncSessionLocal, create_all_tables, get_db_session
 from .db_models import AuditEvent, Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum, Message
 from .fcm import send_push_safely
 from .main import (
@@ -80,6 +80,7 @@ from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
 from .security import Principal, get_postgres_principal, require_verified_email
 from .rate_limit import enforce_rate_limit
 from .admin_api import _correlation_id, _write_audit, router as admin_router
+from .audit_api import router as audit_router
 from .facility_api import NearbyFacilitiesOut, nearby_facilities, validate_nearby_query
 
 @asynccontextmanager
@@ -191,6 +192,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Correlation-ID"],
 )
 app.include_router(admin_router)
+app.include_router(audit_router)
 logger = logging.getLogger("lifelink.api")
 
 
@@ -250,6 +252,86 @@ async def audit_admin_denials(request: Request, call_next):
         )
     return response
 
+
+def _operation_audit_kind(method: str) -> tuple[str, str]:
+    """Normalize API operations to the assignment's ADD/EDIT/DELETE vocabulary."""
+    if method == "POST":
+        return "ADD", "added"
+    if method in {"PUT", "PATCH"}:
+        return "EDIT", "updated"
+    if method == "DELETE":
+        return "DELETE", "deleted"
+    return "OTHER", "viewed"
+
+def _audit_resource_name(path: str) -> str:
+    """Return a safe resource label without copying request payloads or identifiers."""
+    if "messages" in path:
+        return "conversation message"
+    if "contact-shares" in path:
+        return "contact share"
+    if "location-share" in path:
+        return "location share"
+    if "/report" in path:
+        return "conversation report"
+    if "/block" in path:
+        return "conversation block"
+    if "emergency-requests" in path:
+        return "emergency request"
+    if "donor-profile" in path:
+        return "donor profile"
+    if "/donors/" in path and "/requests/" in path:
+        return "donor request response"
+    if "/donors/" in path:
+        return "donor profile"
+    if "conversations" in path:
+        return "conversation"
+    if "profile" in path:
+        return "account profile"
+    if "push-token" in path:
+        return "notification device registration"
+    return "application resource"
+
+@app.middleware("http")
+async def audit_authenticated_application_activity(request: Request, call_next):
+    """Record authenticated /v1 activity, including successful CRUD operations and reads.
+
+    Business handlers retain responsibility for atomic domain writes. This API-boundary
+    record provides broad coverage without logging payloads, message bodies, or locations.
+    """
+    response = await call_next(request)
+    path = request.url.path
+    if not path.startswith("/v1/") or path.startswith("/v1/admin/"):
+        return response
+    authorization = request.headers.get("authorization")
+    if not authorization:
+        return response
+    try:
+        principal = get_postgres_principal(authorization)
+        if principal.subject == "development-user":
+            return response
+        route = request.scope.get("route")
+        route_path = getattr(route, "path", path)
+        action_kind, verb = _operation_audit_kind(request.method)
+        resource = _audit_resource_name(route_path)
+        action = f"api.{verb}.{resource.replace(' ', '_')}"
+        description = f"User {verb} {resource}."
+        async with AsyncSessionLocal() as audit_session:
+            await _write_audit(
+                audit_session, principal.subject, action, request=request,
+                session_id=principal.session_id, session_expires_at=principal.session_expires_at,
+                outcome="success" if response.status_code < 400 else "denied",
+                target_type=resource.replace(" ", "_")[:64],
+                correlation_id=_correlation_id(request.headers.get("x-correlation-id")),
+                metadata={"method": request.method, "route": route_path[:160],
+                          "status_code": response.status_code, "actions": action_kind,
+                          "description": description},
+            )
+            await audit_session.commit()
+    except Exception:
+        # Never mask a completed business response; surface audit persistence failures
+        # to server logs so monitoring can detect the gap.
+        logger.exception("Could not persist authenticated application activity audit")
+    return response
 
 @app.exception_handler(IntegrityError)
 async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
@@ -407,12 +489,14 @@ async def upsert_profile(
     # Keep the audit event in the same transaction as the profile mutation.
     # Store field names only: never copy email or display-name values to audit.
     if is_new_profile or changed_fields:
-        session.add(AuditEvent(
-            id=f"audit_{uuid4().hex}",
-            actor_id=principal.subject,
-            action="profile.created" if is_new_profile else "profile.updated",
-            event_metadata={"changed_fields": changed_fields},
-        ))
+        session.add(
+            AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=principal.subject,
+                action="profile.created" if is_new_profile else "profile.updated",
+                event_metadata={"changed_fields": changed_fields},
+            )
+        )
     await session.commit()
     return ProfileOut(
         user_id=row.user_id,
