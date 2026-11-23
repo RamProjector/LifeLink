@@ -137,6 +137,37 @@ class SupabasePasswordRecoveryTest {
     }
 
     @Test
+    fun verifiedPasswordSessionReplacesConcurrentRefreshForSameAccount() = runBlocking {
+        sessionStore.save(AuthSession("initial-access", "initial-refresh", "user-1", "user@example.test"))
+        sessionStore.save(AuthSession("refreshed-access", "rotated-refresh", "user-1", "user@example.test"))
+
+        val replaced = sessionStore.replaceForUser(
+            "user-1",
+            AuthSession("verified-access", "verified-refresh", "user-1", "user@example.test"),
+        )
+
+        assertTrue(replaced)
+        assertEquals(
+            AuthSession("verified-access", "rotated-refresh", "user-1", "user@example.test"),
+            sessionStore.session.value,
+        )
+    }
+
+    @Test
+    fun verifiedPasswordSessionCannotReplaceAnotherSignedInAccount() = runBlocking {
+        val otherAccount = AuthSession("other-access", "other-refresh", "user-2", "other@example.test")
+        sessionStore.save(otherAccount)
+
+        val replaced = sessionStore.replaceForUser(
+            "user-1",
+            AuthSession("verified-access", "verified-refresh", "user-1", "user@example.test"),
+        )
+
+        assertEquals(false, replaced)
+        assertEquals(otherAccount, sessionStore.session.value)
+    }
+
+    @Test
     fun passwordChangeReauthenticatesSameUserBeforeUpdatingPassword() = runBlocking {
         sessionStore.save(AuthSession("existing-token", "refresh-token", "user-1", "user@example.test"))
         server.enqueue(
