@@ -65,12 +65,21 @@ class AuthSessionStore(context: Context, private val onAccountRemoved: (String) 
      * latest refresh token, and never overwrite a signed-out or different-account state.
      */
     @Synchronized
-    fun replaceForUser(userId: String, replacement: AuthSession): Boolean {
-        if (replacement.userId != userId) return false
+    fun replaceForUser(
+        userId: String,
+        expected: AuthSession,
+        replacement: AuthSession,
+    ): Boolean {
+        if (expected.userId != userId || replacement.userId != userId) return false
         val current = _session.value ?: return false
         if (current.userId != userId) return false
-        val latestRefreshToken = current.refreshToken.takeIf { it.isNotBlank() } ?: replacement.refreshToken
-        saveImmediately(replacement.copy(refreshToken = latestRefreshToken))
+        val refreshToken =
+            if (current == expected) {
+                replacement.refreshToken
+            } else {
+                current.refreshToken.takeIf { it.isNotBlank() } ?: replacement.refreshToken
+            }
+        saveImmediately(replacement.copy(refreshToken = refreshToken))
         return true
     }
 
