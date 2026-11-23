@@ -90,3 +90,15 @@ The live Supabase migration-history query currently returns only version `202609
 5. The separate `supabase_admin` default privileges cannot be altered by the project's `postgres` role. New tables created by that owner continue to rely on the RLS auto-enable event trigger's default-deny behavior; review grants and policies whenever such tables are introduced. Supabase Auth leaked-password protection is still disabled and must be enabled in Auth settings.
 6. Auth repository operations preserve coroutine cancellation instead of converting `CancellationException` into ordinary authentication failures, so cancelled UI/network work stops promptly.
 7. Tests cover email request serialization, first-step and final-step callback parsing, token refresh, password re-authentication/account binding, and the database grant guardrail. Full real-device verification, latest CI, and fresh independent security review remain required before merge.
+## Follow-up database hardening (pending live application)
+
+The review identified two portability/security gaps in the already-applied migrations:
+
+- PostgreSQL's creator-global default PUBLIC EXECUTE grant is not removed by the schema-scoped function revoke alone. Migration 021_revoke_public_function_default_execute.sql removes that global default for functions created by postgres; the RLS checker now requires both global and schema-specific revokes and includes a negative fixture for the former six-statement configuration.
+- PostGIS may be installed in either public or extensions. Migration 016 now resolves the installed extension schema from pg_extension and pins both trigger functions to that validated schema. Migration 022_pin_postgis_trigger_schema.sql applies the same correction to databases where migration 016 was already applied.
+
+Migrations 021 and 022 are committed in this PR but have **not** been applied to the live Supabase project. The live project previously received migrations 015 and 016; do not blindly reapply those migrations. Apply the two follow-up migrations through the normal controlled database-change process, then verify the default privileges and both trigger functions in the live catalog.
+
+## Email-change callback behavior
+
+When the first confirmation link is opened on a device that still has the signed-in session, LifeLink now keeps the app shell available and announces that the final confirmation must be opened from the current email inbox. Signed-out users continue to see the pending-confirmation instructions on the authentication screen. The new email is not treated as verified until Supabase completes the final confirmation and the authenticated user is re-read.
