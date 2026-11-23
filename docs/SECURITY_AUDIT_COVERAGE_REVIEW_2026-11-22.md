@@ -131,3 +131,12 @@ The authenticated `POST /v1/donor-profile/presence` flow now writes a `donor_pre
 - Repeated polling for the same request/donor share is deduplicated to one disclosure event, avoiding audit-volume amplification.
 - The endpoint fails closed with a retryable 503 if the audit transaction cannot commit; exact coordinates are not returned in that case.
 - PostgreSQL integration coverage verifies successful disclosure, metadata privacy, and duplicate-read suppression.
+
+
+## Implementation update — conversation message and saved-message auditing
+
+- Successful message sends, saved-message creation, and saved-message removal now create content-free audit events in the same transaction as their data mutation.
+- Events identify the authenticated actor, request, and donor; message text, attachment content, and message payloads are excluded from metadata.
+- Idempotent repeated saves and no-op unsaves do not create duplicate audit events.
+- Message-send and bookmark routes fail closed with a retryable 503 when the audit transaction fails.
+- PostgreSQL integration coverage checks event attribution/privacy and message rollback when audit insertion is rejected.
