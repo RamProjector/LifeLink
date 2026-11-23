@@ -676,7 +676,21 @@ def test_donor_presence_updates_location_and_server_freshness(pg_url):
             reported_provider = await session.scalar(
                 select(db_models.Donor.last_location_provider).where(db_models.Donor.user_id == donor)
             )
+            presence_events = list((await session.scalars(
+                select(db_models.AuditEvent).where(
+                    db_models.AuditEvent.actor_id == donor,
+                    db_models.AuditEvent.action == "donor_presence_recorded",
+                )
+            )).all())
         assert reported_provider == "fused"
+        assert len(presence_events) == 2  # opt-in helper heartbeat plus this update
+        assert presence_events[-1].event_metadata == {
+            "provider": "fused",
+            "precision_bucket": "medium",
+        }
+        assert "latitude" not in presence_events[-1].event_metadata
+        assert "longitude" not in presence_events[-1].event_metadata
+        assert "precision_meters" not in presence_events[-1].event_metadata
 
         invalid_provider = await client.post(
             "/v1/donor-profile/presence",
@@ -704,3 +718,67 @@ def test_donor_presence_updates_location_and_server_freshness(pg_url):
         assert stale["matches"] == [], "server-side stale presence must be excluded"
 
     run_scenario(pg_url, scenario)
+
+def test_donor_presence_audit_failure_rolls_back_location_update(pg_url):
+    async def scenario(client, current, run_sql):
+        donor = new_user("donor-presence-rollback")
+        await create_account(client, current, donor)
+        await opt_in_donor(client, current, donor, availability="available")
+        async with current["_session_factory"]() as session:
+            before = await session.scalar(
+                select(db_models.Donor).where(db_models.Donor.user_id == donor)
+            )
+            assert before is not None
+            old_latitude = before.latitude
+            old_longitude = before.longitude
+            old_presence_at = before.last_presence_at
+            old_provider = before.last_location_provider
+            old_event_count = await session.scalar(
+                select(db_models.AuditEvent.id).where(
+                    db_models.AuditEvent.actor_id == donor,
+                    db_models.AuditEvent.action == "donor_presence_recorded",
+                )
+            )
+        await run_sql(
+            "CREATE OR REPLACE FUNCTION reject_donor_presence_audit() RETURNS trigger "
+            "LANGUAGE plpgsql AS $$ BEGIN "
+            "IF NEW.action = 'donor_presence_recorded' THEN "
+            "RAISE EXCEPTION 'forced donor presence audit failure'; "
+            "END IF; RETURN NEW; END $$"
+        )
+        await run_sql(
+            "CREATE TRIGGER reject_donor_presence_audit_trigger "
+            "BEFORE INSERT ON audit_events FOR EACH ROW "
+            "EXECUTE FUNCTION reject_donor_presence_audit()"
+        )
+
+        current["id"] = donor
+        failed = await client.post(
+            "/v1/donor-profile/presence",
+            json={
+                "latitude": 11.2501,
+                "longitude": 125.0102,
+                "precision_meters": 35,
+                "provider": "gps",
+            },
+        )
+        assert failed.status_code == 503, failed.text
+        async with current["_session_factory"]() as session:
+            after = await session.scalar(
+                select(db_models.Donor).where(db_models.Donor.user_id == donor)
+            )
+            event_count = await session.scalar(
+                select(db_models.AuditEvent.id).where(
+                    db_models.AuditEvent.actor_id == donor,
+                    db_models.AuditEvent.action == "donor_presence_recorded",
+                )
+            )
+        assert after is not None
+        assert after.latitude == old_latitude
+        assert after.longitude == old_longitude
+        assert after.last_presence_at == old_presence_at
+        assert after.last_location_provider == old_provider
+        assert event_count == old_event_count
+
+    run_scenario(pg_url, scenario)
+
