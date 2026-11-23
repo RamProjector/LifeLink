@@ -2007,8 +2007,70 @@ def test_saved_messages_are_private_per_participant_and_conversation(pg_url):
             item["message_id"]
             for item in (await client.get(f"/v1/conversations/{conversation_id}/saved-messages")).json()
         ] == [message_id]
+        # Each successful message/bookmark mutation has one content-free audit event.
+        audit_rows = await run_sql(
+            "SELECT actor_id, action, metadata::text FROM audit_events "
+            f"WHERE request_id = '{created['request_id']}' AND donor_id = '{donor}' "
+            "AND action IN ('message_sent', 'message_saved', 'message_unsaved')"
+        )
+        assert len(audit_rows) == 4, audit_rows
+        assert {(row[0], row[1], row[2]) for row in audit_rows} == {
+            (requester, "message_sent", "{}"),
+            (requester, "message_saved", "{}"),
+            (donor, "message_saved", "{}"),
+            (requester, "message_unsaved", "{}"),
+        }
+
         # A valid message ID cannot be saved through a different conversation path.
         assert (await client.put(f"/v1/conversations/not-this-conversation/messages/{message_id}/saved")).status_code == 404
+
+    run_scenario(pg_url, scenario)
+
+
+def test_message_send_fails_closed_when_audit_insert_fails(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert opened.status_code == 200, opened.text
+        conversation_id = opened.json()["conversation_id"]
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_message_send_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'message_sent' THEN "
+                + "RAISE EXCEPTION 'injected audit write failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_message_send_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_message_send_audit()"
+            )
+        await trigger_engine.dispose()
+
+        failed = await client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"body": "private message content"}
+        )
+        assert failed.status_code == 503, failed.text
+        messages = await run_sql(
+            f"SELECT id FROM messages WHERE conversation_id = '{conversation_id}'"
+        )
+        events = await run_sql(
+            "SELECT id FROM audit_events WHERE action = 'message_sent' "
+            f"AND request_id = '{created['request_id']}'"
+        )
+        assert messages == []
+        assert events == []
 
     run_scenario(pg_url, scenario)
 
