@@ -17,7 +17,7 @@ sealed interface AuthState {
     data object Loading : AuthState
     data object SignedOut : AuthState
     data object SessionExpired : AuthState
-    data class SignedIn(val session: AuthSession) : AuthState
+    data class SignedIn(val session: AuthSession, val emailChangePending: Boolean = false) : AuthState
     data object EmailConfirmationRequired : AuthState
     data object EmailChangePending : AuthState
     data class PasswordResetReady(val email: String?, val accessToken: String) : AuthState
@@ -41,7 +41,9 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
                     _state.value !is AuthState.PasswordResetComplete &&
                     _state.value != AuthState.EmailChangePending
                 ) {
-                    _state.value = if (session != null) AuthState.SignedIn(session) else AuthState.SignedOut
+                    val emailChangePending = (_state.value as? AuthState.SignedIn)?.emailChangePending == true
+                    _state.value =
+                        if (session != null) AuthState.SignedIn(session, emailChangePending) else AuthState.SignedOut
                 }
             }
         }
@@ -66,7 +68,13 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
                         _state.value = AuthState.PasswordResetReady(callback.email, callback.accessToken)
                     }
                     AuthCallbackKind.EMAIL_CHANGE_PENDING -> {
-                        _state.value = AuthState.EmailChangePending
+                        val session = repository.session.value
+                        _state.value =
+                            if (session != null) {
+                                AuthState.SignedIn(session, emailChangePending = true)
+                            } else {
+                                AuthState.EmailChangePending
+                            }
                     }
                     AuthCallbackKind.CONFIRMATION, AuthCallbackKind.EMAIL_CHANGE -> {
                         viewModelScope.launch {
