@@ -380,7 +380,7 @@ async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, 
         "SELECT ur.user_id::text AS user_id, r.role_key, "
         "COALESCE(p.can_request, false) AS can_request, "
         "COALESCE(p.can_donate, false) AS can_donate, "
-        "EXISTS (SELECT 1 FROM donor_profiles dp WHERE dp.user_id = ur.user_id) "
+        "EXISTS (SELECT 1 FROM donor_profiles dp WHERE dp.user_id = ur.user_id::text) "
         "OR EXISTS (SELECT 1 FROM donors d WHERE d.user_id = ur.user_id::text) AS has_donor_profile "
         "FROM lifelink_user_roles ur JOIN lifelink_roles r ON r.id = ur.role_id "
         "LEFT JOIN lifelink_profiles p ON p.user_id = ur.user_id::text "
@@ -641,7 +641,7 @@ async def _record_rbac_mismatch(session, principal, request, user_id: str, role_
     await session.execute(text(
         "INSERT INTO lifelink_security_alerts "
         "(rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, correlation_id) "
-        "VALUES ('RBAC-01', 'high', 'open', CAST(:user_id AS uuid), :session_id, "
+        "VALUES ('RBAC-01', 'high', 'open', CAST(:user_id AS varchar), :session_id, "
         "'Role assignment is not applicable to this account', CAST(:evidence AS jsonb), 1, :correlation_id) "
         "ON CONFLICT (rule_id, user_id) WHERE status IN ('open', 'acknowledged', 'investigating') "
         "DO UPDATE SET last_seen_at = now(), occurrences = lifelink_security_alerts.occurrences + 1, "
@@ -746,7 +746,7 @@ async def admin_replace_user_roles(
         text(
             "SELECT COALESCE(p.can_request, false) AS can_request, "
             "COALESCE(p.can_donate, false) AS can_donate, "
-            "EXISTS (SELECT 1 FROM donor_profiles dp WHERE dp.user_id = CAST(:user_id AS uuid)) "
+            "EXISTS (SELECT 1 FROM donor_profiles dp WHERE dp.user_id = CAST(:user_id AS varchar)) "
             "OR EXISTS (SELECT 1 FROM donors d WHERE d.user_id = CAST(:user_id AS varchar)) AS has_donor_profile "
             "FROM (SELECT 1) seed LEFT JOIN lifelink_profiles p ON p.user_id = CAST(:user_id AS varchar)"
         ), {"user_id": user_id},
