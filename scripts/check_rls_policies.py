@@ -127,6 +127,11 @@ for _owner in ("postgres",):
         r"FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
         re.IGNORECASE,
     )
+    DEFAULT_PRIVILEGE_REVOKES[f"{_owner} global future functions"] = re.compile(
+        rf"ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+{_owner}\s+"
+        r"REVOKE\s+EXECUTE\s+ON\s+FUNCTIONS\s+FROM\s+PUBLIC",
+        re.IGNORECASE,
+    )
 
 
 def _read_sql() -> str:
@@ -139,6 +144,12 @@ def _read_sql() -> str:
         raise SystemExit(f"SQL directory not found: {SQL_DIR}")
     raw = "\n".join(path.read_text(encoding="utf-8") for path in sorted(SQL_DIR.glob("*.sql")))
     return _strip_sql_comments(raw)
+
+
+def missing_client_privilege_revokes(sql: str) -> list[str]:
+    """Return required client-grant revokes missing from migration SQL."""
+    required = CLIENT_PRIVILEGE_REVOKES | DEFAULT_PRIVILEGE_REVOKES
+    return [label for label, pattern in required.items() if not pattern.search(sql)]
 
 
 def main() -> int:
@@ -155,11 +166,7 @@ def main() -> int:
     protected = {t for t in tables if t in rls_enabled and t in policies}
     acknowledged = {t for t in tables if t in BACKEND_ONLY_TABLES}
     unaccounted = sorted(tables - protected - acknowledged)
-    missing_privilege_revokes = [
-        label
-        for label, pattern in (CLIENT_PRIVILEGE_REVOKES | DEFAULT_PRIVILEGE_REVOKES).items()
-        if not pattern.search(sql)
-    ]
+    missing_privilege_revokes = missing_client_privilege_revokes(sql)
 
     print(f"Tables found: {len(tables)}")
     print(f"  RLS-enabled with a policy: {len(protected)}")
