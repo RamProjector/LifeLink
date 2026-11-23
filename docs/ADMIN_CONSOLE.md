@@ -100,3 +100,8 @@ Data views now provide:
 - Existing server pagination and alert/session/user actions are preserved. Search and filters operate only on the current server page and do not imply a global search.
 
 The navigation/table redesign does not change API contracts, authorization, IDS/IPS detection rules, or audit data. Verify desktop, tablet, and phone widths; keyboard navigation; empty/loading/error states; and existing alert acknowledge/investigate/resolve and session-revoke actions before production release.
+
+
+## Safe error feedback
+
+Admin web actions and data loading map authentication, authorization, missing-record, timeout, conflict, rate-limit, server, and network failures to stable user-facing messages. Raw API response details and backend exception text are not displayed in the browser. The correlation ID remains available in the request header for server-side diagnostics.
