@@ -782,3 +782,39 @@ def test_donor_presence_audit_failure_rolls_back_location_update(pg_url):
 
     run_scenario(pg_url, scenario)
 
+def test_legacy_donor_presence_is_audited_without_location_data(pg_url):
+    async def scenario(client, current, run_sql):
+        donor = new_user("legacy-presence")
+        await create_account(client, current, donor)
+        await opt_in_donor(client, current, donor, availability="available")
+        current["id"] = donor
+        response = await client.post(
+            f"/v1/donors/{donor}/presence",
+            json={
+                "latitude": 11.2510,
+                "longitude": 125.0110,
+                "precision_meters": 250,
+                "provider": "network",
+            },
+        )
+        assert response.status_code == 200, response.text
+        async with current["_session_factory"]() as session:
+            events = list((await session.scalars(
+                select(db_models.AuditEvent)
+                .where(
+                    db_models.AuditEvent.actor_id == donor,
+                    db_models.AuditEvent.action == "donor_presence_recorded",
+                )
+                .order_by(db_models.AuditEvent.created_at)
+            )).all())
+        assert len(events) == 2
+        assert events[-1].donor_id == donor
+        assert events[-1].event_metadata == {
+            "provider": "network",
+            "precision_bucket": "low",
+        }
+        assert "latitude" not in events[-1].event_metadata
+        assert "longitude" not in events[-1].event_metadata
+
+    run_scenario(pg_url, scenario)
+
