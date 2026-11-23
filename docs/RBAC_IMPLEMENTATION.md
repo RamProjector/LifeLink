@@ -1,0 +1,60 @@
+# LifeLink RBAC implementation notes
+
+## Schema
+
+Migration `020_rbac_role_permission_registry.sql` adds a many-to-many role and permission registry:
+
+- `lifelink_roles`
+- `lifelink_permissions`
+- `lifelink_user_roles`
+- `lifelink_role_permissions`
+
+It seeds requester/donor and four administrative role types plus a super-administrator role. It does not assign any elevated role to an account. Existing profile role/capability fields remain intact for compatibility.
+
+## API
+
+- `GET /v1/admin/roles` lists role definitions and mapped permissions.
+- `GET /v1/admin/users/{user_id}/roles` lists current role assignments.
+- `PUT /v1/admin/users/{user_id}/roles` replaces a user's active role assignments.
+  - Supply one or more known `role_keys` to replace the assignment set.
+  - Supply an empty `role_keys` array to revoke all RBAC assignments; this is intentionally distinct from omitting the field.
+  - Requests are limited to eight roles, reject duplicates and unknown keys, and cannot modify the manager's own assignments.
+
+Role assignment requires both ordinary administrator authentication and membership in the separate server-side `LIFELINK_RBAC_MANAGER_USER_IDS` allowlist. Do not populate this variable from user-editable profile metadata or public signup. Use verified Supabase Auth UUIDs and keep the list in the backend's private environment configuration.
+
+The current admin allowlist remains the bootstrap gate for the existing console. This is intentionally not yet a complete permission-enforcement migration: existing admin routes have not all been converted to granular permission dependencies, and requester/donor application authorization still uses its existing policy.
+
+## Personal activity history
+
+- `GET /v1/audit/me` returns a paginated activity history for the authenticated account.
+- The actor filter is derived exclusively from the verified Supabase token subject; callers cannot supply another account ID.
+- Sensitive metadata is redacted using the same bounded audit-metadata sanitizer used by the Admin Console.
+- Reading personal history is itself recorded as `audit.self.read`.
+- The authenticated `/v1` API activity middleware records route-level reads and successful/denied mutation attempts for non-admin application endpoints. It stores the verified token subject, session ID when present, server-observed peer IP, user-agent, timestamp, normalized action, safe route template, and status code; it never stores request bodies, message text, blood type, or precise coordinates.
+- The middleware is an API-boundary audit fallback, not an atomic database trigger. A completed business transaction can therefore outlive a failed audit write; failures are surfaced to server logs. Critical mutation paths should continue moving their audit write into the same database transaction.
+
+
+## Role applicability and discrepancy detection
+
+Role assignments are many-to-many, but that does not mean every role is valid for every account. The RBAC manager endpoint now checks applicability before replacing assignments:
+
+- `requester` requires the account profile's `can_request` capability.
+- `donor` requires `can_donate` or an existing donor profile/legacy donor record.
+- Administrative roles require the target account to be in the server-managed `LIFELINK_ADMIN_USER_IDS` allowlist.
+- `super_admin` additionally requires the target account to be in `LIFELINK_RBAC_MANAGER_USER_IDS`.
+- Unknown role keys and roles without an explicit applicability policy are rejected.
+
+The Admin Console security-alerts API also scans active assignments against these rules and checks role-permission mappings against a least-privilege allowlist. It creates deduplicated high-severity alerts for role applicability mismatches (`RBAC-01`) and unexpected permission mappings (`RBAC-02`). Invalid new assignments are blocked and audited rather than silently accepted.
+
+Requester and donor remain independently assignable, so one account may legitimately hold both roles when both capabilities are enabled. The legacy `lifelink_profiles.role` field remains for compatibility and is not itself a grant of administrative authority.
+
+## Rollout safety
+
+1. Reconcile the live database migration ledger before applying migration 020.
+2. Review RLS and the backend-only table exemption registry before deployment.
+3. Apply the migration only through the reviewed deployment process.
+4. Configure `LIFELINK_RBAC_MANAGER_USER_IDS` privately before enabling role assignment.
+5. Provision at least two trusted RBAC managers out of band; do not self-assign roles.
+6. Verify assignment, removal, unknown-role rejection, and audit records in a non-production environment first.
+
+No live database changes are performed by adding this migration to the repository.
