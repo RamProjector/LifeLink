@@ -33,7 +33,7 @@
 | `PATCH /v1/donor-profile/availability` | Changes availability | Added in this PR | Atomic `donor_availability_changed` event records previous/new preference only when it changes |
 | `DELETE /v1/donor-profile` | Deletes donor profile and disables donor | Added in this PR | Profile deletion, operational donor disablement, account capability reset, and audit event commit together |
 | `PUT /v1/donors/{donor_id}` | Legacy donor profile create/update | No | Record profile mutation; verify legacy route still required |
-| `POST /v1/donors/{donor_id}/presence` | Legacy GPS/presence update | No | Same privacy-safe event as current presence route |
+| `POST /v1/donors/{donor_id}/presence` | Legacy GPS/presence update | Added in this PR | Same atomic privacy-safe event as current presence route; provider label and coarse precision bucket only |
 | `PATCH /v1/donors/{donor_id}/availability` | Legacy availability change | No | Record previous/new availability |
 | `PUT /v1/donors/{donor_id}/map-visibility` | Consent/privacy preference | Yes | Repository commits consent change, share revocations, and audit event atomically |
 | `POST .../location-share` | Enables disclosure of exact GPS location | Yes | Atomic `location_share_activated` event records actor and request/donor scope; metadata excludes coordinates |
