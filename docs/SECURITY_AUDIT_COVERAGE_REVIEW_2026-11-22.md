@@ -122,3 +122,12 @@ Donor-profile creation and meaningful updates now emit `donor_profile_created` o
 ## Implementation update — 2026-11-23 (donor GPS presence)
 
 The authenticated `POST /v1/donor-profile/presence` flow now writes a `donor_presence_recorded` audit event in the same transaction as the profile/operational donor location freshness update. Audit metadata is limited to the client-reported provider label (or `unknown`) and a coarse precision bucket (`high`, `medium`, `low`, or `very_low`). Coordinates and raw precision values are not copied into the audit event. The API explicitly rolls back and returns a retryable service error if the audit insert fails. PostgreSQL integration tests verify event metadata privacy and transaction rollback. The legacy `/v1/donors/{donor_id}/presence` route remains to be reconciled separately.
+
+
+## Implementation update — exact-location read disclosure audit
+
+- The matched-requester exact-location GET now records `exact_location_viewed` before returning coordinates.
+- The event identifies the authenticated actor, request, and donor; its metadata is empty and never contains coordinates, precision, or location payload.
+- Repeated polling for the same request/donor share is deduplicated to one disclosure event, avoiding audit-volume amplification.
+- The endpoint fails closed with a retryable 503 if the audit transaction cannot commit; exact coordinates are not returned in that case.
+- PostgreSQL integration coverage verifies successful disclosure, metadata privacy, and duplicate-read suppression.
