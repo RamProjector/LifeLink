@@ -18,7 +18,7 @@ Add an **Account** section inside Profile/Settings with separate, clearly labele
 - Never mark a new email or phone as verified because the user typed it, saved a form, or returned to the app.
 - Email changes must use Supabase Auth's authenticated user-update flow and the configured confirmation behavior. Keep the current session/contact until Supabase confirms the change.
 - Phone changes require an actual OTP delivery and verification provider. Supabase phone auth requires an SMS provider to be configured; do not add a paid provider or simulate successful delivery/verification. Until a real provider is configured, show the feature as unavailable with an honest explanation and preserve the existing number.
-- Password changes re-authenticate the current password against Supabase for the same signed-in user, then update the password through the authenticated user endpoint. Do not log or persist passwords.
+- Password changes re-authenticate the current password against Supabase for the same signed-in user, then update the password through the authenticated user endpoint. After success, the verified access token replaces the local access token while the latest same-account refresh token is retained; neither token nor password is logged.
 - Rate-limit verification requests and attempts; handle expired, invalid, repeated, and throttled codes without disclosing account existence.
 - Re-read the authenticated Supabase user after successful confirmation and refresh the local session email from that trusted response.
 - Account email and phone are identity/contact data. Do not copy unverified values into the donor matching profile or expose them on donor maps.
