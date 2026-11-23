@@ -607,7 +607,15 @@ class SqlAlchemyRequestStore(RequestStore):
             })
         return items
 
-    async def update_contact_status_async(self, request_id: str, donor_id: str, requester_id: str, status: str) -> dict[str, Any]:
+    async def update_contact_status_async(
+        self,
+        request_id: str,
+        donor_id: str,
+        requester_id: str,
+        status: str,
+        *,
+        audit_actor_id: str | None = None,
+    ) -> dict[str, Any]:
         """Advance a contact through its lifecycle, rejecting illegal transitions."""
         allowed = {"contact_shared", "meeting_arranged", "fulfilled", "cancelled"}
         if status not in allowed:
@@ -645,13 +653,26 @@ class SqlAlchemyRequestStore(RequestStore):
         }
         if status not in transitions.get(contact.status, set()):
             raise ValueError(f"Cannot move contact from {contact.status} to {status}")
+        previous_status = contact.status
         now = datetime.now(UTC)
         contact.status = status
         contact.updated_at = now
         if status == "contact_shared":
             contact.contact_shared_at = now
+        # The lifecycle mutation and its audit record must commit together.
+        # Record the authenticated principal (not a client-supplied identity)
+        # and only the before/after status values.
+        self.session.add(
+            AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=audit_actor_id or requester_id,
+                action=f"contact_{status}",
+                request_id=request_id,
+                donor_id=donor_id,
+                event_metadata={"from": previous_status, "to": status},
+            )
+        )
         await self.session.commit()
-        await self.record_audit_async(requester_id, f"contact_{status}", request_id, donor_id)
         return {"donor_id": donor_id, "status": status, "accepted_at": contact.accepted_at}
 
     @staticmethod
