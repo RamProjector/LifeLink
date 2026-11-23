@@ -174,17 +174,17 @@ def main() -> int:
     protected = {t for t in tables if t in rls_enabled and t in policies}
     acknowledged = {t for t in tables if t in BACKEND_ONLY_TABLES}
     unaccounted = sorted(tables - protected - acknowledged)
-    missing_privilege_revokes = missing_privilege_rules(sql)
+    missing_rules = missing_privilege_rules(sql)
 
     print(f"Tables found: {len(tables)}")
     print(f"  RLS-enabled with a policy: {len(protected)}")
     print(f"  Documented backend-only:   {len(acknowledged)}")
     print(f"  Unaccounted for:           {len(unaccounted)}")
-    print(f"  Client privilege revokes missing: {len(missing_privilege_revokes)}")
+    print(f"  Privilege rules missing:      {len(missing_rules)}")
 
-    if missing_privilege_revokes:
-        print("\nFAIL: public client privileges must be revoked for current and future objects:")
-        for item in missing_privilege_revokes:
+    if missing_rules:
+        print("\nFAIL: public client privileges must be revoked and trusted access granted:")
+        for item in missing_rules:
             print(f"  - {item}")
 
     if unaccounted:
@@ -197,7 +197,7 @@ def main() -> int:
             "BACKEND_ONLY_TABLES in scripts/check_rls_policies.py with a justification."
         )
 
-    if unaccounted or missing_privilege_revokes:
+    if unaccounted or missing_rules:
         return 1
 
     print("\nOK: every table has an explicit RLS decision.")
