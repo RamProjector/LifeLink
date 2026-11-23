@@ -635,6 +635,17 @@ class SqlAlchemyPrivacyStore:
         self.session.add(message)
         conversation.last_message_at = now
         conversation.updated_at = now
+        self.session.add(
+            AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=sender_id,
+                action="message_sent",
+                request_id=conversation.request_id,
+                donor_id=conversation.donor_id,
+                # Message bodies and attachment/content payloads never enter audit metadata.
+                event_metadata={},
+            )
+        )
         await self.session.commit()
         return message
 
@@ -666,6 +677,9 @@ class SqlAlchemyPrivacyStore:
         )
         if existing is not None:
             return existing
+        conversation = await self.session.get(Conversation, conversation_id)
+        if conversation is None:
+            raise KeyError(conversation_id)
         saved = SavedMessage(
             id=f"saved_{uuid4().hex}",
             user_id=user_id,
@@ -673,6 +687,16 @@ class SqlAlchemyPrivacyStore:
             message_id=message_id,
         )
         self.session.add(saved)
+        self.session.add(
+            AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=user_id,
+                action="message_saved",
+                request_id=conversation.request_id,
+                donor_id=conversation.donor_id,
+                event_metadata={},
+            )
+        )
         try:
             await self.session.commit()
         except IntegrityError:
@@ -708,7 +732,20 @@ class SqlAlchemyPrivacyStore:
             )
         )
         if saved is not None:
+            conversation = await self.session.get(Conversation, conversation_id)
+            if conversation is None:
+                raise KeyError(conversation_id)
             await self.session.delete(saved)
+            self.session.add(
+                AuditEvent(
+                    id=f"audit_{uuid4().hex}",
+                    actor_id=user_id,
+                    action="message_unsaved",
+                    request_id=conversation.request_id,
+                    donor_id=conversation.donor_id,
+                    event_metadata={},
+                )
+            )
             await self.session.commit()
         return True
 
