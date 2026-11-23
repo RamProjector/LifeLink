@@ -53,7 +53,7 @@ class UserFacingErrorTest {
         assertEquals(
             "The conversation could not be opened.",
             userFacingError(IllegalStateException(), "The conversation could not be opened."),
-        ),
+        )
         assertEquals(
             "The conversation could not be opened.",
             userFacingError(
