@@ -733,7 +733,7 @@ def test_donor_presence_audit_failure_rolls_back_location_update(pg_url):
             old_longitude = before.longitude
             old_presence_at = before.last_presence_at
             old_provider = before.last_location_provider
-            old_event_count = await session.scalar(
+            old_event_id = await session.scalar(
                 select(db_models.AuditEvent.id).where(
                     db_models.AuditEvent.actor_id == donor,
                     db_models.AuditEvent.action == "donor_presence_recorded",
@@ -778,7 +778,7 @@ def test_donor_presence_audit_failure_rolls_back_location_update(pg_url):
         assert after.longitude == old_longitude
         assert after.last_presence_at == old_presence_at
         assert after.last_location_provider == old_provider
-        assert event_count == old_event_count
+        assert event_count == old_event_id
 
     run_scenario(pg_url, scenario)
 
