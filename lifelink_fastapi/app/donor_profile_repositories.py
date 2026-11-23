@@ -21,9 +21,7 @@ from uuid import uuid4
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .db_models import Donor as DonorRow
-from .db_models import DonorProfile as DonorProfileRow
-from .db_models import AuditEvent, LifeLinkProfile
+from .db_models import AuditEvent, Donor as DonorRow, DonorProfile as DonorProfileRow, LifeLinkProfile
 from .donor_api import DonorAvailability, DonorProfileIn
 from .donor_profile_api import DonorPresenceIn, DonorProfileMeOut, DonorProfileUpsertIn
 from .donor_repositories import SqlAlchemyDonorStore
