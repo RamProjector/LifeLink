@@ -29,7 +29,7 @@
 | `POST .../manual-broadcast` | Expands emergency request audience | Yes | Retain; verify failures/denials |
 | `POST .../cancel`, `POST .../fulfill` | Ends or resolves emergency request | Yes | Retain; ensure actor and prior/new status are represented |
 | `PUT /v1/donor-profile` | Donor identity/profile changes | No | Record profile create/update without blood type, coordinates, or free-text note |
-| `POST /v1/donor-profile/presence` | GPS/presence update | No | Record that a location observation was accepted, provider label if validated, precision band; do not store coordinates in audit metadata |
+| `POST /v1/donor-profile/presence` | GPS/presence update | Added in this PR | Atomically record authenticated actor/resource, client-reported provider label, and coarse precision bucket; never store coordinates or raw precision |
 | `PATCH /v1/donor-profile/availability` | Changes availability | Added in this PR | Atomic `donor_availability_changed` event records previous/new preference only when it changes |
 | `DELETE /v1/donor-profile` | Deletes donor profile and disables donor | Added in this PR | Profile deletion, operational donor disablement, account capability reset, and audit event commit together |
 | `PUT /v1/donors/{donor_id}` | Legacy donor profile create/update | No | Record profile mutation; verify legacy route still required |
@@ -60,7 +60,7 @@ Read-only profile, request history, donor inbox, donor map, and conversation-lis
 
 ### P0 — Audit the highest-impact changes
 - Add explicit audit events for emergency-request creation and cancellation/fulfillment outcome consistency.
-- Add explicit audit events for remaining donor-profile create/update and GPS-presence policy. Profile account create/update, separate donor availability/delete, and map-visibility consent events are already covered or added in this PR.
+- Add explicit audit events for remaining donor-profile create/update and GPS-presence policy. Profile create/update, current donor-profile presence, separate donor availability/delete, and map-visibility consent events are covered or added in this PR. The legacy `/v1/donors/{donor_id}/presence` route remains a follow-up.
 - Exact-location grant/revocation events are already implemented atomically; add a minimal exact-location read event only after defining retention and failure semantics.
 - Add audit events for message send and contact status changes, excluding message bodies and sensitive content.
 - Make audit writes part of the same database transaction as the protected mutation where feasible. A failed audit write must not silently leave an untraceable high-risk mutation committed.
@@ -117,3 +117,8 @@ Requester contact lifecycle changes now insert a `contact_<status>` audit event 
 ## Implementation update — 2026-11-23 (donor profile create/update)
 
 Donor-profile creation and meaningful updates now emit `donor_profile_created` or `donor_profile_updated` audit events. Metadata contains changed field names only, never field values, coordinates, display names, notes, or contact preferences. The donor profile, account donation capability, operational donor mirror, and audit row are committed in one transaction. PostgreSQL integration tests cover create/update metadata and rollback when the audit insert is rejected.
+
+
+## Implementation update — 2026-11-23 (donor GPS presence)
+
+The authenticated `POST /v1/donor-profile/presence` flow now writes a `donor_presence_recorded` audit event in the same transaction as the profile/operational donor location freshness update. Audit metadata is limited to the client-reported provider label (or `unknown`) and a coarse precision bucket (`high`, `medium`, `low`, or `very_low`). Coordinates and raw precision values are not copied into the audit event. The API explicitly rolls back and returns a retryable service error if the audit insert fails. PostgreSQL integration tests verify event metadata privacy and transaction rollback. The legacy `/v1/donors/{donor_id}/presence` route remains to be reconciled separately.
