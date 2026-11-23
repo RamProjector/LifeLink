@@ -13,11 +13,11 @@ DO $migration$
 DECLARE
     postgis_schema text;
 BEGIN
-    SELECT namespace.nspname
+    SELECT n.nspname
       INTO postgis_schema
-      FROM pg_extension AS extension
-      JOIN pg_namespace AS namespace ON namespace.oid = extension.extnamespace
-     WHERE extension.extname = 'postgis';
+      FROM pg_extension AS e
+      JOIN pg_namespace AS n ON n.oid = e.extnamespace
+     WHERE e.extname = 'postgis';
 
     IF postgis_schema IS NULL OR postgis_schema NOT IN ('public', 'extensions') THEN
         RAISE EXCEPTION 'PostGIS must be installed in public or extensions; found %', postgis_schema;
