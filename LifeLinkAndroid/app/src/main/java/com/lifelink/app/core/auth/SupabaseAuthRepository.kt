@@ -346,12 +346,8 @@ class SupabaseAuthRepository(
 
     /** Preserve structured-concurrency cancellation instead of converting it into Result.failure. */
     private suspend fun <T> cancellableResult(block: suspend () -> T): Result<T> =
-        try {
-            Result.success(block())
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: Exception) {
-            Result.failure(failure)
+        runCatching { block() }.onFailure { failure ->
+            if (failure is CancellationException) throw failure
         }
 
     private fun readableAuthError(raw: String, statusCode: Int): String {
