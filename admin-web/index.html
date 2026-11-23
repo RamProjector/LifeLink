@@ -49,7 +49,7 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
  <p class="foot">Your session token stays in memory for this tab and is cleared when you sign out or close it. Admin rights are verified server-side.</p>
 </main>
 <main id="app-view" class="wrap hidden">
- <div class="headrow"><div><div class="eyebrow">Operations overview</div><h1>Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary">Refresh data</button></div></div>
+ <div class="headrow"><div><div class="eyebrow" id="page-eyebrow">Operations overview</div><h1 id="page-title">Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary">Refresh data</button></div></div>
  <div class="console-layout"><aside class="sidebar" aria-label="Admin navigation"><div class="nav-group">Workspace</div><nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview" aria-current="page">Overview</button><button class="tab" data-page="users">User management</button><div class="nav-group">Security center</div><button class="tab" data-page="alerts">Security alerts</button><button class="tab" data-page="sessions">Sessions</button><button class="tab" data-page="audit">Audit activity</button><button class="tab" data-page="errors">System errors</button></nav></aside><div class="content-area">
  <section id="page-overview"><div class="grid"><div class="stat"><small>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small>Donor records</small><strong id="stat-donors">—</strong></div><div class="stat"><small>Emergency requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small>Authorization</small><strong style="font-size:20px;color:var(--green)">Verified</strong></div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is checked by the API on every request. User capability changes are audited. Audit records are read-only in this interface. Error entries contain operational context, not passwords or access tokens.</p><p id="generated" class="small muted"></p></div></section>
  <section id="page-users" class="panel hidden"><h2>User management</h2><p class="muted small">Change requester/donor capabilities only. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled>Previous</button><button id="users-next" class="secondary" disabled>Next</button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
@@ -139,7 +139,8 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
    if(!items?.length) return '<div class="empty">No records found.</div>';
    const filterKey=items.some(x=>x.status!=null)?'status':items.some(x=>x.outcome!=null)?'outcome':null;
    const values=filterKey?[...new Set(items.map(x=>String(x[filterKey]??'')).filter(Boolean))].sort():[];
-   const select=values.length?'<label class="small muted">Filter <select data-table-filter aria-label="Filter table rows" style="width:auto;padding:8px;border:1px solid var(--line);border-radius:8px;background:white"><option value="">All '+esc(filterKey)+'s</option>'+values.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select></label>':'';
+   const plural=filterKey==='status'?'statuses':filterKey==='outcome'?'outcomes':filterKey+'s';
+   const select=values.length?'<label class="small muted">Filter <select data-table-filter aria-label="Filter table rows" style="width:auto;padding:8px;border:1px solid var(--line);border-radius:8px;background:white"><option value="">All '+esc(plural)+'</option>'+values.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select></label>':'';
    const rows=items.map(item=>'<tr data-filter-value="'+esc(filterKey?item[filterKey]??'':'')+'">'+cols.map(col=>'<td data-label="'+esc(col.label)+'">'+col.render(item)+'</td>').join('')+'</tr>').join('');
    return '<div class="table-toolbar"><div class="search-wrap"><input type="search" data-table-search placeholder="Search visible records…" aria-label="Search visible table records"></div>'+select+'<span class="table-count" data-table-count>'+items.length+' records on this page</span></div><table><thead><tr>'+cols.map(col=>'<th scope="col">'+esc(col.label)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table><div class="table-empty-filter" data-table-empty>No matching records on this page.</div>';
  }
@@ -224,7 +225,9 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
    wireTableTools($(target));
  }
  async function loadPage(page) {
-   activePage=page; document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
+   activePage=page; document.querySelectorAll(".tab").forEach(b=>{const active=b.dataset.page===page;b.classList.toggle("active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
+   const pageTitles={overview:["Operations overview","Admin dashboard"],users:["Workspace","User management"],alerts:["Security center","Security alerts"],sessions:["Security center","Session registry"],audit:["Security center","Audit activity"],errors:["Security center","System errors"]};
+   const title=pageTitles[page]||["Admin","Admin console"];$("page-eyebrow").textContent=title[0];$("page-title").textContent=title[1];
    ["overview","users","audit","sessions","alerts","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
    message("app-message","");
    try {
