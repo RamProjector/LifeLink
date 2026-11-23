@@ -3,6 +3,7 @@ package com.lifelink.app
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -153,6 +154,16 @@ class MainActivity : ComponentActivity() {
                 var hasDonorProfile by remember { mutableStateOf(false) }
                 var profileSaving by remember { mutableStateOf(false) }
                 var profileMessage by remember { mutableStateOf<String?>(null) }
+                val emailChangePending = (authState as? AuthState.SignedIn)?.emailChangePending == true
+                LaunchedEffect(accountUserId, emailChangePending) {
+                    if (emailChangePending) {
+                        val message =
+                            "First confirmation received. Check your current email for the final confirmation link. " +
+                                "Your existing email remains active until then."
+                        profileMessage = message
+                        Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                    }
+                }
                 // Guards the optimistic role transition: a second tap while the first
                 // write is still in flight could otherwise roll back to a stale role
                 // and desync the UI from the server.
