@@ -77,9 +77,9 @@ class SupabasePasswordRecoveryTest {
         assertEquals("new@example.test", body.get("email").asString)
         assertEquals(1, body.size())
         assertEquals(
+            "The local account email must remain unchanged until Supabase confirms the new address",
             "old@example.test",
             sessionStore.session.value?.email,
-            "The local account email must remain unchanged until Supabase confirms the new address",
         )
     }
 
