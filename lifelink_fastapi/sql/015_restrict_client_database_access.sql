@@ -34,6 +34,8 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
 -- global default is revoked. A schema-scoped revoke cannot cancel that grant.
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres
     REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres
+    GRANT EXECUTE ON FUNCTIONS TO service_role;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
     REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated;
 
