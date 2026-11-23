@@ -414,6 +414,7 @@ class SqlAlchemyPrivacyStore:
                 AuditEvent.action == "exact_location_viewed",
                 AuditEvent.request_id == request_id,
                 AuditEvent.donor_id == donor.id,
+                AuditEvent.created_at >= share.shared_at,
             )
             .limit(1)
         )
