@@ -241,6 +241,25 @@ class SqlAlchemyDonorProfileStore:
         donor_row.availability_updated_at = now
         donor_row.last_presence_at = now
         donor_row.available = effective_available(row.availability_status, row.verified)
+        # Provider is client-reported diagnostic metadata, not GPS attestation.
+        # Keep the audit useful without retaining coordinates or raw precision.
+        precision_bucket = (
+            "high" if payload.precision_meters <= 20
+            else "medium" if payload.precision_meters <= 100
+            else "low" if payload.precision_meters <= 1000
+            else "very_low"
+        )
+        self.session.add(AuditEvent(
+            id=f"audit_{uuid4().hex}",
+            actor_id=user_id,
+            action="donor_presence_recorded",
+            donor_id=donor_row.id,
+            event_metadata={
+                "provider": payload.provider or "unknown",
+                "precision_bucket": precision_bucket,
+            },
+        ))
+        # Presence state and its audit event must succeed or roll back together.
         await self.session.commit()
         await self._recompute(user_id)
         return self.to_out(row, donor_row.display_name, None)
