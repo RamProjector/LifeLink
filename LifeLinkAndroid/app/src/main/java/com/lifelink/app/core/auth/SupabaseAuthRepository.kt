@@ -350,7 +350,7 @@ class SupabaseAuthRepository(
             Result.success(block())
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (failure: Throwable) {
+        } catch (failure: Exception) {
             Result.failure(failure)
         }
 
