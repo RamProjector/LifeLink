@@ -722,6 +722,7 @@ async def create_emergency_request_postgres(
             matches=[],
             request_id=request_id,
             status=RequestStatus.MANUAL_BROADCAST,
+            audit_actor_id=principal.subject,
         )
         return ManualFallbackOut(
             request_id=request_id,
@@ -735,6 +736,7 @@ async def create_emergency_request_postgres(
         matches=matches,
         request_id=request_id,
         status=RequestStatus.AWAITING_RESPONSES,
+        audit_actor_id=principal.subject,
     )
     # Submitting a request must NOT broadcast it. Matches are computed and stored
     # so the requester can review them, but no donor is notified here. Donors are
