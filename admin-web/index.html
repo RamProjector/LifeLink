@@ -72,11 +72,23 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
  const $ = id => document.getElementById(id);
  const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
  const message = (id, text, error=false) => { const el=$(id); el.textContent=text; el.classList.toggle("hidden",!text); el.classList.toggle("error",error); };
+ function safeError(error, fallback="Something went wrong. Please try again.") {
+   const status=Number(error && error.status);
+   if(status===401) return "Authentication failed. Check your credentials or sign in again.";
+   if(status===403) return "You do not have permission to perform that action.";
+   if(status===404) return "That information is no longer available.";
+   if(status===408) return "The request timed out. Check your connection and try again.";
+   if(status===409) return "This information changed on the server. Refresh and try again.";
+   if(status===429) return "Too many attempts. Please wait a moment and try again.";
+   if(status>=500 && status<=599) return "LifeLink is temporarily unavailable. Please try again shortly.";
+   if(error instanceof TypeError || !status) return "A connection problem occurred. Check your connection and try again.";
+   return fallback;
+ }
  const url = path => API_BASE_URL + path;
  async function api(path, options={}) {
    const response = await fetch(url(path), { ...options, headers: { "Authorization":"Bearer "+accessToken, "Content-Type":"application/json", "X-Correlation-ID": crypto.randomUUID(), ...(options.headers||{}) }});
    const body = await response.text(); let data={}; try { data=body?JSON.parse(body):{}; } catch {}
-   if (!response.ok) throw new Error(data.detail || ("Request failed ("+response.status+")"));
+   if (!response.ok) { const error=new Error("Admin API request failed"); error.status=response.status; throw error; }
    return data;
  }
  function showRecovery(mode) {
@@ -96,9 +108,9 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
    try {
      const response=await fetch(SUPABASE_URL+"/auth/v1/recover?redirect_to="+encodeURIComponent(ADMIN_REDIRECT_URL),{method:"POST",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})});
      const data=await response.json().catch(()=>({}));
-     if(!response.ok) throw new Error(data.msg||data.message||data.error_description||"Could not send the reset email. Check the Supabase Auth redirect allowlist.");
+     if(!response.ok) { const error=new Error("Password reset request failed"); error.status=response.status; throw error; }
      message("login-message","If this email belongs to a LifeLink account, a password-reset link has been sent. Check your inbox and spam folder.");
-   } catch(e) { message("login-message",e.message||"Password reset request failed.",true); }
+   } catch(e) { message("login-message",safeError(e,"Could not send the reset email. Check the Supabase Auth redirect allowlist."),true); }
    finally { $("recovery-submit").disabled=false; }
  }
  async function updateRecoveredPassword() {
@@ -112,11 +124,11 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
    try {
      const response=await fetch(SUPABASE_URL+"/auth/v1/user",{method:"PUT",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Authorization":"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({password})});
      const data=await response.json().catch(()=>({}));
-     if(!response.ok) throw new Error(data.msg||data.message||data.error_description||"Password update failed. Request a fresh reset link.");
+     if(!response.ok) { const error=new Error("Password update failed"); error.status=response.status; throw error; }
      history.replaceState(null,"",location.pathname+location.search);
      $("new-password").value=""; $("confirm-password").value=""; $("recovery-view").classList.add("hidden");
      message("login-message","Password updated. Sign in with your new password.");
-   } catch(e){message("login-message",e.message||"Could not update password.",true);}
+   } catch(e){message("login-message",safeError(e,"Could not update password. Request a fresh reset link."),true);}
    finally{$("recovery-submit").disabled=false;}
  }
  async function signIn() {
@@ -126,14 +138,14 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
    try {
      const response=await fetch(supabase+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":key,"Content-Type":"application/json"},body:JSON.stringify({email:$("email").value.trim(),password:$("password").value})});
      const session=await response.json();
-     if(!response.ok || !session.access_token) throw new Error(session.msg||session.message||"Sign-in failed. Check your credentials.");
+     if(!response.ok || !session.access_token) { const error=new Error("Sign-in failed"); error.status=response.status; throw error; }
      accessToken=session.access_token;
      await api("/v1/admin/me");
      $("identity").textContent="Signed in as "+(session.user?.email||"authorized administrator");
      $("login-view").classList.add("hidden"); $("app-view").classList.remove("hidden"); $("session-tools").classList.remove("hidden");
      $("password").value=""; message("login-message","");
      await loadPage("overview");
-   } catch(e) { accessToken=null; message("login-message",e.message||"Unable to sign in.",true); }
+   } catch(e) { accessToken=null; message("login-message",safeError(e,"Sign-in failed. Check your credentials and try again."),true); }
    finally { $("signin").disabled=false; }
  }
  function table(items, cols) {
@@ -169,7 +181,7 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
    $("users-page").textContent=(data.total===0?"0 users":(offset+1)+"–"+Math.min(offset+pageSize,data.total)+" of "+data.total);
    $("users-table").innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Capabilities",render:u=>'Request: '+(u.can_request?'Yes':'No')+'<br>Donate: '+(u.can_donate?'Yes':'No')},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Actions",render:u=>'<div class="actions"><button class="secondary" data-action="requester" data-id="'+esc(u.user_id)+'">Requester</button><button class="secondary" data-action="donor" data-id="'+esc(u.user_id)+'">Donor</button></div>'}]);
    wireTableTools($("users-table"));
-   $("users-table").querySelectorAll("button[data-action]").forEach(btn=>btn.addEventListener("click",async()=>{if(!confirm("Update capabilities for this user? This action is recorded in the audit log."))return;try{await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify({role:btn.dataset.action,can_request:btn.dataset.action==="requester",can_donate:btn.dataset.action==="donor"})});message("app-message","User capabilities updated and audit event recorded.");await loadUsers();}catch(e){message("app-message",e.message,true);}}));
+   $("users-table").querySelectorAll("button[data-action]").forEach(btn=>btn.addEventListener("click",async()=>{if(!confirm("Update capabilities for this user? This action is recorded in the audit log."))return;try{await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify({role:btn.dataset.action,can_request:btn.dataset.action==="requester",can_donate:btn.dataset.action==="donor"})});message("app-message","User capabilities updated and audit event recorded.");await loadUsers();}catch(e){message("app-message",safeError(e,"The user update could not be completed. Please retry."),true);}}));
  }
  async function loadSessions() {
    const offset=offsets.sessions;
@@ -191,7 +203,7 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
    $("sessions-table").querySelectorAll("button[data-revoke]").forEach(btn=>btn.addEventListener("click",async()=>{
      if(!confirm("Revoke this session? Its next protected admin API request will be rejected."))return;
      try{await api("/v1/admin/sessions/"+encodeURIComponent(btn.dataset.revoke)+"/revoke",{method:"POST"});message("app-message","Session revoked.");await loadSessions();}
-     catch(e){message("app-message",e.message,true);}
+     catch(e){message("app-message",safeError(e,"The session could not be revoked. Please retry."),true);}
    }));
  }
  async function loadAlerts() {
@@ -212,7 +224,7 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
    wireTableTools($("alerts-table"));
    $("alerts-table").querySelectorAll("button[data-alert]").forEach(btn=>btn.addEventListener("click",async()=>{
      try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");await loadAlerts();}
-     catch(e){message("app-message",e.message,true);}
+     catch(e){message("app-message",safeError(e,"The alert could not be updated. Please retry."),true);}
    }));
  }
  async function loadEvents(kind) {
@@ -238,7 +250,7 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
      if(page==="sessions") await loadSessions();
      if(page==="alerts") await loadAlerts();
      if(page==="errors") await loadEvents("errors");
-   } catch(e) { message("app-message",e.message||"Could not load data.",true); }
+   } catch(e) { message("app-message",safeError(e,"Could not load admin data. Please retry."),true); }
  }
  $("signin").addEventListener("click",signIn);
  $("forgot-password").addEventListener("click",e=>{e.preventDefault();$("recovery-email").value=$("email").value.trim();showRecovery("request");});
