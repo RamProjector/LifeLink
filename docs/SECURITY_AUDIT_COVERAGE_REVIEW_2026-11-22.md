@@ -112,3 +112,8 @@ Emergency-request creation now writes an `emergency_request_created` event in th
 ## Implementation update — 2026-11-23 (contact lifecycle)
 
 Requester contact lifecycle changes now insert a `contact_<status>` audit event in the same transaction as the status update. The event actor is the authenticated principal; metadata contains only the previous and resulting status, with request and donor references stored in their dedicated columns. The separate post-commit audit write was removed. PostgreSQL integration tests cover a successful accepted-to-contact-shared transition and verify that an injected audit insert failure rolls the status back to `accepted`.
+
+
+## Implementation update — 2026-11-23 (donor profile create/update)
+
+Donor-profile creation and meaningful updates now emit `donor_profile_created` or `donor_profile_updated` audit events. Metadata contains changed field names only, never field values, coordinates, display names, notes, or contact preferences. The donor profile, account donation capability, operational donor mirror, and audit row are committed in one transaction. PostgreSQL integration tests cover create/update metadata and rollback when the audit insert is rejected.
