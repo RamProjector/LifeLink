@@ -8,10 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class AuthSessionStore(
-    context: Context,
-    private val onAccountRemoved: (String) -> Job? = { null }
-) {
+class AuthSessionStore(context: Context, private val onAccountRemoved: (String) -> Job? = { null }) {
     private val preferences = context.getSharedPreferences("lifelink_auth", Context.MODE_PRIVATE)
     private val _session = MutableStateFlow(readSession())
     val session: StateFlow<AuthSession?> = _session.asStateFlow()
@@ -98,14 +95,9 @@ class AuthSessionStore(
             accessToken = accessToken,
             refreshToken = preferences.getString("refresh_token", "").orEmpty(),
             userId = userId,
-            email = preferences.getString("email", "").orEmpty()
+            email = preferences.getString("email", "").orEmpty(),
         )
     }
 }
 
-data class AuthSession(
-    val accessToken: String,
-    val refreshToken: String,
-    val userId: String,
-    val email: String
-)
+data class AuthSession(val accessToken: String, val refreshToken: String, val userId: String, val email: String)
