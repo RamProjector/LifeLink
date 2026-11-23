@@ -403,6 +403,37 @@ def test_hiding_from_map_revokes_live_location_share(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_exact_location_read_is_audited_without_coordinates_and_deduplicated(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+        share_path = f"/v1/emergency-requests/{request_id}/donors/{donor}/location-share"
+        current["id"] = requester
+        activated = await client.post(share_path)
+        assert activated.status_code == 200, activated.text
+
+        location_path = f"/v1/emergency-requests/{request_id}/donors/{donor}/location"
+        first = await client.get(location_path)
+        assert first.status_code == 200, first.text
+        assert first.json()["shared"] is True
+        second = await client.get(location_path)
+        assert second.status_code == 200, second.text
+        assert second.json()["shared"] is True
+
+        rows = await run_sql(
+            "SELECT actor_id, metadata::text FROM audit_events "
+            "WHERE action = 'exact_location_viewed' "
+            f"AND request_id = '{request_id}' AND donor_id = '{donor}'"
+        )
+        assert len(rows) == 1, rows
+        assert rows[0][0] == requester
+        assert rows[0][1] == "{}"
+
+    run_scenario(pg_url, scenario)
+
+
 def test_location_share_activation_waits_for_request_cancellation(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
