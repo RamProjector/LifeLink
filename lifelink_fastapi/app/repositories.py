@@ -314,8 +314,12 @@ class SqlAlchemyRequestStore(RequestStore):
                 logger.exception("Skipping unreadable request row id=%s in history", row.id)
         return records
 
-    async def save_async(self, record: RequestRecord) -> None:
-        """Insert or update a request and persist any matches not already stored."""
+    async def save_async(self, record: RequestRecord, *, audit_actor_id: str | None = None) -> None:
+        """Insert or update a request and persist any matches not already stored.
+
+        When supplied, the creation audit event is committed in the same
+        transaction as the request and its ranked matches.
+        """
         existing = await self.session.get(EmergencyRequestRow, record.request_id)
         if existing is None:
             existing = EmergencyRequestRow(
@@ -372,6 +376,21 @@ class SqlAlchemyRequestStore(RequestStore):
                     explanation=match.explanation.model_dump(mode="json"),
                 )
             )
+        if existing is not None and audit_actor_id is not None and existing.id == record.request_id:
+            # Only emit on the initial insert; idempotent updates must not
+            # manufacture duplicate creation events.
+            if existing.created_at == record.created_at:
+                self.session.add(AuditEvent(
+                    id=f"audit_{uuid4().hex}",
+                    actor_id=audit_actor_id,
+                    action="emergency_request_created",
+                    request_id=record.request_id,
+                    event_metadata={
+                        "status": record.status.value,
+                        "matching_mode": "weighted" if record.payload.ai_matching_enabled else "distance_only",
+                        "match_count": len(record.matches),
+                    },
+                ))
         await self.session.commit()
 
     async def set_manual_broadcast_async(self, request_id: str) -> RequestRecord:
@@ -695,6 +714,8 @@ async def create_request_record(
     matches: list[DonorMatch],
     request_id: str,
     status: RequestStatus = RequestStatus.AWAITING_RESPONSES,
+    *,
+    audit_actor_id: str | None = None,
 ) -> RequestRecord:
     """Convenience function used by an async endpoint after matching."""
     store = SqlAlchemyRequestStore(session)
@@ -706,5 +727,5 @@ async def create_request_record(
         expires_at=payload.response_deadline,
         matches=matches,
     )
-    await store.save_async(record)
+    await store.save_async(record, audit_actor_id=audit_actor_id)
     return record
