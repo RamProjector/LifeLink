@@ -129,7 +129,7 @@ for _owner in ("postgres",):
     )
     DEFAULT_PRIVILEGE_REVOKES[f"{_owner} global future functions"] = re.compile(
         rf"ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+{_owner}\s+"
-        r"REVOKE\s+EXECUTE\s+ON\s+FUNCTIONS\s+FROM\s+PUBLIC",
+        r"REVOKE\s+EXECUTE\s+ON\s+FUNCTIONS\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
         re.IGNORECASE,
     )
 
