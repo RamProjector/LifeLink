@@ -138,11 +138,13 @@ class SupabasePasswordRecoveryTest {
 
     @Test
     fun verifiedPasswordSessionReplacesConcurrentRefreshForSameAccount() = runBlocking {
-        sessionStore.save(AuthSession("initial-access", "initial-refresh", "user-1", "user@example.test"))
+        val expected = AuthSession("initial-access", "initial-refresh", "user-1", "user@example.test")
+        sessionStore.save(expected)
         sessionStore.save(AuthSession("refreshed-access", "rotated-refresh", "user-1", "user@example.test"))
 
         val replaced = sessionStore.replaceForUser(
             "user-1",
+            expected,
             AuthSession("verified-access", "verified-refresh", "user-1", "user@example.test"),
         )
 
@@ -160,6 +162,7 @@ class SupabasePasswordRecoveryTest {
 
         val replaced = sessionStore.replaceForUser(
             "user-1",
+            AuthSession("initial-access", "initial-refresh", "user-1", "user@example.test"),
             AuthSession("verified-access", "verified-refresh", "user-1", "user@example.test"),
         )
 
