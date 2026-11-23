@@ -415,6 +415,17 @@ def test_exact_location_read_is_audited_without_coordinates_and_deduplicated(pg_
         assert activated.status_code == 200, activated.text
 
         location_path = f"/v1/emergency-requests/{request_id}/donors/{donor}/location"
+        outsider = new_user("outsider")
+        current["id"] = outsider
+        denied = await client.get(location_path)
+        assert denied.status_code == 403, denied.text
+        denied_audit = await run_sql(
+            "SELECT id FROM audit_events WHERE action = 'exact_location_viewed' "
+            f"AND request_id = '{request_id}' AND donor_id = '{donor}'"
+        )
+        assert denied_audit == []
+
+        current["id"] = requester
         first = await client.get(location_path)
         assert first.status_code == 200, first.text
         assert first.json()["shared"] is True
