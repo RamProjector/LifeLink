@@ -316,7 +316,11 @@ class SqlAlchemyPrivacyStore:
         return share
 
     async def exact_location_for_requester(
-        self, request_id: str, donor_id: str, requester_id: str
+        self,
+        request_id: str,
+        donor_id: str,
+        requester_id: str,
+        actor_id: str | None = None,
     ) -> dict:
         """Return exact coordinates only while a live share authorizes them."""
         # Keep request, donor consent, and share state stable until the
@@ -399,6 +403,34 @@ class SqlAlchemyPrivacyStore:
                 "shared": False,
                 "reason": reason,
             }
+        # Exact coordinates are a sensitive disclosure. Persist one audit event
+        # for this request-scoped share before returning coordinates; repeated
+        # polling does not create an unbounded stream of duplicate read events.
+        audit_actor = actor_id or requester_id
+        prior_disclosure = await self.session.scalar(
+            select(AuditEvent.id)
+            .where(
+                AuditEvent.actor_id == audit_actor,
+                AuditEvent.action == "exact_location_viewed",
+                AuditEvent.request_id == request_id,
+                AuditEvent.donor_id == donor.id,
+            )
+            .limit(1)
+        )
+        if prior_disclosure is None:
+            self.session.add(
+                AuditEvent(
+                    id=f"audit_{uuid4().hex}",
+                    actor_id=audit_actor,
+                    action="exact_location_viewed",
+                    request_id=request_id,
+                    donor_id=donor.id,
+                    # Never persist coordinates, precision, or location payload.
+                    event_metadata={},
+                )
+            )
+        # Do not disclose coordinates unless the audit write has committed.
+        await self.session.commit()
         return {
             "request_id": request_id,
             "donor_id": donor.id,
