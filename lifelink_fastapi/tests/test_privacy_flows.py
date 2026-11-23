@@ -434,6 +434,52 @@ def test_exact_location_read_is_audited_without_coordinates_and_deduplicated(pg_
     run_scenario(pg_url, scenario)
 
 
+def test_exact_location_read_fails_closed_when_audit_insert_fails(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+        current["id"] = requester
+        activated = await client.post(
+            f"/v1/emergency-requests/{request_id}/donors/{donor}/location-share"
+        )
+        assert activated.status_code == 200, activated.text
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_exact_location_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'exact_location_viewed' THEN "
+                + "RAISE EXCEPTION 'injected audit write failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_exact_location_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_exact_location_audit()"
+            )
+        await trigger_engine.dispose()
+
+        failed = await client.get(
+            f"/v1/emergency-requests/{request_id}/donors/{donor}/location"
+        )
+        assert failed.status_code == 503, failed.text
+        assert "latitude" not in failed.json()
+        assert "longitude" not in failed.json()
+        audit_rows = await run_sql(
+            "SELECT id FROM audit_events WHERE action = 'exact_location_viewed' "
+            f"AND request_id = '{request_id}' AND donor_id = '{donor}'"
+        )
+        assert audit_rows == []
+
+    run_scenario(pg_url, scenario)
+
+
 def test_location_share_activation_waits_for_request_cancellation(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
