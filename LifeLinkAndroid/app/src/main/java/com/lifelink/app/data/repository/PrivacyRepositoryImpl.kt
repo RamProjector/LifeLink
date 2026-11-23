@@ -241,6 +241,7 @@ class PrivacyRepositoryImpl(
                 val response = api.unsaveMessage(conversationId, messageId)
                 check(response.isSuccessful) { "Saved message could not be removed (${response.code()})." }
                 chatCacheDao?.deleteSavedMessage(ownerId(), conversationId, messageId)
+                Unit
             }
         }
 
