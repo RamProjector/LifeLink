@@ -1575,6 +1575,110 @@ def test_conversation_moderation_is_available_to_either_participant(pg_url):
     run_scenario(pg_url, scenario)
 
 
+
+def _create_accepted_contact(client, current, donor: str, requester: str):
+    """Create an accepted donor contact ready for requester lifecycle updates."""
+    async def create():
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+
+        current["id"] = donor
+        response = await client.post(
+            f"/v1/donors/{donor}/requests/{request_id}/response",
+            json={"response": "accepted"},
+        )
+        assert response.status_code == 200, response.text
+
+        current["id"] = requester
+        selected = await client.post(
+            f"/v1/emergency-requests/{request_id}/contact",
+            json={"donor_ids": [donor]},
+        )
+        assert selected.status_code == 200, selected.text
+        return request_id
+    return create
+
+
+def test_contact_status_transition_is_audited_atomically(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        request_id = await _create_accepted_contact(client, current, donor, requester)()
+        current["id"] = requester
+
+        changed = await client.patch(
+            f"/v1/emergency-requests/{request_id}/contacts/{donor}",
+            json={"status": "contact_shared"},
+        )
+        assert changed.status_code == 200, changed.text
+
+        events = await run_sql(
+            "SELECT actor_id, action, request_id, donor_id, metadata FROM audit_events "
+            f"WHERE request_id = '{request_id}' AND action = 'contact_contact_shared'"
+        )
+        assert events == [
+            (
+                requester,
+                "contact_contact_shared",
+                request_id,
+                donor,
+                {"from": "accepted", "to": "contact_shared"},
+            )
+        ]
+        metadata_text = str(events[0][4])
+        assert "email" not in metadata_text
+        assert "phone" not in metadata_text
+        assert "value" not in metadata_text
+
+    run_scenario(pg_url, scenario)
+
+
+def test_contact_status_rolls_back_when_audit_insert_fails(pg_url):
+    """A rejected audit insert must leave the contact in its prior state."""
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        request_id = await _create_accepted_contact(client, current, donor, requester)()
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_contact_status_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'contact_contact_shared' THEN "
+                + "RAISE EXCEPTION 'injected contact status audit failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_contact_status_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_contact_status_audit()"
+            )
+        await trigger_engine.dispose()
+
+        current["id"] = requester
+        failed = await client.patch(
+            f"/v1/emergency-requests/{request_id}/contacts/{donor}",
+            json={"status": "contact_shared"},
+        )
+        assert failed.status_code == 503, failed.text
+
+        contact_rows = await run_sql(
+            "SELECT status FROM donor_contact_requests "
+            f"WHERE request_id = '{request_id}' AND donor_id = '{donor}'"
+        )
+        event_count = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE request_id = '{request_id}' AND action = 'contact_contact_shared'"
+        )
+        assert contact_rows == [("accepted",)]
+        assert event_count == [(0,)]
+
+    run_scenario(pg_url, scenario)
+
+
 def test_donor_message_notifies_the_requester(pg_url, monkeypatch):
     """When the donor sends a message, the push must go to the requester, even
     when the donor row id differs from the donor's user id."""
