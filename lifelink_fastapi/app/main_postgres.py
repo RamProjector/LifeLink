@@ -1746,6 +1746,12 @@ async def save_conversation_message(
         saved = await store.save_message(principal.subject, conversation_id, message_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Message not found in this conversation") from None
+    except SQLAlchemyError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="The saved-message change could not be audited. Please retry.",
+        ) from None
     message = await session.get(Message, message_id)
     if message is None:
         raise HTTPException(status_code=404, detail="Message not found in this conversation")
@@ -1774,7 +1780,15 @@ async def unsave_conversation_message(
         raise HTTPException(status_code=404, detail="Conversation not found") from None
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
-    if not await store.unsave_message(principal.subject, conversation_id, message_id):
+    try:
+        removed = await store.unsave_message(principal.subject, conversation_id, message_id)
+    except SQLAlchemyError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="The saved-message change could not be audited. Please retry.",
+        ) from None
+    if not removed:
         raise HTTPException(status_code=404, detail="Message not found in this conversation")
     return Response(status_code=204)
 
@@ -1817,6 +1831,12 @@ async def send_conversation_message(
         message = await store.add_message(conversation, principal.subject, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except SQLAlchemyError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="The message could not be sent because its audit record could not be saved. Please retry.",
+        ) from None
     await send_push_safely(
         await _conversation_recipient(session, conversation, principal.subject),
         "New message",
