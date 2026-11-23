@@ -145,13 +145,13 @@ class AdminProfileUpdate(BaseModel):
 
 
 def _audit_action_kind(action: str) -> str:
-    """Map CRUD events to the required normalized action vocabulary."""
-    verb = action.rsplit(".", 1)[-1].lower()
-    if verb in {"add", "create", "insert"}:
+    """Map CRUD event verbs to the required normalized action vocabulary."""
+    tokens = set(re.split(r"[^a-z]+", action.lower()))
+    if tokens.intersection({"add", "added", "create", "created", "insert", "inserted", "request", "requested", "share", "shared", "send", "sent", "save", "saved", "block", "blocked", "report", "reported"}):
         return "ADD"
-    if verb in {"edit", "update", "patch"}:
+    if tokens.intersection({"edit", "edited", "update", "updated", "patch", "patched", "change", "changed", "toggle", "toggled", "cancel", "cancelled", "fulfill", "fulfilled", "respond", "response", "presence", "availability"}):
         return "EDIT"
-    if verb in {"delete", "remove", "revoke"}:
+    if tokens.intersection({"delete", "deleted", "remove", "removed", "revoke", "revoked", "unsave", "unsaved"}):
         return "DELETE"
     return "OTHER"
 
@@ -212,7 +212,7 @@ async def _write_audit(
             "actor_id": actor_id,
             "action": action[:64],
             "actions": _audit_action_kind(action),
-            "description": action[:500],
+            "description": str((metadata or {}).get("description") or action.replace(".", " ").replace("_", " "))[:500],
             "session_id": session_id,
             "ip_address": peer_ip,
             "timestamp": datetime.now(timezone.utc),
