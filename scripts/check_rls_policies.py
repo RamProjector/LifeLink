@@ -148,7 +148,7 @@ def _read_sql() -> str:
 DEFAULT_PRIVILEGE_GRANTS = {
     "postgres trusted future functions": re.compile(
         r"ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+postgres\s+"
-        r"GRANT\s+EXECUTE\s+ON\s+FUNCTIONS\s+TO\s+service_role",
+        r"IN\s+SCHEMA\s+public\s+GRANT\s+EXECUTE\s+ON\s+FUNCTIONS\s+TO\s+service_role",
         re.IGNORECASE,
     ),
 }
