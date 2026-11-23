@@ -1242,6 +1242,22 @@ async def record_legacy_donor_presence_postgres(
     row.last_presence_at = now
     row.availability_updated_at = now
     row.updated_at = now
+    precision_bucket = (
+        "high" if payload.precision_meters <= 20
+        else "medium" if payload.precision_meters <= 100
+        else "low" if payload.precision_meters <= 1000
+        else "very_low"
+    )
+    session.add(AuditEvent(
+        id=f"audit_{uuid4().hex}",
+        actor_id=principal.subject,
+        action="donor_presence_recorded",
+        donor_id=row.id,
+        event_metadata={
+            "provider": payload.provider or "unknown",
+            "precision_bucket": precision_bucket,
+        },
+    ))
     try:
         await session.commit()
         await store.recompute_matches_for_donor(donor_id)
