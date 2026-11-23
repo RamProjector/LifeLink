@@ -375,24 +375,49 @@ async def admin_update_user(
 
 
 async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, request: Request) -> int:
-    """Detect active role assignments that conflict with account capabilities or server allowlists."""
+    """Detect inapplicable roles and permission grants outside the approved role policy."""
     result = await session.execute(text(
         "SELECT ur.user_id::text AS user_id, r.role_key, "
-        "COALESCE(p.can_request, false) AS can_request, "
-        "COALESCE(p.can_donate, false) AS can_donate, "
+        "COALESCE(p.can_request, false) AS can_request, COALESCE(p.can_donate, false) AS can_donate, "
         "EXISTS (SELECT 1 FROM donor_profiles dp WHERE dp.user_id = ur.user_id::text) "
-        "OR EXISTS (SELECT 1 FROM donors d WHERE d.user_id = ur.user_id::text) AS has_donor_profile "
+        "OR EXISTS (SELECT 1 FROM donors d WHERE d.user_id = ur.user_id::text) AS has_donor_profile, "
+        "COALESCE(array_agg(DISTINCT perm.permission_key) FILTER (WHERE perm.permission_key IS NOT NULL), ARRAY[]::varchar[]) AS permissions "
         "FROM lifelink_user_roles ur JOIN lifelink_roles r ON r.id = ur.role_id "
         "LEFT JOIN lifelink_profiles p ON p.user_id = ur.user_id::text "
-        "WHERE ur.expires_at IS NULL OR ur.expires_at > now()"
+        "LEFT JOIN lifelink_role_permissions rp ON rp.role_id = r.id "
+        "LEFT JOIN lifelink_permissions perm ON perm.id = rp.permission_id "
+        "WHERE ur.expires_at IS NULL OR ur.expires_at > now() "
+        "GROUP BY ur.user_id, r.role_key, p.can_request, p.can_donate"
     ))
+    allowed_permissions = {
+        "requester": set(), "donor": set(),
+        "operations_admin": {"dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"},
+        "user_admin": {"dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"},
+        "security_admin": {"dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"},
+        "auditor": {"dashboard.read", "audit.read", "reports.read"},
+        "super_admin": {"dashboard.read", "users.read", "users.update", "users.suspend", "requests.read", "requests.update", "operations.read", "communications.metadata.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke", "roles.read", "roles.assign", "permissions.manage", "reports.read", "settings.read", "settings.update"},
+    }
     count = 0
     for row in result.mappings().all():
-        profile = {"can_request": row["can_request"], "can_donate": row["can_donate"],
-                   "has_donor_profile": row["has_donor_profile"]}
-        reason = _role_mismatch_reason(row["role_key"], row["user_id"], profile)
+        user_id, role_key = row["user_id"], row["role_key"]
+        profile = {"can_request": row["can_request"], "can_donate": row["can_donate"], "has_donor_profile": row["has_donor_profile"]}
+        reason = _role_mismatch_reason(role_key, user_id, profile)
         if reason:
-            await _record_rbac_mismatch(session, principal, request, row["user_id"], row["role_key"], reason)
+            await _record_rbac_mismatch(session, principal, request, user_id, role_key, reason)
+            count += 1
+        unexpected = sorted(set(row["permissions"] or []) - allowed_permissions.get(role_key, set()))
+        if unexpected:
+            await _write_audit(session, principal.subject, "security.rbac.permission_mismatch", request=request,
+                session_id=principal.session_id, outcome="denied", target_type="user", target_id=user_id,
+                metadata={"role_key": role_key, "unexpected_permission_keys": unexpected, "rule_id": "RBAC-02"})
+            await session.execute(text(
+                "INSERT INTO lifelink_security_alerts (rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, correlation_id) "
+                "VALUES ('RBAC-02', 'high', 'open', :user_id, :session_id, 'Role contains permissions outside approved policy', CAST(:evidence AS jsonb), 1, :correlation_id) "
+                "ON CONFLICT (rule_id, user_id) WHERE status IN ('open', 'acknowledged', 'investigating') "
+                "DO UPDATE SET last_seen_at = now(), occurrences = lifelink_security_alerts.occurrences + 1, evidence = EXCLUDED.evidence"
+            ), {"user_id": user_id, "session_id": principal.session_id,
+                "evidence": __import__("json").dumps({"role_key": role_key, "unexpected_permission_keys": unexpected}),
+                "correlation_id": _correlation_id(request.headers.get("x-correlation-id"))})
             count += 1
     return count
 
