@@ -2193,6 +2193,8 @@ def test_donor_profile_create_and_update_are_audited_without_pii(pg_url):
                     "blood_type", "latitude", "longitude", "area",
                     "availability_status", "last_donation_date",
                     "notifications_enabled", "service_radius_km",
+                    "display_name", "donor_note", "preferred_contact_method",
+                    "profile_visible",
                 ]
             },
         )]
@@ -2224,7 +2226,10 @@ def test_donor_profile_create_and_update_are_audited_without_pii(pg_url):
             user,
             "donor_profile_updated",
             user,
-            {"changed_fields": ["blood_type", "area", "service_radius_km"]},
+            {"changed_fields": [
+                "blood_type", "area", "service_radius_km",
+                "display_name", "donor_note",
+            ]},
         )]
         assert "Updated private name" not in str(changed)
         assert "private note" not in str(changed)
