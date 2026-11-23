@@ -30,7 +30,23 @@ The current admin allowlist remains the bootstrap gate for the existing console.
 - The actor filter is derived exclusively from the verified Supabase token subject; callers cannot supply another account ID.
 - Sensitive metadata is redacted using the same bounded audit-metadata sanitizer used by the Admin Console.
 - Reading personal history is itself recorded as `audit.self.read`.
-- This endpoint exposes only events already written to `audit_events`; it does not imply that every existing requester/donor operation is instrumented yet.
+- The authenticated `/v1` API activity middleware records route-level reads and successful/denied mutation attempts for non-admin application endpoints. It stores the verified token subject, session ID when present, server-observed peer IP, user-agent, timestamp, normalized action, safe route template, and status code; it never stores request bodies, message text, blood type, or precise coordinates.
+- The middleware is an API-boundary audit fallback, not an atomic database trigger. A completed business transaction can therefore outlive a failed audit write; failures are surfaced to server logs. Critical mutation paths should continue moving their audit write into the same database transaction.
+
+
+## Role applicability and discrepancy detection
+
+Role assignments are many-to-many, but that does not mean every role is valid for every account. The RBAC manager endpoint now checks applicability before replacing assignments:
+
+- `requester` requires the account profile's `can_request` capability.
+- `donor` requires `can_donate` or an existing donor profile/legacy donor record.
+- Administrative roles require the target account to be in the server-managed `LIFELINK_ADMIN_USER_IDS` allowlist.
+- `super_admin` additionally requires the target account to be in `LIFELINK_RBAC_MANAGER_USER_IDS`.
+- Unknown role keys and roles without an explicit applicability policy are rejected.
+
+The Admin Console security-alerts API also scans active assignments against these rules and checks role-permission mappings against a least-privilege allowlist. It creates deduplicated high-severity alerts for role applicability mismatches (`RBAC-01`) and unexpected permission mappings (`RBAC-02`). Invalid new assignments are blocked and audited rather than silently accepted.
+
+Requester and donor remain independently assignable, so one account may legitimately hold both roles when both capabilities are enabled. The legacy `lifelink_profiles.role` field remains for compatibility and is not itself a grant of administrative authority.
 
 ## Rollout safety
 
