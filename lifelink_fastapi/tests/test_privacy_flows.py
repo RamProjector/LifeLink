@@ -2174,6 +2174,126 @@ async def create_separate_donor_profile(client, current, user_id: str) -> None:
     assert donor.status_code == 200, donor.text
 
 
+
+def test_donor_profile_create_and_update_are_audited_without_pii(pg_url):
+    async def scenario(client, current, run_sql):
+        user = new_user("audited-donor-profile")
+        await create_separate_donor_profile(client, current, user)
+
+        created = await run_sql(
+            "SELECT actor_id, action, donor_id, metadata FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_profile_created'"
+        )
+        assert created == [(
+            user,
+            "donor_profile_created",
+            user,
+            {
+                "changed_fields": [
+                    "blood_type", "latitude", "longitude", "area",
+                    "availability_status", "last_donation_date",
+                    "notifications_enabled", "service_radius_km",
+                ]
+            },
+        )]
+
+        current["id"] = user
+        updated = await client.put(
+            "/v1/donor-profile",
+            json={
+                "blood_type": "A+",
+                "latitude": 11.2433,
+                "longitude": 125.0,
+                "area": "Updated area",
+                "service_radius_km": 20,
+                "availability_status": "offline",
+                "notifications_enabled": True,
+                "display_name": "Updated private name",
+                "donor_note": "private note",
+                "preferred_contact_method": "in_app",
+                "profile_visible": True,
+            },
+        )
+        assert updated.status_code == 200, updated.text
+
+        changed = await run_sql(
+            "SELECT actor_id, action, donor_id, metadata FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_profile_updated'"
+        )
+        assert changed == [(
+            user,
+            "donor_profile_updated",
+            user,
+            {"changed_fields": ["blood_type", "area", "service_radius_km"]},
+        )]
+        assert "Updated private name" not in str(changed)
+        assert "private note" not in str(changed)
+        assert "11.2433" not in str(changed)
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_profile_update_rolls_back_when_audit_insert_fails(pg_url):
+    async def scenario(client, current, run_sql):
+        user = new_user("donor-profile-rollback")
+        await create_separate_donor_profile(client, current, user)
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_donor_profile_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'donor_profile_updated' THEN "
+                + "RAISE EXCEPTION 'injected donor profile audit failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_donor_profile_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_donor_profile_audit()"
+            )
+        await trigger_engine.dispose()
+
+        current["id"] = user
+        failed = await client.put(
+            "/v1/donor-profile",
+            json={
+                "blood_type": "A+",
+                "latitude": 11.2433,
+                "longitude": 125.0,
+                "area": "Changed area",
+                "service_radius_km": 20,
+                "availability_status": "offline",
+                "notifications_enabled": True,
+                "display_name": "Separate Donor",
+                "donor_note": "",
+                "preferred_contact_method": "in_app",
+                "profile_visible": True,
+            },
+        )
+        assert failed.status_code == 503, failed.text
+
+        profile = await run_sql(
+            "SELECT blood_type, area, service_radius_km FROM donor_profiles "
+            f"WHERE user_id = '{user}'"
+        )
+        operational = await run_sql(
+            "SELECT blood_type, service_radius_km FROM donors "
+            f"WHERE user_id = '{user}'"
+        )
+        events = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_profile_updated'"
+        )
+        assert profile == [("O+", "Tacloban", 15)]
+        assert operational == [("O+", 15)]
+        assert events == [(0,)]
+
+    run_scenario(pg_url, scenario)
+
 def test_donor_availability_changes_are_audited_without_location_data(pg_url):
     async def scenario(client, current, run_sql):
         user = new_user("separate-donor")
