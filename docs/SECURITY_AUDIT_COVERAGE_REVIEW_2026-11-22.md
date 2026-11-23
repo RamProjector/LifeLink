@@ -24,7 +24,7 @@
 | `PUT /v1/push-token` | Push endpoint credential registration | No | Record registration/removal outcome; never record token |
 | `POST /v1/emergency-requests` | Creates sensitive emergency/location request | Added in this PR | Atomically record request ID, outcome, matching mode, and match count; never copy coordinates or medical details into metadata |
 | `POST .../contact` | Initiates contact with selected donors | Yes | Retain; verify failed/denied attempts are also observable |
-| `PATCH .../contacts/{donor_id}` | Changes contact lifecycle/status | No | Record state transition and request/donor references |
+| `PATCH .../contacts/{donor_id}` | Changes contact lifecycle/status | Added in this PR | Atomically record actor, request/donor references, and previous/new status only |
 | `POST .../report`, `POST .../block` | Safety/moderation actions | Yes | Retain; ensure reason text is not copied into broadly readable metadata |
 | `POST .../manual-broadcast` | Expands emergency request audience | Yes | Retain; verify failures/denials |
 | `POST .../cancel`, `POST .../fulfill` | Ends or resolves emergency request | Yes | Retain; ensure actor and prior/new status are represented |
@@ -107,3 +107,8 @@ These are repository-level code and test changes only. CI must validate them on 
 ## Implementation update — 2026-11-23
 
 Emergency-request creation now writes an `emergency_request_created` event in the same SQLAlchemy transaction as the request and ranked matches. Metadata is limited to the resulting status, matching mode, and match count; requester coordinates, blood type, units, notes, and contact details are excluded. Idempotent retries return the existing request and do not add a second creation event. PostgreSQL integration tests cover the event contents, retry suppression, and rollback of the request when audit insertion is rejected.
+
+
+## Implementation update — 2026-11-23 (contact lifecycle)
+
+Requester contact lifecycle changes now insert a `contact_<status>` audit event in the same transaction as the status update. The event actor is the authenticated principal; metadata contains only the previous and resulting status, with request and donor references stored in their dedicated columns. The separate post-commit audit write was removed. PostgreSQL integration tests cover a successful accepted-to-contact-shared transition and verify that an injected audit insert failure rolls the status back to `accepted`.
