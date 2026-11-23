@@ -98,7 +98,6 @@ fun ConversationScreen(
     var showReport by remember { mutableStateOf(false) }
     var reportReason by remember { mutableStateOf("") }
     var showBlockConfirm by remember { mutableStateOf(false) }
-    val listState = rememberLazyListState()
     val chatReady = !state.chatLoading && state.conversationId != null
     // Chat convention: keep the newest message in view as the thread grows.
     LaunchedEffect(state.messages.size) {
@@ -135,56 +134,7 @@ fun ConversationScreen(
             )
         }
 
-        LazyColumn(
-            Modifier.weight(1f).fillMaxWidth(),
-            state = listState,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (state.chatLoading) {
-                item {
-                    Column(
-                        Modifier.fillMaxWidth().padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        CircularProgressIndicator(Modifier.size(28.dp))
-                        Text("Loading conversation…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            } else if (state.conversationId == null) {
-                item {
-                    LifeLinkEmptyState(
-                        icon = Icons.AutoMirrored.Filled.Chat,
-                        title = "Conversation unavailable",
-                        body = "This conversation could not be opened. Go back and try again.",
-                    )
-                }
-            } else if (state.messages.isEmpty()) {
-                item {
-                    LifeLinkEmptyState(
-                        icon = Icons.AutoMirrored.Filled.Chat,
-                        title = "No messages yet",
-                        body = "Say hello to start the conversation.",
-                    )
-                }
-            }
-            items(state.messages, key = { it.messageId }) { message ->
-                MessageBubble(
-                    message = message,
-                    mine = message.senderId == currentUserId,
-                    saved = state.savedMessages.any { it.messageId == message.messageId },
-                    onToggleSaved = {
-                        onAction(
-                            if (state.savedMessages.any { it.messageId == message.messageId }) {
-                                PrivacyAction.UnsaveMessage(message.messageId)
-                            } else {
-                                PrivacyAction.SaveMessage(message.messageId)
-                            },
-                        )
-                    },
-                )
-            }
-        }
+        ConversationMessages(state = state, currentUserId = currentUserId, onAction = onAction)
 
         if (state.savedMessages.isNotEmpty()) {
             Card(Modifier.fillMaxWidth()) {
@@ -248,14 +198,100 @@ fun ConversationScreen(
         }
     }
 
+    ConversationDialogs(
+        showReport = showReport,
+        reportReason = reportReason,
+        showBlockConfirm = showBlockConfirm,
+        conversationId = state.conversationId,
+        onAction = onAction,
+        onReportDismiss = { showReport = false },
+        onReportReasonChange = { reportReason = it },
+        onBlockDismiss = { showBlockConfirm = false },
+    )
+}
+
+@Composable
+private fun ConversationMessages(
+    state: PrivacyUiState,
+    currentUserId: String,
+    onAction: (PrivacyAction) -> Unit,
+) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(state.messages.size) {
+        if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
+    }
+    LazyColumn(
+        Modifier.weight(1f).fillMaxWidth(),
+        state = listState,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (state.chatLoading) {
+            item {
+                Column(
+                    Modifier.fillMaxWidth().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CircularProgressIndicator(Modifier.size(28.dp))
+                    Text("Loading conversation…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        } else if (state.conversationId == null) {
+            item {
+                LifeLinkEmptyState(
+                    icon = Icons.AutoMirrored.Filled.Chat,
+                    title = "Conversation unavailable",
+                    body = "This conversation could not be opened. Go back and try again.",
+                )
+            }
+        } else if (state.messages.isEmpty()) {
+            item {
+                LifeLinkEmptyState(
+                    icon = Icons.AutoMirrored.Filled.Chat,
+                    title = "No messages yet",
+                    body = "Say hello to start the conversation.",
+                )
+            }
+        }
+        items(state.messages, key = { it.messageId }) { message ->
+            val isSaved = state.savedMessages.any { it.messageId == message.messageId }
+            MessageBubble(
+                message = message,
+                mine = message.senderId == currentUserId,
+                saved = isSaved,
+                onToggleSaved = {
+                    onAction(
+                        if (isSaved) {
+                            PrivacyAction.UnsaveMessage(message.messageId)
+                        } else {
+                            PrivacyAction.SaveMessage(message.messageId)
+                        },
+                    )
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConversationDialogs(
+    showReport: Boolean,
+    reportReason: String,
+    showBlockConfirm: Boolean,
+    conversationId: String?,
+    onAction: (PrivacyAction) -> Unit,
+    onReportDismiss: () -> Unit,
+    onReportReasonChange: (String) -> Unit,
+    onBlockDismiss: () -> Unit,
+) {
     if (showReport) {
         AlertDialog(
-            onDismissRequest = { showReport = false },
+            onDismissRequest = onReportDismiss,
             title = { Text("Report this person") },
             text = {
                 OutlinedTextField(
                     value = reportReason,
-                    onValueChange = { if (it.length <= 500) reportReason = it },
+                    onValueChange = { if (it.length <= 500) onReportReasonChange(it) },
                     label = { Text("What happened? (optional)") },
                     minLines = 2,
                     maxLines = 4,
@@ -263,27 +299,27 @@ fun ConversationScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    onAction(PrivacyAction.ReportParticipant(state.conversationId.orEmpty(), reportReason))
-                    reportReason = ""
-                    showReport = false
+                    onAction(PrivacyAction.ReportParticipant(conversationId.orEmpty(), reportReason))
+                    onReportReasonChange("")
+                    onReportDismiss()
                 }) { Text("Submit report") }
             },
-            dismissButton = { TextButton(onClick = { showReport = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = onReportDismiss) { Text("Cancel") } },
         )
     }
 
     if (showBlockConfirm) {
         AlertDialog(
-            onDismissRequest = { showBlockConfirm = false },
+            onDismissRequest = onBlockDismiss,
             title = { Text("Block this person?") },
             text = { Text("They will no longer be able to contact you through LifeLink.") },
             confirmButton = {
                 TextButton(onClick = {
-                    onAction(PrivacyAction.BlockParticipant(state.conversationId.orEmpty()))
-                    showBlockConfirm = false
+                    onAction(PrivacyAction.BlockParticipant(conversationId.orEmpty()))
+                    onBlockDismiss()
                 }) { Text("Block") }
             },
-            dismissButton = { TextButton(onClick = { showBlockConfirm = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = onBlockDismiss) { Text("Cancel") } },
         )
     }
 }
