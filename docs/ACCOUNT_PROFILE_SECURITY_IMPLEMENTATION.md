@@ -94,7 +94,7 @@ The live Supabase migration-history query currently returns only version `202609
 
 The review identified two portability/security gaps in the already-applied migrations:
 
-- PostgreSQL's creator-global default PUBLIC EXECUTE grant is not removed by the schema-scoped function revoke alone. Migration 021_revoke_public_function_default_execute.sql removes that global default for functions created by postgres; the RLS checker now requires both global and schema-specific revokes and includes a negative fixture for the former six-statement configuration.
+- PostgreSQL's creator-global default PUBLIC EXECUTE grant is not removed by the schema-scoped function revoke alone. Migration 021_revoke_public_function_default_execute.sql removes global EXECUTE defaults for PUBLIC, anon, and authenticated on functions created by postgres, then explicitly preserves the trusted service_role grant. The RLS checker requires the global revoke, schema-specific revokes, and trusted-role grant, with a negative fixture for the former six-statement configuration.
 - PostGIS may be installed in either public or extensions. Migration 016 now resolves the installed extension schema from pg_extension and pins both trigger functions to that validated schema. Migration 022_pin_postgis_trigger_schema.sql applies the same correction to databases where migration 016 was already applied.
 
 Migrations 021 and 022 are committed in this PR but have **not** been applied to the live Supabase project. The live project previously received migrations 015 and 016; do not blindly reapply those migrations. Apply the two follow-up migrations through the normal controlled database-change process, then verify the default privileges and both trigger functions in the live catalog.
