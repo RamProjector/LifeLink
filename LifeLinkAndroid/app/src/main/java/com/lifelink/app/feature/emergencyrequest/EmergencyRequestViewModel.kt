@@ -317,6 +317,20 @@ class EmergencyRequestViewModel(private val repository: EmergencyRequestReposito
 
     private fun requestSubmit() {
         val state = _uiState.value
+        // The backend enforces one active request per requester, but block the
+        // duplicate in the UI as well so users do not enter a second submission
+        // flow that is guaranteed to be rejected.
+        val activeRequest = state.activeRequest
+        if (activeRequest != null && !activeRequest.isTerminal) {
+            _uiState.update {
+                it.copy(
+                    submission = SubmissionState.Error(
+                        "You already have an active emergency request. Review or close it before creating another.",
+                    ),
+                )
+            }
+            return
+        }
         val error = validateFullDraft(state.draft)
         if (error != null) {
             _uiState.update { it.copy(submission = SubmissionState.Error(error)) }
