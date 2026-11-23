@@ -50,6 +50,7 @@ BACKEND_ONLY_TABLES: dict[str, str] = {
     "contact_shares": "Explicit contact disclosures; the API enforces participant membership.",
     "conversation_blocks": "Block state; the API enforces participant membership.",
     "rate_limit_counters": "Rate-limit counters; internal API state, never queried by a client role.",
+    "saved_messages": "Participant-private message bookmarks; accessible only through authenticated FastAPI participant-scoped endpoints, with no PostgREST client-role grants.",
 }
 
 # SQL comments must be removed before matching: a commented-out
