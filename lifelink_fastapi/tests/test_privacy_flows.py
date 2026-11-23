@@ -2027,6 +2027,59 @@ def test_saved_messages_are_private_per_participant_and_conversation(pg_url):
     run_scenario(pg_url, scenario)
 
 
+def test_saved_message_change_fails_closed_when_audit_insert_fails(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert opened.status_code == 200, opened.text
+        conversation_id = opened.json()["conversation_id"]
+        sent = await client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"body": "bookmark this"}
+        )
+        assert sent.status_code == 201, sent.text
+        message_id = sent.json()["message_id"]
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_message_saved_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'message_saved' THEN "
+                + "RAISE EXCEPTION 'injected audit write failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_message_saved_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_message_saved_audit()"
+            )
+        await trigger_engine.dispose()
+
+        failed = await client.put(
+            f"/v1/conversations/{conversation_id}/messages/{message_id}/saved"
+        )
+        assert failed.status_code == 503, failed.text
+        saved_rows = await run_sql(
+            f"SELECT id FROM saved_messages WHERE user_id = '{requester}' AND message_id = '{message_id}'"
+        )
+        saved_events = await run_sql(
+            "SELECT id FROM audit_events WHERE action = 'message_saved' "
+            f"AND request_id = '{created['request_id']}' AND actor_id = '{requester}'"
+        )
+        assert saved_rows == []
+        assert saved_events == []
+
+    run_scenario(pg_url, scenario)
+
+
 def test_message_send_fails_closed_when_audit_insert_fails(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
