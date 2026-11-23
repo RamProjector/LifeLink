@@ -390,3 +390,12 @@ def test_audit_action_kind_classifies_application_crud_verbs():
     assert _audit_action_kind("api.deleted.donor_profile") == "DELETE"
     assert _audit_action_kind("admin.dashboard.view") == "OTHER"
 
+
+
+def test_api_activity_methods_map_to_crud_categories():
+    from app.main_postgres import _operation_audit_kind
+    assert _operation_audit_kind("POST") == ("ADD", "added")
+    assert _operation_audit_kind("PUT") == ("EDIT", "updated")
+    assert _operation_audit_kind("PATCH") == ("EDIT", "updated")
+    assert _operation_audit_kind("DELETE") == ("DELETE", "deleted")
+    assert _operation_audit_kind("GET") == ("OTHER", "viewed")
