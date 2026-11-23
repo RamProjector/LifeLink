@@ -595,6 +595,38 @@ def _require_rbac_manager(principal: Principal) -> None:
         )
 
 
+def _role_mismatch_reason(role_key: str, user_id: str, profile: dict | None) -> str | None:
+    """Return why a role is not applicable to an account, if it is not."""
+    admin_roles = {"super_admin", "security_admin", "operations_admin", "user_admin", "auditor"}
+    if role_key == "requester":
+        return None if profile and profile.get("can_request") else "requester_capability_missing"
+    if role_key == "donor":
+        return None if profile and (profile.get("can_donate") or profile.get("has_donor_profile")) else "donor_capability_missing"
+    if role_key in admin_roles:
+        if user_id not in _configured_admin_ids():
+            return "account_not_in_admin_allowlist"
+        if role_key == "super_admin" and user_id not in _configured_rbac_manager_ids():
+            return "super_admin_requires_rbac_manager_allowlist"
+        return None
+    return "role_has_no_applicability_policy"
+
+async def _record_rbac_mismatch(session, principal, request, user_id: str, role_key: str, reason: str) -> None:
+    """Persist an IDS finding and deduplicated administrator alert."""
+    await _write_audit(session, principal.subject, "security.rbac.role_mismatch", request=request,
+        session_id=principal.session_id, outcome="denied", target_type="user", target_id=user_id,
+        metadata={"role_key": role_key, "mismatch_reason": reason, "rule_id": "RBAC-01"})
+    await session.execute(text(
+        "INSERT INTO lifelink_security_alerts "
+        "(rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, correlation_id) "
+        "VALUES ('RBAC-01', 'high', 'open', CAST(:user_id AS uuid), :session_id, "
+        "'Role assignment is not applicable to this account', CAST(:evidence AS jsonb), 1, :correlation_id) "
+        "ON CONFLICT (rule_id, user_id) WHERE status IN ('open', 'acknowledged', 'investigating') "
+        "DO UPDATE SET last_seen_at = now(), occurrences = lifelink_security_alerts.occurrences + 1, "
+        "session_id = EXCLUDED.session_id, evidence = EXCLUDED.evidence"
+    ), {"user_id": user_id, "session_id": principal.session_id,
+        "evidence": __import__("json").dumps({"role_key": role_key, "mismatch_reason": reason}),
+        "correlation_id": _correlation_id(request.headers.get("x-correlation-id"))})
+
 class AdminUserRolesUpdate(BaseModel):
     # An empty list is a deliberate revoke-all operation; it must remain possible
     # to remove stale or excessive role assignments without assigning a replacement.
@@ -687,6 +719,28 @@ async def admin_replace_user_roles(
     )
     if not user_exists:
         raise HTTPException(status_code=404, detail="User account not found")
+    profile_row = await session.execute(
+        text(
+            "SELECT COALESCE(p.can_request, false) AS can_request, "
+            "COALESCE(p.can_donate, false) AS can_donate, "
+            "EXISTS (SELECT 1 FROM donor_profiles dp WHERE dp.user_id = CAST(:user_id AS uuid)) "
+            "OR EXISTS (SELECT 1 FROM donors d WHERE d.user_id = CAST(:user_id AS varchar)) AS has_donor_profile "
+            "FROM (SELECT 1) seed LEFT JOIN lifelink_profiles p ON p.user_id = CAST(:user_id AS varchar)"
+        ), {"user_id": user_id},
+    )
+    profile = dict(profile_row.mappings().one())
+    mismatches = [
+        (role_key, reason) for role_key in role_keys
+        if (reason := _role_mismatch_reason(role_key, user_id, profile)) is not None
+    ]
+    if mismatches:
+        for role_key, reason in mismatches:
+            await _record_rbac_mismatch(session, principal, request, user_id, role_key, reason)
+        await session.commit()
+        raise HTTPException(status_code=409, detail={
+            "message": "One or more roles are not applicable to this account",
+            "mismatches": [{"role_key": role_key, "reason": reason} for role_key, reason in mismatches],
+        })
     before_result = await session.execute(
         text(
             "SELECT r.role_key FROM lifelink_user_roles ur "
