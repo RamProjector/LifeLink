@@ -265,12 +265,26 @@ def _operation_audit_kind(method: str) -> tuple[str, str]:
 
 def _audit_resource_name(path: str) -> str:
     """Return a safe resource label without copying request payloads or identifiers."""
+    if "messages" in path:
+        return "conversation message"
+    if "contact-shares" in path:
+        return "contact share"
+    if "location-share" in path:
+        return "location share"
+    if "/report" in path:
+        return "conversation report"
+    if "/block" in path:
+        return "conversation block"
     if "emergency-requests" in path:
         return "emergency request"
-    if "donor-profile" in path or "/donors/" in path:
+    if "donor-profile" in path:
         return "donor profile"
-    if "conversations" in path or "messages" in path:
-        return "conversation activity"
+    if "/donors/" in path and "/requests/" in path:
+        return "donor request response"
+    if "/donors/" in path:
+        return "donor profile"
+    if "conversations" in path:
+        return "conversation"
     if "profile" in path:
         return "account profile"
     if "push-token" in path:
