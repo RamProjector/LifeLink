@@ -821,7 +821,13 @@ async def update_requester_contact_status(
         raise HTTPException(status_code=403, detail="Not allowed to update this contact")
     await enforce_rate_limit(f"contact-status:{principal.subject}", 30, 300)
     try:
-        await store.update_contact_status_async(request_id, donor_id, record.payload.requester_id, payload.status)
+        await store.update_contact_status_async(
+            request_id,
+            donor_id,
+            record.payload.requester_id,
+            payload.status,
+            audit_actor_id=principal.subject,
+        )
     except KeyError:
         raise HTTPException(status_code=404, detail="Contact not found") from None
     except ValueError as exc:
