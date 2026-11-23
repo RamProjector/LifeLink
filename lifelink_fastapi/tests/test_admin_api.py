@@ -326,8 +326,9 @@ def test_rbac_role_update_allows_explicit_revoke_all():
 
 
 def test_rbac_role_update_limits_assignment_count():
-    from app.admin_api import AdminUserRolesUpdate
     from pydantic import ValidationError
+
+    from app.admin_api import AdminUserRolesUpdate
 
     with pytest.raises(ValidationError):
         AdminUserRolesUpdate(role_keys=[f"role-{index}" for index in range(9)])
