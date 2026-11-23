@@ -1096,6 +1096,13 @@ async def record_donor_presence(
         return await SqlAlchemyDonorProfileStore(session).record_presence(principal.subject, payload)
     except KeyError:
         raise HTTPException(status_code=404, detail="Donor profile not found") from None
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        logger.exception("Donor GPS presence update failed for operation donor_presence")
+        raise HTTPException(
+            status_code=503,
+            detail="GPS presence could not be updated right now. Please try again.",
+        ) from exc
 
 
 @app.patch("/v1/donor-profile/availability", response_model=DonorProfileMeOut)
