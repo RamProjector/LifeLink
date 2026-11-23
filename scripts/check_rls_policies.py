@@ -145,10 +145,18 @@ def _read_sql() -> str:
     raw = "\n".join(path.read_text(encoding="utf-8") for path in sorted(SQL_DIR.glob("*.sql")))
     return _strip_sql_comments(raw)
 
+DEFAULT_PRIVILEGE_GRANTS = {
+    "postgres trusted future functions": re.compile(
+        r"ALTER\\s+DEFAULT\\s+PRIVILEGES\\s+FOR\\s+ROLE\\s+postgres\\s+"
+        r"GRANT\\s+EXECUTE\\s+ON\\s+FUNCTIONS\\s+TO\\s+service_role",
+        re.IGNORECASE,
+    ),
+}
 
-def missing_client_privilege_revokes(sql: str) -> list[str]:
-    """Return required client-grant revokes missing from migration SQL."""
-    required = CLIENT_PRIVILEGE_REVOKES | DEFAULT_PRIVILEGE_REVOKES
+
+def missing_privilege_rules(sql: str) -> list[str]:
+    """Return required client revokes and trusted service-role grants missing from migrations."""
+    required = CLIENT_PRIVILEGE_REVOKES | DEFAULT_PRIVILEGE_REVOKES | DEFAULT_PRIVILEGE_GRANTS
     return [label for label, pattern in required.items() if not pattern.search(sql)]
 
 
@@ -166,7 +174,7 @@ def main() -> int:
     protected = {t for t in tables if t in rls_enabled and t in policies}
     acknowledged = {t for t in tables if t in BACKEND_ONLY_TABLES}
     unaccounted = sorted(tables - protected - acknowledged)
-    missing_privilege_revokes = missing_client_privilege_revokes(sql)
+    missing_privilege_revokes = missing_privilege_rules(sql)
 
     print(f"Tables found: {len(tables)}")
     print(f"  RLS-enabled with a policy: {len(protected)}")
