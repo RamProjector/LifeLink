@@ -1564,11 +1564,21 @@ async def matched_donor_exact_location(
     """
     store = SqlAlchemyPrivacyStore(session)
     try:
-        result = await store.exact_location_for_requester(request_id, donor_id, principal.subject)
+        result = await store.exact_location_for_requester(
+            request_id, donor_id, principal.subject, actor_id=principal.subject
+        )
     except KeyError:
         raise HTTPException(status_code=404, detail="Request or donor not found") from None
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not allowed to view this donor's location") from None
+    except SQLAlchemyError:
+        # Fail closed: never return exact coordinates when the disclosure audit
+        # could not be durably recorded.
+        await session.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="Exact location is temporarily unavailable because access could not be audited. Please retry.",
+        ) from None
     return ExactLocationOut(**result)
 
 
