@@ -39,7 +39,7 @@ def test_client_roles_have_no_direct_database_privileges() -> None:
     """Current and future public-schema objects stay behind the FastAPI boundary."""
     checker = _load_checker()
     sql = checker._read_sql()
-    missing = checker.missing_client_privilege_revokes(sql)
+    missing = checker.missing_privilege_rules(sql)
     assert not missing, f"Missing public client privilege revokes: {missing}"
 
 
@@ -58,7 +58,10 @@ def test_schema_scoped_function_revoke_does_not_replace_global_public_revoke() -
         REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated;
     """
 
-    missing = checker.missing_client_privilege_revokes(legacy_sql)
+    missing = checker.missing_privilege_rules(legacy_sql)
 
-    assert missing == ["postgres global future functions"]
+    assert missing == [
+        "postgres global future functions",
+        "postgres trusted future functions",
+    ]
 
