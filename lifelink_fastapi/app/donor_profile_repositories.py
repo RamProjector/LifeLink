@@ -101,6 +101,7 @@ class SqlAlchemyDonorProfileStore:
                 preferred_contact_method=preferred_contact_method,
                 profile_visible=profile_visible,
             ),
+            commit=False,
         )
         # `upsert_profile` deliberately never trusts a client-supplied verified
         # flag. The donor-profile row is the server-controlled source of truth,
@@ -109,13 +110,26 @@ class SqlAlchemyDonorProfileStore:
         row.available = effective_available(availability_status, verified)
         now = datetime.now(UTC)
         row.availability_updated_at = now
-        await self.session.commit()
         return row
 
     async def upsert(self, user_id: str, payload: DonorProfileUpsertIn) -> DonorProfileMeOut:
         """Opt in / update the current user's donor profile."""
         now = datetime.now(UTC)
         row = await self.session.get(DonorProfileRow, user_id)
+        is_new_profile = row is None
+        tracked_fields = (
+            "blood_type",
+            "latitude",
+            "longitude",
+            "area",
+            "availability_status",
+            "last_donation_date",
+            "notifications_enabled",
+            "service_radius_km",
+        )
+        previous_values = {
+            field: getattr(row, field) for field in tracked_fields
+        } if row is not None else {}
         display_name = await self._resolve_display_name(user_id, payload.display_name)
         if row is None:
             row = DonorProfileRow(
@@ -144,8 +158,6 @@ class SqlAlchemyDonorProfileStore:
             # `verified` is intentionally left as stored: re-saving a profile
             # must not un-verify an already verified donor.
             row.updated_at = now
-        await self.session.commit()
-
         await self._sync_operational_donor(
             user_id,
             blood_type=payload.blood_type.value,
@@ -159,6 +171,22 @@ class SqlAlchemyDonorProfileStore:
             verified=row.verified,
             availability_status=row.availability_status,
         )
+
+        changed_fields = [
+            field for field in tracked_fields
+            if is_new_profile or previous_values[field] != getattr(row, field)
+        ]
+        if is_new_profile or changed_fields:
+            self.session.add(AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=user_id,
+                action="donor_profile_created" if is_new_profile else "donor_profile_updated",
+                donor_id=row.donor_id,
+                event_metadata={"changed_fields": changed_fields},
+            ))
+        # Profile, account capability, operational donor mirror, and audit
+        # record are committed as one unit; an audit failure rolls them all back.
+        await self.session.commit()
         await self._recompute(user_id)
         return self.to_out(row, display_name, payload)
 
