@@ -168,3 +168,91 @@ async def create_all_tables() -> None:
             "CREATE INDEX IF NOT EXISTS ix_audit_events_action_created_at "
             "ON audit_events (action, created_at DESC)"
         ))
+        # Add the required IDS/IPS audit context while preserving the existing
+        # audit_events identifiers and query compatibility.
+        await connection.execute(text(
+            "ALTER TABLE audit_events "
+            "ADD COLUMN IF NOT EXISTS log_id UUID, "
+            "ADD COLUMN IF NOT EXISTS actions VARCHAR(16) NOT NULL DEFAULT 'OTHER', "
+            "ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '', "
+            "ADD COLUMN IF NOT EXISTS session_id VARCHAR(128), "
+            "ADD COLUMN IF NOT EXISTS ip_address VARCHAR(64), "
+            "ADD COLUMN IF NOT EXISTS timestamp TIMESTAMPTZ, "
+            "ADD COLUMN IF NOT EXISTS device_used VARCHAR(255) NOT NULL DEFAULT 'unknown'"
+        ))
+        await connection.execute(text(
+            "UPDATE audit_events SET log_id = gen_random_uuid() WHERE log_id IS NULL"
+        ))
+        await connection.execute(text(
+            "UPDATE audit_events SET timestamp = created_at WHERE timestamp IS NULL"
+        ))
+        await connection.execute(text(
+            "ALTER TABLE audit_events "
+            "ALTER COLUMN log_id SET NOT NULL, "
+            "ALTER COLUMN timestamp SET DEFAULT now(), "
+            "ALTER COLUMN timestamp SET NOT NULL"
+        ))
+        await connection.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_audit_events_log_id ON audit_events (log_id)"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_audit_events_session_timestamp "
+            "ON audit_events (session_id, timestamp DESC)"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_audit_events_actor_timestamp "
+            "ON audit_events (actor_id, timestamp DESC)"
+        ))
+        # Server-observed sessions support administrator session inventory and
+        # immediate application-level revocation on protected admin endpoints.
+        await connection.execute(text(
+            "CREATE TABLE IF NOT EXISTS lifelink_user_sessions ("
+            "session_id VARCHAR(128) PRIMARY KEY, "
+            "user_id VARCHAR(128) NOT NULL, "
+            "device_used VARCHAR(255) NOT NULL DEFAULT 'unknown', "
+            "ip_address VARCHAR(64), "
+            "created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+            "last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+            "expires_at TIMESTAMPTZ, "
+            "revoked_at TIMESTAMPTZ, "
+            "revoked_by VARCHAR(128), "
+            "status VARCHAR(16) NOT NULL DEFAULT 'active' "
+            "CHECK (status IN ('active', 'revoked', 'expired')))"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_lifelink_user_sessions_user_seen "
+            "ON lifelink_user_sessions (user_id, last_seen_at DESC)"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_lifelink_user_sessions_status_seen "
+            "ON lifelink_user_sessions (status, last_seen_at DESC)"
+        ))
+        await connection.execute(text(
+            "CREATE TABLE IF NOT EXISTS lifelink_security_alerts ("
+            "id UUID PRIMARY KEY DEFAULT gen_random_uuid(), "
+            "rule_id VARCHAR(64) NOT NULL, "
+            "severity VARCHAR(16) NOT NULL CHECK (severity IN ('critical', 'high', 'medium', 'low')), "
+            "status VARCHAR(20) NOT NULL DEFAULT 'open' CHECK "
+            "(status IN ('open', 'acknowledged', 'investigating', 'resolved', 'false_positive')), "
+            "user_id VARCHAR(128) NOT NULL, "
+            "session_id VARCHAR(128), "
+            "summary TEXT NOT NULL, "
+            "evidence JSONB NOT NULL DEFAULT '{}'::jsonb, "
+            "occurrences INTEGER NOT NULL DEFAULT 1, "
+            "created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+            "last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+            "acknowledged_at TIMESTAMPTZ, "
+            "acknowledged_by VARCHAR(128), "
+            "resolved_at TIMESTAMPTZ, "
+            "resolved_by VARCHAR(128), "
+            "correlation_id VARCHAR(80))"
+        ))
+        await connection.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_lifelink_security_alerts_open_rule_user "
+            "ON lifelink_security_alerts (rule_id, user_id) "
+            "WHERE status IN ('open', 'acknowledged', 'investigating')"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_lifelink_security_alerts_status_created "
+            "ON lifelink_security_alerts (status, created_at DESC)"
+        ))
