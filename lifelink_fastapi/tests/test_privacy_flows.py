@@ -1576,34 +1576,32 @@ def test_conversation_moderation_is_available_to_either_participant(pg_url):
 
 
 
-def _create_accepted_contact(client, current, donor: str, requester: str):
+async def _create_accepted_contact(client, current, donor: str, requester: str) -> str:
     """Create an accepted donor contact ready for requester lifecycle updates."""
-    async def create():
-        await setup_donor(client, current, donor)
-        created = await submit_request(client, current, requester)
-        request_id = created["request_id"]
+    await setup_donor(client, current, donor)
+    created = await submit_request(client, current, requester)
+    request_id = created["request_id"]
 
-        current["id"] = donor
-        response = await client.post(
-            f"/v1/donors/{donor}/requests/{request_id}/response",
-            json={"response": "accepted"},
-        )
-        assert response.status_code == 200, response.text
+    current["id"] = donor
+    response = await client.post(
+        f"/v1/donors/{donor}/requests/{request_id}/response",
+        json={"response": "accepted"},
+    )
+    assert response.status_code == 200, response.text
 
-        current["id"] = requester
-        selected = await client.post(
-            f"/v1/emergency-requests/{request_id}/contact",
-            json={"donor_ids": [donor]},
-        )
-        assert selected.status_code == 200, selected.text
-        return request_id
-    return create
+    current["id"] = requester
+    selected = await client.post(
+        f"/v1/emergency-requests/{request_id}/contact",
+        json={"donor_ids": [donor]},
+    )
+    assert selected.status_code == 200, selected.text
+    return request_id
 
 
 def test_contact_status_transition_is_audited_atomically(pg_url):
     async def scenario(client, current, run_sql):
         donor, requester = new_user("donor"), new_user("requester")
-        request_id = await _create_accepted_contact(client, current, donor, requester)()
+        request_id = await _create_accepted_contact(client, current, donor, requester)
         current["id"] = requester
 
         changed = await client.patch(
