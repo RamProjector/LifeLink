@@ -6,7 +6,7 @@
 <style>
 :root{color-scheme:light;--ink:#182638;--muted:#66758a;--line:#e4eaf0;--paper:#f5f8fb;--white:#fff;--blue:#215fce;--navy:#142b4a;--red:#b42318;--green:#18794e}
 *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;background:var(--blue);color:white;font-weight:650}button.secondary{background:white;color:var(--ink);border:1px solid var(--line)}button:disabled{opacity:.55;cursor:wait}
+button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(--blue);font-weight:650;text-decoration:none}a.link:hover{text-decoration:underline}button{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;background:var(--blue);color:white;font-weight:650}button.secondary{background:white;color:var(--ink);border:1px solid var(--line)}button:disabled{opacity:.55;cursor:wait}
 .top{background:var(--navy);color:white;padding:18px clamp(18px,4vw,48px);display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{font-size:19px;font-weight:800;letter-spacing:-.4px}.brand span{color:#9fc5ff}.top small{color:#c5d3e4}.wrap{max-width:1200px;margin:28px auto;padding:0 20px}.login{max-width:470px;margin:7vh auto;background:white;border:1px solid var(--line);border-radius:20px;padding:28px;box-shadow:0 12px 34px #1834540b}.eyebrow{font-size:12px;font-weight:800;letter-spacing:1.3px;color:var(--blue);text-transform:uppercase}.login h1{font-size:29px;line-height:1.2;letter-spacing:-.8px;margin:8px 0}.muted{color:var(--muted)}label{display:block;font-weight:650;font-size:13px;margin:16px 0 6px}input{width:100%;padding:11px 12px;border:1px solid #ccd6e2;border-radius:9px;background:#fff;color:var(--ink)}input:focus{outline:3px solid #215fce22;border-color:var(--blue)}.notice{margin-top:14px;padding:10px 12px;border-radius:9px;background:#eff6ff;color:#244a81;overflow-wrap:anywhere}.notice.error{background:#fff0ef;color:var(--red)}.hidden{display:none!important}.headrow{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}.headrow h1{margin:3px 0;font-size:30px;letter-spacing:-1px}.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:22px;overflow:auto}.tab{background:transparent;color:var(--muted);border-radius:9px 9px 0 0;border-bottom:2px solid transparent}.tab.active{color:var(--blue);background:#eaf1ff;border-bottom-color:var(--blue)}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.stat,.panel{background:white;border:1px solid var(--line);border-radius:15px;padding:18px}.stat small{color:var(--muted);font-weight:650}.stat strong{display:block;font-size:30px;letter-spacing:-1px;margin-top:7px}.panel{margin-top:16px}.panel h2{font-size:17px;margin:0 0 12px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px}td code{overflow-wrap:anywhere}.tag{display:inline-block;border-radius:99px;padding:3px 8px;background:#eef2f6;font-size:11px;font-weight:700}.tag.success{background:#e6f6ed;color:var(--green)}.tag.fail{background:#fff0ef;color:var(--red)}.actions{display:flex;gap:8px;flex-wrap:wrap}.empty{padding:30px;text-align:center;color:var(--muted)}.foot{font-size:12px;color:var(--muted);margin:18px 0 40px}.small{font-size:12px}.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1}@media(max-width:780px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.top{align-items:flex-start}.stat strong{font-size:25px}}@media(max-width:440px){.grid{grid-template-columns:1fr 1fr}.login{padding:21px}}
 </style>
 </head>
@@ -18,15 +18,19 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
  <label for="email">Email</label><input id="email" type="email" autocomplete="username" required>
  <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
  <button id="signin" style="width:100%;margin-top:20px">Sign in</button>
+ <a href="#" id="forgot-password" class="link">Forgot password?</a>
+ <section id="recovery-view" class="hidden" aria-live="polite"><h2 id="recovery-title" style="font-size:19px;margin:22px 0 6px">Reset your password</h2><p id="recovery-help" class="muted small">Enter your account email and we will send a secure password-reset link.</p><div id="recovery-email-wrap"><label for="recovery-email">Account email</label><input id="recovery-email" type="email" autocomplete="email"></div><div id="new-password-wrap" class="hidden"><label for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="8"><label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8"></div><button id="recovery-submit" style="width:100%;margin-top:14px">Send reset link</button><button id="recovery-cancel" class="secondary" style="width:100%;margin-top:8px">Back to sign in</button></section>
  <div id="login-message" class="notice hidden" role="status" aria-live="polite"></div>
  <p class="foot">Your session token stays in memory for this tab and is cleared when you sign out or close it. Admin rights are verified server-side.</p>
 </main>
 <main id="app-view" class="wrap hidden">
  <div class="headrow"><div><div class="eyebrow">Operations overview</div><h1>Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary">Refresh data</button></div></div>
- <nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview">Overview</button><button class="tab" data-page="users">User management</button><button class="tab" data-page="audit">Audit logs</button><button class="tab" data-page="errors">Errors</button></nav>
+ <nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview">Overview</button><button class="tab" data-page="users">User management</button><button class="tab" data-page="audit">Security activity</button><button class="tab" data-page="sessions">Sessions</button><button class="tab" data-page="alerts">Security alerts</button><button class="tab" data-page="errors">System errors</button></nav>
  <section id="page-overview"><div class="grid"><div class="stat"><small>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small>Donor records</small><strong id="stat-donors">—</strong></div><div class="stat"><small>Emergency requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small>Authorization</small><strong style="font-size:20px;color:var(--green)">Verified</strong></div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is checked by the API on every request. User capability changes are audited. Audit records are read-only in this interface. Error entries contain operational context, not passwords or access tokens.</p><p id="generated" class="small muted"></p></div></section>
  <section id="page-users" class="panel hidden"><h2>User management</h2><p class="muted small">Change requester/donor capabilities only. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled>Previous</button><button id="users-next" class="secondary" disabled>Next</button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
  <section id="page-audit" class="panel hidden"><h2>Audit history</h2><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div><div class="actions" style="margin-top:14px"><button id="audit-prev" class="secondary" disabled>Previous</button><button id="audit-next" class="secondary" disabled>Next</button><span id="audit-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-sessions" class="panel hidden"><h2>User sessions</h2><p class="muted small">Sessions are recorded when a signed-in user reaches a protected admin endpoint. Revocation blocks subsequent admin API requests using that session.</p><div id="sessions-table" class="tablewrap"><div class="empty">Select Sessions to load records.</div></div><div class="actions" style="margin-top:14px"><button id="sessions-prev" class="secondary" disabled>Previous</button><button id="sessions-next" class="secondary" disabled>Next</button><span id="sessions-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-alerts" class="panel hidden"><h2>Security alerts</h2><p class="muted small">Detected events are grouped into deduplicated incidents. Review evidence and update the investigation status.</p><div id="alerts-table" class="tablewrap"><div class="empty">Select Security alerts to load incidents.</div></div><div class="actions" style="margin-top:14px"><button id="alerts-prev" class="secondary" disabled>Previous</button><button id="alerts-next" class="secondary" disabled>Next</button><span id="alerts-page" class="muted small" aria-live="polite"></span></div></section>
  <section id="page-errors" class="panel hidden"><h2>Application errors</h2><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div><div class="actions" style="margin-top:14px"><button id="errors-prev" class="secondary" disabled>Previous</button><button id="errors-next" class="secondary" disabled>Next</button><span id="errors-page" class="muted small" aria-live="polite"></span></div></section>
  <div id="app-message" class="notice hidden" role="status" aria-live="polite"></div><p class="foot">LifeLink Admin · Keep this browser session private. Sign out when finished.</p>
 </main>
@@ -35,9 +39,10 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
  const SUPABASE_URL = "https://nphbhlxnujmylhubzmne.supabase.co";
  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_0BnXY2k96nRr0k0zaZvMgQ_IQYSlyQu";
  const API_BASE_URL = "https://lifelink-api-uzje.onrender.com";
- let accessToken = null, activePage = "overview";
+ let accessToken = null, activePage = "overview", recoveryMode = false;
+ const ADMIN_REDIRECT_URL = "https://lifelink-admin-console.onrender.com/";
  const pageSize = 50;
- const offsets = { users: 0, audit: 0, errors: 0 };
+ const offsets = { users: 0, audit: 0, sessions: 0, alerts: 0, errors: 0 };
  const $ = id => document.getElementById(id);
  const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
  const message = (id, text, error=false) => { const el=$(id); el.textContent=text; el.classList.toggle("hidden",!text); el.classList.toggle("error",error); };
@@ -47,6 +52,46 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
    const body = await response.text(); let data={}; try { data=body?JSON.parse(body):{}; } catch {}
    if (!response.ok) throw new Error(data.detail || ("Request failed ("+response.status+")"));
    return data;
+ }
+ function showRecovery(mode) {
+   recoveryMode=mode;
+   $("recovery-view").classList.remove("hidden");
+   $("recovery-email-wrap").classList.toggle("hidden",mode!=="request");
+   $("new-password-wrap").classList.toggle("hidden",mode!=="update");
+   $("recovery-title").textContent=mode==="update"?"Choose a new password":"Reset your password";
+   $("recovery-help").textContent=mode==="update"?"Use a unique password with at least 8 characters.":"Enter your account email and we will send a secure password-reset link.";
+   $("recovery-submit").textContent=mode==="update"?"Update password":"Send reset link";
+   $("recovery-view").scrollIntoView({behavior:"smooth",block:"nearest"});
+ }
+ async function requestPasswordReset() {
+   const email=$("recovery-email").value.trim()||$("email").value.trim();
+   if(!email){message("login-message","Enter your account email to receive a reset link.",true);return;}
+   $("recovery-submit").disabled=true; message("login-message","Sending password-reset email…");
+   try {
+     const response=await fetch(SUPABASE_URL+"/auth/v1/recover?redirect_to="+encodeURIComponent(ADMIN_REDIRECT_URL),{method:"POST",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})});
+     const data=await response.json().catch(()=>({}));
+     if(!response.ok) throw new Error(data.msg||data.message||data.error_description||"Could not send the reset email. Check the Supabase Auth redirect allowlist.");
+     message("login-message","If this email belongs to a LifeLink account, a password-reset link has been sent. Check your inbox and spam folder.");
+   } catch(e) { message("login-message",e.message||"Password reset request failed.",true); }
+   finally { $("recovery-submit").disabled=false; }
+ }
+ async function updateRecoveredPassword() {
+   const password=$("new-password").value, confirmPassword=$("confirm-password").value;
+   if(password.length<8){message("login-message","Use a password with at least 8 characters.",true);return;}
+   if(password!==confirmPassword){message("login-message","The passwords do not match.",true);return;}
+   const hash=new URLSearchParams(location.hash.slice(1));
+   const token=hash.get("access_token");
+   if(!token||hash.get("type")!=="recovery"){message("login-message","This reset link is invalid or expired. Request a new one.",true);return;}
+   $("recovery-submit").disabled=true; message("login-message","Updating your password…");
+   try {
+     const response=await fetch(SUPABASE_URL+"/auth/v1/user",{method:"PUT",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Authorization":"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({password})});
+     const data=await response.json().catch(()=>({}));
+     if(!response.ok) throw new Error(data.msg||data.message||data.error_description||"Password update failed. Request a fresh reset link.");
+     history.replaceState(null,"",location.pathname+location.search);
+     $("new-password").value=""; $("confirm-password").value=""; $("recovery-view").classList.add("hidden");
+     message("login-message","Password updated. Sign in with your new password.");
+   } catch(e){message("login-message",e.message||"Could not update password.",true);}
+   finally{$("recovery-submit").disabled=false;}
  }
  async function signIn() {
    const supabase=SUPABASE_URL, key=SUPABASE_PUBLISHABLE_KEY;
@@ -78,6 +123,48 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
    $("users-table").innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Capabilities",render:u=>'Request: '+(u.can_request?'Yes':'No')+'<br>Donate: '+(u.can_donate?'Yes':'No')},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Actions",render:u=>'<div class="actions"><button class="secondary" data-action="requester" data-id="'+esc(u.user_id)+'">Requester</button><button class="secondary" data-action="donor" data-id="'+esc(u.user_id)+'">Donor</button></div>'}]);
    $("users-table").querySelectorAll("button[data-action]").forEach(btn=>btn.addEventListener("click",async()=>{if(!confirm("Update capabilities for this user? This action is recorded in the audit log."))return;try{await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify({role:btn.dataset.action,can_request:btn.dataset.action==="requester",can_donate:btn.dataset.action==="donor"})});message("app-message","User capabilities updated and audit event recorded.");await loadUsers();}catch(e){message("app-message",e.message,true);}}));
  }
+ async function loadSessions() {
+   const offset=offsets.sessions;
+   const data=await api("/v1/admin/sessions?limit="+pageSize+"&offset="+offset);
+   $("sessions-prev").disabled=offset===0;
+   $("sessions-next").disabled=data.items.length<pageSize;
+   $("sessions-page").textContent=data.items.length===0?"No sessions on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
+   $("sessions-table").innerHTML=table(data.items,[
+     {label:"User",render:s=>'<code>'+esc(s.user_id)+'</code>'},
+     {label:"Session",render:s=>'<code>'+esc(s.session_id)+'</code>'},
+     {label:"Device",render:s=>esc(s.device_used||"unknown")},
+     {label:"IP",render:s=>'<code>'+esc(s.ip_address||"Unavailable")+'</code>'},
+     {label:"Last seen",render:s=>esc(s.last_seen_at?new Date(s.last_seen_at).toLocaleString():"—")},
+     {label:"Expiry",render:s=>esc(s.expires_at?new Date(s.expires_at).toLocaleString():"Not supplied")},
+     {label:"Status",render:s=>'<span class="tag '+(s.status==="active"?"success":"fail")+'">'+esc(s.status)+'</span>'},
+     {label:"Action",render:s=>s.status==="active"?'<button class="secondary" data-revoke="'+esc(s.session_id)+'">Revoke</button>':'—'}
+   ]);
+   $("sessions-table").querySelectorAll("button[data-revoke]").forEach(btn=>btn.addEventListener("click",async()=>{
+     if(!confirm("Revoke this session? Its next protected admin API request will be rejected."))return;
+     try{await api("/v1/admin/sessions/"+encodeURIComponent(btn.dataset.revoke)+"/revoke",{method:"POST"});message("app-message","Session revoked.");await loadSessions();}
+     catch(e){message("app-message",e.message,true);}
+   }));
+ }
+ async function loadAlerts() {
+   const offset=offsets.alerts;
+   const data=await api("/v1/admin/security/alerts?limit="+pageSize+"&offset="+offset);
+   $("alerts-prev").disabled=offset===0;
+   $("alerts-next").disabled=data.items.length<pageSize;
+   $("alerts-page").textContent=data.items.length===0?"No alerts on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
+   $("alerts-table").innerHTML=table(data.items,[
+     {label:"Rule",render:a=>'<strong>'+esc(a.rule_id)+'</strong><br><span class="tag">'+esc(a.severity)+'</span>'},
+     {label:"Status",render:a=>'<span class="tag '+(a.status==="open"?"fail":"")+'">'+esc(a.status)+'</span>'},
+     {label:"User / Session",render:a=>'<code>'+esc(a.user_id)+'</code><br><code>'+esc(a.session_id||"—")+'</code>'},
+     {label:"Incident",render:a=>esc(a.summary)+'<br><span class="muted small">'+esc(a.occurrences)+' occurrences</span>'},
+     {label:"Last seen",render:a=>esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")},
+     {label:"Evidence",render:a=>'<code>'+esc(JSON.stringify(a.evidence||{}))+'</code>'},
+     {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" data-alert="'+esc(a.id)+'" data-status="acknowledged">Acknowledge</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="investigating">Investigate</button><button data-alert="'+esc(a.id)+'" data-status="resolved">Resolve</button></div>'}
+   ]);
+   $("alerts-table").querySelectorAll("button[data-alert]").forEach(btn=>btn.addEventListener("click",async()=>{
+     try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");await loadAlerts();}
+     catch(e){message("app-message",e.message,true);}
+   }));
+ }
  async function loadEvents(kind) {
    const offset=offsets[kind];
    const data=await api("/v1/admin/"+kind+"?limit="+pageSize+"&offset="+offset);
@@ -85,24 +172,31 @@ button,input{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padd
    $(kind+"-prev").disabled=offset===0;
    $(kind+"-next").disabled=data.items.length<pageSize;
    $(kind+"-page").textContent=data.items.length===0?"No records on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
-   $(target).innerHTML=table(data.items,[{label:"Time",render:e=>esc(e.created_at?new Date(e.created_at).toLocaleString():"—")},{label:"Action",render:e=>'<code>'+esc(e.action)+'</code><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"event")+'</span>'},{label:"Actor",render:e=>'<code>'+esc(e.actor_id||"system")+'</code>'},{label:"Target",render:e=>esc(e.target_type||"—")+'<br><code>'+esc(e.target_id||"")+'</code>'},{label:"Details",render:e=>'<code>'+esc(JSON.stringify(e.metadata||{}))+'</code><br><span class="muted small">Correlation: '+esc(e.correlation_id||"—")+'</span>'}]);
+   $(target).innerHTML=table(data.items,[{label:"Timestamp",render:e=>esc(e.timestamp||e.created_at?new Date(e.timestamp||e.created_at).toLocaleString():"—")},{label:"Event",render:e=>'<strong>'+esc(e.action||"event")+'</strong><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span><br><code>'+esc(e.log_id||e.id||"—")+'</code>'},{label:"CRUD",render:e=>'<span class="tag">'+esc(e.actions||"OTHER")+'</span>'},{label:"Session",render:e=>'<code>'+esc(e.session_id||"Unavailable")+'</code>'},{label:"IP / Device",render:e=>'<code>'+esc(e.ip_address||"Unavailable")+'</code><br><span class="muted small">'+esc(e.device_used||"unknown")+'</span>'},{label:"Actor / Target",render:e=>'<code>'+esc(e.actor_id||"system")+'</code><br>'+esc(e.target_type||"—")+' <code>'+esc(e.target_id||"")+'</code>'},{label:"Description",render:e=>esc(e.description||e.action||"—")+'<br><span class="muted small">Correlation: '+esc(e.correlation_id||"—")+'</span>'},{label:"Metadata",render:e=>'<code>'+esc(JSON.stringify(e.metadata||{}))+'</code>'}]);
  }
  async function loadPage(page) {
    activePage=page; document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
-   ["overview","users","audit","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
+   ["overview","users","audit","sessions","alerts","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
    message("app-message","");
    try {
      if(page==="overview"){const d=await api("/v1/admin/dashboard");$("stat-users").textContent=d.users;$("stat-donors").textContent=d.donors;$("stat-requests").textContent=d.requests;$("generated").textContent="Updated "+new Date(d.generated_at).toLocaleString()+" · Correlation ID "+d.correlation_id;}
      if(page==="users") await loadUsers();
      if(page==="audit") await loadEvents("audit");
+     if(page==="sessions") await loadSessions();
+     if(page==="alerts") await loadAlerts();
      if(page==="errors") await loadEvents("errors");
    } catch(e) { message("app-message",e.message||"Could not load data.",true); }
  }
  $("signin").addEventListener("click",signIn);
+ $("forgot-password").addEventListener("click",e=>{e.preventDefault();$("recovery-email").value=$("email").value.trim();showRecovery("request");});
+ $("recovery-submit").addEventListener("click",()=>recoveryMode==="update"?updateRecoveredPassword():requestPasswordReset());
+ $("recovery-cancel").addEventListener("click",()=>{$("recovery-view").classList.add("hidden");message("login-message","");});
+ const initialHash=new URLSearchParams(location.hash.slice(1));
+ if(initialHash.get("type")==="recovery"&&initialHash.get("access_token")){showRecovery("update");message("login-message","Password-reset link verified. Choose a new password.");}
  $("password").addEventListener("keydown",e=>{if(e.key==="Enter")signIn()});
  document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>loadPage(b.dataset.page)));
  $("refresh").addEventListener("click",()=>loadPage(activePage));
- ["users","audit","errors"].forEach(kind=>{
+ ["users","audit","sessions","alerts","errors"].forEach(kind=>{
    $(kind+"-prev").addEventListener("click",()=>{offsets[kind]=Math.max(0,offsets[kind]-pageSize);loadPage(kind==="users"?"users":kind);});
    $(kind+"-next").addEventListener("click",()=>{offsets[kind]+=pageSize;loadPage(kind==="users"?"users":kind);});
  });
