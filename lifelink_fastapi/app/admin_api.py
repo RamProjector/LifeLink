@@ -374,6 +374,28 @@ async def admin_update_user(
     return {"user_id": row.user_id, "role": payload.role, "can_request": row.can_request, "can_donate": row.can_donate}
 
 
+async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, request: Request) -> int:
+    """Detect active role assignments that conflict with account capabilities or server allowlists."""
+    result = await session.execute(text(
+        "SELECT ur.user_id::text AS user_id, r.role_key, "
+        "COALESCE(p.can_request, false) AS can_request, "
+        "COALESCE(p.can_donate, false) AS can_donate, "
+        "EXISTS (SELECT 1 FROM donor_profiles dp WHERE dp.user_id = ur.user_id) "
+        "OR EXISTS (SELECT 1 FROM donors d WHERE d.user_id = ur.user_id::text) AS has_donor_profile "
+        "FROM lifelink_user_roles ur JOIN lifelink_roles r ON r.id = ur.role_id "
+        "LEFT JOIN lifelink_profiles p ON p.user_id = ur.user_id::text "
+        "WHERE ur.expires_at IS NULL OR ur.expires_at > now()"
+    ))
+    count = 0
+    for row in result.mappings().all():
+        profile = {"can_request": row["can_request"], "can_donate": row["can_donate"],
+                   "has_donor_profile": row["has_donor_profile"]}
+        reason = _role_mismatch_reason(row["role_key"], row["user_id"], profile)
+        if reason:
+            await _record_rbac_mismatch(session, principal, request, row["user_id"], row["role_key"], reason)
+            count += 1
+    return count
+
 @router.get("/security/alerts")
 async def admin_security_alerts(
     request: Request,
@@ -383,6 +405,7 @@ async def admin_security_alerts(
     offset: int = Query(default=0, ge=0),
     alert_status: str | None = Query(default=None, alias="status", pattern="^(open|acknowledged|investigating|resolved|false_positive)$"),
 ):
+    await _scan_rbac_discrepancies(session, principal, request)
     result = await session.execute(
         text(
             "SELECT id, rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, "
