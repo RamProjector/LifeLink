@@ -134,7 +134,12 @@ fun ConversationScreen(
             )
         }
 
-        ConversationMessages(state = state, currentUserId = currentUserId, onAction = onAction)
+        ConversationMessages(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            state = state,
+            currentUserId = currentUserId,
+            onAction = onAction,
+        )
 
         if (state.savedMessages.isNotEmpty()) {
             Card(Modifier.fillMaxWidth()) {
@@ -212,6 +217,7 @@ fun ConversationScreen(
 
 @Composable
 private fun ConversationMessages(
+    modifier: Modifier,
     state: PrivacyUiState,
     currentUserId: String,
     onAction: (PrivacyAction) -> Unit,
@@ -221,7 +227,7 @@ private fun ConversationMessages(
         if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
     }
     LazyColumn(
-        Modifier.weight(1f).fillMaxWidth(),
+        modifier,
         state = listState,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
