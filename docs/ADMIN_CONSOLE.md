@@ -92,6 +92,7 @@ The existing admin website remains the single LifeLink operations and IDS/IPS co
 
 Data views now provide:
 - A page-local search field for the currently loaded records and a record-count indicator.
+- Audit rows prioritize the event, outcome, actor/target context, and timestamp; internal audit row IDs are not presented as user-facing event data.
 - A status/outcome filter when the returned dataset includes those fields.
 - Responsive table rows that become labeled record cards on small screens, rather than forcing horizontal scrolling across every column.
 - Compact, consistent spacing, sticky table headers on desktop, zebra rows, and clearer status/action grouping.
