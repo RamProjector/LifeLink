@@ -22,7 +22,7 @@
 |---|---|---:|---|
 | `PUT /v1/profile` | Account role/capability/profile changes | Added in this PR | Record create/update and changed field names only; no email or display-name values |
 | `PUT /v1/push-token` | Push endpoint credential registration | No | Record registration/removal outcome; never record token |
-| `POST /v1/emergency-requests` | Creates sensitive emergency/location request | No | Record created request ID, outcome, and matching mode; never copy coordinates or medical details into metadata |
+| `POST /v1/emergency-requests` | Creates sensitive emergency/location request | Added in this PR | Atomically record request ID, outcome, matching mode, and match count; never copy coordinates or medical details into metadata |
 | `POST .../contact` | Initiates contact with selected donors | Yes | Retain; verify failed/denied attempts are also observable |
 | `PATCH .../contacts/{donor_id}` | Changes contact lifecycle/status | No | Record state transition and request/donor references |
 | `POST .../report`, `POST .../block` | Safety/moderation actions | Yes | Retain; ensure reason text is not copied into broadly readable metadata |
@@ -102,3 +102,8 @@ The source review was cross-checked against the current PostgreSQL-backed implem
 This PR additionally adds profile create/update audit events in the same transaction as `PUT /v1/profile`, plus donor availability and opt-out audit events. The events contain actor/resource references and minimal state-transition metadata only. Profile events record changed field names without email, display-name, or capability values. Availability events record only the previous/new availability preference. Donor deletion, operational donor disablement, account capability reset, and its audit row now commit together. Repeated unchanged availability/profile synchronization calls do not create duplicate audit noise. PostgreSQL regression tests cover event contents, no-op suppression, and rollback when an audit insert fails.
 
 These are repository-level code and test changes only. CI must validate them on the updated PR head. No production database, migration, or deployment is changed.
+
+
+## Implementation update — 2026-11-23
+
+Emergency-request creation now writes an `emergency_request_created` event in the same SQLAlchemy transaction as the request and ranked matches. Metadata is limited to the resulting status, matching mode, and match count; requester coordinates, blood type, units, notes, and contact details are excluded. Idempotent retries return the existing request and do not add a second creation event. PostgreSQL integration tests cover the event contents, retry suppression, and rollback of the request when audit insertion is rejected.
