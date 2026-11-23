@@ -117,7 +117,7 @@ class SqlAlchemyDonorProfileStore:
         now = datetime.now(UTC)
         row = await self.session.get(DonorProfileRow, user_id)
         is_new_profile = row is None
-        tracked_fields = (
+        profile_fields = (
             "blood_type",
             "latitude",
             "longitude",
@@ -127,10 +127,35 @@ class SqlAlchemyDonorProfileStore:
             "notifications_enabled",
             "service_radius_km",
         )
+        operational_fields = (
+            "display_name",
+            "donor_note",
+            "preferred_contact_method",
+            "profile_visible",
+        )
+        operational_before = await SqlAlchemyDonorStore(self.session).get_by_identity(user_id)
         previous_values = {
-            field: getattr(row, field) for field in tracked_fields
+            field: getattr(row, field) for field in profile_fields
         } if row is not None else {}
+        if operational_before is not None:
+            previous_values.update({
+                field: getattr(operational_before, field) for field in operational_fields
+            })
         display_name = await self._resolve_display_name(user_id, payload.display_name)
+        requested_values = {
+            "blood_type": payload.blood_type.value,
+            "latitude": Decimal(str(payload.latitude)),
+            "longitude": Decimal(str(payload.longitude)),
+            "area": payload.area,
+            "availability_status": payload.availability_status.value,
+            "last_donation_date": payload.last_donation_date,
+            "notifications_enabled": payload.notifications_enabled,
+            "service_radius_km": Decimal(str(payload.service_radius_km)),
+            "display_name": display_name,
+            "donor_note": payload.donor_note,
+            "preferred_contact_method": payload.preferred_contact_method,
+            "profile_visible": payload.profile_visible,
+        }
         if row is None:
             row = DonorProfileRow(
                 user_id=user_id,
@@ -173,8 +198,8 @@ class SqlAlchemyDonorProfileStore:
         )
 
         changed_fields = [
-            field for field in tracked_fields
-            if is_new_profile or previous_values[field] != getattr(row, field)
+            field for field, requested_value in requested_values.items()
+            if is_new_profile or previous_values.get(field) != requested_value
         ]
         if is_new_profile or changed_fields:
             self.session.add(AuditEvent(
