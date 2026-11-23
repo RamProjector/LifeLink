@@ -321,6 +321,7 @@ class SqlAlchemyRequestStore(RequestStore):
         transaction as the request and its ranked matches.
         """
         existing = await self.session.get(EmergencyRequestRow, record.request_id)
+        is_new_request = existing is None
         if existing is None:
             existing = EmergencyRequestRow(
                 id=record.request_id,
@@ -376,11 +377,10 @@ class SqlAlchemyRequestStore(RequestStore):
                     explanation=match.explanation.model_dump(mode="json"),
                 )
             )
-        if existing is not None and audit_actor_id is not None and existing.id == record.request_id:
+        if is_new_request and audit_actor_id is not None:
             # Only emit on the initial insert; idempotent updates must not
             # manufacture duplicate creation events.
-            if existing.created_at == record.created_at:
-                self.session.add(AuditEvent(
+            self.session.add(AuditEvent(
                     id=f"audit_{uuid4().hex}",
                     actor_id=audit_actor_id,
                     action="emergency_request_created",
@@ -390,7 +390,7 @@ class SqlAlchemyRequestStore(RequestStore):
                         "matching_mode": "weighted" if record.payload.ai_matching_enabled else "distance_only",
                         "match_count": len(record.matches),
                     },
-                ))
+            ))
         await self.session.commit()
 
     async def set_manual_broadcast_async(self, request_id: str) -> RequestRecord:
