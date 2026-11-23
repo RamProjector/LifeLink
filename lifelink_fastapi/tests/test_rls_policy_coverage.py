@@ -39,6 +39,25 @@ def test_client_roles_have_no_direct_database_privileges() -> None:
     """Current and future public-schema objects stay behind the FastAPI boundary."""
     checker = _load_checker()
     sql = checker._read_sql()
-    required = checker.CLIENT_PRIVILEGE_REVOKES | checker.DEFAULT_PRIVILEGE_REVOKES
-    missing = [label for label, pattern in required.items() if not pattern.search(sql)]
+    missing = checker.missing_client_privilege_revokes(sql)
     assert not missing, f"Missing public client privilege revokes: {missing}"
+
+def test_schema_scoped_function_revoke_does_not_replace_global_public_revoke() -> None:
+    """The six schema-scoped/existing-object revokes do not cancel PUBLIC's global default."""
+    checker = _load_checker()
+    legacy_sql = """
+    REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM PUBLIC, anon, authenticated;
+    REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC, anon, authenticated;
+    REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon, authenticated;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+        REVOKE ALL ON TABLES FROM PUBLIC, anon, authenticated;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+        REVOKE ALL ON SEQUENCES FROM PUBLIC, anon, authenticated;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+        REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated;
+    """
+
+    missing = checker.missing_client_privilege_revokes(legacy_sql)
+
+    assert missing == ["postgres global future functions"]
+
