@@ -88,6 +88,13 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
     private var mapLoadGeneration = 0
 
     fun onAction(action: PrivacyAction) {
+        if (dispatchMapAction(action) || dispatchChatAction(action)) return
+        if (action == PrivacyAction.ClearMessage) {
+            _state.value = _state.value.copy(message = null)
+        }
+    }
+
+    private fun dispatchMapAction(action: PrivacyAction): Boolean {
         when (action) {
             PrivacyAction.LoadMap -> loadMap()
             is PrivacyAction.SetMapVisibility -> setVisibility(action.mapVisible, action.exactLocationSharingEnabled)
@@ -95,6 +102,13 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
             is PrivacyAction.ActivateLocationShare -> activateShare(action.requestId, action.donorId)
             is PrivacyAction.RevokeLocationShare -> revokeShare(action.requestId, action.donorId)
             is PrivacyAction.OpenConversation -> openConversation(action.requestId, action.donorId)
+            else -> return false
+        }
+        return true
+    }
+
+    private fun dispatchChatAction(action: PrivacyAction): Boolean {
+        when (action) {
             PrivacyAction.RefreshConversation -> refreshCurrentConversation()
             PrivacyAction.LoadConversations -> loadConversations()
             is PrivacyAction.SendMessage -> sendMessage(action.body)
@@ -103,8 +117,9 @@ class PrivacyViewModel(private val repository: PrivacyRepository) : ViewModel() 
             is PrivacyAction.ShareContact -> shareContact(action.field, action.value)
             is PrivacyAction.ReportParticipant -> reportParticipant(action.conversationId, action.reason)
             is PrivacyAction.BlockParticipant -> blockParticipant(action.conversationId)
-            PrivacyAction.ClearMessage -> _state.value = _state.value.copy(message = null)
+            else -> return false
         }
+        return true
     }
 
     private fun loadMap() {
