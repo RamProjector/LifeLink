@@ -85,3 +85,17 @@ The current session registry records administrator sessions observed by the admi
 
 
 The first active IDS rules are IDS-03 (repeated denied admin access), IDS-04 (missing session context), and IDS-05 (revoked session reuse). Thresholds are currently deterministic and intentionally narrow; they require tuning against real application traffic before wider automated blocking is enabled. Other planned detection categories are not yet implemented.
+
+## Admin Console navigation and table usability
+
+The existing admin website remains the single LifeLink operations and IDS/IPS console. The navigation is organized as a persistent desktop sidebar with Workspace and Security Center sections; on narrower screens it becomes a horizontally scrollable navigation strip. Existing routes/pages and server-side authorization remain unchanged.
+
+Data views now provide:
+- A page-local search field for the currently loaded records and a record-count indicator.
+- A status/outcome filter when the returned dataset includes those fields.
+- Responsive table rows that become labeled record cards on small screens, rather than forcing horizontal scrolling across every column.
+- Compact, consistent spacing, sticky table headers on desktop, zebra rows, and clearer status/action grouping.
+- Collapsible evidence and metadata blocks so large JSON values do not dominate the table; values remain escaped before display.
+- Existing server pagination and alert/session/user actions are preserved. Search and filters operate only on the current server page and do not imply a global search.
+
+The navigation/table redesign does not change API contracts, authorization, IDS/IPS detection rules, or audit data. Verify desktop, tablet, and phone widths; keyboard navigation; empty/loading/error states; and existing alert acknowledge/investigate/resolve and session-revoke actions before production release.
