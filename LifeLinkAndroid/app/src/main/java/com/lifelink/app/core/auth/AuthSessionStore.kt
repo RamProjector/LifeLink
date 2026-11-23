@@ -62,6 +62,21 @@ class AuthSessionStore(
         return true
     }
 
+    /**
+     * Replace a session after an account-bound credential change even if a token refresh
+     * updated the same account's session while the request was in flight. Preserve the
+     * latest refresh token, and never overwrite a signed-out or different-account state.
+     */
+    @Synchronized
+    fun replaceForUser(userId: String, replacement: AuthSession): Boolean {
+        if (replacement.userId != userId) return false
+        val current = _session.value ?: return false
+        if (current.userId != userId) return false
+        val latestRefreshToken = current.refreshToken.takeIf { it.isNotBlank() } ?: replacement.refreshToken
+        saveImmediately(replacement.copy(refreshToken = latestRefreshToken))
+        return true
+    }
+
     private fun scheduleCleanup(ownerId: String) {
         val job = onAccountRemoved(ownerId) ?: return
         cleanupJobs[ownerId] = job
