@@ -252,7 +252,7 @@ class SupabaseAuthRepository(
                     userId = userId,
                     email = verified.user?.email ?: currentSession.email,
                 )
-                if (!sessionStore.replaceForUser(userId, verifiedSession)) {
+                if (!sessionStore.replaceForUser(userId, currentSession, verifiedSession)) {
                     error("Your session changed during the password update. Please sign in again.")
                 }
                 Unit
