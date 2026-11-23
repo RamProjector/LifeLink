@@ -368,3 +368,25 @@ def test_ordinary_admin_cannot_assign_roles_through_http(monkeypatch):
         assert "RBAC manager" in response.json()["detail"]
     finally:
         app.dependency_overrides.clear()
+
+
+def test_rbac_policy_rejects_roles_not_applicable_to_user(monkeypatch):
+    from app.admin_api import _role_mismatch_reason
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "approved-admin")
+    monkeypatch.setenv("LIFELINK_RBAC_MANAGER_USER_IDS", "security-owner")
+    profile = {"can_request": True, "can_donate": False, "has_donor_profile": False}
+    assert _role_mismatch_reason("requester", "regular-user", profile) is None
+    assert _role_mismatch_reason("donor", "regular-user", profile) == "donor_capability_missing"
+    assert _role_mismatch_reason("security_admin", "regular-user", profile) == "account_not_in_admin_allowlist"
+    assert _role_mismatch_reason("security_admin", "approved-admin", profile) is None
+    assert _role_mismatch_reason("super_admin", "approved-admin", profile) == "super_admin_requires_rbac_manager_allowlist"
+    assert _role_mismatch_reason("super_admin", "security-owner", profile) == "account_not_in_admin_allowlist"
+
+
+def test_audit_action_kind_classifies_application_crud_verbs():
+    from app.admin_api import _audit_action_kind
+    assert _audit_action_kind("api.added.emergency_request") == "ADD"
+    assert _audit_action_kind("api.updated.donor_profile") == "EDIT"
+    assert _audit_action_kind("api.deleted.donor_profile") == "DELETE"
+    assert _audit_action_kind("admin.dashboard.view") == "OTHER"
+
