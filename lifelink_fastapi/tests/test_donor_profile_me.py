@@ -28,6 +28,7 @@ pgserver = pytest.importorskip("pgserver")
 
 import httpx
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app import db, db_models
@@ -599,6 +600,50 @@ def test_presence_sweeper_expires_stale_donor_but_keeps_fresh_donor(pg_url):
         assert len(expiry_events) == 1
         assert expiry_events[0].actor_id == "system:presence_sweeper"
         assert expiry_events[0].event_metadata == {"reason": "stale_presence"}
+
+    run_scenario(pg_url, scenario)
+
+
+
+def test_presence_sweeper_audit_failure_rolls_back_expiry(pg_url):
+    async def scenario(client, current, run_sql):
+        donor = new_user("presence-expiry-rollback")
+        await create_account(client, current, donor)
+        await opt_in_donor(client, current, donor, availability="available")
+        await run_sql(f"UPDATE donor_profiles SET verified = TRUE WHERE user_id = '{donor}'")
+        current["id"] = donor
+        enabled = await client.patch(
+            "/v1/donor-profile/availability",
+            json={"availability_status": "available"},
+        )
+        assert enabled.status_code == 200, enabled.text
+        await run_sql(
+            f"UPDATE donors SET last_presence_at = now() - interval '2 days' "
+            f"WHERE user_id = '{donor}'"
+        )
+        await run_sql(
+            "CREATE OR REPLACE FUNCTION reject_presence_expiry_audit() RETURNS trigger "
+            "LANGUAGE plpgsql AS $ BEGIN "
+            "IF NEW.action = 'donor_presence_expired' THEN "
+            "RAISE EXCEPTION 'forced presence expiry audit failure'; "
+            "END IF; RETURN NEW; END $"
+        )
+        await run_sql(
+            "CREATE TRIGGER reject_presence_expiry_audit_trigger "
+            "BEFORE INSERT ON audit_events FOR EACH ROW "
+            "EXECUTE FUNCTION reject_presence_expiry_audit()"
+        )
+
+        with pytest.raises(IntegrityError):
+            async with current["_session_factory"]() as session:
+                await SqlAlchemyDonorProfileStore(session).expire_stale_presence()
+
+        async with current["_session_factory"]() as verify_session:
+            donor_row = await verify_session.scalar(
+                select(db_models.Donor).where(db_models.Donor.user_id == donor)
+            )
+        assert donor_row is not None
+        assert donor_row.available is True
 
     run_scenario(pg_url, scenario)
 
