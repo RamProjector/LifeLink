@@ -109,7 +109,7 @@ Admin web actions and data loading map authentication, authorization, missing-re
 
 ## Cross-surface interaction standards (carried forward from closed UI-polish work)
 
-- Keep the active navigation destination explicit and keyboard accessible at desktop, tablet, and phone widths.
+- Keep the active navigation destination explicit and keyboard accessible at desktop, tablet, and phone widths; each navigation button identifies its controlled page region, and each region is labelled by the active page title.
 - Give every admin action a clear success, failure, or unavailable outcome; announce asynchronous feedback accessibly and keep it near the affected workflow.
 - For recoverable failures, preserve the current page and local search/filter context where safe so administrators do not lose their place.
 - Display stable, actionable error copy only. Keep raw backend details and correlation context out of the browser UI; retain correlation identifiers in request/server diagnostics.
