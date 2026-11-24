@@ -140,3 +140,12 @@ The authenticated `POST /v1/donor-profile/presence` flow now writes a `donor_pre
 - Idempotent repeated saves and no-op unsaves do not create duplicate audit events.
 - Message-send and bookmark routes fail closed with a retryable 503 when the audit transaction fails.
 - PostgreSQL integration coverage checks event attribution/privacy and message rollback when audit insertion is rejected.
+
+
+## Cross-feature audit acceptance criteria (carried forward from closed chat and matchability work)
+
+- Keep message-send, save, and unsave audit records content-free. Actor/resource references are sufficient; message text, attachment bytes, and bookmark payloads must never enter audit metadata.
+- Treat matchability and eligibility as server-authoritative. Audit the persisted server-side transition, not a client-provided eligibility assertion.
+- Keep each sensitive mutation and its audit event in one database transaction. An audit insert failure must roll back the mutation and must not disclose exact location or report a successful message/bookmark action.
+- Preserve idempotency: retries and no-op operations must not create duplicate audit events.
+- Before merge, retain PostgreSQL integration evidence for privacy, rollback, actor attribution, and duplicate suppression across the current-head routes.
