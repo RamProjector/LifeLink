@@ -3,6 +3,7 @@ package com.lifelink.app
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -47,6 +48,7 @@ import com.lifelink.app.R
 import com.lifelink.app.core.auth.RoleSwitcher
 import com.lifelink.app.core.auth.UserRole
 import com.lifelink.app.core.auth.UserRoleStore
+import com.lifelink.app.core.errors.userFacingError
 import com.lifelink.app.core.navigation.LifeLinkShell
 import com.lifelink.app.core.notifications.RequestNotificationPermissionIfNeeded
 import com.lifelink.app.core.ui.theme.LifeLinkTheme
@@ -153,6 +155,16 @@ class MainActivity : ComponentActivity() {
                 var hasDonorProfile by remember { mutableStateOf(false) }
                 var profileSaving by remember { mutableStateOf(false) }
                 var profileMessage by remember { mutableStateOf<String?>(null) }
+                val emailChangePending = (authState as? AuthState.SignedIn)?.emailChangePending == true
+                LaunchedEffect(accountUserId, emailChangePending) {
+                    if (emailChangePending) {
+                        val message =
+                            "First confirmation received. Check your current email for the final confirmation link. " +
+                                "Your existing email remains active until then."
+                        profileMessage = message
+                        Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                    }
+                }
                 // Guards the optimistic role transition: a second tap while the first
                 // write is still in flight could otherwise roll back to a stale role
                 // and desync the UI from the server.
@@ -427,9 +439,17 @@ class MainActivity : ComponentActivity() {
                                         displayName = saved.body()?.displayName.orEmpty()
                                         profileMessage = "Profile saved"
                                     } else {
-                                        profileMessage = "Profile could not be saved (${saved.code()})."
+                                        profileMessage = userFacingError(
+                                            IllegalStateException("Profile save failed (${saved.code()})"),
+                                            "Profile could not be saved. Please try again.",
+                                        )
                                     }
-                                }.onFailure { error -> profileMessage = error.message ?: "Profile could not be saved." }
+                                }.onFailure { error ->
+                                    profileMessage = userFacingError(
+                                        error,
+                                        "Profile could not be saved. Check your connection and try again.",
+                                    )
+                                }
                             profileSaving = false
                         }
                     },
@@ -440,14 +460,71 @@ class MainActivity : ComponentActivity() {
                     },
                     onRequestPasswordReset = { showMessage ->
                         roleSyncScope.launch {
-                            val email = signedInSession?.email.orEmpty()
+                            val email = signedInSession.email
                             if (email.isBlank()) {
                                 showMessage("No account email is available for password recovery.")
                             } else {
                                 app.authRepository
                                     .requestPasswordReset(email)
                                     .onSuccess { showMessage("Reset link sent. Check your inbox.") }
-                                    .onFailure { showMessage(it.message ?: "Could not send the reset link.") }
+                                    .onFailure {
+                                        showMessage(
+                                            userFacingError(
+                                                it,
+                                                "Could not send the reset link. Check your connection and try again.",
+                                            ),
+                                        )
+                                    }
+                            }
+                        }
+                    },
+                    onRequestEmailChange = { newEmail, showMessage ->
+                        app.launchAccountWrite(accountUserId) {
+                            val result = app.authRepository.requestEmailChange(
+                                accountUserId,
+                                signedInSession.accessToken,
+                                newEmail,
+                            )
+                            val message = result.fold(
+                                onSuccess = {
+                                    "Confirmation sent to the new email. Your current email remains active until you confirm."
+                                },
+                                onFailure = { error ->
+                                    error.message ?: "Could not request the email change."
+                                },
+                            )
+                            this@MainActivity.runOnUiThread {
+                                if (
+                                    !isFinishing &&
+                                    !isDestroyed &&
+                                    app.authRepository.session.value?.userId == accountUserId
+                                ) {
+                                    showMessage(message)
+                                }
+                            }
+                        }
+                    },
+                    onChangePassword = { currentPassword, newPassword, showResult ->
+                        app.launchAccountWrite(accountUserId) {
+                            val result = app.authRepository.changePassword(
+                                accountUserId,
+                                currentPassword,
+                                newPassword,
+                            )
+                            val outcome = result.fold(
+                                onSuccess = { "Your password has been changed." to true },
+                                onFailure = { error ->
+                                    (error.message ?: "Your password could not be changed.") to false
+                                },
+                            )
+                            this@MainActivity.runOnUiThread {
+                                if (
+                                    !isFinishing &&
+                                    !isDestroyed &&
+                                    app.authRepository.session.value?.userId == accountUserId
+                                ) {
+                                    showResult(outcome.first, outcome.second)
+                                }
                             }
                         }
                     },

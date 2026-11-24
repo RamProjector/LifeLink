@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.google.gson.JsonParseException
+import com.lifelink.app.core.errors.userFacingError
 import com.lifelink.app.data.remote.AdminAuditEvent
 import com.lifelink.app.data.remote.AdminDashboardResponse
 import com.lifelink.app.data.remote.AdminUser
@@ -172,9 +173,9 @@ private suspend fun loadAdminPage(
         AdminPage.ERRORS -> loadEvents(api, page, offsets.errors, onEvents)
     }
 } catch (failure: IOException) {
-    failure.message ?: "Network error while loading admin data."
+    userFacingError(failure, "Admin data could not be loaded. Check your connection and try again.")
 } catch (failure: JsonParseException) {
-    failure.message ?: "The server returned unreadable admin data."
+    userFacingError(failure, "The server returned unreadable admin data. Please try again.")
 }
 
 private suspend fun loadDashboard(
@@ -395,10 +396,13 @@ private suspend fun updateUser(
     if (response.isSuccessful) {
         "User capabilities updated and audited."
     } else {
-        "User update failed (${response.code()})."
+        userFacingError(
+            IllegalStateException("User update failed (${response.code()})"),
+            "User update failed. Please try again.",
+        )
     }
 } catch (failure: IOException) {
-    failure.message ?: "Network error while updating the user."
+    userFacingError(failure, "The user update could not be completed. Check your connection and try again.")
 } catch (failure: JsonParseException) {
-    failure.message ?: "The server returned unreadable update data."
+    userFacingError(failure, "The server returned unreadable update data. Please try again.")
 }

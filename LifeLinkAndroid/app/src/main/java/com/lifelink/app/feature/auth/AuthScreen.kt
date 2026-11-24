@@ -436,6 +436,12 @@ fun AuthScreen(
                                 isError = false,
                             )
                         }
+                        AuthState.EmailChangePending ->
+                            MessageCard(
+                                "Your first email confirmation is complete. Check your other email inbox " +
+                                    "and open its confirmation link to finish changing your address.",
+                                isError = false,
+                            )
                         AuthState.EmailConfirmationRequired ->
                             MessageCard(
                                 "Account created. Check your inbox and click the confirmation link, then choose Sign in.",

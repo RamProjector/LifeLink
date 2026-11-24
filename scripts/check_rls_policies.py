@@ -86,6 +86,54 @@ CREATE_POLICY_RE = re.compile(
 )
 
 
+
+# Android and the admin console use FastAPI for data access. Public client
+# roles must not retain direct PostgREST privileges on backend-owned objects.
+CLIENT_PRIVILEGE_REVOKES = {
+    "existing public tables": re.compile(
+        r"REVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+ALL\s+TABLES\s+"
+        r"IN\s+SCHEMA\s+public\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
+        re.IGNORECASE,
+    ),
+    "existing public sequences": re.compile(
+        r"REVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+ALL\s+SEQUENCES\s+"
+        r"IN\s+SCHEMA\s+public\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
+        re.IGNORECASE,
+    ),
+    "existing public functions": re.compile(
+        r"REVOKE\s+EXECUTE\s+ON\s+ALL\s+FUNCTIONS\s+"
+        r"IN\s+SCHEMA\s+public\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
+        re.IGNORECASE,
+    ),
+}
+
+DEFAULT_PRIVILEGE_REVOKES = {}
+for _owner in ("postgres",):
+    DEFAULT_PRIVILEGE_REVOKES[f"{_owner} future tables"] = re.compile(
+        rf"ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+{_owner}\s+"
+        r"IN\s+SCHEMA\s+public\s+REVOKE\s+ALL\s+ON\s+TABLES\s+"
+        r"FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
+        re.IGNORECASE,
+    )
+    DEFAULT_PRIVILEGE_REVOKES[f"{_owner} future sequences"] = re.compile(
+        rf"ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+{_owner}\s+"
+        r"IN\s+SCHEMA\s+public\s+REVOKE\s+ALL\s+ON\s+SEQUENCES\s+"
+        r"FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
+        re.IGNORECASE,
+    )
+    DEFAULT_PRIVILEGE_REVOKES[f"{_owner} future functions"] = re.compile(
+        rf"ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+{_owner}\s+"
+        r"IN\s+SCHEMA\s+public\s+REVOKE\s+EXECUTE\s+ON\s+FUNCTIONS\s+"
+        r"FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
+        re.IGNORECASE,
+    )
+    DEFAULT_PRIVILEGE_REVOKES[f"{_owner} global future functions"] = re.compile(
+        rf"ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+{_owner}\s+"
+        r"REVOKE\s+EXECUTE\s+ON\s+FUNCTIONS\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated",
+        re.IGNORECASE,
+    )
+
+
 def _read_sql() -> str:
     """Read every migration, with SQL comments stripped.
 
@@ -96,6 +144,20 @@ def _read_sql() -> str:
         raise SystemExit(f"SQL directory not found: {SQL_DIR}")
     raw = "\n".join(path.read_text(encoding="utf-8") for path in sorted(SQL_DIR.glob("*.sql")))
     return _strip_sql_comments(raw)
+
+DEFAULT_PRIVILEGE_GRANTS = {
+    "postgres trusted future functions": re.compile(
+        r"ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+postgres\s+"
+        r"IN\s+SCHEMA\s+public\s+GRANT\s+EXECUTE\s+ON\s+FUNCTIONS\s+TO\s+service_role",
+        re.IGNORECASE,
+    ),
+}
+
+
+def missing_privilege_rules(sql: str) -> list[str]:
+    """Return required client revokes and trusted service-role grants missing from migrations."""
+    required = CLIENT_PRIVILEGE_REVOKES | DEFAULT_PRIVILEGE_REVOKES | DEFAULT_PRIVILEGE_GRANTS
+    return [label for label, pattern in required.items() if not pattern.search(sql)]
 
 
 def main() -> int:
@@ -112,11 +174,18 @@ def main() -> int:
     protected = {t for t in tables if t in rls_enabled and t in policies}
     acknowledged = {t for t in tables if t in BACKEND_ONLY_TABLES}
     unaccounted = sorted(tables - protected - acknowledged)
+    missing_rules = missing_privilege_rules(sql)
 
     print(f"Tables found: {len(tables)}")
     print(f"  RLS-enabled with a policy: {len(protected)}")
     print(f"  Documented backend-only:   {len(acknowledged)}")
     print(f"  Unaccounted for:           {len(unaccounted)}")
+    print(f"  Privilege rules missing:      {len(missing_rules)}")
+
+    if missing_rules:
+        print("\nFAIL: public client privileges must be revoked and trusted access granted:")
+        for item in missing_rules:
+            print(f"  - {item}")
 
     if unaccounted:
         print("\nFAIL: the following tables have neither an RLS policy nor a documented exemption:")
@@ -127,6 +196,8 @@ def main() -> int:
             "`CREATE POLICY ... ON <t>` in a new migration, or add the table to "
             "BACKEND_ONLY_TABLES in scripts/check_rls_policies.py with a justification."
         )
+
+    if unaccounted or missing_rules:
         return 1
 
     print("\nOK: every table has an explicit RLS decision.")

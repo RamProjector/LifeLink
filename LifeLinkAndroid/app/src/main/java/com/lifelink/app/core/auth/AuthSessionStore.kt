@@ -8,10 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class AuthSessionStore(
-    context: Context,
-    private val onAccountRemoved: (String) -> Job? = { null }
-) {
+class AuthSessionStore(context: Context, private val onAccountRemoved: (String) -> Job? = { null }) {
     private val preferences = context.getSharedPreferences("lifelink_auth", Context.MODE_PRIVATE)
     private val _session = MutableStateFlow(readSession())
     val session: StateFlow<AuthSession?> = _session.asStateFlow()
@@ -62,6 +59,30 @@ class AuthSessionStore(
         return true
     }
 
+    /**
+     * Replace a session after an account-bound credential change even if a token refresh
+     * updated the same account's session while the request was in flight. Preserve the
+     * latest refresh token, and never overwrite a signed-out or different-account state.
+     */
+    @Synchronized
+    fun replaceForUser(
+        userId: String,
+        expected: AuthSession,
+        replacement: AuthSession,
+    ): Boolean {
+        if (expected.userId != userId || replacement.userId != userId) return false
+        val current = _session.value ?: return false
+        if (current.userId != userId) return false
+        val refreshToken =
+            if (current == expected) {
+                replacement.refreshToken
+            } else {
+                current.refreshToken.takeIf { it.isNotBlank() } ?: replacement.refreshToken
+            }
+        saveImmediately(replacement.copy(refreshToken = refreshToken))
+        return true
+    }
+
     private fun scheduleCleanup(ownerId: String) {
         val job = onAccountRemoved(ownerId) ?: return
         cleanupJobs[ownerId] = job
@@ -83,14 +104,9 @@ class AuthSessionStore(
             accessToken = accessToken,
             refreshToken = preferences.getString("refresh_token", "").orEmpty(),
             userId = userId,
-            email = preferences.getString("email", "").orEmpty()
+            email = preferences.getString("email", "").orEmpty(),
         )
     }
 }
 
-data class AuthSession(
-    val accessToken: String,
-    val refreshToken: String,
-    val userId: String,
-    val email: String
-)
+data class AuthSession(val accessToken: String, val refreshToken: String, val userId: String, val email: String)
