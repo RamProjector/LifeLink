@@ -28,7 +28,7 @@ pgserver = pytest.importorskip("pgserver")
 
 import httpx
 from sqlalchemy import select, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app import db, db_models
@@ -634,7 +634,7 @@ def test_presence_sweeper_audit_failure_rolls_back_expiry(pg_url):
             "EXECUTE FUNCTION reject_presence_expiry_audit()"
         )
 
-        with pytest.raises(IntegrityError):
+        with pytest.raises(DBAPIError, match="forced presence expiry audit failure"):
             async with current["_session_factory"]() as session:
                 await SqlAlchemyDonorProfileStore(session).expire_stale_presence()
 
