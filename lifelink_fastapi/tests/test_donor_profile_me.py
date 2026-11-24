@@ -589,6 +589,16 @@ def test_presence_sweeper_expires_stale_donor_but_keeps_fresh_donor(pg_url):
         assert expired_count == 1
         assert stale_row is not None and stale_row.available is False
         assert fresh_row is not None and fresh_row.available is True
+        async with current["_session_factory"]() as audit_session:
+            expiry_events = list((await audit_session.scalars(
+                select(db_models.AuditEvent).where(
+                    db_models.AuditEvent.action == "donor_presence_expired",
+                    db_models.AuditEvent.donor_id == stale_donor,
+                )
+            )).all())
+        assert len(expiry_events) == 1
+        assert expiry_events[0].actor_id == "system:presence_sweeper"
+        assert expiry_events[0].event_metadata == {"reason": "stale_presence"}
 
     run_scenario(pg_url, scenario)
 
