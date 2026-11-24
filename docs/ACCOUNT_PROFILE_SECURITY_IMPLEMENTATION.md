@@ -102,3 +102,12 @@ Migrations 021 and 022 are committed in this PR but have **not** been applied to
 ## Email-change callback behavior
 
 When the first confirmation link is opened on a device that still has the signed-in session, LifeLink now keeps the app shell available and announces that the final confirmation must be opened from the current email inbox. Signed-out users continue to see the pending-confirmation instructions on the authentication screen. The new email is not treated as verified until Supabase completes the final confirmation and the authenticated user is re-read.
+
+
+## Cross-screen feedback and session acceptance criteria (carried forward from closed UI-polish work)
+
+- Present authentication and account-change outcomes as concise, contextual, accessible feedback; keep field-level validation near the affected control.
+- Never expose raw Supabase, SQL, HTTP response, or exception details in user-facing messages.
+- Do not announce an email change as complete until the final confirmation has succeeded and the authenticated user has been re-read from Supabase.
+- On account/session mismatch, stop the operation rather than applying a response to a different signed-in account. Preserve cancellation and refresh-race protections.
+- Regression coverage should include success, expired-token retry, second authorization failure, account switch, cancellation, and safe error redaction. Real-device confirmation remains a separate verification requirement.
