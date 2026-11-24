@@ -473,77 +473,81 @@ fun LifeLinkShell(
                         } else {
                             Modifier.widthIn(max = 840.dp).fillMaxSize()
                         }
-                    Surface(destinationModifier, color = MaterialTheme.colorScheme.background) {
-                        when (tab) {
-                            ShellTab.HOME ->
-                                HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = {
-                                    showActive =
-                                        true
-                                }, onDonor = openDonorWorkspace, updates = updates, onRequests = {
-                                    tab =
-                                        ShellTab.REQUESTS
-                                }, onOpenUpdate = { update ->
-                                    onUpdateRead(update.id)
-                                    update.requestId?.let { requestId ->
-                                        onAction(EmergencyRequestAction.OpenRequest(requestId))
-                                        showActive = true
-                                    } ?: run { showNotifications = true }
-                                }, onRefreshHistory = {
-                                    onAction(EmergencyRequestAction.RefreshHistory)
-                                })
-                            ShellTab.REQUESTS ->
-                                RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = {
-                                    showRequest =
-                                        true
-                                }, onActive = { showActive = true })
-                            ShellTab.MAP ->
-                                DonorMapScreen(
-                                    state = privacyState,
-                                    onAction = onPrivacyAction,
-                                    onBack = { tab = ShellTab.HOME },
-                                    eligibleDonors = state.discoveredDonors,
-                                    onRequestChat = state.activeRequest?.requestId?.let { requestId ->
-                                        { donor -> openConversation(requestId, donor.donorId) }
-                                    },
-                                    centerLatitude = state.draft.requesterLatitude,
-                                    centerLongitude = state.draft.requesterLongitude,
-                                    showCloseButton = false,
-                                    embeddedInShell = true,
-                                )
-                            ShellTab.UPDATES ->
-                                MessagingScreen(
-                                    state = privacyState,
-                                    onAction = onPrivacyAction,
-                                    onOpenConversation = openConversation,
-                                    currentUserId = accountUserId,
-                                    useListDetailLayout = windowSize.widthSizeClass == WindowWidthSizeClass.Expanded,
-                                    targetConversationId = notificationRequestId
-                                        ?.takeIf { it.startsWith("conversation:") }
-                                        ?.substringAfter("conversation:")
-                                        ?.substringBefore("|"),
-                                    targetConversationEventId = notificationRequestId
-                                        ?.takeIf { it.startsWith("conversation:") }
-                                        ?.substringAfter("|"),
-                                )
-                            ShellTab.SETTINGS ->
-                                SettingsContent(
-                                    role,
-                                    accountEmail,
-                                    accountDisplayName,
-                                    profileSaving,
-                                    profileMessage,
-                                    onSaveProfile,
-                                    themeMode,
-                                    onThemeModeChange,
-                                    onRequestPasswordReset,
-                                    onSwitchRole,
-                                    onOpenDonor = openDonorWorkspace,
-                                    onBecomeDonor = {
-                                        showStart = false
-                                        showBecomeDonor = true
-                                    },
-                                    onSignOut = onSignOut,
-                                )
+                    screenStateHolder.SaveableStateProvider("tab-${tab.name}") {
+                        Surface(destinationModifier, color = MaterialTheme.colorScheme.background) {
+                            when (tab) {
+                                ShellTab.HOME ->
+                                    HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = {
+                                        showActive =
+                                            true
+                                    }, onDonor = openDonorWorkspace, updates = updates, onRequests = {
+                                        tab =
+                                            ShellTab.REQUESTS
+                                    }, onOpenUpdate = { update ->
+                                        onUpdateRead(update.id)
+                                        update.requestId?.let { requestId ->
+                                            onAction(EmergencyRequestAction.OpenRequest(requestId))
+                                            showActive = true
+                                        } ?: run { showNotifications = true }
+                                    }, onRefreshHistory = {
+                                        onAction(EmergencyRequestAction.RefreshHistory)
+                                    })
+                                ShellTab.REQUESTS ->
+                                    RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = {
+                                        showRequest =
+                                            true
+                                    }, onActive = { showActive = true })
+                                ShellTab.MAP ->
+                                    DonorMapScreen(
+                                        state = privacyState,
+                                        onAction = onPrivacyAction,
+                                        onBack = { tab = ShellTab.HOME },
+                                        eligibleDonors = state.discoveredDonors,
+                                        onRequestChat = state.activeRequest?.requestId?.let { requestId ->
+                                            { donor -> openConversation(requestId, donor.donorId) }
+                                        },
+                                        centerLatitude = state.draft.requesterLatitude,
+                                        centerLongitude = state.draft.requesterLongitude,
+                                        showCloseButton = false,
+                                        embeddedInShell = true,
+                                        onOpenNotifications = { showNotifications = true },
+                                        onOpenProfile = { tab = ShellTab.SETTINGS },
+                                    )
+                                ShellTab.UPDATES ->
+                                    MessagingScreen(
+                                        state = privacyState,
+                                        onAction = onPrivacyAction,
+                                        onOpenConversation = openConversation,
+                                        currentUserId = accountUserId,
+                                        useListDetailLayout = windowSize.widthSizeClass == WindowWidthSizeClass.Expanded,
+                                        targetConversationId = notificationRequestId
+                                            ?.takeIf { it.startsWith("conversation:") }
+                                            ?.substringAfter("conversation:")
+                                            ?.substringBefore("|"),
+                                        targetConversationEventId = notificationRequestId
+                                            ?.takeIf { it.startsWith("conversation:") }
+                                            ?.substringAfter("|"),
+                                    )
+                                ShellTab.SETTINGS ->
+                                    SettingsContent(
+                                        role,
+                                        accountEmail,
+                                        accountDisplayName,
+                                        profileSaving,
+                                        profileMessage,
+                                        onSaveProfile,
+                                        themeMode,
+                                        onThemeModeChange,
+                                        onRequestPasswordReset,
+                                        onSwitchRole,
+                                        onOpenDonor = openDonorWorkspace,
+                                        onBecomeDonor = {
+                                            showStart = false
+                                            showBecomeDonor = true
+                                        },
+                                        onSignOut = onSignOut,
+                                    )
+                            }
                         }
                     }
                 }

@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Tune
@@ -34,6 +35,8 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -152,12 +155,15 @@ fun DonorMapScreen(
     centerLongitude: Double? = null,
     showCloseButton: Boolean = true,
     embeddedInShell: Boolean = false,
+    onOpenNotifications: () -> Unit = {},
+    onOpenProfile: () -> Unit = {},
 ) {
     LaunchedEffect(Unit) { onAction(PrivacyAction.LoadMap) }
     val mapStyleJson = LocalMapLibreStyleJson.current
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
     var showList by rememberSaveable { mutableStateOf(false) }
     var privacyOpen by rememberSaveable { mutableStateOf(false) }
+    var shellShortcutsOpen by rememberSaveable { mutableStateOf(false) }
     var selectedBloodType by rememberSaveable { mutableStateOf("All") }
     var availableOnly by rememberSaveable { mutableStateOf(false) }
     var selectedAreaKey by rememberSaveable { mutableStateOf("") }
@@ -443,6 +449,37 @@ fun DonorMapScreen(
             }
             IconButton(onClick = { onAction(PrivacyAction.LoadMap) }) {
                 Icon(Icons.Default.Refresh, contentDescription = "Refresh donor map")
+            }
+            if (embeddedInShell) {
+                Box {
+                    IconButton(
+                        onClick = { shellShortcutsOpen = true },
+                        modifier = Modifier.testTag("map-shell-shortcuts"),
+                    ) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More map options")
+                    }
+                    DropdownMenu(
+                        expanded = shellShortcutsOpen,
+                        onDismissRequest = { shellShortcutsOpen = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Notifications") },
+                            onClick = {
+                                shellShortcutsOpen = false
+                                onOpenNotifications()
+                            },
+                            modifier = Modifier.testTag("map-open-notifications"),
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Profile") },
+                            onClick = {
+                                shellShortcutsOpen = false
+                                onOpenProfile()
+                            },
+                            modifier = Modifier.testTag("map-open-profile"),
+                        )
+                    }
+                }
             }
         }
 
