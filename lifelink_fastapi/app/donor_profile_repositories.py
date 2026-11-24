@@ -295,9 +295,24 @@ class SqlAlchemyDonorProfileStore:
                 or_(DonorRow.last_presence_at.is_(None), DonorRow.last_presence_at < cutoff),
             )
             .values(available=False, availability_updated_at=now)
-            .returning(DonorRow.user_id)
+            .returning(DonorRow.id, DonorRow.user_id)
         )
-        expired_owner_ids = list(expired.scalars().all())
+        expired_rows = list(expired.all())
+        expired_owner_ids = [row.user_id for row in expired_rows]
+        # System-driven availability changes are security-relevant state
+        # transitions too. Write one content-free event per affected donor in
+        # the same transaction as the conditional UPDATE, so audit failures
+        # cannot leave an unrecorded offline transition.
+        self.session.add_all(
+            AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id="system:presence_sweeper",
+                action="donor_presence_expired",
+                donor_id=row.id,
+                event_metadata={"reason": "stale_presence"},
+            )
+            for row in expired_rows
+        )
         await self.session.commit()
         for owner_id in expired_owner_ids:
             await self._recompute(owner_id)
