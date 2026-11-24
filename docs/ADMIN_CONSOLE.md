@@ -105,3 +105,12 @@ The navigation/table redesign does not change API contracts, authorization, IDS/
 ## Safe error feedback
 
 Admin web actions and data loading map authentication, authorization, missing-record, timeout, conflict, rate-limit, server, and network failures to stable user-facing messages. Raw API response details and backend exception text are not displayed in the browser. The correlation ID remains available in the request header for server-side diagnostics.
+
+
+## Cross-surface interaction standards (carried forward from closed UI-polish work)
+
+- Keep the active navigation destination explicit and keyboard accessible at desktop, tablet, and phone widths.
+- Give every admin action a clear success, failure, or unavailable outcome; announce asynchronous feedback accessibly and keep it near the affected workflow.
+- For recoverable failures, preserve the current page and local search/filter context where safe so administrators do not lose their place.
+- Display stable, actionable error copy only. Keep raw backend details and correlation context out of the browser UI; retain correlation identifiers in request/server diagnostics.
+- Verify loading, empty, error, and permission-denied states alongside normal tables. These criteria do not expand the PR's API or IDS/IPS detection scope.
