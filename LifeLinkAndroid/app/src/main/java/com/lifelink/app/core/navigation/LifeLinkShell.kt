@@ -473,7 +473,8 @@ fun LifeLinkShell(
                         } else {
                             Modifier.widthIn(max = 840.dp).fillMaxSize()
                         }
-                    Surface(destinationModifier, color = MaterialTheme.colorScheme.background) {
+                    screenStateHolder.SaveableStateProvider("tab-${tab.name}") {
+                        Surface(destinationModifier, color = MaterialTheme.colorScheme.background) {
                         when (tab) {
                             ShellTab.HOME ->
                                 HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = {
@@ -546,6 +547,7 @@ fun LifeLinkShell(
                                     },
                                     onSignOut = onSignOut,
                                 )
+                        }
                         }
                     }
                 }
