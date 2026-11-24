@@ -281,11 +281,17 @@ open class ConversationNavigationTest {
         composeRule.onNodeWithTag("nav-MAP").assertIsSelected()
 
         composeRule.onNodeWithTag("nav-MAP").performClick()
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("O+", substring = false).performClick()
+        composeRule.onNodeWithContentDescription("Hide map filters, 1 active filter").assertIsDisplayed()
+
         composeRule.onNodeWithTag("map-shell-shortcuts").performClick()
         composeRule.onNodeWithTag("map-open-profile").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Profile, notifications, privacy, safety, and app preferences.").assertIsDisplayed()
         composeRule.onNodeWithTag("nav-MAP").performClick()
         composeRule.onNodeWithText("Find donors", substring = false).assertIsDisplayed()
+        // Returning from Profile must restore the map's open filter panel and selection.
+        composeRule.onNodeWithContentDescription("Hide map filters, 1 active filter").assertIsDisplayed()
     }
 
     /** Verifies that request-history filters expose their active count and can be cleared together. */
