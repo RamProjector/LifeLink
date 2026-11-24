@@ -316,7 +316,11 @@ class SqlAlchemyPrivacyStore:
         return share
 
     async def exact_location_for_requester(
-        self, request_id: str, donor_id: str, requester_id: str
+        self,
+        request_id: str,
+        donor_id: str,
+        requester_id: str,
+        actor_id: str | None = None,
     ) -> dict:
         """Return exact coordinates only while a live share authorizes them."""
         # Keep request, donor consent, and share state stable until the
@@ -399,6 +403,35 @@ class SqlAlchemyPrivacyStore:
                 "shared": False,
                 "reason": reason,
             }
+        # Exact coordinates are a sensitive disclosure. Persist one audit event
+        # for this request-scoped share before returning coordinates; repeated
+        # polling does not create an unbounded stream of duplicate read events.
+        audit_actor = actor_id or requester_id
+        prior_disclosure = await self.session.scalar(
+            select(AuditEvent.id)
+            .where(
+                AuditEvent.actor_id == audit_actor,
+                AuditEvent.action == "exact_location_viewed",
+                AuditEvent.request_id == request_id,
+                AuditEvent.donor_id == donor.id,
+                AuditEvent.created_at >= share.shared_at,
+            )
+            .limit(1)
+        )
+        if prior_disclosure is None:
+            self.session.add(
+                AuditEvent(
+                    id=f"audit_{uuid4().hex}",
+                    actor_id=audit_actor,
+                    action="exact_location_viewed",
+                    request_id=request_id,
+                    donor_id=donor.id,
+                    # Never persist coordinates, precision, or location payload.
+                    event_metadata={},
+                )
+            )
+        # Do not disclose coordinates unless the audit write has committed.
+        await self.session.commit()
         return {
             "request_id": request_id,
             "donor_id": donor.id,
@@ -602,6 +635,17 @@ class SqlAlchemyPrivacyStore:
         self.session.add(message)
         conversation.last_message_at = now
         conversation.updated_at = now
+        self.session.add(
+            AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=sender_id,
+                action="message_sent",
+                request_id=conversation.request_id,
+                donor_id=conversation.donor_id,
+                # Message bodies and attachment/content payloads never enter audit metadata.
+                event_metadata={},
+            )
+        )
         await self.session.commit()
         return message
 
@@ -633,6 +677,9 @@ class SqlAlchemyPrivacyStore:
         )
         if existing is not None:
             return existing
+        conversation = await self.session.get(Conversation, conversation_id)
+        if conversation is None:
+            raise KeyError(conversation_id)
         saved = SavedMessage(
             id=f"saved_{uuid4().hex}",
             user_id=user_id,
@@ -640,6 +687,16 @@ class SqlAlchemyPrivacyStore:
             message_id=message_id,
         )
         self.session.add(saved)
+        self.session.add(
+            AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=user_id,
+                action="message_saved",
+                request_id=conversation.request_id,
+                donor_id=conversation.donor_id,
+                event_metadata={},
+            )
+        )
         try:
             await self.session.commit()
         except IntegrityError:
@@ -675,7 +732,20 @@ class SqlAlchemyPrivacyStore:
             )
         )
         if saved is not None:
+            conversation = await self.session.get(Conversation, conversation_id)
+            if conversation is None:
+                raise KeyError(conversation_id)
             await self.session.delete(saved)
+            self.session.add(
+                AuditEvent(
+                    id=f"audit_{uuid4().hex}",
+                    actor_id=user_id,
+                    action="message_unsaved",
+                    request_id=conversation.request_id,
+                    donor_id=conversation.donor_id,
+                    event_metadata={},
+                )
+            )
             await self.session.commit()
         return True
 

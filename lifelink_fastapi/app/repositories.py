@@ -314,9 +314,14 @@ class SqlAlchemyRequestStore(RequestStore):
                 logger.exception("Skipping unreadable request row id=%s in history", row.id)
         return records
 
-    async def save_async(self, record: RequestRecord) -> None:
-        """Insert or update a request and persist any matches not already stored."""
+    async def save_async(self, record: RequestRecord, *, audit_actor_id: str | None = None) -> None:
+        """Insert or update a request and persist any matches not already stored.
+
+        When supplied, the creation audit event is committed in the same
+        transaction as the request and its ranked matches.
+        """
         existing = await self.session.get(EmergencyRequestRow, record.request_id)
+        is_new_request = existing is None
         if existing is None:
             existing = EmergencyRequestRow(
                 id=record.request_id,
@@ -370,6 +375,22 @@ class SqlAlchemyRequestStore(RequestStore):
                     estimated_travel_minutes=match.estimated_travel_minutes,
                     status="ranked",
                     explanation=match.explanation.model_dump(mode="json"),
+                )
+            )
+        if is_new_request and audit_actor_id is not None:
+            # Only emit on the initial insert; idempotent updates must not
+            # manufacture duplicate creation events.
+            self.session.add(
+                AuditEvent(
+                    id=f"audit_{uuid4().hex}",
+                    actor_id=audit_actor_id,
+                    action="emergency_request_created",
+                    request_id=record.request_id,
+                    event_metadata={
+                        "status": record.status.value,
+                        "matching_mode": "weighted" if record.payload.ai_matching_enabled else "distance_only",
+                        "match_count": len(record.matches),
+                    },
                 )
             )
         await self.session.commit()
@@ -586,7 +607,15 @@ class SqlAlchemyRequestStore(RequestStore):
             })
         return items
 
-    async def update_contact_status_async(self, request_id: str, donor_id: str, requester_id: str, status: str) -> dict[str, Any]:
+    async def update_contact_status_async(
+        self,
+        request_id: str,
+        donor_id: str,
+        requester_id: str,
+        status: str,
+        *,
+        audit_actor_id: str | None = None,
+    ) -> dict[str, Any]:
         """Advance a contact through its lifecycle, rejecting illegal transitions."""
         allowed = {"contact_shared", "meeting_arranged", "fulfilled", "cancelled"}
         if status not in allowed:
@@ -624,13 +653,26 @@ class SqlAlchemyRequestStore(RequestStore):
         }
         if status not in transitions.get(contact.status, set()):
             raise ValueError(f"Cannot move contact from {contact.status} to {status}")
+        previous_status = contact.status
         now = datetime.now(UTC)
         contact.status = status
         contact.updated_at = now
         if status == "contact_shared":
             contact.contact_shared_at = now
+        # The lifecycle mutation and its audit record must commit together.
+        # Record the authenticated principal (not a client-supplied identity)
+        # and only the before/after status values.
+        self.session.add(
+            AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=audit_actor_id or requester_id,
+                action=f"contact_{status}",
+                request_id=request_id,
+                donor_id=donor_id,
+                event_metadata={"from": previous_status, "to": status},
+            )
+        )
         await self.session.commit()
-        await self.record_audit_async(requester_id, f"contact_{status}", request_id, donor_id)
         return {"donor_id": donor_id, "status": status, "accepted_at": contact.accepted_at}
 
     @staticmethod
@@ -695,6 +737,8 @@ async def create_request_record(
     matches: list[DonorMatch],
     request_id: str,
     status: RequestStatus = RequestStatus.AWAITING_RESPONSES,
+    *,
+    audit_actor_id: str | None = None,
 ) -> RequestRecord:
     """Convenience function used by an async endpoint after matching."""
     store = SqlAlchemyRequestStore(session)
@@ -706,5 +750,5 @@ async def create_request_record(
         expires_at=payload.response_deadline,
         matches=matches,
     )
-    await store.save_async(record)
+    await store.save_async(record, audit_actor_id=audit_actor_id)
     return record

@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import AsyncSessionLocal, create_all_tables, get_db_session
-from .db_models import Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum, Message
+from .db_models import AuditEvent, Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum, Message
 from .fcm import send_push_safely
 from .main import (
     EmergencyRequestIn,
@@ -453,7 +453,8 @@ async def upsert_profile(
     require_verified_email(principal)
     await enforce_rate_limit(f"profile-upsert:{principal.subject}", 20, 300)
     row = await session.get(LifeLinkProfile, principal.subject)
-    if row is None:
+    is_new_profile = row is None
+    if is_new_profile:
         row = LifeLinkProfile(
             user_id=principal.subject,
             email=principal.email or "",
@@ -463,12 +464,39 @@ async def upsert_profile(
             display_name=payload.display_name,
         )
         session.add(row)
+        changed_fields = ["email", "role", "can_request", "can_donate", "display_name"]
     else:
+        before = {
+            "email": row.email,
+            "role": enum_value(row.role),
+            "can_request": row.can_request,
+            "can_donate": row.can_donate,
+            "display_name": row.display_name,
+        }
         row.email = principal.email or row.email
         row.role = LifeLinkRoleEnum(payload.role)
         row.can_request = payload.can_request
         row.can_donate = payload.can_donate
         row.display_name = payload.display_name
+        after = {
+            "email": row.email,
+            "role": enum_value(row.role),
+            "can_request": row.can_request,
+            "can_donate": row.can_donate,
+            "display_name": row.display_name,
+        }
+        changed_fields = [field for field, value in after.items() if before[field] != value]
+    # Keep the audit event in the same transaction as the profile mutation.
+    # Store field names only: never copy email or display-name values to audit.
+    if is_new_profile or changed_fields:
+        session.add(
+            AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=principal.subject,
+                action="profile.created" if is_new_profile else "profile.updated",
+                event_metadata={"changed_fields": changed_fields},
+            )
+        )
     await session.commit()
     return ProfileOut(
         user_id=row.user_id,
@@ -694,6 +722,7 @@ async def create_emergency_request_postgres(
             matches=[],
             request_id=request_id,
             status=RequestStatus.MANUAL_BROADCAST,
+            audit_actor_id=principal.subject,
         )
         return ManualFallbackOut(
             request_id=request_id,
@@ -707,6 +736,7 @@ async def create_emergency_request_postgres(
         matches=matches,
         request_id=request_id,
         status=RequestStatus.AWAITING_RESPONSES,
+        audit_actor_id=principal.subject,
     )
     # Submitting a request must NOT broadcast it. Matches are computed and stored
     # so the requester can review them, but no donor is notified here. Donors are
@@ -791,7 +821,13 @@ async def update_requester_contact_status(
         raise HTTPException(status_code=403, detail="Not allowed to update this contact")
     await enforce_rate_limit(f"contact-status:{principal.subject}", 30, 300)
     try:
-        await store.update_contact_status_async(request_id, donor_id, record.payload.requester_id, payload.status)
+        await store.update_contact_status_async(
+            request_id,
+            donor_id,
+            record.payload.requester_id,
+            payload.status,
+            audit_actor_id=principal.subject,
+        )
     except KeyError:
         raise HTTPException(status_code=404, detail="Contact not found") from None
     except ValueError as exc:
@@ -1060,6 +1096,13 @@ async def record_donor_presence(
         return await SqlAlchemyDonorProfileStore(session).record_presence(principal.subject, payload)
     except KeyError:
         raise HTTPException(status_code=404, detail="Donor profile not found") from None
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        logger.exception("Donor GPS presence update failed for operation donor_presence")
+        raise HTTPException(
+            status_code=503,
+            detail="GPS presence could not be updated right now. Please try again.",
+        ) from exc
 
 
 @app.patch("/v1/donor-profile/availability", response_model=DonorProfileMeOut)
@@ -1087,10 +1130,6 @@ async def delete_donor_profile(
         raise HTTPException(status_code=401, detail="An authenticated user is required")
     require_verified_email(principal)
     await SqlAlchemyDonorProfileStore(session).delete(principal.subject)
-    profile = await session.get(LifeLinkProfile, principal.subject)
-    if profile is not None:
-        profile.can_donate = False
-        await session.commit()
 
 
 @app.get("/v1/donors/{donor_id}", response_model=DonorProfileOut)
@@ -1203,6 +1242,22 @@ async def record_legacy_donor_presence_postgres(
     row.last_presence_at = now
     row.availability_updated_at = now
     row.updated_at = now
+    precision_bucket = (
+        "high" if payload.precision_meters <= 20
+        else "medium" if payload.precision_meters <= 100
+        else "low" if payload.precision_meters <= 1000
+        else "very_low"
+    )
+    session.add(AuditEvent(
+        id=f"audit_{uuid4().hex}",
+        actor_id=principal.subject,
+        action="donor_presence_recorded",
+        donor_id=row.id,
+        event_metadata={
+            "provider": payload.provider or "unknown",
+            "precision_bucket": precision_bucket,
+        },
+    ))
     try:
         await session.commit()
         await store.recompute_matches_for_donor(donor_id)
@@ -1509,11 +1564,21 @@ async def matched_donor_exact_location(
     """
     store = SqlAlchemyPrivacyStore(session)
     try:
-        result = await store.exact_location_for_requester(request_id, donor_id, principal.subject)
+        result = await store.exact_location_for_requester(
+            request_id, donor_id, principal.subject, actor_id=principal.subject
+        )
     except KeyError:
         raise HTTPException(status_code=404, detail="Request or donor not found") from None
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not allowed to view this donor's location") from None
+    except SQLAlchemyError:
+        # Fail closed: never return exact coordinates when the disclosure audit
+        # could not be durably recorded.
+        await session.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="Exact location is temporarily unavailable because access could not be audited. Please retry.",
+        ) from None
     return ExactLocationOut(**result)
 
 
@@ -1681,6 +1746,12 @@ async def save_conversation_message(
         saved = await store.save_message(principal.subject, conversation_id, message_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Message not found in this conversation") from None
+    except SQLAlchemyError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="The saved-message change could not be audited. Please retry.",
+        ) from None
     message = await session.get(Message, message_id)
     if message is None:
         raise HTTPException(status_code=404, detail="Message not found in this conversation")
@@ -1709,7 +1780,15 @@ async def unsave_conversation_message(
         raise HTTPException(status_code=404, detail="Conversation not found") from None
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
-    if not await store.unsave_message(principal.subject, conversation_id, message_id):
+    try:
+        removed = await store.unsave_message(principal.subject, conversation_id, message_id)
+    except SQLAlchemyError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="The saved-message change could not be audited. Please retry.",
+        ) from None
+    if not removed:
         raise HTTPException(status_code=404, detail="Message not found in this conversation")
     return Response(status_code=204)
 
@@ -1752,6 +1831,12 @@ async def send_conversation_message(
         message = await store.add_message(conversation, principal.subject, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except SQLAlchemyError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="The message could not be sent because its audit record could not be saved. Please retry.",
+        ) from None
     await send_push_safely(
         await _conversation_recipient(session, conversation, principal.subject),
         "New message",

@@ -153,6 +153,87 @@ def test_requester_location_source_is_persisted_and_idempotency_ignores_attribut
     run_scenario(pg_url, scenario)
 
 
+def test_emergency_request_creation_is_audited_without_sensitive_payload(pg_url):
+    async def scenario(client, current, run_sql):
+        requester = new_user("audited-requester")
+        current["id"] = requester
+        payload = request_payload(requester)
+        payload["note"] = "private clinical context"
+        created = await client.post("/v1/emergency-requests", json=payload)
+        assert created.status_code == 201, created.text
+        request_id = created.json()["request_id"]
+
+        events = await run_sql(
+            "SELECT actor_id, action, request_id, metadata FROM audit_events "
+            f"WHERE request_id = '{request_id}' AND action = 'emergency_request_created'"
+        )
+        assert len(events) == 1
+        assert events[0][0:3] == (requester, "emergency_request_created", request_id)
+        assert events[0][3] == {
+            "status": "awaiting_responses",
+            "matching_mode": "weighted",
+            "match_count": 0,
+        }
+        assert "private clinical context" not in str(events[0][3])
+        assert "latitude" not in str(events[0][3])
+        assert "longitude" not in str(events[0][3])
+
+        # Idempotent retries return the original request and must not add a
+        # second creation event.
+        retried = await client.post("/v1/emergency-requests", json=payload)
+        assert retried.status_code == 201, retried.text
+        assert retried.json()["request_id"] == request_id
+        count = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE request_id = '{request_id}' AND action = 'emergency_request_created'"
+        )
+        assert count == [(1,)]
+
+    run_scenario(pg_url, scenario)
+
+
+def test_emergency_request_rolls_back_when_creation_audit_fails(pg_url):
+    async def scenario(client, current, run_sql):
+        requester = new_user("audit-failure-requester")
+        current["id"] = requester
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_request_creation_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'emergency_request_created' THEN "
+                + "RAISE EXCEPTION 'injected request audit failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_request_creation_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_request_creation_audit()"
+            )
+        await trigger_engine.dispose()
+
+        failed = await client.post(
+            "/v1/emergency-requests",
+            json=request_payload(requester),
+        )
+        assert failed.status_code == 503, failed.text
+        stored = await run_sql(
+            "SELECT COUNT(*) FROM emergency_requests "
+            f"WHERE requester_id = '{requester}'"
+        )
+        events = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE actor_id = '{requester}' AND action = 'emergency_request_created'"
+        )
+        assert stored == [(0,)]
+        assert events == [(0,)]
+
+    run_scenario(pg_url, scenario)
+
+
 async def setup_donor(
     client,
     current,
@@ -316,9 +397,96 @@ def test_hiding_from_map_revokes_live_location_share(pg_url):
                     created["request_id"],
                     donor,
                     requester,
-                    datetime.now(UTC) + timedelta(hours=1),
-                )
+                    datetime.now(UTC) + timedelta(hours=1),                )
         await engine.dispose()
+
+    run_scenario(pg_url, scenario)
+
+
+def test_exact_location_read_is_audited_without_coordinates_and_deduplicated(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+        share_path = f"/v1/emergency-requests/{request_id}/donors/{donor}/location-share"
+        current["id"] = requester
+        activated = await client.post(share_path)
+        assert activated.status_code == 200, activated.text
+
+        location_path = f"/v1/emergency-requests/{request_id}/donors/{donor}/location"
+        outsider = new_user("outsider")
+        current["id"] = outsider
+        denied = await client.get(location_path)
+        assert denied.status_code == 403, denied.text
+        denied_audit = await run_sql(
+            "SELECT id FROM audit_events WHERE action = 'exact_location_viewed' "
+            f"AND request_id = '{request_id}' AND donor_id = '{donor}'"
+        )
+        assert denied_audit == []
+
+        current["id"] = requester
+        first = await client.get(location_path)
+        assert first.status_code == 200, first.text
+        assert first.json()["shared"] is True
+        second = await client.get(location_path)
+        assert second.status_code == 200, second.text
+        assert second.json()["shared"] is True
+
+        rows = await run_sql(
+            "SELECT actor_id, metadata::text FROM audit_events "
+            "WHERE action = 'exact_location_viewed' "
+            f"AND request_id = '{request_id}' AND donor_id = '{donor}'"
+        )
+        assert len(rows) == 1, rows
+        assert rows[0][0] == requester
+        assert rows[0][1] == "{}"
+
+    run_scenario(pg_url, scenario)
+
+
+def test_exact_location_read_fails_closed_when_audit_insert_fails(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+        current["id"] = requester
+        activated = await client.post(
+            f"/v1/emergency-requests/{request_id}/donors/{donor}/location-share"
+        )
+        assert activated.status_code == 200, activated.text
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_exact_location_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'exact_location_viewed' THEN "
+                + "RAISE EXCEPTION 'injected audit write failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_exact_location_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_exact_location_audit()"
+            )
+        await trigger_engine.dispose()
+
+        failed = await client.get(
+            f"/v1/emergency-requests/{request_id}/donors/{donor}/location"
+        )
+        assert failed.status_code == 503, failed.text
+        assert "latitude" not in failed.json()
+        assert "longitude" not in failed.json()
+        audit_rows = await run_sql(
+            "SELECT id FROM audit_events WHERE action = 'exact_location_viewed' "
+            f"AND request_id = '{request_id}' AND donor_id = '{donor}'"
+        )
+        assert audit_rows == []
 
     run_scenario(pg_url, scenario)
 
@@ -716,7 +884,6 @@ def test_exact_location_expires_when_request_is_cancelled(pg_url):
         donor, requester = new_user("donor"), new_user("requester")
         await setup_donor(client, current, donor, map_visible=True, exact_sharing=True)
         created = await submit_request(client, current, requester)
-
         current["id"] = requester
         activated = await client.post(
             f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/location-share"
@@ -1116,7 +1283,6 @@ def test_map_visibility_response_does_not_fabricate_gps_freshness(pg_url):
         await run_sql(
             f"UPDATE donors SET last_presence_at = NULL, availability_updated_at = now() WHERE id = '{donor}'"
         )
-
         current["id"] = donor
         response = await client.put(
             f"/v1/donors/{donor}/map-visibility",
@@ -1494,6 +1660,107 @@ def test_conversation_moderation_is_available_to_either_participant(pg_url):
     run_scenario(pg_url, scenario)
 
 
+
+async def _create_accepted_contact(client, current, donor: str, requester: str) -> str:
+    """Create an accepted donor contact ready for requester lifecycle updates."""
+    await setup_donor(client, current, donor, map_visible=True)
+    created = await submit_request(client, current, requester)
+    request_id = created["request_id"]
+
+    current["id"] = donor
+    response = await client.post(
+        f"/v1/donors/{donor}/requests/{request_id}/response",
+        json={"response": "accepted"},
+    )
+    assert response.status_code == 200, response.text
+
+    current["id"] = requester
+    selected = await client.post(
+        f"/v1/emergency-requests/{request_id}/contact",
+        json={"donor_ids": [donor]},
+    )
+    assert selected.status_code == 200, selected.text
+    return request_id
+
+def test_contact_status_transition_is_audited_atomically(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        request_id = await _create_accepted_contact(client, current, donor, requester)
+        current["id"] = requester
+
+        changed = await client.patch(
+            f"/v1/emergency-requests/{request_id}/contacts/{donor}",
+            json={"status": "contact_shared"},
+        )
+        assert changed.status_code == 200, changed.text
+
+        events = await run_sql(
+            "SELECT actor_id, action, request_id, donor_id, metadata FROM audit_events "
+            f"WHERE request_id = '{request_id}' AND action = 'contact_contact_shared'"
+        )
+        assert events == [
+            (
+                requester,
+                "contact_contact_shared",
+                request_id,
+                donor,
+                {"from": "accepted", "to": "contact_shared"},
+            )
+        ]
+        metadata_text = str(events[0][4])
+        assert "email" not in metadata_text
+        assert "phone" not in metadata_text
+        assert "value" not in metadata_text
+
+    run_scenario(pg_url, scenario)
+
+
+def test_contact_status_rolls_back_when_audit_insert_fails(pg_url):
+    """A rejected audit insert must leave the contact in its prior state."""
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        request_id = await _create_accepted_contact(client, current, donor, requester)
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_contact_status_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'contact_contact_shared' THEN "
+                + "RAISE EXCEPTION 'injected contact status audit failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_contact_status_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_contact_status_audit()"
+            )
+        await trigger_engine.dispose()
+
+        current["id"] = requester
+        failed = await client.patch(
+            f"/v1/emergency-requests/{request_id}/contacts/{donor}",
+            json={"status": "contact_shared"},
+        )
+        assert failed.status_code == 503, failed.text
+
+        contact_rows = await run_sql(
+            "SELECT status FROM donor_contact_requests "
+            f"WHERE request_id = '{request_id}' AND donor_id = '{donor}'"
+        )
+        event_count = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE request_id = '{request_id}' AND action = 'contact_contact_shared'"
+        )
+        assert contact_rows == [("accepted",)]
+        assert event_count == [(0,)]
+
+    run_scenario(pg_url, scenario)
+
+
 def test_donor_message_notifies_the_requester(pg_url, monkeypatch):
     """When the donor sends a message, the push must go to the requester, even
     when the donor row id differs from the donor's user id."""
@@ -1751,8 +2018,123 @@ def test_saved_messages_are_private_per_participant_and_conversation(pg_url):
             item["message_id"]
             for item in (await client.get(f"/v1/conversations/{conversation_id}/saved-messages")).json()
         ] == [message_id]
+        # Each successful message/bookmark mutation has one content-free audit event.
+        audit_rows = await run_sql(
+            "SELECT actor_id, action, metadata::text FROM audit_events "
+            f"WHERE request_id = '{created['request_id']}' AND donor_id = '{donor}' "
+            "AND action IN ('message_sent', 'message_saved', 'message_unsaved')"
+        )
+        assert len(audit_rows) == 4, audit_rows
+        assert {(row[0], row[1], row[2]) for row in audit_rows} == {
+            (requester, "message_sent", "{}"),
+            (requester, "message_saved", "{}"),
+            (donor, "message_saved", "{}"),
+            (requester, "message_unsaved", "{}"),
+        }
+
         # A valid message ID cannot be saved through a different conversation path.
         assert (await client.put(f"/v1/conversations/not-this-conversation/messages/{message_id}/saved")).status_code == 404
+
+    run_scenario(pg_url, scenario)
+
+
+def test_saved_message_change_fails_closed_when_audit_insert_fails(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert opened.status_code == 200, opened.text
+        conversation_id = opened.json()["conversation_id"]
+        sent = await client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"body": "bookmark this"}
+        )
+        assert sent.status_code == 201, sent.text
+        message_id = sent.json()["message_id"]
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_message_saved_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'message_saved' THEN "
+                + "RAISE EXCEPTION 'injected audit write failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_message_saved_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_message_saved_audit()"
+            )
+        await trigger_engine.dispose()
+
+        failed = await client.put(
+            f"/v1/conversations/{conversation_id}/messages/{message_id}/saved"
+        )
+        assert failed.status_code == 503, failed.text
+        saved_rows = await run_sql(
+            f"SELECT id FROM saved_messages WHERE user_id = '{requester}' AND message_id = '{message_id}'"
+        )
+        saved_events = await run_sql(
+            "SELECT id FROM audit_events WHERE action = 'message_saved' "
+            f"AND request_id = '{created['request_id']}' AND actor_id = '{requester}'"
+        )
+        assert saved_rows == []
+        assert saved_events == []
+
+    run_scenario(pg_url, scenario)
+
+
+def test_message_send_fails_closed_when_audit_insert_fails(pg_url):
+    async def scenario(client, current, run_sql):
+        donor, requester = new_user("donor"), new_user("requester")
+        await setup_donor(client, current, donor)
+        created = await submit_request(client, current, requester)
+        current["id"] = requester
+        opened = await client.post(
+            f"/v1/emergency-requests/{created['request_id']}/donors/{donor}/conversation"
+        )
+        assert opened.status_code == 200, opened.text
+        conversation_id = opened.json()["conversation_id"]
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_message_send_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'message_sent' THEN "
+                + "RAISE EXCEPTION 'injected audit write failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_message_send_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_message_send_audit()"
+            )
+        await trigger_engine.dispose()
+
+        failed = await client.post(
+            f"/v1/conversations/{conversation_id}/messages", json={"body": "private message content"}
+        )
+        assert failed.status_code == 503, failed.text
+        messages = await run_sql(
+            f"SELECT id FROM messages WHERE conversation_id = '{conversation_id}'"
+        )
+        events = await run_sql(
+            "SELECT id FROM audit_events WHERE action = 'message_sent' "
+            f"AND request_id = '{created['request_id']}'"
+        )
+        assert messages == []
+        assert events == []
 
     run_scenario(pg_url, scenario)
 
@@ -1814,8 +2196,7 @@ def test_map_visibility_change_and_audit_are_atomic(pg_url):
             f"SELECT map_visible, exact_location_sharing_enabled FROM donors WHERE id = '{donor}'",
         )
         assert state == [(True, True)]
-        share_state = await run_sql(
-            f"SELECT status FROM donor_location_shares WHERE request_id = '{created['request_id']}' AND donor_id = '{donor}'",
+        share_state = await run_sql(            f"SELECT status FROM donor_location_shares WHERE request_id = '{created['request_id']}' AND donor_id = '{donor}'",
         )
         assert share_state == [("active",)]
         audit_rows = await run_sql(
@@ -1824,3 +2205,393 @@ def test_map_visibility_change_and_audit_are_atomic(pg_url):
         assert audit_rows == baseline_audit_rows
 
     run_scenario(pg_url, scenario)
+
+
+
+def test_profile_mutations_are_audited_without_pii(pg_url):
+    async def scenario(client, current, run_sql):
+        user = new_user("profile-user")
+        current["id"] = user
+
+        created = await client.put(
+            "/v1/profile",
+            json={
+                "role": "requester",
+                "display_name": "Private Display Name",
+                "can_request": True,
+                "can_donate": False,
+            },
+        )
+        assert created.status_code == 200, created.text
+
+        create_events = await run_sql(
+            "SELECT actor_id, action, metadata FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'profile.created'"
+        )
+        assert len(create_events) == 1
+        assert create_events[0][0] == user
+        assert create_events[0][2] == {
+            "changed_fields": ["email", "role", "can_request", "can_donate", "display_name"]
+        }
+
+        updated = await client.put(
+            "/v1/profile",
+            json={
+                "role": "donor",
+                "display_name": "Private Display Name",
+                "can_request": True,
+                "can_donate": True,
+            },
+        )
+        assert updated.status_code == 200, updated.text
+
+        update_events = await run_sql(
+            "SELECT actor_id, action, metadata FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'profile.updated'"
+        )
+        assert len(update_events) == 1
+        assert update_events[0][0] == user
+        assert update_events[0][2] == {
+            "changed_fields": ["role", "can_donate"]
+        }
+
+        # A repeated profile sync with no changes must not flood the audit log.
+        repeated = await client.put(
+            "/v1/profile",
+            json={
+                "role": "donor",
+                "display_name": "Private Display Name",
+                "can_request": True,
+                "can_donate": True,
+            },
+        )
+        assert repeated.status_code == 200, repeated.text
+        unchanged_count = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'profile.updated'"
+        )
+        assert unchanged_count == [(1,)]
+
+        # Neither email nor display-name values are stored in audit metadata.
+        metadata_text = str(create_events[0][2]) + str(update_events[0][2])
+        assert "@" not in metadata_text
+        assert "Private Display Name" not in metadata_text
+
+    run_scenario(pg_url, scenario)
+
+
+def test_profile_change_rolls_back_when_audit_insert_fails(pg_url):
+    """A failed profile audit must not leave a capability change committed."""
+    async def scenario(client, current, run_sql):
+        user = new_user("profile-user")
+        current["id"] = user
+        created = await client.put(
+            "/v1/profile",
+            json={
+                "role": "requester",
+                "display_name": "Test User",
+                "can_request": True,
+                "can_donate": False,
+            },
+        )
+        assert created.status_code == 200, created.text
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_profile_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'profile.updated' THEN "
+                + "RAISE EXCEPTION 'injected profile audit failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_profile_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_profile_audit()"
+            )
+        await trigger_engine.dispose()
+
+        failed = await client.put(
+            "/v1/profile",
+            json={
+                "role": "donor",
+                "display_name": "Test User",
+                "can_request": True,
+                "can_donate": True,
+            },
+        )
+        assert failed.status_code == 503, failed.text
+
+        stored = await run_sql(
+            "SELECT role::text, can_request, can_donate FROM lifelink_profiles "
+            f"WHERE user_id = '{user}'"
+        )
+        assert stored == [("requester", True, False)]
+        update_events = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'profile.updated'"
+        )
+        assert update_events == [(0,)]
+
+    run_scenario(pg_url, scenario)
+
+
+
+async def create_separate_donor_profile(client, current, user_id: str) -> None:
+    current["id"] = user_id
+    account = await client.put(
+        "/v1/profile",
+        json={
+            "role": "donor",
+            "display_name": "Separate Donor",
+            "can_request": True,
+            "can_donate": False,
+        },
+    )
+    assert account.status_code == 200, account.text
+    donor = await client.put(
+        "/v1/donor-profile",
+        json={
+            "blood_type": "O+",
+            "latitude": 11.2433,
+            "longitude": 125.0,
+            "area": "Tacloban",
+            "service_radius_km": 15,
+            "availability_status": "offline",
+            "notifications_enabled": True,
+            "display_name": "Separate Donor",
+            "donor_note": "",
+            "preferred_contact_method": "in_app",
+            "profile_visible": True,
+        },
+    )
+    assert donor.status_code == 200, donor.text
+
+
+
+def test_donor_profile_create_and_update_are_audited_without_pii(pg_url):
+    async def scenario(client, current, run_sql):
+        user = new_user("audited-donor-profile")
+        await create_separate_donor_profile(client, current, user)
+
+        created = await run_sql(
+            "SELECT actor_id, action, donor_id, metadata FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_profile_created'"
+        )
+        assert created == [(
+            user,
+            "donor_profile_created",
+            user,
+            {
+                "changed_fields": [
+                    "blood_type", "latitude", "longitude", "area",
+                    "availability_status", "last_donation_date",
+                    "notifications_enabled", "service_radius_km",
+                    "display_name", "donor_note", "preferred_contact_method",
+                    "profile_visible",
+                ]
+            },
+        )]
+
+        current["id"] = user
+        updated = await client.put(
+            "/v1/donor-profile",
+            json={
+                "blood_type": "A+",
+                "latitude": 11.2433,
+                "longitude": 125.0,
+                "area": "Updated area",
+                "service_radius_km": 20,
+                "availability_status": "offline",
+                "notifications_enabled": True,
+                "display_name": "Updated private name",
+                "donor_note": "private note",
+                "preferred_contact_method": "in_app",
+                "profile_visible": True,
+            },
+        )
+        assert updated.status_code == 200, updated.text
+
+        changed = await run_sql(
+            "SELECT actor_id, action, donor_id, metadata FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_profile_updated'"
+        )
+        assert changed == [(
+            user,
+            "donor_profile_updated",
+            user,
+            {"changed_fields": [
+                "blood_type", "area", "service_radius_km",
+                "display_name", "donor_note",
+            ]},
+        )]
+        assert "Updated private name" not in str(changed)
+        assert "private note" not in str(changed)
+        assert "11.2433" not in str(changed)
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_profile_update_rolls_back_when_audit_insert_fails(pg_url):
+    async def scenario(client, current, run_sql):
+        user = new_user("donor-profile-rollback")
+        await create_separate_donor_profile(client, current, user)
+
+        trigger_engine = create_async_engine(pg_url)
+        async with trigger_engine.begin() as connection:
+            dollar = "$fn$"
+            await connection.exec_driver_sql(
+                "CREATE FUNCTION reject_donor_profile_audit() RETURNS trigger AS "
+                + dollar
+                + " BEGIN IF NEW.action = 'donor_profile_updated' THEN "
+                + "RAISE EXCEPTION 'injected donor profile audit failure'; END IF; "
+                + "RETURN NEW; END; "
+                + dollar
+                + " LANGUAGE plpgsql"
+            )
+            await connection.exec_driver_sql(
+                "CREATE TRIGGER reject_donor_profile_audit_trigger "
+                "BEFORE INSERT ON audit_events FOR EACH ROW "
+                "EXECUTE FUNCTION reject_donor_profile_audit()"
+            )
+        await trigger_engine.dispose()
+
+        current["id"] = user
+        failed = await client.put(
+            "/v1/donor-profile",
+            json={
+                "blood_type": "A+",
+                "latitude": 11.2433,
+                "longitude": 125.0,
+                "area": "Changed area",
+                "service_radius_km": 20,
+                "availability_status": "offline",
+                "notifications_enabled": True,
+                "display_name": "Separate Donor",
+                "donor_note": "",
+                "preferred_contact_method": "in_app",
+                "profile_visible": True,
+            },
+        )
+        assert failed.status_code == 503, failed.text
+
+        profile = await run_sql(
+            "SELECT blood_type, area, service_radius_km FROM donor_profiles "
+            f"WHERE user_id = '{user}'"
+        )
+        operational = await run_sql(
+            "SELECT blood_type, service_radius_km FROM donors "
+            f"WHERE user_id = '{user}'"
+        )
+        events = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_profile_updated'"
+        )
+        assert profile == [("O+", "Tacloban", 15)]
+        assert operational == [("O+", 15)]
+        assert events == [(0,)]
+
+    run_scenario(pg_url, scenario)
+
+def test_donor_availability_changes_are_audited_without_location_data(pg_url):
+    async def scenario(client, current, run_sql):
+        user = new_user("separate-donor")
+        await create_separate_donor_profile(client, current, user)
+
+        current["id"] = user
+        changed = await client.patch(
+            "/v1/donor-profile/availability",
+            json={"availability_status": "available"},
+        )
+        assert changed.status_code == 200, changed.text
+
+        events = await run_sql(
+            "SELECT actor_id, action, donor_id, metadata FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_availability_changed'"
+        )
+        assert len(events) == 1
+        assert events[0] == (
+            user,
+            "donor_availability_changed",
+            user,
+            {"from": "offline", "to": "available"},
+        )
+
+        # Repeating the same preference is idempotent and does not create noise.
+        repeated = await client.patch(
+            "/v1/donor-profile/availability",
+            json={"availability_status": "available"},
+        )
+        assert repeated.status_code == 200, repeated.text
+        count = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_availability_changed'"
+        )
+        assert count == [(1,)]
+
+        metadata_text = str(events[0][3])
+        assert "latitude" not in metadata_text
+        assert "longitude" not in metadata_text
+        assert "blood_type" not in metadata_text
+
+    run_scenario(pg_url, scenario)
+
+
+def test_donor_profile_removal_is_audited_with_capability_reset(pg_url):
+    async def scenario(client, current, run_sql):
+        user = new_user("separate-donor")
+        await create_separate_donor_profile(client, current, user)
+
+        current["id"] = user
+        removed = await client.delete("/v1/donor-profile")
+        assert removed.status_code == 204, removed.text
+
+        profile_rows = await run_sql(
+            "SELECT COUNT(*) FROM donor_profiles "
+            f"WHERE user_id = '{user}'"
+        )
+        account_rows = await run_sql(
+            "SELECT can_donate FROM lifelink_profiles "
+            f"WHERE user_id = '{user}'"
+        )
+        donor_rows = await run_sql(
+            "SELECT available, profile_visible FROM donors "
+            f"WHERE user_id = '{user}'"
+        )
+        events = await run_sql(
+            "SELECT actor_id, action, donor_id, metadata FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_profile_deleted'"
+        )
+
+        assert profile_rows == [(0,)]
+        assert account_rows == [(False,)]
+        assert donor_rows == [(False, False)]
+        assert events == [
+            (
+                user,
+                "donor_profile_deleted",
+                user,
+                {
+                    "profile_removed": True,
+                    "operational_donor_disabled": True,
+                    "account_capability_reset": True,
+                },
+            )
+        ]
+
+        # Repeating an already-completed opt-out is idempotent and does not
+        # create duplicate security events.
+        repeated = await client.delete("/v1/donor-profile")
+        assert repeated.status_code == 204, repeated.text
+        repeated_count = await run_sql(
+            "SELECT COUNT(*) FROM audit_events "
+            f"WHERE actor_id = '{user}' AND action = 'donor_profile_deleted'"
+        )
+        assert repeated_count == [(1,)]
+
+    run_scenario(pg_url, scenario)
+
