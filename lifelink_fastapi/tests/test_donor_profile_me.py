@@ -593,7 +593,7 @@ def test_presence_sweeper_expires_stale_donor_but_keeps_fresh_donor(pg_url):
             expiry_events = list((await audit_session.scalars(
                 select(db_models.AuditEvent).where(
                     db_models.AuditEvent.action == "donor_presence_expired",
-                    db_models.AuditEvent.donor_id == stale_donor,
+                    db_models.AuditEvent.donor_id == stale_row.id,
                 )
             )).all())
         assert len(expiry_events) == 1
