@@ -623,10 +623,10 @@ def test_presence_sweeper_audit_failure_rolls_back_expiry(pg_url):
         )
         await run_sql(
             "CREATE OR REPLACE FUNCTION reject_presence_expiry_audit() RETURNS trigger "
-            "LANGUAGE plpgsql AS $ BEGIN "
-            "IF NEW.action = 'donor_presence_expired' THEN "
-            "RAISE EXCEPTION 'forced presence expiry audit failure'; "
-            "END IF; RETURN NEW; END $"
+            "LANGUAGE plpgsql AS 'BEGIN "
+            "IF NEW.action = ''donor_presence_expired'' THEN "
+            "RAISE EXCEPTION ''forced presence expiry audit failure''; "
+            "END IF; RETURN NEW; END;'"
         )
         await run_sql(
             "CREATE TRIGGER reject_presence_expiry_audit_trigger "
