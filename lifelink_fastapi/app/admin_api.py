@@ -590,7 +590,7 @@ async def admin_audit_logs(
     query = (
         "SELECT id, log_id, actor_id, action, actions, description, session_id, ip_address, timestamp, device_used, "
             "metadata, created_at, outcome, target_type, target_id, correlation_id "
-        "FROM audit_events WHERE (:action IS NULL OR action = :action) "
+        "FROM audit_events WHERE (CAST(:action AS varchar) IS NULL OR action = CAST(:action AS varchar)) "
         "ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
     )
     result = await session.execute(text(query), {"action": action, "limit": limit, "offset": offset})

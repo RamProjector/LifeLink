@@ -400,3 +400,41 @@ def test_api_activity_methods_map_to_crud_categories():
     assert _operation_audit_kind("PATCH") == ("EDIT", "updated")
     assert _operation_audit_kind("DELETE") == ("DELETE", "deleted")
     assert _operation_audit_kind("GET") == ("OTHER", "viewed")
+
+
+def test_admin_audit_query_explicitly_types_nullable_action_filter():
+    from app.admin_api import admin_audit_logs
+
+    class EmptyRows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class AuditQuerySession(FakeSession):
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            self.statements.append(sql)
+            if "FROM audit_events WHERE" in sql:
+                assert params["action"] is None
+                return EmptyRows()
+            return None
+
+    session = AuditQuerySession()
+
+    async def check():
+        await admin_audit_logs(
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            limit=50,
+            offset=0,
+            action=None,
+            x_correlation_id=None,
+        )
+
+    asyncio.run(check())
+    audit_query = next(statement for statement in session.statements if "FROM audit_events WHERE" in statement)
+    assert "CAST(:action AS varchar) IS NULL" in audit_query
+    assert "action = CAST(:action AS varchar)" in audit_query
