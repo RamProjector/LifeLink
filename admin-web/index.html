@@ -8,6 +8,32 @@
 *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
 button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(--blue);font-weight:650;text-decoration:none}a.link:hover{text-decoration:underline}button{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;background:var(--blue);color:white;font-weight:650}button.secondary{background:white;color:var(--ink);border:1px solid var(--line)}button:disabled{opacity:.55;cursor:wait}
 .top{background:var(--navy);color:white;padding:18px clamp(18px,4vw,48px);display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{font-size:19px;font-weight:800;letter-spacing:-.4px}.brand span{color:#9fc5ff}.top small{color:#c5d3e4}.wrap{max-width:1200px;margin:28px auto;padding:0 20px}.login{max-width:470px;margin:7vh auto;background:white;border:1px solid var(--line);border-radius:20px;padding:28px;box-shadow:0 12px 34px #1834540b}.eyebrow{font-size:12px;font-weight:800;letter-spacing:1.3px;color:var(--blue);text-transform:uppercase}.login h1{font-size:29px;line-height:1.2;letter-spacing:-.8px;margin:8px 0}.muted{color:var(--muted)}label{display:block;font-weight:650;font-size:13px;margin:16px 0 6px}input{width:100%;padding:11px 12px;border:1px solid #ccd6e2;border-radius:9px;background:#fff;color:var(--ink)}input:focus{outline:3px solid #215fce22;border-color:var(--blue)}.notice{margin-top:14px;padding:10px 12px;border-radius:9px;background:#eff6ff;color:#244a81;overflow-wrap:anywhere}.notice.error{background:#fff0ef;color:var(--red)}.hidden{display:none!important}.headrow{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}.headrow h1{margin:3px 0;font-size:30px;letter-spacing:-1px}.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:22px;overflow:auto}.tab{background:transparent;color:var(--muted);border-radius:9px 9px 0 0;border-bottom:2px solid transparent}.tab.active{color:var(--blue);background:#eaf1ff;border-bottom-color:var(--blue)}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.stat,.panel{background:white;border:1px solid var(--line);border-radius:15px;padding:18px}.stat small{color:var(--muted);font-weight:650}.stat strong{display:block;font-size:30px;letter-spacing:-1px;margin-top:7px}.panel{margin-top:16px}.panel h2{font-size:17px;margin:0 0 12px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px}td code{overflow-wrap:anywhere}.tag{display:inline-block;border-radius:99px;padding:3px 8px;background:#eef2f6;font-size:11px;font-weight:700}.tag.success{background:#e6f6ed;color:var(--green)}.tag.fail{background:#fff0ef;color:var(--red)}.actions{display:flex;gap:8px;flex-wrap:wrap}.empty{padding:30px;text-align:center;color:var(--muted)}.foot{font-size:12px;color:var(--muted);margin:18px 0 40px}.small{font-size:12px}.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1}@media(max-width:780px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.top{align-items:flex-start}.stat strong{font-size:25px}}@media(max-width:440px){.grid{grid-template-columns:1fr 1fr}.login{padding:21px}}
+
+/* Admin Console 2.0 */
+.wrap{max-width:1480px;margin:26px auto;padding:0 clamp(14px,2.4vw,32px)}
+.headrow{align-items:center;margin-bottom:18px}
+.console-layout{display:grid;grid-template-columns:224px minmax(0,1fr);gap:20px;align-items:start}
+.sidebar{position:sticky;top:16px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px;box-shadow:0 5px 18px #18345408}
+.nav-group{padding:10px 10px 5px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+.tabs{display:grid;gap:4px;border:0;margin:0;overflow:visible}
+.tab{width:100%;text-align:left;padding:11px 12px;border:0;border-radius:9px;color:#43536a;background:transparent;font-weight:650;font-size:13px}
+.tab:hover{background:#f1f5fa;color:var(--ink)}.tab.active{color:var(--blue);background:#eaf1ff;border:0}
+.content-area{min-width:0}.content-area>.panel{margin-top:0;margin-bottom:16px;padding:clamp(14px,2vw,22px);border-radius:16px}
+.table-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:8px 0 12px}
+.table-toolbar .search-wrap{flex:1 1 240px;max-width:440px}.table-toolbar input{padding:9px 11px;font-size:13px}
+.table-count{font-size:12px;color:var(--muted);white-space:nowrap}
+.tablewrap{border:1px solid var(--line);border-radius:12px;max-width:100%;background:#fff}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;line-height:1.45}
+th{position:sticky;top:0;z-index:1;background:#f7f9fc;color:#5b6a7e;padding:11px 12px;white-space:nowrap}
+td{padding:12px;max-width:260px;overflow-wrap:anywhere}
+tbody tr:nth-child(even){background:#fbfcfe}tbody tr:hover{background:#f3f7fd}tbody tr[hidden]{display:none!important}
+.tab:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #215fce55;outline-offset:2px}
+tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal;overflow-wrap:anywhere;color:#40516a}
+.cell-detail{max-width:320px}.cell-detail summary{cursor:pointer;color:var(--blue);font-weight:650;font-size:12px}
+.cell-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:320px;max-height:220px;overflow:auto;padding:9px;background:#f5f7fa;border-radius:8px;font-size:11px;color:#334155}
+.table-empty-filter{display:none;padding:24px;text-align:center;color:var(--muted);font-size:13px}
+@media(max-width:900px){.console-layout{grid-template-columns:1fr;gap:12px}.sidebar{position:static;padding:8px}.tabs{display:flex;overflow-x:auto;gap:5px}.nav-group{display:none}.tab{width:auto;white-space:nowrap;flex:0 0 auto}.content-area>.panel{margin-bottom:12px}}
+@media(max-width:620px){.wrap{margin:16px auto}.headrow{align-items:flex-start}.headrow .actions{width:100%}.headrow .actions button{width:100%}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stat{padding:13px}.stat strong{font-size:23px}.tablewrap{border:0;background:transparent;overflow:visible}table,tbody{display:block;width:100%}thead{display:none}tbody{display:grid;gap:10px}tbody tr{display:grid;gap:0;background:#fff!important;border:1px solid var(--line);border-radius:12px;padding:5px 12px;box-shadow:0 3px 12px #18345406}td{display:grid;grid-template-columns:minmax(94px,34%) minmax(0,1fr);gap:10px;max-width:none;padding:9px 2px;border-bottom:1px solid #edf1f5}td:last-child{border-bottom:0}td:before{content:attr(data-label);font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}.cell-detail{max-width:100%}.cell-detail pre{max-width:100%}.table-toolbar{align-items:stretch}.table-toolbar .search-wrap{max-width:none;flex-basis:100%}.table-count{width:100%}}
 </style>
 </head>
 <body>
@@ -24,15 +50,15 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
  <p class="foot">Your session token stays in memory for this tab and is cleared when you sign out or close it. Admin rights are verified server-side.</p>
 </main>
 <main id="app-view" class="wrap hidden">
- <div class="headrow"><div><div class="eyebrow">Operations overview</div><h1>Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary">Refresh data</button></div></div>
- <nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview">Overview</button><button class="tab" data-page="users">User management</button><button class="tab" data-page="audit">Security activity</button><button class="tab" data-page="sessions">Sessions</button><button class="tab" data-page="alerts">Security alerts</button><button class="tab" data-page="errors">System errors</button></nav>
- <section id="page-overview"><div class="grid"><div class="stat"><small>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small>Donor records</small><strong id="stat-donors">—</strong></div><div class="stat"><small>Emergency requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small>Authorization</small><strong style="font-size:20px;color:var(--green)">Verified</strong></div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is checked by the API on every request. User capability changes are audited. Audit records are read-only in this interface. Error entries contain operational context, not passwords or access tokens.</p><p id="generated" class="small muted"></p></div></section>
- <section id="page-users" class="panel hidden"><h2>User management</h2><p class="muted small">Change requester/donor capabilities only. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled>Previous</button><button id="users-next" class="secondary" disabled>Next</button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-audit" class="panel hidden"><h2>Audit history</h2><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div><div class="actions" style="margin-top:14px"><button id="audit-prev" class="secondary" disabled>Previous</button><button id="audit-next" class="secondary" disabled>Next</button><span id="audit-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-sessions" class="panel hidden"><h2>User sessions</h2><p class="muted small">Sessions are recorded when a signed-in user reaches a protected admin endpoint. Revocation blocks subsequent admin API requests using that session.</p><div id="sessions-table" class="tablewrap"><div class="empty">Select Sessions to load records.</div></div><div class="actions" style="margin-top:14px"><button id="sessions-prev" class="secondary" disabled>Previous</button><button id="sessions-next" class="secondary" disabled>Next</button><span id="sessions-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-alerts" class="panel hidden"><h2>Security alerts</h2><p class="muted small">Detected events are grouped into deduplicated incidents. Review evidence and update the investigation status.</p><div id="alerts-table" class="tablewrap"><div class="empty">Select Security alerts to load incidents.</div></div><div class="actions" style="margin-top:14px"><button id="alerts-prev" class="secondary" disabled>Previous</button><button id="alerts-next" class="secondary" disabled>Next</button><span id="alerts-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-errors" class="panel hidden"><h2>Application errors</h2><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div><div class="actions" style="margin-top:14px"><button id="errors-prev" class="secondary" disabled>Previous</button><button id="errors-next" class="secondary" disabled>Next</button><span id="errors-page" class="muted small" aria-live="polite"></span></div></section>
- <div id="app-message" class="notice hidden" role="status" aria-live="polite"></div><p class="foot">LifeLink Admin · Keep this browser session private. Sign out when finished.</p>
+ <div class="headrow"><div><div class="eyebrow" id="page-eyebrow">Operations overview</div><h1 id="page-title">Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary">Refresh data</button></div></div>
+ <div class="console-layout"><aside class="sidebar" aria-label="Admin navigation"><div class="nav-group">Workspace</div><nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview" aria-current="page" aria-controls="page-overview">Overview</button><button class="tab" data-page="users" aria-controls="page-users">User management</button><div class="nav-group">Security center</div><button class="tab" data-page="alerts" aria-controls="page-alerts">Security alerts</button><button class="tab" data-page="sessions" aria-controls="page-sessions">Sessions</button><button class="tab" data-page="audit" aria-controls="page-audit">Audit activity</button><button class="tab" data-page="errors" aria-controls="page-errors">System errors</button></nav></aside><div class="content-area">
+ <section id="page-overview" aria-labelledby="page-title"><div class="grid"><div class="stat"><small>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small>Donor records</small><strong id="stat-donors">—</strong></div><div class="stat"><small>Emergency requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small>Authorization</small><strong style="font-size:20px;color:var(--green)">Verified</strong></div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is checked by the API on every request. User capability changes are audited. Audit records are read-only in this interface. Error entries contain operational context, not passwords or access tokens.</p><p id="generated" class="small muted"></p></div></section>
+ <section id="page-users" aria-labelledby="page-title" class="panel hidden"><h2>User management</h2><p class="muted small">Change requester/donor capabilities only. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled>Previous</button><button id="users-next" class="secondary" disabled>Next</button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-audit" aria-labelledby="page-title" class="panel hidden"><h2>Audit history</h2><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div><div class="actions" style="margin-top:14px"><button id="audit-prev" class="secondary" disabled>Previous</button><button id="audit-next" class="secondary" disabled>Next</button><span id="audit-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-sessions" aria-labelledby="page-title" class="panel hidden"><h2>User sessions</h2><p class="muted small">Sessions are recorded when a signed-in user reaches a protected admin endpoint. Revocation blocks subsequent admin API requests using that session.</p><div id="sessions-table" class="tablewrap"><div class="empty">Select Sessions to load records.</div></div><div class="actions" style="margin-top:14px"><button id="sessions-prev" class="secondary" disabled>Previous</button><button id="sessions-next" class="secondary" disabled>Next</button><span id="sessions-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-alerts" aria-labelledby="page-title" class="panel hidden"><h2>Security alerts</h2><p class="muted small">Detected events are grouped into deduplicated incidents. Review evidence and update the investigation status.</p><div id="alerts-table" class="tablewrap"><div class="empty">Select Security alerts to load incidents.</div></div><div class="actions" style="margin-top:14px"><button id="alerts-prev" class="secondary" disabled>Previous</button><button id="alerts-next" class="secondary" disabled>Next</button><span id="alerts-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-errors" aria-labelledby="page-title" class="panel hidden"><h2>Application errors</h2><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div><div class="actions" style="margin-top:14px"><button id="errors-prev" class="secondary" disabled>Previous</button><button id="errors-next" class="secondary" disabled>Next</button><span id="errors-page" class="muted small" aria-live="polite"></span></div></section>
+ </div></div><div id="app-message" class="notice hidden" role="status" aria-live="polite"></div><p class="foot">LifeLink Admin · Keep this browser session private. Sign out when finished.</p>
 </main>
 <script>
 (() => {
@@ -46,11 +72,23 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
  const $ = id => document.getElementById(id);
  const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
  const message = (id, text, error=false) => { const el=$(id); el.textContent=text; el.classList.toggle("hidden",!text); el.classList.toggle("error",error); };
+ function safeError(error, fallback="Something went wrong. Please try again.") {
+   const status=Number(error && error.status);
+   if(status===401) return "Authentication failed. Check your credentials or sign in again.";
+   if(status===403) return "You do not have permission to perform that action.";
+   if(status===404) return "That information is no longer available.";
+   if(status===408) return "The request timed out. Check your connection and try again.";
+   if(status===409) return "This information changed on the server. Refresh and try again.";
+   if(status===429) return "Too many attempts. Please wait a moment and try again.";
+   if(status>=500 && status<=599) return "LifeLink is temporarily unavailable. Please try again shortly.";
+   if(error instanceof TypeError || !status) return "A connection problem occurred. Check your connection and try again.";
+   return fallback;
+ }
  const url = path => API_BASE_URL + path;
  async function api(path, options={}) {
    const response = await fetch(url(path), { ...options, headers: { "Authorization":"Bearer "+accessToken, "Content-Type":"application/json", "X-Correlation-ID": crypto.randomUUID(), ...(options.headers||{}) }});
    const body = await response.text(); let data={}; try { data=body?JSON.parse(body):{}; } catch {}
-   if (!response.ok) throw new Error(data.detail || ("Request failed ("+response.status+")"));
+   if (!response.ok) { const error=new Error("Admin API request failed"); error.status=response.status; throw error; }
    return data;
  }
  function showRecovery(mode) {
@@ -70,9 +108,9 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
    try {
      const response=await fetch(SUPABASE_URL+"/auth/v1/recover?redirect_to="+encodeURIComponent(ADMIN_REDIRECT_URL),{method:"POST",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})});
      const data=await response.json().catch(()=>({}));
-     if(!response.ok) throw new Error(data.msg||data.message||data.error_description||"Could not send the reset email. Check the Supabase Auth redirect allowlist.");
+     if(!response.ok) { const error=new Error("Password reset request failed"); error.status=response.status; throw error; }
      message("login-message","If this email belongs to a LifeLink account, a password-reset link has been sent. Check your inbox and spam folder.");
-   } catch(e) { message("login-message",e.message||"Password reset request failed.",true); }
+   } catch(e) { message("login-message",safeError(e,"Could not send the reset email. Check the Supabase Auth redirect allowlist."),true); }
    finally { $("recovery-submit").disabled=false; }
  }
  async function updateRecoveredPassword() {
@@ -86,11 +124,11 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
    try {
      const response=await fetch(SUPABASE_URL+"/auth/v1/user",{method:"PUT",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Authorization":"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({password})});
      const data=await response.json().catch(()=>({}));
-     if(!response.ok) throw new Error(data.msg||data.message||data.error_description||"Password update failed. Request a fresh reset link.");
+     if(!response.ok) { const error=new Error("Password update failed"); error.status=response.status; throw error; }
      history.replaceState(null,"",location.pathname+location.search);
      $("new-password").value=""; $("confirm-password").value=""; $("recovery-view").classList.add("hidden");
      message("login-message","Password updated. Sign in with your new password.");
-   } catch(e){message("login-message",e.message||"Could not update password.",true);}
+   } catch(e){message("login-message",safeError(e,"Could not update password. Request a fresh reset link."),true);}
    finally{$("recovery-submit").disabled=false;}
  }
  async function signIn() {
@@ -100,19 +138,40 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
    try {
      const response=await fetch(supabase+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":key,"Content-Type":"application/json"},body:JSON.stringify({email:$("email").value.trim(),password:$("password").value})});
      const session=await response.json();
-     if(!response.ok || !session.access_token) throw new Error(session.msg||session.message||"Sign-in failed. Check your credentials.");
+     if(!response.ok || !session.access_token) { const error=new Error("Sign-in failed"); error.status=response.status; throw error; }
      accessToken=session.access_token;
      await api("/v1/admin/me");
      $("identity").textContent="Signed in as "+(session.user?.email||"authorized administrator");
      $("login-view").classList.add("hidden"); $("app-view").classList.remove("hidden"); $("session-tools").classList.remove("hidden");
      $("password").value=""; message("login-message","");
      await loadPage("overview");
-   } catch(e) { accessToken=null; message("login-message",e.message||"Unable to sign in.",true); }
+   } catch(e) { accessToken=null; message("login-message",safeError(e,"Sign-in failed. Check your credentials and try again."),true); }
    finally { $("signin").disabled=false; }
  }
  function table(items, cols) {
    if(!items?.length) return '<div class="empty">No records found.</div>';
-   return '<table><thead><tr>'+cols.map(c=>'<th>'+esc(c.label)+'</th>').join('')+'</tr></thead><tbody>'+items.map(item=>'<tr>'+cols.map(c=>'<td>'+c.render(item)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+   const filterKey=items.some(x=>x.status!=null)?'status':items.some(x=>x.outcome!=null)?'outcome':null;
+   const values=filterKey?[...new Set(items.map(x=>String(x[filterKey]??'')).filter(Boolean))].sort():[];
+   const plural=filterKey==='status'?'statuses':filterKey==='outcome'?'outcomes':filterKey+'s';
+   const select=values.length?'<label class="small muted">Filter <select data-table-filter aria-label="Filter table rows" style="width:auto;padding:8px;border:1px solid var(--line);border-radius:8px;background:white"><option value="">All '+esc(plural)+'</option>'+values.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select></label>':'';
+   const rows=items.map(item=>'<tr data-filter-value="'+esc(filterKey?item[filterKey]??'':'')+'">'+cols.map(col=>'<td data-label="'+esc(col.label)+'">'+col.render(item)+'</td>').join('')+'</tr>').join('');
+   return '<div class="table-toolbar"><div class="search-wrap"><input type="search" data-table-search placeholder="Search visible records…" aria-label="Search visible table records"></div>'+select+'<span class="table-count" data-table-count>'+items.length+' records on this page</span></div><table><thead><tr>'+cols.map(col=>'<th scope="col">'+esc(col.label)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table><div class="table-empty-filter" data-table-empty>No matching records on this page.</div>';
+ }
+ function wireTableTools(container) {
+   const search=container.querySelector('[data-table-search]');
+   const filter=container.querySelector('[data-table-filter]');
+   const count=container.querySelector('[data-table-count]');
+   const empty=container.querySelector('[data-table-empty]');
+   const rows=[...container.querySelectorAll('tbody tr')];
+   const apply=()=>{
+     const query=(search?.value||'').trim().toLocaleLowerCase();
+     const selected=filter?.value||'';
+     let visible=0;
+     rows.forEach(row=>{const ok=(!query||row.textContent.toLocaleLowerCase().includes(query))&&(!selected||row.dataset.filterValue===selected);row.hidden=!ok;if(ok)visible++;});
+     if(count)count.textContent=visible+' of '+rows.length+' records shown';
+     if(empty)empty.style.display=visible?'none':'block';
+   };
+   search?.addEventListener('input',apply);filter?.addEventListener('change',apply);
  }
  async function loadUsers() {
    const offset=offsets.users;
@@ -121,7 +180,8 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
    $("users-next").disabled=offset+pageSize>=data.total;
    $("users-page").textContent=(data.total===0?"0 users":(offset+1)+"–"+Math.min(offset+pageSize,data.total)+" of "+data.total);
    $("users-table").innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Capabilities",render:u=>'Request: '+(u.can_request?'Yes':'No')+'<br>Donate: '+(u.can_donate?'Yes':'No')},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Actions",render:u=>'<div class="actions"><button class="secondary" data-action="requester" data-id="'+esc(u.user_id)+'">Requester</button><button class="secondary" data-action="donor" data-id="'+esc(u.user_id)+'">Donor</button></div>'}]);
-   $("users-table").querySelectorAll("button[data-action]").forEach(btn=>btn.addEventListener("click",async()=>{if(!confirm("Update capabilities for this user? This action is recorded in the audit log."))return;try{await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify({role:btn.dataset.action,can_request:btn.dataset.action==="requester",can_donate:btn.dataset.action==="donor"})});message("app-message","User capabilities updated and audit event recorded.");await loadUsers();}catch(e){message("app-message",e.message,true);}}));
+   wireTableTools($("users-table"));
+   $("users-table").querySelectorAll("button[data-action]").forEach(btn=>btn.addEventListener("click",async()=>{if(!confirm("Update capabilities for this user? This action is recorded in the audit log."))return;try{await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify({role:btn.dataset.action,can_request:btn.dataset.action==="requester",can_donate:btn.dataset.action==="donor"})});message("app-message","User capabilities updated and audit event recorded.");await loadUsers();}catch(e){message("app-message",safeError(e,"The user update could not be completed. Please retry."),true);}}));
  }
  async function loadSessions() {
    const offset=offsets.sessions;
@@ -139,10 +199,11 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
      {label:"Status",render:s=>'<span class="tag '+(s.status==="active"?"success":"fail")+'">'+esc(s.status)+'</span>'},
      {label:"Action",render:s=>s.status==="active"?'<button class="secondary" data-revoke="'+esc(s.session_id)+'">Revoke</button>':'—'}
    ]);
+   wireTableTools($("sessions-table"));
    $("sessions-table").querySelectorAll("button[data-revoke]").forEach(btn=>btn.addEventListener("click",async()=>{
      if(!confirm("Revoke this session? Its next protected admin API request will be rejected."))return;
      try{await api("/v1/admin/sessions/"+encodeURIComponent(btn.dataset.revoke)+"/revoke",{method:"POST"});message("app-message","Session revoked.");await loadSessions();}
-     catch(e){message("app-message",e.message,true);}
+     catch(e){message("app-message",safeError(e,"The session could not be revoked. Please retry."),true);}
    }));
  }
  async function loadAlerts() {
@@ -157,12 +218,13 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
      {label:"User / Session",render:a=>'<code>'+esc(a.user_id)+'</code><br><code>'+esc(a.session_id||"—")+'</code>'},
      {label:"Incident",render:a=>esc(a.summary)+'<br><span class="muted small">'+esc(a.occurrences)+' occurrences</span>'},
      {label:"Last seen",render:a=>esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")},
-     {label:"Evidence",render:a=>'<code>'+esc(JSON.stringify(a.evidence||{}))+'</code>'},
+     {label:"Evidence",render:a=>'<details class="cell-detail"><summary>View evidence</summary><pre>'+esc(JSON.stringify(a.evidence||{},null,2))+'</pre></details>'},
      {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" data-alert="'+esc(a.id)+'" data-status="acknowledged">Acknowledge</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="investigating">Investigate</button><button data-alert="'+esc(a.id)+'" data-status="resolved">Resolve</button></div>'}
    ]);
+   wireTableTools($("alerts-table"));
    $("alerts-table").querySelectorAll("button[data-alert]").forEach(btn=>btn.addEventListener("click",async()=>{
      try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");await loadAlerts();}
-     catch(e){message("app-message",e.message,true);}
+     catch(e){message("app-message",safeError(e,"The alert could not be updated. Please retry."),true);}
    }));
  }
  async function loadEvents(kind) {
@@ -172,10 +234,13 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
    $(kind+"-prev").disabled=offset===0;
    $(kind+"-next").disabled=data.items.length<pageSize;
    $(kind+"-page").textContent=data.items.length===0?"No records on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
-   $(target).innerHTML=table(data.items,[{label:"Timestamp",render:e=>esc(e.timestamp||e.created_at?new Date(e.timestamp||e.created_at).toLocaleString():"—")},{label:"Event",render:e=>'<strong>'+esc(e.action||"event")+'</strong><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span><br><code>'+esc(e.log_id||e.id||"—")+'</code>'},{label:"CRUD",render:e=>'<span class="tag">'+esc(e.actions||"OTHER")+'</span>'},{label:"Session",render:e=>'<code>'+esc(e.session_id||"Unavailable")+'</code>'},{label:"IP / Device",render:e=>'<code>'+esc(e.ip_address||"Unavailable")+'</code><br><span class="muted small">'+esc(e.device_used||"unknown")+'</span>'},{label:"Actor / Target",render:e=>'<code>'+esc(e.actor_id||"system")+'</code><br>'+esc(e.target_type||"—")+' <code>'+esc(e.target_id||"")+'</code>'},{label:"Description",render:e=>esc(e.description||e.action||"—")+'<br><span class="muted small">Correlation: '+esc(e.correlation_id||"—")+'</span>'},{label:"Metadata",render:e=>'<code>'+esc(JSON.stringify(e.metadata||{}))+'</code>'}]);
+   $(target).innerHTML=table(data.items,[{label:"Timestamp",render:e=>esc(e.timestamp||e.created_at?new Date(e.timestamp||e.created_at).toLocaleString():"—")},{label:"Event",render:e=>'<strong>'+esc(e.action||"event")+'</strong><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span>'},{label:"CRUD",render:e=>'<span class="tag">'+esc(e.actions||"OTHER")+'</span>'},{label:"Session",render:e=>'<code>'+esc(e.session_id||"Unavailable")+'</code>'},{label:"IP / Device",render:e=>'<code>'+esc(e.ip_address||"Unavailable")+'</code><br><span class="muted small">'+esc(e.device_used||"unknown")+'</span>'},{label:"Actor / Target",render:e=>'<code>'+esc(e.actor_id||"system")+'</code><br>'+esc(e.target_type||"—")+' <code>'+esc(e.target_id||"")+'</code>'},{label:"Description",render:e=>esc(e.description||e.action||"—")+'<br><span class="muted small">Correlation: '+esc(e.correlation_id||"—")+'</span>'},{label:"Metadata",render:e=>'<details class="cell-detail"><summary>View metadata</summary><pre>'+esc(JSON.stringify(e.metadata||{},null,2))+'</pre></details>'}]);
+   wireTableTools($(target));
  }
  async function loadPage(page) {
-   activePage=page; document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
+   activePage=page; document.querySelectorAll(".tab").forEach(b=>{const active=b.dataset.page===page;b.classList.toggle("active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
+   const pageTitles={overview:["Operations overview","Admin dashboard"],users:["Workspace","User management"],alerts:["Security center","Security alerts"],sessions:["Security center","Session registry"],audit:["Security center","Audit activity"],errors:["Security center","System errors"]};
+   const title=pageTitles[page]||["Admin","Admin console"];$("page-eyebrow").textContent=title[0];$("page-title").textContent=title[1];
    ["overview","users","audit","sessions","alerts","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
    message("app-message","");
    try {
@@ -185,7 +250,7 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
      if(page==="sessions") await loadSessions();
      if(page==="alerts") await loadAlerts();
      if(page==="errors") await loadEvents("errors");
-   } catch(e) { message("app-message",e.message||"Could not load data.",true); }
+   } catch(e) { message("app-message",safeError(e,"Could not load admin data. Please retry."),true); }
  }
  $("signin").addEventListener("click",signIn);
  $("forgot-password").addEventListener("click",e=>{e.preventDefault();$("recovery-email").value=$("email").value.trim();showRecovery("request");});
