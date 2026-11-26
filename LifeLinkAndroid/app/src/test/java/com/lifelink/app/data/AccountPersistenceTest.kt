@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import com.google.gson.Gson
+import com.lifelink.app.R
 import com.lifelink.app.core.auth.AuthSession
 import com.lifelink.app.core.auth.AuthSessionStore
 import com.lifelink.app.core.auth.TestSessionCipher
@@ -33,6 +34,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.xmlpull.v1.XmlPullParser
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -40,6 +42,38 @@ import org.robolectric.annotation.Config
 @Config(sdk = [28], application = android.app.Application::class)
 class AccountPersistenceTest {
     private lateinit var db: LifeLinkDatabase
+
+    @Test fun authPreferencesAreExcludedFromCloudBackupAndDeviceTransfer() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val parser = context.resources.getXml(R.xml.data_extraction_rules)
+        val excluded = mutableMapOf<String, MutableSet<String>>()
+        var section = ""
+
+        while (parser.eventType != XmlPullParser.END_DOCUMENT) {
+            if (parser.eventType == XmlPullParser.START_TAG) {
+                when (parser.name) {
+                    "cloud-backup", "device-transfer" -> section = parser.name
+                    "exclude" -> {
+                        if (parser.getAttributeValue(null, "domain") == "sharedpref") {
+                            excluded.getOrPut(section) { mutableSetOf() }
+                                .add(parser.getAttributeValue(null, "path").orEmpty())
+                        }
+                    }
+                }
+            } else if (
+                parser.eventType == XmlPullParser.END_TAG &&
+                (parser.name == "cloud-backup" || parser.name == "device-transfer")
+            ) {
+                section = ""
+            }
+            parser.next()
+        }
+        parser.close()
+
+        val authPreferences = setOf("lifelink_auth.xml", "lifelink_auth_secure.xml")
+        assertTrue(authPreferences.all { it in excluded["cloud-backup"].orEmpty() })
+        assertTrue(authPreferences.all { it in excluded["device-transfer"].orEmpty() })
+    }
 
     @Before fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
