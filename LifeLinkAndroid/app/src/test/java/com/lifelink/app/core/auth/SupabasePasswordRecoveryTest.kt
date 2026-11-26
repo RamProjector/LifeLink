@@ -26,7 +26,7 @@ class SupabasePasswordRecoveryTest {
         server = MockWebServer()
         server.start()
         repository = SupabaseAuthRepository(
-            sessionStore = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>()),
+            sessionStore = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>(), TestSessionCipher()),
             baseUrl = server.url("/").toString(),
             publishableKey = "test-publishable-key",
         )
