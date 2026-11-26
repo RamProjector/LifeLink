@@ -186,6 +186,7 @@ async def get_active_postgres_principal(
             "expires_at = EXCLUDED.expires_at, status = 'active' "
             "WHERE lifelink_user_sessions.user_id = EXCLUDED.user_id "
             "AND lifelink_user_sessions.revoked_at IS NULL "
+            "AND lifelink_user_sessions.status <> 'revoked' "
             "AND (EXCLUDED.expires_at IS NULL OR EXCLUDED.expires_at > now()) "
             "RETURNING session_id"
         ),
