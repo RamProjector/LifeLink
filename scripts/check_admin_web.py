@@ -52,7 +52,7 @@ def main() -> None:
 
     if not shutil.which("node"):
         fail("Node.js is required to syntax-check the inline admin script")
-    inline_scripts = re.findall(r"<script>(.*?)</script>", html, re.DOTALL)
+    inline_scripts = re.findall(r"<script>(.*?)</script>", html, re.DOTALL | re.IGNORECASE)
     if len(inline_scripts) != 1:
         fail(f"expected exactly one inline application script, found {len(inline_scripts)}")
     with tempfile.NamedTemporaryFile(mode="w", suffix=".js", encoding="utf-8") as script_file:
