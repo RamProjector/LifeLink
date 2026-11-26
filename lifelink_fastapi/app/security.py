@@ -178,10 +178,10 @@ async def get_active_postgres_principal(
         text(
             "INSERT INTO lifelink_user_sessions "
             "(session_id, user_id, device_used, ip_address, created_at, last_seen_at, expires_at, status) "
-            "SELECT :session_id, :user_id, :device_used, :ip_address, :now, :now, :expires_at, 'active' "
+            "SELECT CAST(:session_id AS varchar), CAST(:user_id AS varchar), :device_used, :ip_address, :now, :now, :expires_at, 'active' "
             "WHERE EXISTS (SELECT 1 FROM auth.sessions AS supabase_session "
-            "WHERE supabase_session.id::text = :session_id "
-            "AND supabase_session.user_id::text = :user_id) "
+            "WHERE supabase_session.id::varchar = CAST(:session_id AS varchar) "
+            "AND supabase_session.user_id::varchar = CAST(:user_id AS varchar)) "
             "ON CONFLICT (session_id) DO UPDATE SET "
             "last_seen_at = EXCLUDED.last_seen_at, device_used = EXCLUDED.device_used, "
             "ip_address = COALESCE(EXCLUDED.ip_address, lifelink_user_sessions.ip_address), "
