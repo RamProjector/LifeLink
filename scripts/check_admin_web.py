@@ -133,8 +133,17 @@ def main() -> None:
     if 'data-status="false_positive"' not in html or "a.acknowledged_at" not in html or "a.resolved_at" not in html:
         fail("security alerts must support false-positive disposition and show their recorded handling history")
 
-    if '"expires_at, revoked_at, revoked_by, status "' not in admin_api or 's.revoked_by||"Unavailable"' not in html:
+    if '"s.expires_at, s.revoked_at, s.revoked_by, s.status,' not in admin_api or 's.revoked_by||"Unavailable"' not in html:
         fail("session management must show the recorded revocation timestamp and actor")
+
+    if (
+        "latest.correlation_id AS last_correlation_id" not in admin_api
+        or "CAST(:correlation_id AS varchar) IS NULL" not in admin_api
+        or 'id="sessions-correlation-filter"' not in html
+        or 'id="alerts-correlation-filter"' not in html
+        or "a.correlation_id" not in html
+    ):
+        fail("sessions and security alerts must expose and filter related correlation identifiers")
 
     required_ids = {"login-view", "app-view", "page-overview", "page-users", "page-alerts", "page-sessions", "page-audit", "page-errors", "page-analytics", "page-roles"}
     missing_ids = sorted(required_ids - set(parser.ids))
