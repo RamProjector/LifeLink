@@ -66,7 +66,10 @@ class RequestHistoryRestoreTest {
     )
 
     @Test fun sameAccountLoginRestoresSubmittedRequestAfterLogoutCleanup() = runBlocking {
-        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>(), TestSessionCipher()) { owner ->
+        val store = AuthSessionStore(
+            ApplicationProvider.getApplicationContext<Context>(),
+            TestSessionCipher(),
+        ) { owner ->
             launch { db.clearLocalAccountData(owner) }
         }
         val session = AuthSession("synthetic-token", "refresh", "alice", "alice@example.test")
