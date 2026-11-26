@@ -6,8 +6,12 @@ from datetime import datetime, timezone
 from functools import lru_cache
 
 import jwt
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from jwt import PyJWKClient
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .db import get_db_session
 
 
 @dataclass(frozen=True)
@@ -145,6 +149,67 @@ def get_postgres_principal(authorization: str | None = Header(default=None)) -> 
     is actually supplied is still verified rather than trusted verbatim.
     """
     return _get_principal(authorization, auth_required(default=True), verify_when_present=True)
+
+
+async def get_active_postgres_principal(
+    request: Request,
+    principal: Principal = Depends(get_postgres_principal),
+    session: AsyncSession = Depends(get_db_session),
+) -> Principal:
+    """Verify and register the Supabase session before serving application APIs.
+
+    Supabase JWT validation proves that the access token was issued and has not
+    expired. The application registry adds immediate revocation: once an admin
+    revokes a session, every protected API route using this dependency rejects
+    that session, not only the admin console routes.
+    """
+    if principal.subject == "development-user":
+        return principal
+    if not principal.session_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session context is missing. Sign in again to establish a secure session.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    now = datetime.now(timezone.utc)
+    user_agent = request.headers.get("user-agent", "unknown")[:255]
+    peer_ip = request.client.host if request.client else None
+    result = await session.execute(
+        text(
+            "INSERT INTO lifelink_user_sessions "
+            "(session_id, user_id, device_used, ip_address, created_at, last_seen_at, expires_at, status) "
+            "VALUES (:session_id, :user_id, :device_used, :ip_address, :now, :now, :expires_at, 'active') "
+            "ON CONFLICT (session_id) DO UPDATE SET "
+            "last_seen_at = EXCLUDED.last_seen_at, device_used = EXCLUDED.device_used, "
+            "ip_address = COALESCE(EXCLUDED.ip_address, lifelink_user_sessions.ip_address), "
+            "expires_at = EXCLUDED.expires_at, status = 'active' "
+            "WHERE lifelink_user_sessions.user_id = EXCLUDED.user_id "
+            "AND lifelink_user_sessions.revoked_at IS NULL "
+            "AND (EXCLUDED.expires_at IS NULL OR EXCLUDED.expires_at > now()) "
+            "RETURNING session_id"
+        ),
+        {
+            "session_id": principal.session_id,
+            "user_id": principal.subject,
+            "device_used": user_agent,
+            "ip_address": peer_ip,
+            "now": now,
+            "expires_at": principal.session_expires_at,
+        },
+    )
+    if result.scalar_one_or_none() is None:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="This session is no longer active. Sign in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    # Persist the registry record before the business handler runs. A later
+    # handler failure must not leave a successfully authenticated session
+    # invisible to the administrator's session inventory.
+    await session.commit()
+    return principal
 
 
 def require_verified_email(principal: Principal) -> None:
