@@ -77,7 +77,7 @@ from .privacy_repositories import (
     SqlAlchemyPrivacyStore,
 )
 from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
-from .security import Principal, get_active_postgres_principal, require_verified_email
+from .security import Principal, get_active_postgres_principal, get_postgres_principal, require_verified_email
 from .rate_limit import enforce_rate_limit
 from .admin_api import _correlation_id, _write_audit, router as admin_router
 from .audit_api import router as audit_router
