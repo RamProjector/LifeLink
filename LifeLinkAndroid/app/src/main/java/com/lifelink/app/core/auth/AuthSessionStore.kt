@@ -18,10 +18,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-internal data class EncryptedSessionPayload(
-    val iv: ByteArray,
-    val ciphertext: ByteArray,
-)
+internal data class EncryptedSessionPayload(val iv: ByteArray, val ciphertext: ByteArray)
 
 internal interface SessionCipher {
     fun encrypt(plaintext: ByteArray): EncryptedSessionPayload
@@ -83,7 +80,7 @@ internal class AndroidKeystoreSessionCipher : SessionCipher {
     private fun loadKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         return keyStore.getKey(KEY_ALIAS, null) as? SecretKey
-            ?: throw IllegalStateException("LifeLink's encrypted session key is unavailable")
+            ?: error("LifeLink's encrypted session key is unavailable")
     }
 
     private companion object {
@@ -253,9 +250,4 @@ class AuthSessionStore internal constructor(
     }
 }
 
-data class AuthSession(
-    val accessToken: String,
-    val refreshToken: String,
-    val userId: String,
-    val email: String
-)
+data class AuthSession(val accessToken: String, val refreshToken: String, val userId: String, val email: String)
