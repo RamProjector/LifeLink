@@ -585,6 +585,21 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 .table-empty-filter { display: none; padding: 24px; color: var(--muted); text-align: center; }
 
+/* Session inventory: reduce column sprawl and keep identifiers legible */
+#page-sessions .sessions-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+#page-sessions .sessions-heading h2{margin:0 0 4px}
+#page-sessions .sessions-guidance{display:flex;align-items:flex-start;gap:9px;margin:0 0 13px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-soft);color:var(--muted)}
+#page-sessions #sessions-table table{min-width:760px}
+#page-sessions #sessions-table td{vertical-align:middle}
+#page-sessions .session-identity,#page-sessions .session-context,#page-sessions .session-timeline,#page-sessions .session-lifecycle{display:grid;gap:5px;min-width:0}
+#page-sessions .session-identity strong{color:var(--ink);font-size:12px}
+#page-sessions .session-identity code,#page-sessions .session-context code{width:fit-content;color:var(--muted);font-size:10.5px}
+#page-sessions .session-context .small,#page-sessions .session-timeline span,#page-sessions .session-lifecycle .small{overflow-wrap:anywhere;font-size:10.5px;line-height:1.45}
+#page-sessions .session-timeline strong{font-size:10.5px;color:var(--ink-soft)}
+#page-sessions .session-lifecycle .tag{width:fit-content}
+#page-sessions #sessions-table td:last-child button{min-height:38px;white-space:nowrap}
+#page-sessions .sessions-pagination{margin-top:12px}
+
 /* Keep the current console single-admin: do not surface the unused RBAC role catalog. */
 .sidebar .tab[data-page="roles"], #page-roles { display: none !important; }
 /* User management: identity-first directory presentation */
@@ -1291,15 +1306,10 @@ async function loadUsers() {
       $("sessions-next").disabled=data.items.length<pageSize;
       $("sessions-page").textContent=data.items.length===0?"No sessions on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
       tableEl.innerHTML=table(data.items,[
-        {label:"User",render:s=>'<code>'+esc(s.user_id)+'</code>'},
-        {label:"Session",render:s=>'<code>'+esc(s.session_id)+'</code>'},
-        {label:"Device context",render:s=>'<strong>'+esc(s.device_used||"Unknown device")+'</strong><br><span class="muted small">'+esc(s.ip_address||"IP unavailable")+'</span>'},
-        
-        {label:"Created",render:s=>esc(s.created_at?new Date(s.created_at).toLocaleString():"—")},
-        {label:"Last seen",render:s=>esc(s.last_seen_at?new Date(s.last_seen_at).toLocaleString():"—")},
-        {label:"Expiry",render:s=>esc(s.expires_at?new Date(s.expires_at).toLocaleString():"Not supplied")},
-        {label:"Revocation",render:s=>s.revoked_at?esc(new Date(s.revoked_at).toLocaleString())+'<br><span class="muted small">By <code>'+esc(s.revoked_by||"Unavailable")+'</code></span>':"—"},
-        {label:"Session status",render:s=>'<span class="tag '+(s.status==="active"?"success":"fail")+'" aria-label="'+(s.status==="active"?"Active session":"Revoked or inactive session")+'">'+esc(s.status==="active"?"Active":s.status||"Inactive")+'</span>'},
+        {label:"Account",render:s=>'<div class="session-identity"><strong>'+esc(s.device_used||"Unknown account")+'</strong><code title="'+esc(s.user_id)+'">'+esc(String(s.user_id||"").slice(0,8)+(String(s.user_id||"").length>8?"…":""))+'</code></div>'},
+        {label:"Session context",render:s=>'<div class="session-context"><code title="'+esc(s.session_id)+'">'+esc(String(s.session_id||"").slice(0,8)+(String(s.session_id||"").length>8?"…":""))+'</code><span class="muted small">'+esc(s.ip_address||"IP unavailable")+'</span></div>'},
+        {label:"Activity",render:s=>'<div class="session-timeline"><strong>Last seen</strong><span>'+esc(s.last_seen_at?new Date(s.last_seen_at).toLocaleString():"Not recorded")+'</span><span class="muted small">Created '+esc(s.created_at?new Date(s.created_at).toLocaleString():"date unavailable")+'</span></div>'},
+        {label:"Status and expiry",render:s=>'<div class="session-lifecycle"><span class="tag '+(s.status==="active"?"success":"fail")+'" aria-label="'+(s.status==="active"?"Active session":"Revoked or inactive session")+'">'+esc(s.status==="active"?"Active":s.status||"Inactive")+'</span><span class="muted small">Expires '+esc(s.expires_at?new Date(s.expires_at).toLocaleString():"not supplied")+'</span>'+(s.revoked_at?'<span class="muted small">Revoked '+esc(new Date(s.revoked_at).toLocaleString())+' · by '+esc(s.revoked_by||"unavailable")+'</span>':'')+'</div>'},
         {label:"Action",render:s=>s.status==="active"?'<button class="secondary" data-revoke="'+esc(s.session_id)+'"><span class="ll-icon" data-icon="shieldAlert"></span>Revoke</button>':'—'}
       ]);
       renderIcons(tableEl);wireTableTools(tableEl);
