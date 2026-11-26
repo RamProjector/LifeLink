@@ -883,8 +883,6 @@ tbody tr:last-child td { border-bottom: 0; }
   #alert-status-filter { width: 100%; }
   #alerts-table .actions { min-width: 0; }
   #alerts-table .actions button { flex: 1 1 42%; }
-  #alerts-table table, #errors-table table, #audit-table table,
-  #page-sessions #sessions-table table, #page-users #users-table table { width: 100%; min-width: 0; }
 }
 /* Phone layout: move navigation above the workspace instead of squeezing content */
 @media (max-width: 620px) {
@@ -1155,7 +1153,8 @@ tbody tr:hover { background: #f0eee7; }
 }
 
 @media(max-width:620px) {
-  #alerts-table table, #errors-table table { width:100%; min-width:0; }
+  #alerts-table table, #errors-table table, #audit-table table,
+  #page-sessions #sessions-table table, #page-users #users-table table { width:100%; min-width:0; }
   #alerts-table td, #errors-table td { min-width:0 !important; max-width:none !important; }
   #alerts-table td:nth-child(4) code, #errors-table td code { max-width:100%; }
   #alerts-table td:last-child .actions { min-width:0; }
