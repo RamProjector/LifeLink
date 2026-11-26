@@ -67,7 +67,7 @@ def main() -> None:
             fail("inline application JavaScript syntax error: " + result.stderr.strip())
 
     csp_match = re.search(
-        r'<meta\s+http-equiv=["\']Content-Security-Policy["\']\s+content=["\']([^"\']+)["\']',
+        r'<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]+)"',
         html,
         re.IGNORECASE,
     )
