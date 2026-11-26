@@ -2,6 +2,8 @@
 """Static integrity checks for the LifeLink Admin Console."""
 from __future__ import annotations
 
+import base64
+import hashlib
 import re
 import shutil
 import subprocess
@@ -23,6 +25,7 @@ class DocumentCheck(HTMLParser):
         self.ids: list[str] = []
         self.icon_names: list[str] = []
         self.icon_script_found = False
+        self.inline_handlers: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = dict(attrs)
@@ -30,6 +33,7 @@ class DocumentCheck(HTMLParser):
             self.ids.append(values["id"] or "")
         if values.get("data-icon"):
             self.icon_names.append(values["data-icon"] or "")
+        self.inline_handlers.extend(name for name, _ in attrs if name.lower().startswith("on"))
         if tag == "script" and values.get("src") == "./icons.js":
             self.icon_script_found = True
 
@@ -61,6 +65,29 @@ def main() -> None:
         result = subprocess.run(["node", "--check", script_file.name], capture_output=True, text=True, check=False)
         if result.returncode:
             fail("inline application JavaScript syntax error: " + result.stderr.strip())
+
+    csp_match = re.search(
+        r'<meta\s+http-equiv=["\']Content-Security-Policy["\']\s+content=["\']([^"\']+)["\']',
+        html,
+        re.IGNORECASE,
+    )
+    if not csp_match:
+        fail("admin console must declare a Content Security Policy")
+    csp = csp_match.group(1)
+    script_hash = base64.b64encode(hashlib.sha256(inline_scripts[0].encode("utf-8")).digest()).decode("ascii")
+    if f"'sha256-{script_hash}'" not in csp:
+        fail("Content Security Policy hash does not match the inline application script")
+    script_policy = re.search(r"(?:^|;)\s*script-src\s+([^;]+)", csp)
+    if not script_policy or "'unsafe-inline'" in script_policy.group(1):
+        fail("inline application scripts must be hash-authorized, not allowed with unsafe-inline")
+    if "object-src 'none'" not in csp:
+        fail("Content Security Policy must disable embedded object content")
+    if parser.inline_handlers:
+        fail("admin HTML must not use inline event-handler attributes")
+    if "localStorage" in html or "sessionStorage" in html:
+        fail("administrator access and recovery tokens must not be persisted in browser storage")
+    if 'name="referrer" content="no-referrer"' not in html or 'name="robots" content="noindex,nofollow"' not in html:
+        fail("admin console must prevent referrer leakage and search indexing")
 
     duplicates = [key for key, count in Counter(parser.ids).items() if count > 1]
     if duplicates:
