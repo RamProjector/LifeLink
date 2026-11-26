@@ -1,6 +1,8 @@
 package com.lifelink.app
 
 import android.content.Context
+import com.lifelink.app.core.auth.AuthSession
+import com.lifelink.app.core.auth.AuthSessionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
@@ -22,14 +24,18 @@ internal object DemoBackendRuntime {
         }
 
         // The UI-test application ID is separate, so this synthetic session cannot
-        // overwrite the real app's saved session.
-        context.getSharedPreferences("lifelink_auth", Context.MODE_PRIVATE)
-            .edit()
-            .putString("access_token", "ui-test-only-fake-token")
-            .putString("refresh_token", "ui-test-only-fake-refresh-token")
-            .putString("user_id", "demo-user")
-            .putString("email", "demo.requester@lifelink.test")
-            .apply()
+        // overwrite the real app's saved session. Use the same Keystore-backed
+        // persistence path as the production app; never seed raw tokens in prefs.
+        runBlocking(Dispatchers.IO) {
+            AuthSessionStore(context.applicationContext).save(
+                AuthSession(
+                    accessToken = "ui-test-only-fake-token",
+                    refreshToken = "ui-test-only-fake-refresh-token",
+                    userId = "demo-user",
+                    email = "demo.requester@lifelink.test",
+                ),
+            )
+        }
     }
 
     fun resolveBaseUrl(configuredBaseUrl: String): String {

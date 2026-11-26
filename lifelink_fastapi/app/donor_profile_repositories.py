@@ -21,9 +21,9 @@ from uuid import uuid4
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .db_models import AuditEvent, LifeLinkProfile
 from .db_models import Donor as DonorRow
 from .db_models import DonorProfile as DonorProfileRow
-from .db_models import LifeLinkProfile
 from .donor_api import DonorAvailability, DonorProfileIn
 from .donor_profile_api import DonorPresenceIn, DonorProfileMeOut, DonorProfileUpsertIn
 from .donor_repositories import SqlAlchemyDonorStore
@@ -101,6 +101,7 @@ class SqlAlchemyDonorProfileStore:
                 preferred_contact_method=preferred_contact_method,
                 profile_visible=profile_visible,
             ),
+            commit=False,
         )
         # `upsert_profile` deliberately never trusts a client-supplied verified
         # flag. The donor-profile row is the server-controlled source of truth,
@@ -109,14 +110,52 @@ class SqlAlchemyDonorProfileStore:
         row.available = effective_available(availability_status, verified)
         now = datetime.now(UTC)
         row.availability_updated_at = now
-        await self.session.commit()
         return row
 
     async def upsert(self, user_id: str, payload: DonorProfileUpsertIn) -> DonorProfileMeOut:
         """Opt in / update the current user's donor profile."""
         now = datetime.now(UTC)
         row = await self.session.get(DonorProfileRow, user_id)
+        is_new_profile = row is None
+        profile_fields = (
+            "blood_type",
+            "latitude",
+            "longitude",
+            "area",
+            "availability_status",
+            "last_donation_date",
+            "notifications_enabled",
+            "service_radius_km",
+        )
+        operational_fields = (
+            "display_name",
+            "donor_note",
+            "preferred_contact_method",
+            "profile_visible",
+        )
+        operational_before = await SqlAlchemyDonorStore(self.session).get_by_identity(user_id)
+        previous_values = {
+            field: getattr(row, field) for field in profile_fields
+        } if row is not None else {}
+        if operational_before is not None:
+            previous_values.update({
+                field: getattr(operational_before, field) for field in operational_fields
+            })
         display_name = await self._resolve_display_name(user_id, payload.display_name)
+        requested_values = {
+            "blood_type": payload.blood_type.value,
+            "latitude": Decimal(str(payload.latitude)),
+            "longitude": Decimal(str(payload.longitude)),
+            "area": payload.area,
+            "availability_status": payload.availability_status.value,
+            "last_donation_date": payload.last_donation_date,
+            "notifications_enabled": payload.notifications_enabled,
+            "service_radius_km": Decimal(str(payload.service_radius_km)),
+            "display_name": display_name,
+            "donor_note": payload.donor_note,
+            "preferred_contact_method": payload.preferred_contact_method,
+            "profile_visible": payload.profile_visible,
+        }
         if row is None:
             row = DonorProfileRow(
                 user_id=user_id,
@@ -144,8 +183,6 @@ class SqlAlchemyDonorProfileStore:
             # `verified` is intentionally left as stored: re-saving a profile
             # must not un-verify an already verified donor.
             row.updated_at = now
-        await self.session.commit()
-
         await self._sync_operational_donor(
             user_id,
             blood_type=payload.blood_type.value,
@@ -159,6 +196,22 @@ class SqlAlchemyDonorProfileStore:
             verified=row.verified,
             availability_status=row.availability_status,
         )
+
+        changed_fields = [
+            field for field, requested_value in requested_values.items()
+            if is_new_profile or previous_values.get(field) != requested_value
+        ]
+        if is_new_profile or changed_fields:
+            self.session.add(AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=user_id,
+                action="donor_profile_created" if is_new_profile else "donor_profile_updated",
+                donor_id=row.donor_id,
+                event_metadata={"changed_fields": changed_fields},
+            ))
+        # Profile, account capability, operational donor mirror, and audit
+        # record are committed as one unit; an audit failure rolls them all back.
+        await self.session.commit()
         await self._recompute(user_id)
         return self.to_out(row, display_name, payload)
 
@@ -188,6 +241,25 @@ class SqlAlchemyDonorProfileStore:
         donor_row.availability_updated_at = now
         donor_row.last_presence_at = now
         donor_row.available = effective_available(row.availability_status, row.verified)
+        # Provider is client-reported diagnostic metadata, not GPS attestation.
+        # Keep the audit useful without retaining coordinates or raw precision.
+        precision_bucket = (
+            "high" if payload.precision_meters <= 20
+            else "medium" if payload.precision_meters <= 100
+            else "low" if payload.precision_meters <= 1000
+            else "very_low"
+        )
+        self.session.add(AuditEvent(
+            id=f"audit_{uuid4().hex}",
+            actor_id=user_id,
+            action="donor_presence_recorded",
+            donor_id=donor_row.id,
+            event_metadata={
+                "provider": payload.provider or "unknown",
+                "precision_bucket": precision_bucket,
+            },
+        ))
+        # Presence state and its audit event must succeed or roll back together.
         await self.session.commit()
         await self._recompute(user_id)
         return self.to_out(row, donor_row.display_name, None)
@@ -223,9 +295,24 @@ class SqlAlchemyDonorProfileStore:
                 or_(DonorRow.last_presence_at.is_(None), DonorRow.last_presence_at < cutoff),
             )
             .values(available=False, availability_updated_at=now)
-            .returning(DonorRow.user_id)
+            .returning(DonorRow.id, DonorRow.user_id)
         )
-        expired_owner_ids = list(expired.scalars().all())
+        expired_rows = list(expired.all())
+        expired_owner_ids = [row.user_id for row in expired_rows]
+        # System-driven availability changes are security-relevant state
+        # transitions too. Write one content-free event per affected donor in
+        # the same transaction as the conditional UPDATE, so audit failures
+        # cannot leave an unrecorded offline transition.
+        self.session.add_all(
+            AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id="system:presence_sweeper",
+                action="donor_presence_expired",
+                donor_id=row.id,
+                event_metadata={"reason": "stale_presence"},
+            )
+            for row in expired_rows
+        )
         await self.session.commit()
         for owner_id in expired_owner_ids:
             await self._recompute(owner_id)
@@ -237,17 +324,25 @@ class SqlAlchemyDonorProfileStore:
         if row is None:
             raise KeyError(user_id)
         now = datetime.now(UTC)
+        previous_status = row.availability_status
         row.availability_status = availability.value
         row.updated_at = now
 
-        # Keep the donor-facing preference and the operational matching row in
-        # one transaction. A failed mirror must not leave the profile saying
-        # "paused" while the matching row still says "available" (or vice versa).
+        # Keep the donor-facing preference, operational matching row, and
+        # audit event in one transaction.
         donor_row = await SqlAlchemyDonorStore(self.session).get_by_identity(user_id)
         if donor_row is not None:
             donor_row.available = effective_available(availability.value, row.verified)
             donor_row.availability_updated_at = now
 
+        if previous_status != availability.value:
+            self.session.add(AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=user_id,
+                action="donor_availability_changed",
+                donor_id=donor_row.id if donor_row is not None else row.donor_id,
+                event_metadata={"from": previous_status, "to": availability.value},
+            ))
         await self.session.commit()
         await self._recompute(user_id)
         return self.to_out(row, donor_row.display_name if donor_row else "LifeLink donor", None)
@@ -255,13 +350,34 @@ class SqlAlchemyDonorProfileStore:
     async def delete(self, user_id: str) -> None:
         """Opt out: remove the profile and stop the donor from being matched."""
         row = await self.session.get(DonorProfileRow, user_id)
+        donor_row = await SqlAlchemyDonorStore(self.session).get_by_identity(user_id)
+        account_profile = await self.session.get(LifeLinkProfile, user_id)
         if row is not None:
             await self.session.delete(row)
-        donor_row = await SqlAlchemyDonorStore(self.session).get_by_identity(user_id)
+        operational_donor_needed_disable = bool(
+            donor_row is not None and (donor_row.available or donor_row.profile_visible)
+        )
         if donor_row is not None:
             donor_row.available = False
             donor_row.profile_visible = False
             donor_row.availability_updated_at = datetime.now(UTC)
+        account_capability_was_enabled = bool(account_profile and account_profile.can_donate)
+        if account_profile is not None:
+            account_profile.can_donate = False
+        if row is not None or operational_donor_needed_disable or account_capability_was_enabled:
+            self.session.add(AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=user_id,
+                action="donor_profile_deleted",
+                donor_id=donor_row.id if donor_row is not None else (row.donor_id if row is not None else None),
+                event_metadata={
+                    "profile_removed": row is not None,
+                    "operational_donor_disabled": operational_donor_needed_disable,
+                    "account_capability_reset": account_capability_was_enabled,
+                },
+            ))
+        # Profile removal, account capability reset, donor disablement, and
+        # the audit event must commit or roll back together.
         await self.session.commit()
         await self._recompute(user_id)
 

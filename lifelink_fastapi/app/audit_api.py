@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .admin_api import _correlation_id, _safe_audit_metadata, _write_audit
 from .db import get_db_session
-from .security import Principal, get_postgres_principal, require_verified_email
+from .security import Principal, get_active_postgres_principal, require_verified_email
 
 router = APIRouter(prefix="/v1/audit", tags=["audit"])
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/v1/audit", tags=["audit"])
 async def read_my_audit_events(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     action: str | None = Query(default=None, max_length=64),

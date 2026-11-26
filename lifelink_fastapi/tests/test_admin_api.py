@@ -226,7 +226,7 @@ def test_non_admin_is_denied_by_every_admin_endpoint(monkeypatch, method, path, 
 
     from app.db import get_db_session
     from app.main_postgres import app
-    from app.security import get_postgres_principal
+    from app.security import get_active_postgres_principal, get_postgres_principal
 
     monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
 
@@ -235,6 +235,9 @@ def test_non_admin_is_denied_by_every_admin_endpoint(monkeypatch, method, path, 
 
     app.dependency_overrides[get_db_session] = fake_session
     app.dependency_overrides[get_postgres_principal] = lambda: Principal(
+        subject="regular-user", email="regular@example.test", email_verified=True
+    )
+    app.dependency_overrides[get_active_postgres_principal] = lambda: Principal(
         subject="regular-user", email="regular@example.test", email_verified=True
     )
 
@@ -354,6 +357,12 @@ def test_ordinary_admin_cannot_assign_roles_through_http(monkeypatch):
         email_verified=True,
         session_id="ordinary-admin-session",
     )
+    from app.security import get_active_postgres_principal
+    app.dependency_overrides[get_active_postgres_principal] = lambda: Principal(
+        subject="ordinary-admin",
+        email_verified=True,
+        session_id="ordinary-admin-session",
+    )
 
     async def make_request():
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
@@ -400,3 +409,136 @@ def test_api_activity_methods_map_to_crud_categories():
     assert _operation_audit_kind("PATCH") == ("EDIT", "updated")
     assert _operation_audit_kind("DELETE") == ("DELETE", "deleted")
     assert _operation_audit_kind("GET") == ("OTHER", "viewed")
+
+
+def test_admin_audit_query_explicitly_types_nullable_action_filter():
+    from app.admin_api import admin_audit_logs
+
+    class EmptyRows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class AuditQuerySession(FakeSession):
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            self.statements.append(sql)
+            if "FROM audit_events WHERE" in sql:
+                assert params["action"] is None
+                return EmptyRows()
+            return None
+
+    session = AuditQuerySession()
+
+    async def check():
+        await admin_audit_logs(
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            limit=50,
+            offset=0,
+            action=None,
+            x_correlation_id=None,
+        )
+
+    asyncio.run(check())
+    audit_query = next(statement for statement in session.statements if "FROM audit_events WHERE" in statement)
+    assert "CAST(:action AS varchar) IS NULL" in audit_query
+    assert "action = CAST(:action AS varchar)" in audit_query
+    assert "CAST(:correlation_id AS varchar) IS NULL" in audit_query
+    assert "correlation_id = CAST(:correlation_id AS varchar)" in audit_query
+
+
+@pytest.mark.parametrize("alert_status", [None, "open"])
+def test_security_alert_query_explicitly_types_nullable_status_filter(monkeypatch, alert_status):
+    from app import admin_api
+
+    class EmptyRows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class AlertQuerySession(FakeSession):
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            self.statements.append(sql)
+            if "FROM lifelink_security_alerts" in sql:
+                assert params["status"] == alert_status
+                return EmptyRows()
+            return None
+
+    async def no_rbac_scan(*args, **kwargs):
+        return 0
+
+    async def no_audit(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(admin_api, "_scan_rbac_discrepancies", no_rbac_scan)
+    monkeypatch.setattr(admin_api, "_write_audit", no_audit)
+    session = AlertQuerySession()
+
+    async def check():
+        response = await admin_api.admin_security_alerts(
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            limit=50,
+            offset=0,
+            alert_status=alert_status,
+        )
+        assert response["items"] == []
+
+    asyncio.run(check())
+    alert_query = next(statement for statement in session.statements if "FROM lifelink_security_alerts" in statement)
+    assert "CAST(:status AS varchar) IS NULL" in alert_query
+    assert "status = CAST(:status AS varchar)" in alert_query
+
+
+@pytest.mark.parametrize("correlation_id", [None, "web:error-123"])
+def test_admin_errors_query_explicitly_types_nullable_correlation_filter(monkeypatch, correlation_id):
+    from app import admin_api
+
+    class EmptyRows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class ErrorQuerySession(FakeSession):
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            self.statements.append(sql)
+            if "FROM audit_events WHERE (action LIKE 'error.%'" in sql:
+                assert params["correlation_id"] == correlation_id
+                return EmptyRows()
+            return None
+
+    async def no_audit(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(admin_api, "_write_audit", no_audit)
+    session = ErrorQuerySession()
+
+    async def check():
+        response = await admin_api.admin_errors(
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            limit=50,
+            offset=0,
+            correlation_id=correlation_id,
+        )
+        assert response["items"] == []
+
+    asyncio.run(check())
+    error_query = next(
+        statement for statement in session.statements
+        if "FROM audit_events WHERE (action LIKE 'error.%'" in statement
+    )
+    assert "CAST(:correlation_id AS varchar) IS NULL" in error_query
+    assert "correlation_id = CAST(:correlation_id AS varchar)" in error_query

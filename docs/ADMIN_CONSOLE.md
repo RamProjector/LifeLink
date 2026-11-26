@@ -85,3 +85,32 @@ The current session registry records administrator sessions observed by the admi
 
 
 The first active IDS rules are IDS-03 (repeated denied admin access), IDS-04 (missing session context), and IDS-05 (revoked session reuse). Thresholds are currently deterministic and intentionally narrow; they require tuning against real application traffic before wider automated blocking is enabled. Other planned detection categories are not yet implemented.
+
+## Admin Console navigation and table usability
+
+The existing admin website remains the single LifeLink operations and IDS/IPS console. The navigation is organized as a persistent desktop sidebar with Workspace and Security Center sections; on narrower screens it becomes a horizontally scrollable navigation strip. Existing routes/pages and server-side authorization remain unchanged.
+
+Data views now provide:
+- A page-local search field for the currently loaded records and a record-count indicator.
+- Audit rows prioritize the event, outcome, actor/target context, and timestamp; internal audit row IDs are not presented as user-facing event data.
+- A status/outcome filter when the returned dataset includes those fields.
+- Responsive table rows that become labeled record cards on small screens, rather than forcing horizontal scrolling across every column.
+- Compact, consistent spacing, sticky table headers on desktop, zebra rows, and clearer status/action grouping.
+- Collapsible evidence and metadata blocks so large JSON values do not dominate the table; values remain escaped before display.
+- Existing server pagination and alert/session/user actions are preserved. Search and filters operate only on the current server page and do not imply a global search.
+
+The navigation/table redesign does not change API contracts, authorization, IDS/IPS detection rules, or audit data. Verify desktop, tablet, and phone widths; keyboard navigation; empty/loading/error states; and existing alert acknowledge/investigate/resolve and session-revoke actions before production release.
+
+
+## Safe error feedback
+
+Admin web actions and data loading map authentication, authorization, missing-record, timeout, conflict, rate-limit, server, and network failures to stable user-facing messages. Raw API response details and backend exception text are not displayed in the browser. The correlation ID remains available in the request header for server-side diagnostics.
+
+
+## Cross-surface interaction standards (carried forward from closed UI-polish work)
+
+- Keep the active navigation destination explicit and keyboard accessible at desktop, tablet, and phone widths; each navigation button identifies its controlled page region, and each region is labelled by the active page title.
+- Give every admin action a clear success, failure, or unavailable outcome; announce asynchronous feedback accessibly and keep it near the affected workflow.
+- For recoverable failures, preserve the current page and local search/filter context where safe so administrators do not lose their place.
+- Display stable, actionable error copy only. Keep raw backend details and correlation context out of the browser UI; retain correlation identifiers in request/server diagnostics.
+- Verify loading, empty, error, and permission-denied states alongside normal tables. These criteria do not expand the PR's API or IDS/IPS detection scope.

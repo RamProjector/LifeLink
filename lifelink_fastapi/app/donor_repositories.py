@@ -66,7 +66,13 @@ class SqlAlchemyDonorStore:
             select(DonorRow).where(DonorRow.user_id == donor_id).limit(1)
         )
 
-    async def upsert_profile(self, donor_id: str, payload: DonorProfileIn) -> DonorRow:
+    async def upsert_profile(
+        self,
+        donor_id: str,
+        payload: DonorProfileIn,
+        *,
+        commit: bool = True,
+    ) -> DonorRow:
         """Create or update a donor's operational row, never trusting client verification."""
         row = await self.get_by_identity(donor_id)
         now = datetime.now(UTC)
@@ -103,7 +109,8 @@ class SqlAlchemyDonorStore:
             row.pause_reason = payload.pause_reason
             row.profile_visible = payload.profile_visible
             row.updated_at = now
-        await self.session.commit()
+        if commit:
+            await self.session.commit()
         return row
 
     async def recompute_matches_for_donor(self, donor_id: str) -> None:

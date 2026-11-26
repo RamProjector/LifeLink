@@ -256,6 +256,44 @@ open class ConversationNavigationTest {
         composeRule.onNodeWithText("LifeLink", substring = false).assertIsDisplayed()
     }
 
+    /** Ensures map users can still reach notifications and Profile without restoring the full app bar. */
+    @Test
+    fun donor_map_shell_shortcuts_open_notifications_and_profile() {
+        renderShell(StateRestorationTester(composeRule), UserRole.REQUESTER)
+        composeRule.onNodeWithTag("nav-MAP").performClick()
+        composeRule.onNodeWithTag("open-notifications").assertDoesNotExist()
+        composeRule.onNodeWithTag("open-profile").assertDoesNotExist()
+        composeRule.onNodeWithText("Find donors", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("More map options").assertIsDisplayed()
+        composeRule.onNodeWithTag("map-shell-shortcuts").performClick()
+        composeRule.onNodeWithTag("map-open-notifications").assertIsDisplayed()
+        composeRule.onNodeWithText("Notifications", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithText("Profile", substring = false).assertIsDisplayed()
+        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.onNodeWithTag("map-open-notifications").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("map-shell-shortcuts").performClick()
+        composeRule.onNodeWithTag("map-open-notifications").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Activity", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Back").performClick()
+        // Notifications are a temporary destination; closing them must restore the map.
+        composeRule.onNodeWithText("Find donors", substring = false).assertIsDisplayed()
+        composeRule.onNodeWithTag("nav-MAP").assertIsSelected()
+
+        composeRule.onNodeWithTag("nav-MAP").performClick()
+        composeRule.onNodeWithContentDescription("Show map filters").performClick()
+        composeRule.onNodeWithText("O+", substring = false).performClick()
+        composeRule.onNodeWithContentDescription("Hide map filters, 1 active filter").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("map-shell-shortcuts").performClick()
+        composeRule.onNodeWithTag("map-open-profile").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Profile, notifications, privacy, safety, and app preferences.").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav-MAP").performClick()
+        composeRule.onNodeWithText("Find donors", substring = false).assertIsDisplayed()
+        // Returning from Profile must restore the map's open filter panel and selection.
+        composeRule.onNodeWithContentDescription("Hide map filters, 1 active filter").assertIsDisplayed()
+    }
+
     /** Verifies that request-history filters expose their active count and can be cleared together. */
     @Test
     fun request_history_filter_summary_can_clear_filter_and_search() {
@@ -290,6 +328,9 @@ open class ConversationNavigationTest {
                 }
             }
         }
+
+        // Shell shortcuts belong only to the embedded map; standalone map flows keep their own chrome.
+        assertTrue(composeRule.onAllNodesWithTag("map-shell-shortcuts").fetchSemanticsNodes().isEmpty())
 
         composeRule.onNodeWithText("Loading donor areas…").assertIsDisplayed()
         composeRule.onNodeWithText("No donor areas available").assertDoesNotExist()

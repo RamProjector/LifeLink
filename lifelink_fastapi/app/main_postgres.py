@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import AsyncSessionLocal, create_all_tables, get_db_session
-from .db_models import Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum, Message
+from .db_models import AuditEvent, Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum, Message
 from .fcm import send_push_safely
 from .main import (
     EmergencyRequestIn,
@@ -77,7 +77,7 @@ from .privacy_repositories import (
     SqlAlchemyPrivacyStore,
 )
 from .expiry import ACTIVE_REQUEST_STATUSES, is_request_expired
-from .security import Principal, get_postgres_principal, require_verified_email
+from .security import Principal, get_active_postgres_principal, get_postgres_principal, require_verified_email
 from .rate_limit import enforce_rate_limit
 from .admin_api import _correlation_id, _write_audit, router as admin_router
 from .audit_api import router as audit_router
@@ -445,7 +445,7 @@ class ContactModerationOut(BaseModel):
 async def upsert_profile(
     payload: ProfileIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
@@ -453,7 +453,8 @@ async def upsert_profile(
     require_verified_email(principal)
     await enforce_rate_limit(f"profile-upsert:{principal.subject}", 20, 300)
     row = await session.get(LifeLinkProfile, principal.subject)
-    if row is None:
+    is_new_profile = row is None
+    if is_new_profile:
         row = LifeLinkProfile(
             user_id=principal.subject,
             email=principal.email or "",
@@ -463,12 +464,39 @@ async def upsert_profile(
             display_name=payload.display_name,
         )
         session.add(row)
+        changed_fields = ["email", "role", "can_request", "can_donate", "display_name"]
     else:
+        before = {
+            "email": row.email,
+            "role": enum_value(row.role),
+            "can_request": row.can_request,
+            "can_donate": row.can_donate,
+            "display_name": row.display_name,
+        }
         row.email = principal.email or row.email
         row.role = LifeLinkRoleEnum(payload.role)
         row.can_request = payload.can_request
         row.can_donate = payload.can_donate
         row.display_name = payload.display_name
+        after = {
+            "email": row.email,
+            "role": enum_value(row.role),
+            "can_request": row.can_request,
+            "can_donate": row.can_donate,
+            "display_name": row.display_name,
+        }
+        changed_fields = [field for field, value in after.items() if before[field] != value]
+    # Keep the audit event in the same transaction as the profile mutation.
+    # Store field names only: never copy email or display-name values to audit.
+    if is_new_profile or changed_fields:
+        session.add(
+            AuditEvent(
+                id=f"audit_{uuid4().hex}",
+                actor_id=principal.subject,
+                action="profile.created" if is_new_profile else "profile.updated",
+                event_metadata={"changed_fields": changed_fields},
+            )
+        )
     await session.commit()
     return ProfileOut(
         user_id=row.user_id,
@@ -483,7 +511,7 @@ async def upsert_profile(
 @app.get("/v1/profile", response_model=ProfileOut)
 async def get_profile(
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
@@ -505,7 +533,7 @@ async def get_profile(
 async def register_push_token(
     payload: PushTokenIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
@@ -528,7 +556,7 @@ async def nearby_health_facilities(
     longitude: float,
     radius_km: float = 10.0,
     limit: int = 20,
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Find nearby hospitals and clinics from OpenStreetMap via Overpass.
 
@@ -618,7 +646,7 @@ async def create_emergency_request_postgres(
     payload: EmergencyRequestIn,
     idempotency_header: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     validate_business_rules(payload)
     if principal.subject != "development-user" and principal.subject != payload.requester_id:
@@ -694,6 +722,7 @@ async def create_emergency_request_postgres(
             matches=[],
             request_id=request_id,
             status=RequestStatus.MANUAL_BROADCAST,
+            audit_actor_id=principal.subject,
         )
         return ManualFallbackOut(
             request_id=request_id,
@@ -707,6 +736,7 @@ async def create_emergency_request_postgres(
         matches=matches,
         request_id=request_id,
         status=RequestStatus.AWAITING_RESPONSES,
+        audit_actor_id=principal.subject,
     )
     # Submitting a request must NOT broadcast it. Matches are computed and stored
     # so the requester can review them, but no donor is notified here. Donors are
@@ -728,7 +758,7 @@ async def contact_selected_donors_postgres(
     request_id: str,
     payload: ContactSelectedDonorsIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     store = SqlAlchemyRequestStore(session)
     record = await store.get_by_id_async(request_id)
@@ -764,7 +794,7 @@ async def contact_selected_donors_postgres(
 async def requester_contacts_postgres(
     request_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     store = SqlAlchemyRequestStore(session)
     record = await store.get_by_id_async(request_id)
@@ -781,7 +811,7 @@ async def update_requester_contact_status(
     donor_id: str,
     payload: ContactStatusUpdateIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     store = SqlAlchemyRequestStore(session)
     record = await store.get_by_id_async(request_id)
@@ -791,7 +821,13 @@ async def update_requester_contact_status(
         raise HTTPException(status_code=403, detail="Not allowed to update this contact")
     await enforce_rate_limit(f"contact-status:{principal.subject}", 30, 300)
     try:
-        await store.update_contact_status_async(request_id, donor_id, record.payload.requester_id, payload.status)
+        await store.update_contact_status_async(
+            request_id,
+            donor_id,
+            record.payload.requester_id,
+            payload.status,
+            audit_actor_id=principal.subject,
+        )
     except KeyError:
         raise HTTPException(status_code=404, detail="Contact not found") from None
     except ValueError as exc:
@@ -806,7 +842,7 @@ async def report_requester_contact(
     donor_id: str,
     payload: ContactModerationIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     store = SqlAlchemyRequestStore(session)
     record = await store.get_by_id_async(request_id)
@@ -833,7 +869,7 @@ async def block_requester_contact(
     request_id: str,
     donor_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     store = SqlAlchemyRequestStore(session)
     record = await store.get_by_id_async(request_id)
@@ -853,7 +889,7 @@ async def block_requester_contact(
 async def manual_broadcast_postgres(
     request_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     store = SqlAlchemyRequestStore(session)
     record = await store.get_by_id_async(request_id)
@@ -884,7 +920,7 @@ async def manual_broadcast_postgres(
 @app.get("/v1/emergency-requests", response_model=list[RequestHistoryItemOut])
 async def list_emergency_request_history(
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject == "development-user":
         return []
@@ -917,7 +953,7 @@ async def list_emergency_request_history(
 async def get_emergency_request_status(
     request_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     record = await SqlAlchemyRequestStore(session).get_by_id_async(request_id)
     if record is None:
@@ -947,7 +983,7 @@ async def get_emergency_request_status(
 async def cancel_emergency_request(
     request_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     store = SqlAlchemyRequestStore(session)
     record = await store.get_by_id_async(request_id)
@@ -974,7 +1010,7 @@ async def cancel_emergency_request(
 async def fulfill_emergency_request(
     request_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     store = SqlAlchemyRequestStore(session)
     record = await store.get_by_id_async(request_id)
@@ -1005,7 +1041,7 @@ async def fulfill_emergency_request(
 async def upsert_donor_profile(
     payload: DonorProfileUpsertIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
@@ -1028,7 +1064,7 @@ async def upsert_donor_profile(
 @app.get("/v1/donor-profile", response_model=DonorProfileMeOut)
 async def get_donor_profile(
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
@@ -1045,7 +1081,7 @@ async def get_donor_profile(
 async def record_donor_presence(
     payload: DonorPresenceIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Accept a fresh GPS observation from the authenticated donor.
 
@@ -1060,13 +1096,20 @@ async def record_donor_presence(
         return await SqlAlchemyDonorProfileStore(session).record_presence(principal.subject, payload)
     except KeyError:
         raise HTTPException(status_code=404, detail="Donor profile not found") from None
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        logger.exception("Donor GPS presence update failed for operation donor_presence")
+        raise HTTPException(
+            status_code=503,
+            detail="GPS presence could not be updated right now. Please try again.",
+        ) from exc
 
 
 @app.patch("/v1/donor-profile/availability", response_model=DonorProfileMeOut)
 async def toggle_donor_profile_availability(
     payload: DonorAvailabilityToggleIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
@@ -1081,23 +1124,19 @@ async def toggle_donor_profile_availability(
 @app.delete("/v1/donor-profile", status_code=204)
 async def delete_donor_profile(
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
     require_verified_email(principal)
     await SqlAlchemyDonorProfileStore(session).delete(principal.subject)
-    profile = await session.get(LifeLinkProfile, principal.subject)
-    if profile is not None:
-        profile.can_donate = False
-        await session.commit()
 
 
 @app.get("/v1/donors/{donor_id}", response_model=DonorProfileOut)
 async def get_donor_postgres(
     donor_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
@@ -1128,7 +1167,7 @@ async def register_donor_postgres(
     donor_id: str,
     payload: DonorProfileIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
@@ -1183,7 +1222,7 @@ async def record_legacy_donor_presence_postgres(
     donor_id: str,
     payload: DonorPresenceIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Record a fresh GPS observation for the authenticated legacy donor workspace."""
     if principal.subject != "development-user" and principal.subject != donor_id:
@@ -1203,6 +1242,22 @@ async def record_legacy_donor_presence_postgres(
     row.last_presence_at = now
     row.availability_updated_at = now
     row.updated_at = now
+    precision_bucket = (
+        "high" if payload.precision_meters <= 20
+        else "medium" if payload.precision_meters <= 100
+        else "low" if payload.precision_meters <= 1000
+        else "very_low"
+    )
+    session.add(AuditEvent(
+        id=f"audit_{uuid4().hex}",
+        actor_id=principal.subject,
+        action="donor_presence_recorded",
+        donor_id=row.id,
+        event_metadata={
+            "provider": payload.provider or "unknown",
+            "precision_bucket": precision_bucket,
+        },
+    ))
     try:
         await session.commit()
         await store.recompute_matches_for_donor(donor_id)
@@ -1234,7 +1289,7 @@ async def update_donor_availability_postgres(
     donor_id: str,
     payload: DonorAvailabilityIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
@@ -1264,7 +1319,7 @@ async def update_donor_availability_postgres(
 async def donor_request_inbox_postgres(
     donor_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
@@ -1293,7 +1348,7 @@ async def donor_response_postgres(
     request_id: str,
     payload: DonorResponseIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject != "development-user" and principal.subject != donor_id:
         raise HTTPException(status_code=403, detail="donor_id must match the authenticated user")
@@ -1333,7 +1388,7 @@ async def donor_response_postgres(
 @app.get("/v1/donor-map", response_model=DonorMapOut)
 async def donor_map(
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Approximate donor areas with a freshness timestamp.
 
@@ -1355,7 +1410,7 @@ async def set_donor_map_visibility(
     donor_id: str,
     payload: DonorMapVisibilityIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Donor opt-in for the map and for matched-requester exact location.
 
@@ -1385,7 +1440,7 @@ async def activate_location_share(
     request_id: str,
     donor_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Activate exact-location sharing for a matched donor.
 
@@ -1469,7 +1524,7 @@ async def revoke_location_share(
     request_id: str,
     donor_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Donor revokes exact-location sharing for one request at any time."""
     store = SqlAlchemyPrivacyStore(session)
@@ -1500,7 +1555,7 @@ async def matched_donor_exact_location(
     request_id: str,
     donor_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Exact donor location for the matched requester, while a live share exists.
 
@@ -1509,11 +1564,21 @@ async def matched_donor_exact_location(
     """
     store = SqlAlchemyPrivacyStore(session)
     try:
-        result = await store.exact_location_for_requester(request_id, donor_id, principal.subject)
+        result = await store.exact_location_for_requester(
+            request_id, donor_id, principal.subject, actor_id=principal.subject
+        )
     except KeyError:
         raise HTTPException(status_code=404, detail="Request or donor not found") from None
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not allowed to view this donor's location") from None
+    except SQLAlchemyError:
+        # Fail closed: never return exact coordinates when the disclosure audit
+        # could not be durably recorded.
+        await session.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="Exact location is temporarily unavailable because access could not be audited. Please retry.",
+        ) from None
     return ExactLocationOut(**result)
 
 
@@ -1525,7 +1590,7 @@ async def open_conversation(
     request_id: str,
     donor_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Open (or create) the in-app conversation for a matched request and donor.
 
@@ -1589,7 +1654,7 @@ async def open_conversation(
 @app.get("/v1/conversations", response_model=list[ConversationOut])
 async def list_conversations(
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     if principal.subject == "development-user":
         return []
@@ -1611,7 +1676,7 @@ async def list_conversations(
 async def list_conversation_messages(
     conversation_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """List the messages of a conversation the caller participates in."""
     store = SqlAlchemyPrivacyStore(session)
@@ -1639,7 +1704,7 @@ async def list_conversation_messages(
 async def list_saved_conversation_messages(
     conversation_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """List only the authenticated participant's saved messages in this conversation."""
     store = SqlAlchemyPrivacyStore(session)
@@ -1667,7 +1732,7 @@ async def save_conversation_message(
     conversation_id: str,
     message_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Save a message privately for the authenticated conversation participant."""
     store = SqlAlchemyPrivacyStore(session)
@@ -1681,6 +1746,12 @@ async def save_conversation_message(
         saved = await store.save_message(principal.subject, conversation_id, message_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Message not found in this conversation") from None
+    except SQLAlchemyError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="The saved-message change could not be audited. Please retry.",
+        ) from None
     message = await session.get(Message, message_id)
     if message is None:
         raise HTTPException(status_code=404, detail="Message not found in this conversation")
@@ -1699,7 +1770,7 @@ async def unsave_conversation_message(
     conversation_id: str,
     message_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Remove only the authenticated participant's bookmark."""
     store = SqlAlchemyPrivacyStore(session)
@@ -1709,7 +1780,15 @@ async def unsave_conversation_message(
         raise HTTPException(status_code=404, detail="Conversation not found") from None
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation") from None
-    if not await store.unsave_message(principal.subject, conversation_id, message_id):
+    try:
+        removed = await store.unsave_message(principal.subject, conversation_id, message_id)
+    except SQLAlchemyError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="The saved-message change could not be audited. Please retry.",
+        ) from None
+    if not removed:
         raise HTTPException(status_code=404, detail="Message not found in this conversation")
     return Response(status_code=204)
 
@@ -1719,7 +1798,7 @@ async def send_conversation_message(
     conversation_id: str,
     payload: MessageIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Send a message in a conversation, unless the sender is blocked."""
     store = SqlAlchemyPrivacyStore(session)
@@ -1752,6 +1831,12 @@ async def send_conversation_message(
         message = await store.add_message(conversation, principal.subject, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except SQLAlchemyError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="The message could not be sent because its audit record could not be saved. Please retry.",
+        ) from None
     await send_push_safely(
         await _conversation_recipient(session, conversation, principal.subject),
         "New message",
@@ -1771,7 +1856,7 @@ async def send_conversation_message(
 async def list_contact_shares(
     conversation_id: str,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """List the contact disclosures made in a conversation the caller is in."""
     store = SqlAlchemyPrivacyStore(session)
@@ -1799,7 +1884,7 @@ async def share_contact_details(
     conversation_id: str,
     payload: ContactShareIn,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Explicitly share one contact field (phone or email) and record an audit event.
 
@@ -1863,7 +1948,7 @@ async def report_conversation_participant(
     conversation_id: str,
     payload: ConversationModerationIn | None = None,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Report the other participant of a conversation.
 
@@ -1898,7 +1983,7 @@ async def block_conversation_participant(
     conversation_id: str,
     payload: ConversationModerationIn | None = None,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
 ):
     """Block the other participant of a conversation.
 

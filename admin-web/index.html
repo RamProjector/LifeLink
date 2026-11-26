@@ -2,19 +2,272 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-G8KyvWl28MjMzafFh4J7RVVyKr2tau90qeqmY2Guzaw='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
-:root{color-scheme:light;--ink:#182638;--muted:#66758a;--line:#e4eaf0;--paper:#f5f8fb;--white:#fff;--blue:#215fce;--navy:#142b4a;--red:#b42318;--green:#18794e}
+:root{color-scheme:light;--ink:#182638;--muted:#66758a;--line:#e4eaf0;--paper:#f5f8fb;--white:#fff;--action:#292e2a;--navy:#142b4a;--red:#b42318;--green:#18794e}
 *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(--blue);font-weight:650;text-decoration:none}a.link:hover{text-decoration:underline}button{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;background:var(--blue);color:white;font-weight:650}button.secondary{background:white;color:var(--ink);border:1px solid var(--line)}button:disabled{opacity:.55;cursor:wait}
-.top{background:var(--navy);color:white;padding:18px clamp(18px,4vw,48px);display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{font-size:19px;font-weight:800;letter-spacing:-.4px}.brand span{color:#9fc5ff}.top small{color:#c5d3e4}.wrap{max-width:1200px;margin:28px auto;padding:0 20px}.login{max-width:470px;margin:7vh auto;background:white;border:1px solid var(--line);border-radius:20px;padding:28px;box-shadow:0 12px 34px #1834540b}.eyebrow{font-size:12px;font-weight:800;letter-spacing:1.3px;color:var(--blue);text-transform:uppercase}.login h1{font-size:29px;line-height:1.2;letter-spacing:-.8px;margin:8px 0}.muted{color:var(--muted)}label{display:block;font-weight:650;font-size:13px;margin:16px 0 6px}input{width:100%;padding:11px 12px;border:1px solid #ccd6e2;border-radius:9px;background:#fff;color:var(--ink)}input:focus{outline:3px solid #215fce22;border-color:var(--blue)}.notice{margin-top:14px;padding:10px 12px;border-radius:9px;background:#eff6ff;color:#244a81;overflow-wrap:anywhere}.notice.error{background:#fff0ef;color:var(--red)}.hidden{display:none!important}.headrow{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}.headrow h1{margin:3px 0;font-size:30px;letter-spacing:-1px}.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:22px;overflow:auto}.tab{background:transparent;color:var(--muted);border-radius:9px 9px 0 0;border-bottom:2px solid transparent}.tab.active{color:var(--blue);background:#eaf1ff;border-bottom-color:var(--blue)}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.stat,.panel{background:white;border:1px solid var(--line);border-radius:15px;padding:18px}.stat small{color:var(--muted);font-weight:650}.stat strong{display:block;font-size:30px;letter-spacing:-1px;margin-top:7px}.panel{margin-top:16px}.panel h2{font-size:17px;margin:0 0 12px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px}td code{overflow-wrap:anywhere}.tag{display:inline-block;border-radius:99px;padding:3px 8px;background:#eef2f6;font-size:11px;font-weight:700}.tag.success{background:#e6f6ed;color:var(--green)}.tag.fail{background:#fff0ef;color:var(--red)}.actions{display:flex;gap:8px;flex-wrap:wrap}.empty{padding:30px;text-align:center;color:var(--muted)}.foot{font-size:12px;color:var(--muted);margin:18px 0 40px}.small{font-size:12px}.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1}@media(max-width:780px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.top{align-items:flex-start}.stat strong{font-size:25px}}@media(max-width:440px){.grid{grid-template-columns:1fr 1fr}.login{padding:21px}}
+button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(--action);font-weight:650;text-decoration:none}a.link:hover{text-decoration:underline}button{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;background:var(--action);color:white;font-weight:650}button.secondary{background:white;color:var(--ink);border:1px solid var(--line)}button:disabled{opacity:.55;cursor:wait}
+.top{background:var(--navy);color:white;padding:18px clamp(18px,4vw,48px);display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{font-size:19px;font-weight:800;letter-spacing:-.4px}.brand span{color:#9fc5ff}.top small{color:#c5d3e4}.wrap{max-width:1200px;margin:28px auto;padding:0 20px}.login{max-width:470px;margin:7vh auto;background:white;border:1px solid var(--line);border-radius:20px;padding:28px;box-shadow:0 12px 34px #1834540b}.eyebrow{font-size:12px;font-weight:800;letter-spacing:1.3px;color:var(--action);text-transform:uppercase}.login h1{font-size:29px;line-height:1.2;letter-spacing:-.8px;margin:8px 0}.muted{color:var(--muted)}label{display:block;font-weight:650;font-size:13px;margin:16px 0 6px}input{width:100%;padding:11px 12px;border:1px solid #ccd6e2;border-radius:9px;background:#fff;color:var(--ink)}input:focus{outline:3px solid rgba(181,138,67,.25);border-color:var(--action)}.notice{margin-top:14px;padding:10px 12px;border-radius:9px;background:#eff6ff;color:#244a81;overflow-wrap:anywhere}.notice.error{background:#fff0ef;color:var(--red)}.hidden{display:none!important}.headrow{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}.headrow h1{margin:3px 0;font-size:30px;letter-spacing:-1px}.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:22px;overflow:auto}.tab{background:transparent;color:var(--muted);border-radius:9px 9px 0 0;border-bottom:2px solid transparent}.tab.active{color:var(--action);background:#f3ead9;border-bottom-color:var(--action)}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.stat,.panel{background:white;border:1px solid var(--line);border-radius:15px;padding:18px}.stat small{color:var(--muted);font-weight:650}.stat strong{display:block;font-size:30px;letter-spacing:-1px;margin-top:7px}.panel{margin-top:16px}.panel h2{font-size:17px;margin:0 0 12px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px}td code{overflow-wrap:anywhere}.tag{display:inline-block;border-radius:99px;padding:3px 8px;background:#eef2f6;font-size:11px;font-weight:700}.tag.success{background:#e6f6ed;color:var(--green)}.tag.fail{background:#fff0ef;color:var(--red)}.actions{display:flex;gap:8px;flex-wrap:wrap}.empty{padding:30px;text-align:center;color:var(--muted)}.foot{font-size:12px;color:var(--muted);margin:18px 0 40px}.small{font-size:12px}.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1}@media(max-width:780px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.top{align-items:flex-start}.stat strong{font-size:25px}}@media(max-width:440px){.grid{grid-template-columns:1fr 1fr}.login{padding:21px}}
+
+/* Admin Console 2.0 */
+.wrap{max-width:1480px;margin:26px auto;padding:0 clamp(14px,2.4vw,32px)}
+.headrow{align-items:center;margin-bottom:18px}
+.console-layout{display:grid;grid-template-columns:224px minmax(0,1fr);gap:20px;align-items:start}
+.sidebar{position:sticky;top:16px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px;box-shadow:0 5px 18px #18345408}
+.nav-group{padding:10px 10px 5px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+.tabs{display:grid;gap:4px;border:0;margin:0;overflow:visible}
+.tab{width:100%;text-align:left;padding:11px 12px;border:0;border-radius:9px;color:#43536a;background:transparent;font-weight:650;font-size:13px}
+.tab:hover{background:#f1f5fa;color:var(--ink)}.tab.active{color:var(--action);background:#f3ead9;border:0}
+.content-area{min-width:0}.content-area>.panel{margin-top:0;margin-bottom:16px;padding:clamp(14px,2vw,22px);border-radius:16px}
+.table-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:8px 0 12px}
+.table-toolbar .search-wrap{flex:1 1 240px;max-width:440px}.table-toolbar input{padding:9px 11px;font-size:13px}.table-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.table-export{min-height:36px;padding:7px 11px;font-size:12px}
+.table-count{font-size:12px;color:var(--muted);white-space:nowrap}
+.tablewrap{border:1px solid var(--line);border-radius:12px;max-width:100%;background:#fff}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;line-height:1.45}
+th{position:sticky;top:0;z-index:1;background:#f7f9fc;color:#5b6a7e;padding:11px 12px;white-space:nowrap}
+td{padding:12px;max-width:260px;overflow-wrap:anywhere}
+tbody tr:nth-child(even){background:#fbfcfe}tbody tr:hover{background:#f5f1e8}tbody tr[hidden]{display:none!important}
+.tab:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid rgba(181,138,67,.35);outline-offset:2px}
+tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal;overflow-wrap:anywhere;color:#40516a}
+.cell-detail{max-width:320px}.cell-detail summary{cursor:pointer;color:var(--action);font-weight:650;font-size:12px}
+.cell-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:320px;max-height:220px;overflow:auto;padding:9px;background:#f5f7fa;border-radius:8px;font-size:11px;color:#334155}
+.table-empty-filter{display:none;padding:24px;text-align:center;color:var(--muted);font-size:13px}
+@media(max-width:900px){.console-layout{grid-template-columns:1fr;gap:12px}.sidebar{position:static;padding:8px}.tabs{display:flex;overflow-x:auto;gap:5px}.nav-group{display:none}.tab{width:auto;white-space:nowrap;flex:0 0 auto}.content-area>.panel{margin-bottom:12px}}
+@media(max-width:620px){.wrap{margin:16px auto}.headrow{align-items:flex-start}.headrow .actions{width:100%}.headrow .actions button{width:100%}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stat{padding:13px}.stat strong{font-size:23px}.tablewrap{border:0;background:transparent;overflow:visible}table,tbody{display:block;width:100%}thead{display:none}tbody{display:grid;gap:10px}tbody tr{display:grid;gap:0;background:#fff!important;border:1px solid var(--line);border-radius:12px;padding:5px 12px;box-shadow:0 3px 12px #18345406}td{display:grid;grid-template-columns:minmax(94px,34%) minmax(0,1fr);gap:10px;max-width:none;padding:9px 2px;border-bottom:1px solid #edf1f5}td:last-child{border-bottom:0}td:before{content:attr(data-label);font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}.cell-detail{max-width:100%}.cell-detail pre{max-width:100%}.table-toolbar{align-items:stretch}.table-toolbar .search-wrap{max-width:none;flex-basis:100%}.table-actions{justify-content:space-between;width:100%}.table-count{width:auto}}
+
+/* LifeLink website refresh — shared visual tokens and responsive application shell */
+:root{
+ --ink:#15243a;--muted:#66768d;--line:#e3e9f1;--paper:#f3f6fa;--white:#fff;
+ --action:#b58a43;--action-strong:#171c19;--navy:#102847;--red:#b42318;--green:#18794e;
+ --surface-soft:#f7f9fc;--shadow:0 14px 36px rgba(18,42,72,.07);--radius:18px;
+}
+body{background:radial-gradient(ellipse at 88% -12%,rgba(45,105,214,.08),transparent 34%),var(--paper);color:var(--ink);font-size:14px}
+.top{min-height:76px;padding:14px clamp(18px,4vw,54px);background:linear-gradient(112deg,#102746,#183a63);box-shadow:0 4px 18px rgba(9,28,52,.13)}
+.brand{display:flex;align-items:center;gap:11px;font-size:18px;letter-spacing:-.45px}
+.brand span{color:#e9e5da}
+.brand-mark{width:38px;height:38px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(255,255,255,.09);color:#e4c58c}
+.brand-mark .ll-icon-svg{width:23px;height:23px}
+.top small{display:block;margin:3px 0 0 49px;color:#b9beb5;font-size:12px}
+.top button.secondary{display:inline-flex;align-items:center;gap:9px;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.22);color:#fff}
+button{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:40px;border-radius:11px;padding:9px 14px;transition:background .16s,border-color .16s,transform .16s}
+button:not(:disabled):active{transform:translateY(1px)}
+button:not(.secondary):hover{background:var(--action-strong)}
+button.secondary:hover{background:#f4f7fc;border-color:#bcb7aa}
+.ll-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;line-height:0}
+.ll-icon-svg{display:block;width:18px;height:18px}
+.wrap{max-width:1560px;margin:30px auto;padding:0 clamp(16px,3vw,42px)}
+.login{max-width:480px;margin:clamp(34px,8vh,90px) auto;background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:22px;padding:clamp(24px,4vw,36px);box-shadow:var(--shadow)}
+.login h1{font-size:32px;letter-spacing:-1.2px;margin:9px 0 10px}
+.login .eyebrow{display:flex;align-items:center;gap:8px}
+.login .eyebrow:before{content:"";width:7px;height:7px;border-radius:50%;background:#b58a43;box-shadow:0 0 0 4px #f3ead9}
+.login>p{line-height:1.65}
+.login input{min-height:44px;border-color:#d5deea;border-radius:11px}
+.login>button{min-height:46px}
+.headrow{margin-bottom:22px;align-items:center}
+.headrow h1{font-size:clamp(27px,3vw,34px);letter-spacing:-1.2px;margin:5px 0}
+.headrow .eyebrow{letter-spacing:1.5px}
+#identity{margin-top:5px}
+.console-layout{grid-template-columns:238px minmax(0,1fr);gap:22px}
+.sidebar{top:18px;border-radius:18px;padding:12px;box-shadow:0 7px 22px rgba(18,42,72,.045)}
+.nav-group{padding:13px 12px 7px;font-size:10px;letter-spacing:1.15px}
+.tabs{gap:4px}
+.tab{display:flex;align-items:center;gap:11px;min-height:43px;padding:10px 12px;border-radius:11px;font-size:13px;color:#43536a}
+.tab .ll-icon{color:#72829a}
+.tab:hover{background:#f3f6fb}
+.tab.active{color:#292e2a;background:#f3ead9;font-weight:750}
+.tab.active .ll-icon{color:#292e2a}
+.content-area>.panel,.content-area section>.panel{border-radius:18px;border-color:var(--line);box-shadow:0 7px 22px rgba(18,42,72,.035)}
+.stat{position:relative;min-height:126px;padding:19px;border-radius:16px;box-shadow:0 5px 18px rgba(18,42,72,.035)}
+.stat small{display:flex;align-items:center;gap:8px;color:#64748b;font-size:12px}
+.stat .stat-icon{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:10px;background:#f0ede5;color:#b58a43}
+.stat strong{font-size:32px;margin-top:13px}
+.panel{border-radius:16px;box-shadow:0 5px 18px rgba(18,42,72,.03)}
+.panel h2{letter-spacing:-.3px}
+.table-toolbar{margin:12px 0 14px}
+.table-toolbar input{min-height:40px;border-radius:10px}
+.tablewrap{border-color:#e5ebf3;border-radius:14px}
+th{background:#f6f8fc;color:#66768d;font-size:10px;letter-spacing:.8px;padding:13px 14px}
+td{padding:13px 14px}
+tbody tr:hover{background:#f5f1e8}
+.tag{padding:4px 9px;font-size:10px;letter-spacing:.15px}
+.empty{min-height:116px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:28px 18px}
+.empty .ll-icon{width:38px;height:38px;border-radius:12px;background:#f0eee7;color:#85704d}
+.notice{border:1px solid #e5dac4;border-radius:12px;padding:13px 15px}
+.notice.error{border-color:#f5d0cc}
+.foot{padding-top:14px;border-top:1px solid #e6ebf2;line-height:1.6}
+.actions{align-items:center}
+.actions button{min-height:38px}
+#page-overview .panel{margin-top:18px}
+#page-overview .panel p{max-width:900px}
+@media(max-width:900px){
+ .console-layout{grid-template-columns:minmax(0,1fr);gap:14px}
+ .sidebar{padding:9px}
+ .tabs{display:flex;overflow-x:auto;scrollbar-width:thin;padding-bottom:2px}
+ .tab{flex:0 0 auto;width:auto;white-space:nowrap}
+ .nav-group{display:none}
+ .content-area>.panel{margin-bottom:14px}
+}
+@media(max-width:620px){
+ .top{padding:12px 16px;min-height:68px}
+ .top small{margin-left:45px;font-size:12px}
+ .brand-mark{width:34px;height:34px}
+ .wrap{margin:20px auto;padding:0 14px}
+ .headrow{gap:13px}
+ .headrow .actions{width:auto}
+ .headrow .actions button{width:auto}
+ .grid{gap:10px}
+ .stat{min-height:112px;padding:13px}
+ .stat strong{font-size:25px;margin-top:10px}
+ .stat .stat-icon{width:27px;height:27px}
+ .content-area>.panel{padding:14px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* Security Center: clearer incident hierarchy and resilient data states */
+#page-alerts .table-toolbar{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface-soft);border:1px solid var(--line);border-radius:13px}
+#page-alerts .table-toolbar label{margin:0;color:var(--muted);font-size:12px;font-weight:750}
+#alert-status-filter{min-width:190px;min-height:40px;padding:8px 34px 8px 11px;border:1px solid #d5deea;border-radius:10px;background:#fff;color:var(--ink);font:inherit}
+#alerts-table .tag{white-space:nowrap}
+#alerts-table .tag.severity-critical,#alerts-table .tag.severity-high{background:#fff0ef;color:#a52820}
+#alerts-table .tag.severity-medium{background:#fff6df;color:#8a5a00}
+#alerts-table .tag.severity-low{background:#e9eee8;color:#526b56}
+#alerts-table .actions{min-width:210px;gap:6px}
+#alerts-table .actions button{min-height:34px;padding:7px 9px;font-size:11px}
+#alerts-table .cell-detail summary{padding:5px 0}
+#alerts-table .cell-detail pre{max-width:360px}
+#alerts-page{padding-left:4px}
+#page-alerts .empty strong{color:var(--ink);font-size:14px}
+#page-alerts .empty button{margin-top:5px}
+@media(max-width:620px){#page-alerts .table-toolbar{align-items:stretch;flex-wrap:wrap}#alert-status-filter{width:100%}#alerts-table .actions{min-width:0}#alerts-table .actions button{flex:1 1 42%}}
+
+/* Admin Console visual system — graphite / warm ivory / restrained amber */
+:root{
+ color-scheme:light;
+ --ink:#252923;
+ --muted:#73786f;
+ --line:#e4e1d8;
+ --paper:#f4f2ec;
+ --white:#fff;
+ --action:#292e2a;
+ --action-strong:#171c19;
+ --navy:#202521;
+ --red:#b8463b;
+ --green:#617b68;
+ --surface-soft:#eeece5;
+ --shadow:0 10px 28px rgba(34,38,32,.055);
+ --radius:14px;
+ --accent:#b58a43;
+ --accent-soft:#f3ead9;
+ --sage:#718675;
+}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);font-size:14.5px;line-height:1.5;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.top{min-height:68px;padding:12px clamp(18px,3vw,42px);background:#202521;box-shadow:none;border-bottom:1px solid #3b413b}
+.brand{font-size:16px;letter-spacing:-.25px;gap:10px}
+.brand span{color:#e9e5da}
+.brand-mark{width:34px;height:34px;border-radius:9px;background:#303731;border:1px solid #4a514a;color:#e4c58c}
+.top small{margin:2px 0 0 44px;color:#b9beb5;font-size:11px;letter-spacing:.02em}
+.top button.secondary{background:#303731;border-color:#4a514a;color:#f6f4ee}
+.top button.secondary:hover{background:#414941;border-color:#687267}
+.wrap{max-width:1640px;margin:24px auto;padding:0 clamp(16px,2.8vw,40px)}
+.login{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 44px rgba(35,39,33,.07)}
+.login h1{font-size:clamp(25px,2.4vw,31px);line-height:1.16;letter-spacing:-.8px;font-weight:720}
+.eyebrow{font-size:11px;letter-spacing:1px;color:#8b6b35}
+.login .eyebrow:before{background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.login input,input,#alert-status-filter{border-color:#d8d5cb;border-radius:8px;background:#fff;color:var(--ink)}
+input:focus,#alert-status-filter:focus{outline:3px solid rgba(181,138,67,.25);border-color:#a77d39}
+button{background:#292e2a;color:#fff;border-radius:8px;font-weight:650;box-shadow:none}
+button:not(:disabled):hover{background:#171c19}
+button.secondary{background:#fff;color:#30352f;border:1px solid #d8d5cb}
+button.secondary:hover{background:#f1efe8;border-color:#bcb7aa}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #b58a43!important;outline-offset:3px}
+.notice{background:#f2eee4;color:#4d4638;border:1px solid #e5dac4;border-radius:9px}
+.notice.error{background:#fbefed;color:#8e3028;border-color:#edc9c3}
+.headrow{margin-bottom:20px;align-items:center}
+.headrow h1{font-size:clamp(25px,2.4vw,31px);letter-spacing:-.85px;font-weight:720}
+.headrow .eyebrow{color:#8b6b35}
+.console-layout{grid-template-columns:232px minmax(0,1fr);gap:20px}
+.sidebar{background:#202521;border:1px solid #343b35;border-radius:13px;padding:10px;box-shadow:0 10px 24px rgba(29,34,29,.08)}
+.nav-group{color:#a9b0a7;font-size:10px;letter-spacing:.9px;padding:13px 11px 7px}
+.tabs{gap:3px}
+.tab{color:#d0d4cd;min-height:40px;border-radius:8px;padding:9px 11px;font-size:13px;font-weight:570}
+.tab .ll-icon{color:#aeb6aa}
+.tab:hover{background:#303731;color:#fff}
+.tab.active{background:#3b433b;color:#fff;font-weight:680;box-shadow:inset 2px 0 0 #c59a51}
+.tab.active .ll-icon{color:#e1bf82}
+.content-area>.panel,.content-area section>.panel{background:#fff;border:1px solid var(--line);border-radius:13px;box-shadow:0 3px 12px rgba(34,38,32,.025)}
+.panel{border-radius:13px}
+.panel h2{font-size:16px;letter-spacing:-.15px;font-weight:700;margin-bottom:10px}
+.stat{min-height:108px;padding:16px;border:1px solid var(--line);border-radius:12px;box-shadow:none}
+.stat small{font-size:12px;color:#73786f;font-weight:650}
+.stat .stat-icon{width:27px;height:27px;border-radius:8px;background:#f0ede5;color:#8c6b36}
+.stat strong{font-size:28px;letter-spacing:-.8px;margin-top:10px;color:#292e2a}
+.table-toolbar{padding:10px 0;margin:10px 0 12px;background:transparent;border:0}
+.table-toolbar input{min-height:38px;border-radius:8px;border-color:#d8d5cb}
+.tablewrap{border:1px solid #e4e1d8;border-radius:10px;background:#fff}
+table{font-size:12.5px;line-height:1.5}
+th{background:#f1efe9;color:#666b62;font-size:11px;letter-spacing:.6px;font-weight:750;padding:11px 12px}
+td{padding:11px 12px;color:#333831}
+td code{color:#686d64;font-size:11.5px}
+tbody tr:nth-child(even){background:#fcfbf8}
+tbody tr:hover{background:#f5f1e8}
+.tag{background:#eeece6;color:#555a51;border-radius:5px;padding:3px 7px;font-size:11px;font-weight:700}
+.tag.success{background:#e9efe9;color:#49634f}
+.tag.fail{background:#f8eae7;color:#9b3c32}
+.cell-detail summary{color:#87652f}
+.cell-detail pre{background:#f4f2ec;color:#454a42;border:1px solid #e8e5dc}
+.empty{color:#777b72;min-height:112px}
+.empty strong{color:#343a33}
+.empty .ll-icon{background:#f0eee7;color:#85704d}
+.foot{border-color:#e4e1d8;color:#777b72}
+#page-alerts .table-toolbar{background:#f4f1e9;border-color:#e4dfd2}
+#alert-status-filter{min-height:38px}
+#alerts-table .tag.severity-critical,#alerts-table .tag.severity-high{background:#f8eae7;color:#96392f}
+#alerts-table .tag.severity-medium{background:#f5ecd9;color:#80602e}
+#alerts-table .tag.severity-low{background:#e9eee8;color:#526b56}
+#alerts-table .actions button{font-size:11.5px}
+#overview-chart svg text{font-family:inherit}
+#overview-chart svg rect[fill="#eeece5"]{fill:#eeece5}
+#overview-chart svg rect[fill="#b58a43"]{fill:#b58a43}
+#analytics-chart svg line{stroke:#e8e5dc}
+#analytics-chart svg rect{fill:#b58a43}
+#analytics-chart svg text{font-family:inherit}
+#identity{color:#74786f}
+#page-overview>.grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+#analytics-chart svg rect{fill:#b58a43}
+#analytics-chart svg text{fill:#666b62}
+@media(max-width:780px){#page-overview>.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:900px){
+ .console-layout{grid-template-columns:minmax(0,1fr);gap:12px}
+ .sidebar{position:static}
+ .tabs{gap:4px}
+ .tab{flex:0 0 auto}
+}
+@media(max-width:620px){
+ .top{padding:11px 14px}
+ .wrap{margin:16px auto;padding:0 12px}
+ .sidebar{border-radius:10px}
+ .tabs{padding-bottom:2px}
+ .tab{min-height:38px;padding:8px 10px;font-size:12px}
+ #page-overview>.grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .stat{min-height:98px;padding:12px}
+ .stat strong{font-size:24px}
+ .content-area>.panel{padding:13px}
+ .tablewrap{border:0;background:transparent}
+ tbody tr{border-color:#e4e1d8;box-shadow:0 2px 8px rgba(34,38,32,.035)}
+ td:before{color:#777b72}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
 </style>
 </head>
 <body>
-<header class="top"><div><div class="brand">Life<span>Link</span> / Admin</div><small>Restricted operations console</small></div><div id="session-tools" class="hidden"><button id="signout" class="secondary">Sign out</button></div></header>
+<header class="top"><div><div class="brand"><span class="brand-mark ll-icon" data-icon="lifelink" data-icon-size="23"></span><span>LifeLink <span>/ Admin</span></span></div><small>Restricted operations console</small></div><div id="session-tools" class="hidden"><button id="signout" class="secondary"><span class="ll-icon" data-icon="logout"></span>Sign out</button></div></header>
 <main id="login-view" class="login">
- <div class="eyebrow">Administrator access</div><h1>Sign in securely.</h1><p class="muted">Use your existing LifeLink account. The server verifies administrator authorization after sign-in; creating an account does not grant admin access.</p>
- <p class="muted small">Connected to the LifeLink production services. Only your existing account can sign in; administrator access is checked by the server.</p>
+ <div class="eyebrow">Administrator access</div><h1>Sign in securely.</h1><p class="muted">Sign in with your LifeLink account. Admin access is verified by the server; public registration never grants it.</p>
  <label for="email">Email</label><input id="email" type="email" autocomplete="username" required>
  <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
  <button id="signin" style="width:100%;margin-top:20px">Sign in</button>
@@ -24,33 +277,53 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
  <p class="foot">Your session token stays in memory for this tab and is cleared when you sign out or close it. Admin rights are verified server-side.</p>
 </main>
 <main id="app-view" class="wrap hidden">
- <div class="headrow"><div><div class="eyebrow">Operations overview</div><h1>Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary">Refresh data</button></div></div>
- <nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview">Overview</button><button class="tab" data-page="users">User management</button><button class="tab" data-page="audit">Security activity</button><button class="tab" data-page="sessions">Sessions</button><button class="tab" data-page="alerts">Security alerts</button><button class="tab" data-page="errors">System errors</button></nav>
- <section id="page-overview"><div class="grid"><div class="stat"><small>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small>Donor records</small><strong id="stat-donors">—</strong></div><div class="stat"><small>Emergency requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small>Authorization</small><strong style="font-size:20px;color:var(--green)">Verified</strong></div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is checked by the API on every request. User capability changes are audited. Audit records are read-only in this interface. Error entries contain operational context, not passwords or access tokens.</p><p id="generated" class="small muted"></p></div></section>
- <section id="page-users" class="panel hidden"><h2>User management</h2><p class="muted small">Change requester/donor capabilities only. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled>Previous</button><button id="users-next" class="secondary" disabled>Next</button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-audit" class="panel hidden"><h2>Audit history</h2><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div><div class="actions" style="margin-top:14px"><button id="audit-prev" class="secondary" disabled>Previous</button><button id="audit-next" class="secondary" disabled>Next</button><span id="audit-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-sessions" class="panel hidden"><h2>User sessions</h2><p class="muted small">Sessions are recorded when a signed-in user reaches a protected admin endpoint. Revocation blocks subsequent admin API requests using that session.</p><div id="sessions-table" class="tablewrap"><div class="empty">Select Sessions to load records.</div></div><div class="actions" style="margin-top:14px"><button id="sessions-prev" class="secondary" disabled>Previous</button><button id="sessions-next" class="secondary" disabled>Next</button><span id="sessions-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-alerts" class="panel hidden"><h2>Security alerts</h2><p class="muted small">Detected events are grouped into deduplicated incidents. Review evidence and update the investigation status.</p><div id="alerts-table" class="tablewrap"><div class="empty">Select Security alerts to load incidents.</div></div><div class="actions" style="margin-top:14px"><button id="alerts-prev" class="secondary" disabled>Previous</button><button id="alerts-next" class="secondary" disabled>Next</button><span id="alerts-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-errors" class="panel hidden"><h2>Application errors</h2><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div><div class="actions" style="margin-top:14px"><button id="errors-prev" class="secondary" disabled>Previous</button><button id="errors-next" class="secondary" disabled>Next</button><span id="errors-page" class="muted small" aria-live="polite"></span></div></section>
- <div id="app-message" class="notice hidden" role="status" aria-live="polite"></div><p class="foot">LifeLink Admin · Keep this browser session private. Sign out when finished.</p>
+ <div class="headrow"><div><div class="eyebrow" id="page-eyebrow">Operations overview</div><h1 id="page-title">Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary"><span class="ll-icon" data-icon="refresh"></span>Refresh data</button></div></div>
+ <div class="console-layout"><aside class="sidebar" aria-label="Admin navigation"><div class="nav-group">Workspace</div><nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview" aria-current="page" aria-controls="page-overview"><span class="ll-icon" data-icon="dashboard"></span><span>Overview</span></button><button class="tab" data-page="users" aria-controls="page-users"><span class="ll-icon" data-icon="users"></span><span>User management</span></button><button class="tab" data-page="analytics" aria-controls="page-analytics"><span class="ll-icon" data-icon="analytics"></span><span>Analytics</span></button><div class="nav-group">Security center</div><button class="tab" data-page="alerts" aria-controls="page-alerts"><span class="ll-icon" data-icon="securityAlerts"></span><span>Security alerts</span></button><button class="tab" data-page="sessions" aria-controls="page-sessions"><span class="ll-icon" data-icon="sessions"></span><span>Sessions</span></button><button class="tab" data-page="audit" aria-controls="page-audit"><span class="ll-icon" data-icon="audit"></span><span>Audit activity</span></button><button class="tab" data-page="errors" aria-controls="page-errors"><span class="ll-icon" data-icon="systemErrors"></span><span>System errors</span></button><button class="tab" data-page="roles" aria-controls="page-roles"><span class="ll-icon" data-icon="roles"></span><span>Role registry</span></button></nav></aside><div class="content-area">
+ <section id="page-overview" aria-labelledby="page-title"><div class="grid"><div class="stat"><small><span class="stat-icon ll-icon" data-icon="usersRound"></span>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small><span class="stat-icon ll-icon" data-icon="inbox"></span>Requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small><span class="stat-icon ll-icon" data-icon="shieldCheck"></span>Authorization</small><strong style="font-size:20px;color:var(--green)">Verified</strong></div></div><div class="panel"><h2>Platform snapshot</h2><p class="muted small">Live totals from the admin API; not a historical trend.</p><div id="overview-chart" role="img" aria-label="Current counts of registered profiles and requests"><div class="empty">Loading record totals…</div></div><div class="small muted" id="overview-chart-caption">Counts refresh when you select Refresh data.</div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is verified on every API request. Capability changes are audited; audit records are read-only.</p><p id="generated" class="small muted"></p></div></section>
+ <section id="page-analytics" aria-labelledby="page-title" class="panel hidden"><h2>Activity analytics</h2><p class="muted small">Latest 100 audit events only; not a full historical report.</p><div id="analytics-summary" class="grid"></div><div class="panel"><h2>Audit activity by day</h2><div id="analytics-chart" role="img" aria-label="Audit event counts by day from the latest 100 returned events"><div class="empty">Loading analytics…</div></div></div><div class="panel"><h2>Most frequent actions</h2><div id="analytics-actions"></div></div></section>
+ <section id="page-roles" aria-labelledby="page-title" class="panel hidden"><h2>Role and permission registry</h2><p class="muted small">Read-only role and permission registry. Assignments remain protected by backend RBAC.</p><div id="roles-table" class="tablewrap"><div class="empty">Loading role registry…</div></div></section>
+ <section id="page-users" aria-labelledby="page-title" class="panel hidden"><h2>User management</h2><p class="muted small">Review account capabilities and status. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-audit" aria-labelledby="page-title" class="panel hidden"><h2>Audit history</h2><div class="table-toolbar"><label class="small" for="audit-action-filter">Exact action</label><div class="search-wrap"><input id="audit-action-filter" type="search" maxlength="64" placeholder="e.g. admin.user.update" autocomplete="off"></div><label class="small" for="audit-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="audit-correlation-filter" type="search" maxlength="128" placeholder="Trace related events" autocomplete="off"></div><button id="audit-filter-apply" class="secondary" type="button">Apply filters</button><button id="audit-filter-clear" class="secondary" type="button">Clear</button></div><p class="muted small" id="audit-filter-note">Showing all audit actions.</p><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div><div class="actions" style="margin-top:14px"><button id="audit-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="audit-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="audit-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-sessions" aria-labelledby="page-title" class="panel hidden"><h2>User sessions</h2><p class="muted small">Protected API access records sessions. Revocation blocks subsequent protected requests.</p><div id="sessions-table" class="tablewrap"><div class="empty">Select Sessions to load records.</div></div><div class="actions" style="margin-top:14px"><button id="sessions-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="sessions-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="sessions-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-alerts" aria-labelledby="page-title" class="panel hidden"><h2>Security alerts</h2><p class="muted small">Incidents are deduplicated. Review evidence and update investigation status.</p><div class="table-toolbar"><label class="small" for="alert-status-filter">Filter by status</label><select id="alert-status-filter" aria-label="Filter security alerts by status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select></div><div id="alerts-table" class="tablewrap"><div class="empty">Select Security alerts to load incidents.</div></div><div class="actions" style="margin-top:14px"><button id="alerts-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="alerts-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="alerts-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-errors" aria-labelledby="page-title" class="panel hidden"><h2>Application errors</h2><div class="table-toolbar"><label class="small" for="errors-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="errors-correlation-filter" type="search" maxlength="128" placeholder="Trace related errors" autocomplete="off"></div><button id="errors-filter-apply" class="secondary" type="button">Apply filter</button><button id="errors-filter-clear" class="secondary" type="button">Clear</button></div><p id="errors-filter-note" class="muted small">Showing all recorded errors and denied events.</p><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div><div class="actions" style="margin-top:14px"><button id="errors-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="errors-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="errors-page" class="muted small" aria-live="polite"></span></div></section>
+ </div></div><div id="app-message" class="notice hidden" role="status" aria-live="polite"></div><p class="foot">LifeLink Admin · Keep this browser session private. Sign out when finished.</p>
 </main>
+<script src="./icons.js"></script>
 <script>
 (() => {
  const SUPABASE_URL = "https://nphbhlxnujmylhubzmne.supabase.co";
  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_0BnXY2k96nRr0k0zaZvMgQ_IQYSlyQu";
  const API_BASE_URL = "https://lifelink-api-uzje.onrender.com";
- let accessToken = null, activePage = "overview", recoveryMode = false;
+ let accessToken = null, recoveryAccessToken = null, activePage = "overview", recoveryMode = false, alertStatus = "", pageLoadToken = 0;
  const ADMIN_REDIRECT_URL = "https://lifelink-admin-console.onrender.com/";
  const pageSize = 50;
+ let auditAction = "";
+ let auditCorrelation = "";
+ let errorsCorrelation = "";
  const offsets = { users: 0, audit: 0, sessions: 0, alerts: 0, errors: 0 };
  const $ = id => document.getElementById(id);
+ const renderIcons = root => window.LifeLinkIcons?.render(root || document);
+ renderIcons();
  const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
  const message = (id, text, error=false) => { const el=$(id); el.textContent=text; el.classList.toggle("hidden",!text); el.classList.toggle("error",error); };
+ function safeError(error, fallback="Something went wrong. Please try again.") {
+   const status=Number(error && error.status);
+   if(status===401) return "Authentication failed. Check your credentials or sign in again.";
+   if(status===403) return "You do not have permission to perform that action.";
+   if(status===404) return "That information is no longer available.";
+   if(status===408) return "The request timed out. Check your connection and try again.";
+   if(status===409) return "This information changed on the server. Refresh and try again.";
+   if(status===429) return "Too many attempts. Please wait a moment and try again.";
+   if(status>=500 && status<=599) return "LifeLink is temporarily unavailable. Please try again shortly.";
+   if(error instanceof TypeError || !status) return "A connection problem occurred. Check your connection and try again.";
+   return fallback;
+ }
  const url = path => API_BASE_URL + path;
  async function api(path, options={}) {
    const response = await fetch(url(path), { ...options, headers: { "Authorization":"Bearer "+accessToken, "Content-Type":"application/json", "X-Correlation-ID": crypto.randomUUID(), ...(options.headers||{}) }});
    const body = await response.text(); let data={}; try { data=body?JSON.parse(body):{}; } catch {}
-   if (!response.ok) throw new Error(data.detail || ("Request failed ("+response.status+")"));
+   if (!response.ok) { const error=new Error("Admin API request failed"); error.status=response.status; throw error; }
    return data;
  }
  function showRecovery(mode) {
@@ -70,9 +343,9 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
    try {
      const response=await fetch(SUPABASE_URL+"/auth/v1/recover?redirect_to="+encodeURIComponent(ADMIN_REDIRECT_URL),{method:"POST",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})});
      const data=await response.json().catch(()=>({}));
-     if(!response.ok) throw new Error(data.msg||data.message||data.error_description||"Could not send the reset email. Check the Supabase Auth redirect allowlist.");
+     if(!response.ok) { const error=new Error("Password reset request failed"); error.status=response.status; throw error; }
      message("login-message","If this email belongs to a LifeLink account, a password-reset link has been sent. Check your inbox and spam folder.");
-   } catch(e) { message("login-message",e.message||"Password reset request failed.",true); }
+   } catch(e) { message("login-message",safeError(e,"Could not send the reset email. Check the Supabase Auth redirect allowlist."),true); }
    finally { $("recovery-submit").disabled=false; }
  }
  async function updateRecoveredPassword() {
@@ -80,17 +353,18 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
    if(password.length<8){message("login-message","Use a password with at least 8 characters.",true);return;}
    if(password!==confirmPassword){message("login-message","The passwords do not match.",true);return;}
    const hash=new URLSearchParams(location.hash.slice(1));
-   const token=hash.get("access_token");
-   if(!token||hash.get("type")!=="recovery"){message("login-message","This reset link is invalid or expired. Request a new one.",true);return;}
+   const token=recoveryAccessToken;
+   if(!token){message("login-message","This reset link is invalid or expired. Request a new one.",true);return;}
    $("recovery-submit").disabled=true; message("login-message","Updating your password…");
    try {
      const response=await fetch(SUPABASE_URL+"/auth/v1/user",{method:"PUT",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Authorization":"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({password})});
      const data=await response.json().catch(()=>({}));
-     if(!response.ok) throw new Error(data.msg||data.message||data.error_description||"Password update failed. Request a fresh reset link.");
+     if(!response.ok) { const error=new Error("Password update failed"); error.status=response.status; throw error; }
      history.replaceState(null,"",location.pathname+location.search);
+     recoveryAccessToken=null;
      $("new-password").value=""; $("confirm-password").value=""; $("recovery-view").classList.add("hidden");
      message("login-message","Password updated. Sign in with your new password.");
-   } catch(e){message("login-message",e.message||"Could not update password.",true);}
+   } catch(e){message("login-message",safeError(e,"Could not update password. Request a fresh reset link."),true);}
    finally{$("recovery-submit").disabled=false;}
  }
  async function signIn() {
@@ -100,107 +374,368 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
    try {
      const response=await fetch(supabase+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":key,"Content-Type":"application/json"},body:JSON.stringify({email:$("email").value.trim(),password:$("password").value})});
      const session=await response.json();
-     if(!response.ok || !session.access_token) throw new Error(session.msg||session.message||"Sign-in failed. Check your credentials.");
+     if(!response.ok || !session.access_token) { const error=new Error("Sign-in failed"); error.status=response.status; throw error; }
      accessToken=session.access_token;
      await api("/v1/admin/me");
      $("identity").textContent="Signed in as "+(session.user?.email||"authorized administrator");
      $("login-view").classList.add("hidden"); $("app-view").classList.remove("hidden"); $("session-tools").classList.remove("hidden");
      $("password").value=""; message("login-message","");
      await loadPage("overview");
-   } catch(e) { accessToken=null; message("login-message",e.message||"Unable to sign in.",true); }
+   } catch(e) { accessToken=null; message("login-message",safeError(e,"Sign-in failed. Check your credentials and try again."),true); }
    finally { $("signin").disabled=false; }
  }
  function table(items, cols) {
    if(!items?.length) return '<div class="empty">No records found.</div>';
-   return '<table><thead><tr>'+cols.map(c=>'<th>'+esc(c.label)+'</th>').join('')+'</tr></thead><tbody>'+items.map(item=>'<tr>'+cols.map(c=>'<td>'+c.render(item)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+   const filterKey=items.some(x=>x.status!=null)?'status':items.some(x=>x.outcome!=null)?'outcome':null;
+   const values=filterKey?[...new Set(items.map(x=>String(x[filterKey]??'')).filter(Boolean))].sort():[];
+   const plural=filterKey==='status'?'statuses':filterKey==='outcome'?'outcomes':filterKey+'s';
+   const select=values.length?'<label class="small muted">Filter <select data-table-filter aria-label="Filter table rows" style="width:auto;padding:8px;border:1px solid var(--line);border-radius:8px;background:white"><option value="">All '+esc(plural)+'</option>'+values.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select></label>':'';
+   const rows=items.map(item=>'<tr data-filter-value="'+esc(filterKey?item[filterKey]??'':'')+'">'+cols.map(col=>'<td data-label="'+esc(col.label)+'">'+col.render(item)+'</td>').join('')+'</tr>').join('');
+   return '<div class="table-toolbar"><div class="search-wrap"><input type="search" data-table-search placeholder="Search visible records…" aria-label="Search visible table records"></div>'+select+'<div class="table-actions"><button type="button" class="secondary table-export" data-table-export><span class="ll-icon" data-icon="download"></span>Export CSV</button><span class="table-count" data-table-count>'+items.length+' records on this page</span></div></div><table><thead><tr>'+cols.map(col=>'<th scope="col">'+esc(col.label)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table><div class="table-empty-filter" data-table-empty>No matching records on this page.</div>';
  }
- async function loadUsers() {
-   const offset=offsets.users;
-   const data=await api("/v1/admin/users?limit="+pageSize+"&offset="+offset);
-   $("users-prev").disabled=offset===0;
-   $("users-next").disabled=offset+pageSize>=data.total;
-   $("users-page").textContent=(data.total===0?"0 users":(offset+1)+"–"+Math.min(offset+pageSize,data.total)+" of "+data.total);
-   $("users-table").innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Capabilities",render:u=>'Request: '+(u.can_request?'Yes':'No')+'<br>Donate: '+(u.can_donate?'Yes':'No')},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Actions",render:u=>'<div class="actions"><button class="secondary" data-action="requester" data-id="'+esc(u.user_id)+'">Requester</button><button class="secondary" data-action="donor" data-id="'+esc(u.user_id)+'">Donor</button></div>'}]);
-   $("users-table").querySelectorAll("button[data-action]").forEach(btn=>btn.addEventListener("click",async()=>{if(!confirm("Update capabilities for this user? This action is recorded in the audit log."))return;try{await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify({role:btn.dataset.action,can_request:btn.dataset.action==="requester",can_donate:btn.dataset.action==="donor"})});message("app-message","User capabilities updated and audit event recorded.");await loadUsers();}catch(e){message("app-message",e.message,true);}}));
+ function wireTableTools(container) {
+   const search=container.querySelector('[data-table-search]');
+   const filter=container.querySelector('[data-table-filter]');
+   const count=container.querySelector('[data-table-count]');
+   const empty=container.querySelector('[data-table-empty]');
+   const rows=[...container.querySelectorAll('tbody tr')];
+   const apply=()=>{
+     const query=(search?.value||'').trim().toLocaleLowerCase();
+     const selected=filter?.value||'';
+     let visible=0;
+     rows.forEach(row=>{const ok=(!query||row.textContent.toLocaleLowerCase().includes(query))&&(!selected||row.dataset.filterValue===selected);row.hidden=!ok;if(ok)visible++;});
+     if(count)count.textContent=visible+' of '+rows.length+' records shown';
+     if(empty)empty.style.display=visible?'none':'block';
+   };
+   const csvCell=value=>{
+     let text=String(value??'').replace(/\s+/g,' ').trim();
+     if(/^[=+@\-\t\r]/.test(text)) text="'"+text;
+     return '"'+text.replace(/"/g,'""')+'"';
+   };
+   container.querySelector('[data-table-export]')?.addEventListener('click',()=>{
+     const headers=[...container.querySelectorAll('thead th')].map(th=>th.textContent.trim());
+     const visibleRows=rows.filter(row=>!row.hidden);
+     const records=visibleRows.map(row=>[...row.querySelectorAll(':scope > td')].map(td=>td.innerText.split(String.fromCharCode(10)).join(' · ').trim()));
+     if(!headers.length||!records.length){message('app-message','There are no visible records to export.',true);return;}
+     const csv=[headers,...records].map(record=>record.map(csvCell).join(',')).join(String.fromCharCode(13,10));
+     const blob=new Blob(['\uFEFF',csv],{type:'text/csv;charset=utf-8;'});
+     const href=URL.createObjectURL(blob),anchor=document.createElement('a');
+     anchor.href=href;anchor.download='lifelink-admin-'+(activePage||'table')+'-'+new Date().toISOString().slice(0,10)+'.csv';
+     document.body.appendChild(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(href);
+     message('app-message','Exported '+records.length+' visible records from this page.');
+   });
+   search?.addEventListener('input',apply);filter?.addEventListener('change',apply);
  }
- async function loadSessions() {
-   const offset=offsets.sessions;
-   const data=await api("/v1/admin/sessions?limit="+pageSize+"&offset="+offset);
-   $("sessions-prev").disabled=offset===0;
-   $("sessions-next").disabled=data.items.length<pageSize;
-   $("sessions-page").textContent=data.items.length===0?"No sessions on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
-   $("sessions-table").innerHTML=table(data.items,[
-     {label:"User",render:s=>'<code>'+esc(s.user_id)+'</code>'},
-     {label:"Session",render:s=>'<code>'+esc(s.session_id)+'</code>'},
-     {label:"Device",render:s=>esc(s.device_used||"unknown")},
-     {label:"IP",render:s=>'<code>'+esc(s.ip_address||"Unavailable")+'</code>'},
-     {label:"Last seen",render:s=>esc(s.last_seen_at?new Date(s.last_seen_at).toLocaleString():"—")},
-     {label:"Expiry",render:s=>esc(s.expires_at?new Date(s.expires_at).toLocaleString():"Not supplied")},
-     {label:"Status",render:s=>'<span class="tag '+(s.status==="active"?"success":"fail")+'">'+esc(s.status)+'</span>'},
-     {label:"Action",render:s=>s.status==="active"?'<button class="secondary" data-revoke="'+esc(s.session_id)+'">Revoke</button>':'—'}
-   ]);
-   $("sessions-table").querySelectorAll("button[data-revoke]").forEach(btn=>btn.addEventListener("click",async()=>{
-     if(!confirm("Revoke this session? Its next protected admin API request will be rejected."))return;
-     try{await api("/v1/admin/sessions/"+encodeURIComponent(btn.dataset.revoke)+"/revoke",{method:"POST"});message("app-message","Session revoked.");await loadSessions();}
-     catch(e){message("app-message",e.message,true);}
-   }));
- }
- async function loadAlerts() {
-   const offset=offsets.alerts;
-   const data=await api("/v1/admin/security/alerts?limit="+pageSize+"&offset="+offset);
-   $("alerts-prev").disabled=offset===0;
-   $("alerts-next").disabled=data.items.length<pageSize;
-   $("alerts-page").textContent=data.items.length===0?"No alerts on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
-   $("alerts-table").innerHTML=table(data.items,[
-     {label:"Rule",render:a=>'<strong>'+esc(a.rule_id)+'</strong><br><span class="tag">'+esc(a.severity)+'</span>'},
-     {label:"Status",render:a=>'<span class="tag '+(a.status==="open"?"fail":"")+'">'+esc(a.status)+'</span>'},
-     {label:"User / Session",render:a=>'<code>'+esc(a.user_id)+'</code><br><code>'+esc(a.session_id||"—")+'</code>'},
-     {label:"Incident",render:a=>esc(a.summary)+'<br><span class="muted small">'+esc(a.occurrences)+' occurrences</span>'},
-     {label:"Last seen",render:a=>esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")},
-     {label:"Evidence",render:a=>'<code>'+esc(JSON.stringify(a.evidence||{}))+'</code>'},
-     {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" data-alert="'+esc(a.id)+'" data-status="acknowledged">Acknowledge</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="investigating">Investigate</button><button data-alert="'+esc(a.id)+'" data-status="resolved">Resolve</button></div>'}
-   ]);
-   $("alerts-table").querySelectorAll("button[data-alert]").forEach(btn=>btn.addEventListener("click",async()=>{
-     try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");await loadAlerts();}
-     catch(e){message("app-message",e.message,true);}
-   }));
+   function setLoadingState(containerId,title,description) {
+    const el=$(containerId);
+    el.setAttribute("aria-busy","true");
+    el.setAttribute("aria-live","polite");
+    el.innerHTML='<div class="empty"><strong>'+esc(title)+'</strong><span class="muted small">'+esc(description)+'</span></div>';
+  }
+  function setErrorState(containerId,title,error,retry) {
+    const el=$(containerId);
+    el.setAttribute("aria-live","polite");
+    el.innerHTML='<div class="empty"><strong>'+esc(title)+'</strong><span class="muted small">'+esc(error)+'</span><button class="secondary" type="button" data-retry>Retry</button></div>';
+    el.querySelector("[data-retry]")?.addEventListener("click",retry);
+  }
+async function loadUsers() {
+    const token=pageLoadToken,offset=offsets.users,tableEl=$("users-table");
+    setLoadingState("users-table","Loading users","Retrieving account records…");
+    try {
+      const data=await api("/v1/admin/users?limit="+pageSize+"&offset="+offset);
+      if(token!==pageLoadToken||activePage!=="users")return;
+      if(!data||!Array.isArray(data.items)||!Number.isFinite(Number(data.total)))throw new Error("Unexpected users response");
+      $("users-prev").disabled=offset===0;
+      $("users-next").disabled=offset+pageSize>=Number(data.total);
+      $("users-page").textContent=(Number(data.total)===0?"0 users":(offset+1)+"–"+Math.min(offset+pageSize,Number(data.total))+" of "+data.total);
+      tableEl.innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Current access",render:u=>'<span class="tag '+(u.can_request?'success':'')+'">Requester '+(u.can_request?'enabled':'disabled')+'</span><br><span class="tag '+(u.can_donate?'success':'')+'">Donor '+(u.can_donate?'enabled':'disabled')+'</span>'},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Capabilities",render:u=>'<div class="actions"><button class="secondary" data-capability="request" data-enabled="'+String(!!u.can_request)+'" data-id="'+esc(u.user_id)+'">'+(u.can_request?'Disable requester':'Enable requester')+'</button><button class="secondary" data-capability="donate" data-enabled="'+String(!!u.can_donate)+'" data-id="'+esc(u.user_id)+'">'+(u.can_donate?'Disable donor':'Enable donor')+'</button></div>'}]);
+      renderIcons(tableEl);wireTableTools(tableEl);
+      tableEl.querySelectorAll("button[data-capability]").forEach(btn=>btn.addEventListener("click",async()=>{
+        const row=data.items.find(user=>user.user_id===btn.dataset.id);if(!row)return;
+        const capability=btn.dataset.capability,enabled=btn.dataset.enabled==="true";
+        const next={role:row.role,can_request:!!row.can_request,can_donate:!!row.can_donate};
+        if(capability==="request")next.can_request=!enabled;else next.can_donate=!enabled;
+        const action=(next[capability==="request"?"can_request":"can_donate"]?"Enable ":"Disable ")+(capability==="request"?"requester":"donor")+" capability";
+        if(!confirm(action+" for this user? The change will be recorded in the audit log."))return;
+        btn.disabled=true;
+        try{
+          await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify(next)});
+          if(activePage==="users"&&token===pageLoadToken){message("app-message",action+" completed and audit event recorded.");await loadPage("users");}
+        }catch(e){
+          if(activePage==="users"&&token===pageLoadToken){btn.disabled=false;message("app-message",safeError(e,"The user capability update could not be completed. Please retry."),true);}
+        }
+      }));
+    } catch(e) {
+      if(token!==pageLoadToken||activePage!=="users")return;
+      setErrorState("users-table","Users could not be loaded",safeError(e,"The user records could not be retrieved."),()=>loadPage("users"));
+      $("users-prev").disabled=offset===0;$("users-next").disabled=true;$("users-page").textContent="Unable to load users";
+    } finally {
+      if(token===pageLoadToken)tableEl.removeAttribute("aria-busy");
+    }
+  }
+  async function loadSessions() {
+    const token=pageLoadToken,offset=offsets.sessions,tableEl=$("sessions-table");
+    setLoadingState("sessions-table","Loading sessions","Retrieving active and revoked session records…");
+    try {
+      const data=await api("/v1/admin/sessions?limit="+pageSize+"&offset="+offset);
+      if(token!==pageLoadToken||activePage!=="sessions")return;
+      if(!data||!Array.isArray(data.items))throw new Error("Unexpected sessions response");
+      $("sessions-prev").disabled=offset===0;
+      $("sessions-next").disabled=data.items.length<pageSize;
+      $("sessions-page").textContent=data.items.length===0?"No sessions on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
+      tableEl.innerHTML=table(data.items,[
+        {label:"User",render:s=>'<code>'+esc(s.user_id)+'</code>'},
+        {label:"Session",render:s=>'<code>'+esc(s.session_id)+'</code>'},
+        {label:"Device",render:s=>esc(s.device_used||"unknown")},
+        {label:"IP",render:s=>'<code>'+esc(s.ip_address||"Unavailable")+'</code>'},
+        {label:"Created",render:s=>esc(s.created_at?new Date(s.created_at).toLocaleString():"—")},
+        {label:"Last seen",render:s=>esc(s.last_seen_at?new Date(s.last_seen_at).toLocaleString():"—")},
+        {label:"Expiry",render:s=>esc(s.expires_at?new Date(s.expires_at).toLocaleString():"Not supplied")},
+        {label:"Revocation",render:s=>s.revoked_at?esc(new Date(s.revoked_at).toLocaleString())+'<br><span class="muted small">By <code>'+esc(s.revoked_by||"Unavailable")+'</code></span>':"—"},
+        {label:"Status",render:s=>'<span class="tag '+(s.status==="active"?"success":"fail")+'">'+esc(s.status)+'</span>'},
+        {label:"Action",render:s=>s.status==="active"?'<button class="secondary" data-revoke="'+esc(s.session_id)+'"><span class="ll-icon" data-icon="shieldAlert"></span>Revoke</button>':'—'}
+      ]);
+      renderIcons(tableEl);wireTableTools(tableEl);
+      tableEl.querySelectorAll("button[data-revoke]").forEach(btn=>btn.addEventListener("click",async()=>{
+        if(!confirm("Revoke this session? Its next protected API request will be rejected."))return;
+        btn.disabled=true;
+        try{
+          await api("/v1/admin/sessions/"+encodeURIComponent(btn.dataset.revoke)+"/revoke",{method:"POST"});
+          if(activePage==="sessions"&&token===pageLoadToken){message("app-message","Session revoked.");await loadPage("sessions");}
+        }catch(e){
+          if(activePage==="sessions"&&token===pageLoadToken){btn.disabled=false;message("app-message",safeError(e,"The session could not be revoked. Please retry."),true);}
+        }
+      }));
+    } catch(e) {
+      if(token!==pageLoadToken||activePage!=="sessions")return;
+      setErrorState("sessions-table","Sessions could not be loaded",safeError(e,"The session records could not be retrieved."),()=>loadPage("sessions"));
+      $("sessions-prev").disabled=offset===0;$("sessions-next").disabled=true;$("sessions-page").textContent="Unable to load sessions";
+    } finally {
+      if(token===pageLoadToken)tableEl.removeAttribute("aria-busy");
+    }
+  }
+  async function loadAlerts() {
+   const token=pageLoadToken,offset=offsets.alerts;
+   const tableEl=$("alerts-table");
+   tableEl.setAttribute("aria-busy","true");
+   tableEl.setAttribute("aria-live","polite");
+   tableEl.innerHTML='<div class="empty"><strong>Loading security alerts</strong><span class="muted small">Retrieving the latest incident records…</span></div>';
+   try {
+     const query="/v1/admin/security/alerts?limit="+pageSize+"&offset="+offset+(alertStatus?"&status="+encodeURIComponent(alertStatus):"");
+     const data=await api(query);
+     if(token!==pageLoadToken||activePage!=="alerts")return;
+      if(!data || !Array.isArray(data.items)) throw new Error("Unexpected security alert response");
+     $("alerts-prev").disabled=offset===0;
+     $("alerts-next").disabled=data.items.length<pageSize;
+     $("alerts-page").textContent=data.items.length===0?"No alerts on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
+     if(data.items.length===0){
+       tableEl.innerHTML='<div class="empty"><strong>No security alerts found</strong><span class="muted small">'+(alertStatus?"No incidents match this status filter.":"No recorded incidents are currently in the alert queue.")+'</span></div>';
+     } else {
+       tableEl.innerHTML=table(data.items,[
+         {label:"Rule",render:a=>'<strong>'+esc(a.rule_id)+'</strong><br><span class="tag severity-'+esc(String(a.severity||"low").toLowerCase())+'">'+esc(a.severity)+'</span>'},
+         {label:"Status",render:a=>'<span class="tag '+(a.status==="open"?"fail":"")+'">'+esc(a.status)+'</span>'},
+         {label:"User / Session",render:a=>'<code>'+esc(a.user_id)+'</code><br><code>'+esc(a.session_id||"—")+'</code>'},
+         {label:"Incident",render:a=>esc(a.summary)+'<br><span class="muted small">'+esc(a.occurrences)+' occurrences</span>'},
+         {label:"Last seen",render:a=>esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")},
+         {label:"Evidence / history",render:a=>'<details class="cell-detail"><summary>View evidence &amp; history</summary><p class="small">Created: '+esc(a.created_at?new Date(a.created_at).toLocaleString():"—")+'</p><p class="small">Acknowledged: '+esc(a.acknowledged_at?new Date(a.acknowledged_at).toLocaleString():"—")+' · By '+esc(a.acknowledged_by||"—")+'</p><p class="small">Resolved: '+esc(a.resolved_at?new Date(a.resolved_at).toLocaleString():"—")+' · By '+esc(a.resolved_by||"—")+'</p><p class="small">Correlation: <code>'+esc(a.correlation_id||"—")+'</code></p><pre>'+esc(JSON.stringify(a.evidence||{},null,2))+'</pre></details>'},
+         {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" data-alert="'+esc(a.id)+'" data-status="acknowledged"><span class="ll-icon" data-icon="check"></span>Acknowledge</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="investigating"><span class="ll-icon" data-icon="search"></span>Investigate</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="false_positive">False positive</button><button data-alert="'+esc(a.id)+'" data-status="resolved"><span class="ll-icon" data-icon="shieldCheck"></span>Resolve</button></div>'}
+       ]);
+     }
+     renderIcons(tableEl);
+     wireTableTools(tableEl);
+     tableEl.querySelectorAll("button[data-alert]").forEach(btn=>btn.addEventListener("click",async()=>{
+       btn.disabled=true;
+       try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");if(activePage==="alerts"&&token===pageLoadToken)await loadPage("alerts");}
+       catch(e){if(activePage==="alerts"&&token===pageLoadToken){btn.disabled=false;message("app-message",safeError(e,"The alert could not be updated. Please retry."),true);}}
+     }));
+   } catch(e) {
+     if(token!==pageLoadToken||activePage!=="alerts")return;
+     tableEl.innerHTML='<div class="empty"><strong>Security alerts could not be loaded</strong><span class="muted small">'+esc(safeError(e,"The alert records could not be retrieved."))+'</span><button id="alerts-retry" class="secondary" type="button">Retry</button></div>';
+     $("alerts-retry")?.addEventListener("click",()=>loadPage("alerts"));
+     $("alerts-prev").disabled=offset===0;
+     $("alerts-next").disabled=true;
+     $("alerts-page").textContent="Unable to load this page";
+   } finally {if(token===pageLoadToken)tableEl.removeAttribute("aria-busy");}
  }
  async function loadEvents(kind) {
-   const offset=offsets[kind];
-   const data=await api("/v1/admin/"+kind+"?limit="+pageSize+"&offset="+offset);
+   const token=pageLoadToken,offset=offsets[kind];
+   const correlation=kind==="audit"?auditCorrelation:errorsCorrelation;
    const target=kind==="audit"?"audit-table":"errors-table";
-   $(kind+"-prev").disabled=offset===0;
-   $(kind+"-next").disabled=data.items.length<pageSize;
-   $(kind+"-page").textContent=data.items.length===0?"No records on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
-   $(target).innerHTML=table(data.items,[{label:"Timestamp",render:e=>esc(e.timestamp||e.created_at?new Date(e.timestamp||e.created_at).toLocaleString():"—")},{label:"Event",render:e=>'<strong>'+esc(e.action||"event")+'</strong><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span><br><code>'+esc(e.log_id||e.id||"—")+'</code>'},{label:"CRUD",render:e=>'<span class="tag">'+esc(e.actions||"OTHER")+'</span>'},{label:"Session",render:e=>'<code>'+esc(e.session_id||"Unavailable")+'</code>'},{label:"IP / Device",render:e=>'<code>'+esc(e.ip_address||"Unavailable")+'</code><br><span class="muted small">'+esc(e.device_used||"unknown")+'</span>'},{label:"Actor / Target",render:e=>'<code>'+esc(e.actor_id||"system")+'</code><br>'+esc(e.target_type||"—")+' <code>'+esc(e.target_id||"")+'</code>'},{label:"Description",render:e=>esc(e.description||e.action||"—")+'<br><span class="muted small">Correlation: '+esc(e.correlation_id||"—")+'</span>'},{label:"Metadata",render:e=>'<code>'+esc(JSON.stringify(e.metadata||{}))+'</code>'}]);
- }
- async function loadPage(page) {
-   activePage=page; document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
-   ["overview","users","audit","sessions","alerts","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
-   message("app-message","");
+   const tableEl=$(target);
+   tableEl.setAttribute("aria-busy","true");
+   tableEl.setAttribute("aria-live","polite");
+   tableEl.innerHTML='<div class="empty"><strong>Loading '+(kind==="audit"?"audit records":"system errors")+'</strong><span class="muted small">Retrieving the latest records…</span></div>';
    try {
-     if(page==="overview"){const d=await api("/v1/admin/dashboard");$("stat-users").textContent=d.users;$("stat-donors").textContent=d.donors;$("stat-requests").textContent=d.requests;$("generated").textContent="Updated "+new Date(d.generated_at).toLocaleString()+" · Correlation ID "+d.correlation_id;}
-     if(page==="users") await loadUsers();
-     if(page==="audit") await loadEvents("audit");
-     if(page==="sessions") await loadSessions();
-     if(page==="alerts") await loadAlerts();
-     if(page==="errors") await loadEvents("errors");
-   } catch(e) { message("app-message",e.message||"Could not load data.",true); }
+     const data=await api("/v1/admin/"+kind+"?limit="+pageSize+"&offset="+offset+(kind==="audit"&&auditAction?"&action="+encodeURIComponent(auditAction):"")+(correlation?"&correlation_id="+encodeURIComponent(correlation):""));
+     if(token!==pageLoadToken||activePage!==kind)return;
+      if(!data||!Array.isArray(data.items)) throw new Error("Unexpected "+kind+" response");
+     $(kind+"-prev").disabled=offset===0;
+     $(kind+"-next").disabled=data.items.length<pageSize;
+     $(kind+"-page").textContent=data.items.length===0?"No records on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
+     if(kind==="audit") $("audit-filter-note").textContent=[auditAction?"Action: "+auditAction:"",auditCorrelation?"Correlation ID: "+auditCorrelation:""].filter(Boolean).join(" · ")||"Showing all audit actions.";
+     else $("errors-filter-note").textContent=errorsCorrelation?"Filtering correlation ID: "+errorsCorrelation:"Showing all recorded errors and denied events.";
+     if(data.items.length===0){
+       tableEl.innerHTML='<div class="empty"><strong>No '+(kind==="audit"?"audit records":"system errors")+' found</strong><span class="muted small">'+(correlation?"No records match this correlation ID.":kind==="errors"?"No recorded errors or denied events are currently available.":"There are no audit events on this page.")+'</span></div>';
+     } else {
+       tableEl.innerHTML=table(data.items,[
+         {label:"Timestamp",render:e=>esc(e.timestamp||e.created_at?new Date(e.timestamp||e.created_at).toLocaleString():"—")},
+         {label:"Event",render:e=>'<strong>'+esc(e.action||"event")+'</strong><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span>'},
+         {label:"CRUD",render:e=>'<span class="tag">'+esc(e.actions||"OTHER")+'</span>'},
+         {label:"Session",render:e=>'<code>'+esc(e.session_id||"Unavailable")+'</code>'},
+         {label:"IP / Device",render:e=>'<code>'+esc(e.ip_address||"Unavailable")+'</code><br><span class="muted small">'+esc(e.device_used||"unknown")+'</span>'},
+         {label:"Actor / Target",render:e=>'<code>'+esc(e.actor_id||"system")+'</code><br>'+esc(e.target_type||"—")+' <code>'+esc(e.target_id||"")+'</code>'},
+         {label:"Description",render:e=>esc(e.description||e.action||"—")+'<br><span class="muted small">Correlation: '+esc(e.correlation_id||"—")+'</span>'},
+         {label:"Metadata",render:e=>'<details class="cell-detail"><summary>View metadata</summary><pre>'+esc(JSON.stringify(e.metadata||{},null,2))+'</pre></details>'}
+       ]);
+       renderIcons(tableEl);
+       wireTableTools(tableEl);
+     }
+   } catch(e) {
+     if(token!==pageLoadToken||activePage!==kind)return;
+     const subject=kind==="audit"?"Audit records":"System errors";
+     tableEl.innerHTML='<div class="empty"><strong>'+subject+' could not be loaded</strong><span class="muted small">'+esc(safeError(e,"The records could not be retrieved. Please retry."))+'</span><button id="'+kind+'-retry" class="secondary" type="button">Retry</button></div>';
+     $(kind+"-retry")?.addEventListener("click",()=>loadPage(kind));
+     $(kind+"-prev").disabled=offset===0;
+     $(kind+"-next").disabled=true;
+     $(kind+"-page").textContent="Unable to load this page";
+     if(kind==="errors") $("errors-filter-note").textContent="Retrieval failed. Your correlation filter has been preserved.";
+   } finally {
+     if(token===pageLoadToken)tableEl.removeAttribute("aria-busy");
+   }
  }
- $("signin").addEventListener("click",signIn);
+
+ async function loadRoles() {
+    const token=pageLoadToken,tableEl=$("roles-table");
+    setLoadingState("roles-table","Loading role registry","Retrieving configured roles and permissions…");
+    try {
+      const data=await api("/v1/admin/roles");
+      if(token!==pageLoadToken||activePage!=="roles")return;
+      if(!data||!Array.isArray(data.items))throw new Error("Unexpected role registry response");
+      tableEl.innerHTML=table(data.items,[{label:"Role",render:r=>'<strong>'+esc(r.display_name)+'</strong><br><code>'+esc(r.role_key)+'</code>'},{label:"Description",render:r=>esc(r.description||"—")},{label:"Permissions",render:r=>'<span class="tag">'+(r.permissions||[]).length+' permissions</span><details class="cell-detail"><summary>View permissions</summary><pre>'+esc((r.permissions||[]).join("\\n")||"No permissions mapped")+'</pre></details>'}]);
+      renderIcons(tableEl);wireTableTools(tableEl);
+    } catch(e) {
+      if(token!==pageLoadToken||activePage!=="roles")return;
+      setErrorState("roles-table","Role registry could not be loaded",safeError(e,"The role registry could not be retrieved."),()=>loadPage("roles"));
+    } finally {
+      if(token===pageLoadToken)tableEl.removeAttribute("aria-busy");
+    }
+  }
+  function renderOverviewBars(data) {
+   const series=[
+     {label:"Registered profiles",value:Number(data.users)||0},
+     {label:"Requests",value:Number(data.requests)||0}
+   ];
+   const width=760,rowHeight=54,left=190,right=56,top=14,height=top+series.length*rowHeight+12,plotWidth=width-left-right;
+   const max=Math.max(1,...series.map(item=>item.value));
+   const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+   svg.setAttribute("viewBox","0 0 "+width+" "+height);
+   svg.setAttribute("role","img");
+   svg.setAttribute("aria-label",series.map(item=>item.label+": "+item.value).join("; "));
+   svg.style.width="100%";svg.style.maxHeight="250px";
+   const add=(tag,attrs,value)=>{const node=document.createElementNS("http://www.w3.org/2000/svg",tag);Object.entries(attrs).forEach(([key,val])=>node.setAttribute(key,String(val)));if(value!==undefined)node.textContent=String(value);svg.appendChild(node);};
+   series.forEach((item,index)=>{
+     const y=top+index*rowHeight;
+     const barWidth=item.value>0?Math.max(3,item.value/max*plotWidth):0;
+     add("text",{x:left-14,y:y+21,"text-anchor":"end",fill:"#73786f","font-size":13},item.label);
+     add("rect",{x:left,y:y,width:plotWidth,height:17,rx:8,fill:"#eeece5"});
+     if(item.value>0)add("rect",{x:left,y:y,width:barWidth,height:17,rx:8,fill:"#b58a43"});
+     add("text",{x:Math.min(width-8,left+barWidth+10),y:y+14,fill:"#292e2a","font-size":13,"font-weight":700},item.value.toLocaleString());
+   });
+   $("overview-chart").replaceChildren(svg);
+   $("overview-chart-caption").textContent="Snapshot generated "+new Date(data.generated_at).toLocaleString()+". Bars are scaled to the largest of these two totals.";
+ }
+ function renderAnalyticsBars(items) {
+   const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-(6-i));return d;});
+   const counts=days.map(day=>items.filter(e=>{const t=new Date(e.timestamp||e.created_at);return !Number.isNaN(t.valueOf())&&t.toDateString()===day.toDateString();}).length);
+   const max=Math.max(1,...counts), width=680, height=220, left=42, bottom=34, top=14, plotH=height-top-bottom, barW=48, gap=34;
+   const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+   svg.setAttribute("viewBox","0 0 "+width+" "+height);svg.setAttribute("role","img");svg.setAttribute("aria-label","Audit event counts per day for the latest 100 events");svg.style.width="100%";svg.style.maxHeight="260px";
+   const make=(tag,attrs,text)=>{const n=document.createElementNS("http://www.w3.org/2000/svg",tag);Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,String(v)));if(text)n.textContent=text;svg.appendChild(n);};
+   for(let g=0;g<=4;g++){const y=top+plotH-(plotH*g/4);make("line",{x1:left,y1:y,x2:width-10,y2:y,stroke:"#e8e5dc","stroke-width":1});make("text",{x:left-10,y:y+4,"text-anchor":"end",fill:"#718096","font-size":11},String(Math.round(max*g/4)));}
+   days.forEach((day,i)=>{const x=left+18+i*(barW+gap),bh=counts[i]/max*plotH,y=top+plotH-bh;make("rect",{x,y,width:barW,height:Math.max(0,bh),rx:6,fill:"#b58a43"});make("text",{x:x+barW/2,y:height-10,"text-anchor":"middle",fill:"#64748b","font-size":11},day.toLocaleDateString(undefined,{weekday:"short"}));make("text",{x:x+barW/2,y:Math.max(12,y-6),"text-anchor":"middle",fill:"#334155","font-size":11,"font-weight":700},String(counts[i]));});
+   $("analytics-chart").replaceChildren(svg);
+ }
+ async function loadAnalytics() {
+    const token=pageLoadToken;
+    setLoadingState("analytics-summary","Loading analytics","Retrieving the latest audit sample…");
+    $("analytics-chart").innerHTML='<div class="empty">Preparing activity chart…</div>';
+    $("analytics-actions").innerHTML='<div class="empty">Loading action summary…</div>';
+    try {
+      const data=await api("/v1/admin/audit?limit=100&offset=0");
+      if(token!==pageLoadToken||activePage!=="analytics")return;
+      if(!data||!Array.isArray(data.items))throw new Error("Unexpected analytics response");
+      const items=data.items;
+      const byAction={};items.forEach(e=>{const k=e.action||"unknown";byAction[k]=(byAction[k]||0)+1;});
+      const days=new Set(items.map(e=>{const d=new Date(e.timestamp||e.created_at);return Number.isNaN(d.valueOf())?"":d.toDateString();}).filter(Boolean));
+      $("analytics-summary").innerHTML='<div class="stat"><small>Events in sample</small><strong>'+items.length+'</strong></div><div class="stat"><small>Distinct actions</small><strong>'+Object.keys(byAction).length+'</strong></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong></div><div class="stat"><small>Sample limit</small><strong>100</strong></div>';
+      renderAnalyticsBars(items);
+      const top=Object.entries(byAction).sort((a,b)=>b[1]-a[1]).slice(0,8);
+      $("analytics-actions").innerHTML=top.length?'<div class="tablewrap"><table><thead><tr><th>Action</th><th>Events</th></tr></thead><tbody>'+top.map(([k,v])=>'<tr><td>'+esc(k)+'</td><td><strong>'+v+'</strong></td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No audit events are available in the returned sample.</div>';
+    } catch(e) {
+      if(token!==pageLoadToken||activePage!=="analytics")return;
+      setErrorState("analytics-summary","Analytics could not be loaded",safeError(e,"The audit sample could not be retrieved."),()=>loadPage("analytics"));
+      $("analytics-chart").innerHTML='<div class="empty">Chart unavailable until the audit sample loads.</div>';
+      $("analytics-actions").innerHTML='<div class="empty">Action summary unavailable.</div>';
+    } finally {
+      if(token===pageLoadToken)$("analytics-summary").removeAttribute("aria-busy");
+    }
+  }
+  async function loadPage(page) {
+    const token=++pageLoadToken;
+    renderIcons();
+    activePage=page; document.querySelectorAll(".tab").forEach(b=>{const active=b.dataset.page===page;b.classList.toggle("active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
+    const pageTitles={analytics:["Reporting","Activity analytics"],roles:["Access control","Role registry"],overview:["Operations overview","Admin dashboard"],users:["Workspace","User management"],alerts:["Security center","Security alerts"],sessions:["Security center","Session registry"],audit:["Security center","Audit activity"],errors:["Security center","System errors"]};
+    const title=pageTitles[page]||["Admin","Admin console"];$("page-eyebrow").textContent=title[0];$("page-title").textContent=title[1];
+    ["overview","users","analytics","roles","audit","sessions","alerts","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
+    message("app-message","");
+    try {
+      if(page==="overview"){
+        setLoadingState("overview-chart","Loading platform snapshot","Retrieving current profile and request totals…");
+        const d=await api("/v1/admin/dashboard");
+        if(token!==pageLoadToken||activePage!==page)return;
+        $("stat-users").textContent=d.users;$("stat-requests").textContent=d.requests;renderOverviewBars(d);$("generated").textContent="Updated "+new Date(d.generated_at).toLocaleString()+" · Correlation ID "+d.correlation_id;
+      }
+      if(page==="users") await loadUsers();
+      if(page==="analytics") await loadAnalytics();
+      if(page==="roles") await loadRoles();
+      if(page==="audit") await loadEvents("audit");
+      if(page==="sessions") await loadSessions();
+      if(page==="alerts") await loadAlerts();
+      if(page==="errors") await loadEvents("errors");
+    } catch(e) {
+      if(token!==pageLoadToken||activePage!==page)return;
+      if(page==="overview")setErrorState("overview-chart","Overview could not be loaded",safeError(e,"The dashboard snapshot could not be retrieved."),()=>loadPage("overview"));
+      else message("app-message",safeError(e,"Could not load admin data. Please retry."),true);
+    } finally {
+      if(page==="overview"&&token===pageLoadToken)$("overview-chart").removeAttribute("aria-busy");
+    }
+  }
+  $("signin").addEventListener("click",signIn);
  $("forgot-password").addEventListener("click",e=>{e.preventDefault();$("recovery-email").value=$("email").value.trim();showRecovery("request");});
  $("recovery-submit").addEventListener("click",()=>recoveryMode==="update"?updateRecoveredPassword():requestPasswordReset());
- $("recovery-cancel").addEventListener("click",()=>{$("recovery-view").classList.add("hidden");message("login-message","");});
+ $("recovery-cancel").addEventListener("click",()=>{recoveryAccessToken=null;$("new-password").value="";$("confirm-password").value="";$("recovery-view").classList.add("hidden");message("login-message","");});
  const initialHash=new URLSearchParams(location.hash.slice(1));
- if(initialHash.get("type")==="recovery"&&initialHash.get("access_token")){showRecovery("update");message("login-message","Password-reset link verified. Choose a new password.");}
+ if(initialHash.get("type")==="recovery"&&initialHash.get("access_token")){
+   recoveryAccessToken=initialHash.get("access_token");
+   history.replaceState(null,"",location.pathname+location.search);
+   showRecovery("update");message("login-message","Password-reset link verified. Choose a new password.");
+ }
  $("password").addEventListener("keydown",e=>{if(e.key==="Enter")signIn()});
  document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>loadPage(b.dataset.page)));
  $("refresh").addEventListener("click",()=>loadPage(activePage));
+ $("alert-status-filter").addEventListener("change",e=>{alertStatus=e.target.value;offsets.alerts=0;loadPage("alerts");});
+ $("audit-filter-apply").addEventListener("click",()=>{auditAction=$("audit-action-filter").value.trim().slice(0,64);auditCorrelation=$("audit-correlation-filter").value.trim().slice(0,128);offsets.audit=0;loadPage("audit");});
+ $("audit-filter-clear").addEventListener("click",()=>{$("audit-action-filter").value="";$("audit-correlation-filter").value="";auditAction="";auditCorrelation="";offsets.audit=0;loadPage("audit");});
+ $("audit-correlation-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("audit-filter-apply").click();});
+ $("errors-filter-apply").addEventListener("click",()=>{errorsCorrelation=$("errors-correlation-filter").value.trim().slice(0,128);offsets.errors=0;loadPage("errors");});
+ $("errors-filter-clear").addEventListener("click",()=>{$("errors-correlation-filter").value="";errorsCorrelation="";offsets.errors=0;loadPage("errors");});
+ $("errors-correlation-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("errors-filter-apply").click();});
+ $("audit-action-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("audit-filter-apply").click();});
  ["users","audit","sessions","alerts","errors"].forEach(kind=>{
    $(kind+"-prev").addEventListener("click",()=>{offsets[kind]=Math.max(0,offsets[kind]-pageSize);loadPage(kind==="users"?"users":kind);});
    $(kind+"-next").addEventListener("click",()=>{offsets[kind]+=pageSize;loadPage(kind==="users"?"users":kind);});
  });
- $("signout").addEventListener("click",()=>{accessToken=null;$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("password").value="";message("login-message","Signed out.");});
+ $("signout").addEventListener("click",()=>{pageLoadToken++;accessToken=null;$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("password").value="";message("login-message","Signed out.");});
 })();
 </script>
 </body></html>

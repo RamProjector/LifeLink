@@ -1,12 +1,15 @@
 package com.lifelink.app.data
 
 import android.content.Context
+import android.util.Base64
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import com.google.gson.Gson
+import com.lifelink.app.R
 import com.lifelink.app.core.auth.AuthSession
 import com.lifelink.app.core.auth.AuthSessionStore
+import com.lifelink.app.core.auth.TestSessionCipher
 import com.lifelink.app.data.local.DonorRequestEntity
 import com.lifelink.app.data.local.EmergencyRequestDraftEntity
 import com.lifelink.app.data.local.LifeLinkDatabase
@@ -33,13 +36,52 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.xmlpull.v1.XmlPullParser
+
+private fun readExcludedSharedPreferences(context: Context): Map<String, Set<String>> {
+    val parser = context.resources.getXml(R.xml.data_extraction_rules)
+    val excluded = mutableMapOf<String, MutableSet<String>>()
+    var section = ""
+
+    while (parser.next() != XmlPullParser.END_DOCUMENT) {
+        if (parser.eventType != XmlPullParser.START_TAG) continue
+        when (parser.name) {
+            "cloud-backup", "device-transfer" -> section = parser.name
+            "exclude" -> addSharedPreferenceExclusion(parser, section, excluded)
+        }
+    }
+    parser.close()
+    return excluded
+}
+
+private fun addSharedPreferenceExclusion(
+    parser: XmlPullParser,
+    section: String,
+    excluded: MutableMap<String, MutableSet<String>>,
+) {
+    if (parser.getAttributeValue(null, "domain") != "sharedpref") return
+    val path = parser.getAttributeValue(null, "path") ?: return
+    excluded.getOrPut(section) { mutableSetOf() }.add(path)
+}
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = android.app.Application::class)
 class AccountPersistenceTest {
     private lateinit var db: LifeLinkDatabase
 
+    @Test fun authPreferencesAreExcludedFromCloudBackupAndDeviceTransfer() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val excluded = readExcludedSharedPreferences(context)
+        val authPreferences = setOf("lifelink_auth.xml", "lifelink_auth_secure.xml")
+
+        assertTrue(authPreferences.all { it in excluded["cloud-backup"].orEmpty() })
+        assertTrue(authPreferences.all { it in excluded["device-transfer"].orEmpty() })
+    }
+
     @Before fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.getSharedPreferences("lifelink_auth_secure", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("lifelink_auth", Context.MODE_PRIVATE).edit().clear().commit()
         db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), LifeLinkDatabase::class.java)
             .allowMainThreadQueries().build()
     }
@@ -109,13 +151,101 @@ class AccountPersistenceTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val preferences = context.getSharedPreferences("lifelink_auth", Context.MODE_PRIVATE)
         preferences.edit().clear().putString("access_token", "legacy-token").commit()
-        assertNull(AuthSessionStore(context).session.value)
+        assertNull(AuthSessionStore(context, TestSessionCipher()).session.value)
         preferences.edit().clear().commit()
+    }
+
+    @Test fun legacyPlaintextSessionMigratesToEncryptedPreferences() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val legacy = context.getSharedPreferences("lifelink_auth", Context.MODE_PRIVATE)
+        val secure = context.getSharedPreferences("lifelink_auth_secure", Context.MODE_PRIVATE)
+        legacy.edit().clear()
+            .putString("access_token", "legacy-access-token")
+            .putString("refresh_token", "legacy-refresh-token")
+            .putString("user_id", "legacy-user")
+            .putString("email", "legacy@example.test")
+            .commit()
+        secure.edit().clear().commit()
+
+        val store = AuthSessionStore(context, TestSessionCipher())
+
+        assertEquals("legacy-access-token", store.session.value?.accessToken)
+        assertEquals("legacy-refresh-token", store.session.value?.refreshToken)
+        assertEquals("legacy-user", store.session.value?.userId)
+        assertTrue(legacy.all.isEmpty())
+        val ciphertext = secure.getString("session_ciphertext", null)
+        assertNotNull(ciphertext)
+        assertFalse(ciphertext!!.contains("legacy-access-token"))
+        assertFalse(secure.contains("access_token"))
+        store.clear()
+    }
+
+    @Test fun encryptedSessionRecoveryRemovesStrandedLegacyPlaintext() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val legacy = context.getSharedPreferences("lifelink_auth", Context.MODE_PRIVATE)
+        val secure = context.getSharedPreferences("lifelink_auth_secure", Context.MODE_PRIVATE)
+        legacy.edit().clear().commit()
+        secure.edit().clear().commit()
+        val saved = AuthSession("secure-access", "secure-refresh", "secure-user", "secure@example.test")
+        AuthSessionStore(context, TestSessionCipher()).save(saved)
+
+        // Simulate a process interruption after the encrypted write but before
+        // the legacy plaintext preference file was cleared.
+        legacy.edit()
+            .putString("access_token", "stranded-plaintext-token")
+            .putString("refresh_token", "stranded-plaintext-refresh")
+            .putString("user_id", "secure-user")
+            .commit()
+
+        val restored = AuthSessionStore(context, TestSessionCipher())
+
+        assertEquals(saved, restored.session.value)
+        assertTrue(legacy.all.isEmpty())
+        restored.clear()
+    }
+
+    @Test fun tamperedEncryptedSessionFailsAuthenticationAndRequiresSignIn() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val secure = context.getSharedPreferences("lifelink_auth_secure", Context.MODE_PRIVATE)
+        secure.edit().clear().commit()
+        AuthSessionStore(context, TestSessionCipher()).save(
+            AuthSession(
+                accessToken = "protected-access",
+                refreshToken = "protected-refresh",
+                userId = "protected-user",
+                email = "protected@example.test",
+            ),
+        )
+
+        secure.edit()
+            .putString("session_ciphertext", Base64.encodeToString(ByteArray(80) { 1 }, Base64.NO_WRAP))
+            .commit()
+
+        val restored = AuthSessionStore(context, TestSessionCipher())
+
+        assertNull(restored.session.value)
+        assertTrue(secure.all.isEmpty())
+        restored.clear()
+    }
+
+    @Test fun unreadableEncryptedSessionIsDiscardedAndRequiresSignIn() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val secure = context.getSharedPreferences("lifelink_auth_secure", Context.MODE_PRIVATE)
+        secure.edit().clear()
+            .putString("session_iv", "invalid-iv")
+            .putString("session_ciphertext", "invalid-ciphertext")
+            .commit()
+
+        val store = AuthSessionStore(context, TestSessionCipher())
+
+        assertNull(store.session.value)
+        assertTrue(secure.all.isEmpty())
+        store.clear()
     }
 
     @Test fun accountRemovalTriggersCleanupWithoutAnActivity() = runBlocking {
         val removedAccounts = mutableListOf<String>()
-        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>()) {
+        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>(), TestSessionCipher()) {
             removedAccounts += it
             null
         }
@@ -142,7 +272,7 @@ class AccountPersistenceTest {
 
     @Test fun sameAccountSignInWaitsForCleanupBeforeWritingNewData() = runBlocking {
         val releaseCleanup = CompletableDeferred<Unit>()
-        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>()) { owner ->
+        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>(), TestSessionCipher()) { owner ->
             launch {
                 releaseCleanup.await()
                 db.clearLocalAccountData(owner)
@@ -167,7 +297,7 @@ class AccountPersistenceTest {
     }
 
     @Test fun staleRefreshCannotRestoreSignedOutOrReplaceDifferentAccount() = runBlocking {
-        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>())
+        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>(), TestSessionCipher())
         val alice = AuthSession("alice-token", "refresh", "alice", "alice@example.test")
         val bob = alice.copy(accessToken = "bob-token", userId = "bob")
         store.save(alice)
