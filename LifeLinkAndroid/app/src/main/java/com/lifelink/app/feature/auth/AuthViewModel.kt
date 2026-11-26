@@ -49,7 +49,17 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
 
     fun signIn(email: String, password: String) = authenticate { repository.signIn(email, password) }
     fun signUp(email: String, password: String) = authenticate { repository.signUp(email, password) }
-    fun signOut() = repository.signOut()
+    fun signOut() {
+        viewModelScope.launch {
+            repository.signOut().onFailure {
+                _state.value = AuthState.Message(
+                    "You are signed out on this device, but LifeLink could not confirm " +
+                        "server-side session revocation. Reconnect and sign in again.",
+                    isError = true,
+                )
+            }
+        }
+    }
     fun requestPasswordReset(email: String) = runNeutralRecovery { repository.requestPasswordReset(email) }
     fun resendConfirmation(email: String) = runRecovery(email) { repository.resendConfirmation(email) }
     fun handleAuthCallback(uri: Uri?) {

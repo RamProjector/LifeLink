@@ -2,4 +2,5 @@
 <full-backup-content>
     <!-- Session tokens must never be copied to another device or cloud backup. -->
     <exclude domain="sharedpref" path="lifelink_auth.xml" />
+    <exclude domain="sharedpref" path="lifelink_auth_secure.xml" />
 </full-backup-content>

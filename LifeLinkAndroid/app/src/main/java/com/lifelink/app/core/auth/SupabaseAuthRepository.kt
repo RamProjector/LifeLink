@@ -191,7 +191,31 @@ class SupabaseAuthRepository(
             }
         }
 
-    fun signOut() = sessionStore.clear()
+    @Suppress("TooGenericExceptionCaught")
+    suspend fun signOut(): Result<Unit> {
+        val activeSession = sessionStore.session.value
+        // Remove credentials from local storage immediately; the captured token is
+        // used only for the best-effort server-side revocation request.
+        sessionStore.clear()
+        if (activeSession == null) return Result.success(Unit)
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = api?.signOut(
+                    publishableKey,
+                    "Bearer ${activeSession.accessToken}",
+                    "local",
+                ) ?: error("Supabase URL is not configured")
+                if (!response.isSuccessful) {
+                    error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+                }
+                Result.success(Unit)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
+            }
+        }
+    }
 
     private suspend fun authenticate(call: suspend () -> Response<SupabaseAuthResponse>): Result<AuthResult> =
         withContext(Dispatchers.IO) {
@@ -296,6 +320,13 @@ private interface SupabaseAuthApi {
     suspend fun resend(
         @Header("apikey") publishableKey: String,
         @Body request: ResendRequest,
+    ): Response<Unit>
+
+    @POST("auth/v1/logout")
+    suspend fun signOut(
+        @Header("apikey") publishableKey: String,
+        @Header("Authorization") authorization: String,
+        @Query("scope") scope: String = "local",
     ): Response<Unit>
 
     @GET("auth/v1/user")

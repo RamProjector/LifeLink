@@ -7,6 +7,7 @@ import androidx.work.Configuration
 import androidx.work.WorkManager
 import com.lifelink.app.core.auth.AuthSession
 import com.lifelink.app.core.auth.AuthSessionStore
+import com.lifelink.app.core.auth.TestSessionCipher
 import com.lifelink.app.data.local.LifeLinkDatabase
 import com.lifelink.app.data.local.toEntity
 import com.lifelink.app.data.remote.LifeLinkApi
@@ -20,7 +21,9 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -58,12 +61,19 @@ class RequestHistoryRestoreTest {
     }
 
     private fun repository(owner: String) = EmergencyRequestRepositoryImpl(
-        db.emergencyRequestDraftDao(), db.pendingSubmissionDao(), db.activeRequestDao(),
-        api, workManager, requesterIdProvider = { owner }
+        db.emergencyRequestDraftDao(),
+        db.pendingSubmissionDao(),
+        db.activeRequestDao(),
+        api,
+        workManager,
+        requesterIdProvider = { owner },
     )
 
     @Test fun sameAccountLoginRestoresSubmittedRequestAfterLogoutCleanup() = runBlocking {
-        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>()) { owner ->
+        val store = AuthSessionStore(
+            ApplicationProvider.getApplicationContext<Context>(),
+            TestSessionCipher(),
+        ) { owner ->
             launch { db.clearLocalAccountData(owner) }
         }
         val session = AuthSession("synthetic-token", "refresh", "alice", "alice@example.test")
@@ -73,7 +83,9 @@ class RequestHistoryRestoreTest {
         store.clear()
         store.save(session.copy(accessToken = "new-synthetic-token"))
         assertNull(repository("alice").observeActiveRequest().first())
-        server.enqueue(MockResponse().setBody("[${historyItem("closed-request", "fulfilled")},${historyItem("saved-request", "awaiting_responses")}]"))
+        server.enqueue(
+            MockResponse().setBody("[${historyItem("closed-request", "fulfilled")},${historyItem("saved-request", "awaiting_responses")}]"),
+        )
         val history = repository("alice").refreshRequestHistory()
         assertEquals(2, history.size)
         val restored = repository("alice").observeActiveRequest().first()!!
@@ -110,9 +122,11 @@ class RequestHistoryRestoreTest {
     }
 
     @Test fun successfulContactResponseMapsTheConfirmedDonors() = runBlocking {
-        server.enqueue(MockResponse().setBody(
-            """{"request_id":"request-1","donor_ids":["donor-1"],"status":"contact_requested"}"""
-        ))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"request_id":"request-1","donor_ids":["donor-1"],"status":"contact_requested"}""",
+            ),
+        )
 
         val result = repository("alice").contactSelectedDonors("request-1", listOf("donor-1"))
 

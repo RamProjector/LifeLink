@@ -23,10 +23,13 @@ class SupabasePasswordRecoveryTest {
 
     @Before
     fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.getSharedPreferences("lifelink_auth_secure", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("lifelink_auth", Context.MODE_PRIVATE).edit().clear().commit()
         server = MockWebServer()
         server.start()
         repository = SupabaseAuthRepository(
-            sessionStore = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>()),
+            sessionStore = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>(), TestSessionCipher()),
             baseUrl = server.url("/").toString(),
             publishableKey = "test-publishable-key",
         )
