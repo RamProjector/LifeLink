@@ -27,6 +27,9 @@ class AuthRefreshTest {
     private val original = AuthSession("old-token", "refresh", "alice", "alice@example.test")
 
     @Before fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        context.getSharedPreferences("lifelink_auth_secure", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("lifelink_auth", android.content.Context.MODE_PRIVATE).edit().clear().commit()
         server = MockWebServer()
         server.start()
         store = AuthSessionStore(ApplicationProvider.getApplicationContext(), TestSessionCipher())
