@@ -1461,7 +1461,11 @@ tbody tr:hover { background: #f0eee7; }
    finally { $("signin").disabled=false; }
  }
  function table(items, cols) {
-   if(!items?.length) return '<div class="empty">No records found.</div>';
+   if(!items?.length) {
+     const emptyStates={users:["No user records on this page","There are no account records in the current result page."],sessions:["No session records on this page","There are no active or revoked sessions in the current result page."],roles:["No role records returned","The backend did not return any configured role records."],alerts:["No security alerts found","No incidents match the current queue view."],audit:["No audit records on this page","There are no audit events in the current result page."],errors:["No system errors found","No recorded errors or denied events are in the current result page."]};
+     const state=emptyStates[activePage]||["No records found","The current result page contains no records."];
+     return '<div class="empty" role="status" aria-live="polite"><strong>'+esc(state[0])+'</strong><span class="muted small">'+esc(state[1])+'</span></div>';
+   }
    const filterKey=items.some(x=>x.status!=null)?'status':items.some(x=>x.outcome!=null)?'outcome':null;
    const values=filterKey?[...new Set(items.map(x=>String(x[filterKey]??'')).filter(Boolean))].sort():[];
    const plural=filterKey==='status'?'statuses':filterKey==='outcome'?'outcomes':filterKey+'s';
@@ -1522,7 +1526,7 @@ async function loadUsers() {
     try {
       const data=await api("/v1/admin/users?limit="+pageSize+"&offset="+offset);
       if(token!==pageLoadToken||activePage!=="users")return;
-      if(!data||!Array.isArray(data.items)||!Number.isFinite(Number(data.total)))throw new Error("Unexpected users response");
+      if(!data||!Array.isArray(data.items)||!Number.isFinite(Number(data.total))||Number(data.total)<0)throw new Error("Unexpected users response");
       $("users-prev").disabled=offset===0;
       $("users-next").disabled=offset+pageSize>=Number(data.total);
       $("users-page").textContent=(Number(data.total)===0?"0 users":(offset+1)+"–"+Math.min(offset+pageSize,Number(data.total))+" of "+data.total);
