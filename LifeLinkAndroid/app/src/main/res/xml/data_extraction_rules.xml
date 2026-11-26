@@ -3,6 +3,7 @@
     <cloud-backup>
         <!-- The file contains Supabase access and refresh tokens. -->
         <exclude domain="sharedpref" path="lifelink_auth.xml" />
+        <exclude domain="sharedpref" path="lifelink_auth_secure.xml" />
     </cloud-backup>
     <device-transfer>
         <!-- Exclude it from direct device-to-device migration too. -->
