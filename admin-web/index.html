@@ -585,6 +585,25 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 .table-empty-filter { display: none; padding: 24px; color: var(--muted); text-align: center; }
 
+/* User management: identity-first directory presentation */
+#page-users .users-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;margin:0 0 14px;padding:14px 16px;border:1px solid #e4dfd2;border-radius:12px;background:#f5f2ea}
+#page-users .users-intro h2{margin:0 0 4px;font-size:15px}#page-users .users-intro p{max-width:760px;margin:0}
+#page-users .users-legend{display:flex;align-items:center;gap:7px;flex-wrap:wrap}#page-users .users-legend .tag{padding:5px 8px}
+#page-users .users-guide{display:flex;align-items:flex-start;gap:9px;margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--muted);font-size:11px;line-height:1.5}
+#page-users .users-guide strong{color:var(--ink-soft)}
+#page-users #users-table .table-toolbar{margin:0;padding:10px 12px;border-bottom:1px solid var(--line);background:#faf9f6}
+#page-users #users-table table{min-width:790px}
+#page-users #users-table th{padding:11px 12px}
+#page-users #users-table td{padding:12px}
+#page-users #users-table td:first-child strong{display:inline-block;margin-bottom:2px;color:var(--ink);font-size:12px}
+#page-users #users-table td:first-child .muted{display:inline-block;margin:2px 0 5px}
+#page-users #users-table td:first-child code{display:block;color:#777b72;font-size:10.5px}
+#page-users #users-table td:nth-child(3) .tag{margin:2px 0}
+#page-users #users-table td:last-child .actions{display:grid;gap:6px;min-width:155px}
+#page-users #users-table td:last-child button{min-height:38px;justify-content:flex-start;padding:7px 10px;font-size:11px}
+#page-users .users-pagination{margin-top:12px}
+@media(max-width:620px){#page-users .users-intro{padding:12px}#page-users #users-table td:last-child .actions{grid-template-columns:repeat(2,minmax(0,1fr));min-width:0}#page-users #users-table td:last-child button{justify-content:center}}
+
 /* Security Center: incident hierarchy and retrieval states */
 #page-alerts .table-toolbar {
   display: flex;
@@ -951,16 +970,7 @@ tbody tr:hover { background: #f0eee7; }
  </section>
  <section id="page-analytics" aria-labelledby="page-title" class="panel hidden"><h2>Activity analytics</h2><p class="muted small">Latest 100 audit events only; not a full historical report.</p><div id="analytics-summary" class="grid"></div><div class="panel"><h2>Audit activity by day</h2><div id="analytics-chart" role="img" aria-label="Audit event counts by day from the latest 100 returned events"><div class="empty">Loading analytics…</div></div></div><div class="panel"><h2>Most frequent actions</h2><div id="analytics-actions"></div></div></section>
  <section id="page-roles" aria-labelledby="page-title" class="panel hidden"><h2>Role and permission registry</h2><p class="muted small">Read-only role and permission registry. Assignments remain protected by backend RBAC.</p><div id="roles-table" class="tablewrap"><div class="empty">Loading role registry…</div></div></section>
- <section id="page-users" aria-labelledby="page-title" class="panel hidden">
-  <div class="users-heading"><div><h2>User management</h2><p class="muted small">Review account identity and app capabilities. Administrator access is managed separately and cannot be changed here.</p></div><span class="snapshot-kind">Account directory</span></div>
-  <div class="table-toolbar users-toolbar">
-   <label class="small" for="users-search">Search this page</label><div class="search-wrap"><input id="users-search" type="search" maxlength="120" placeholder="Name, email, or user ID" autocomplete="off"></div>
-   <label class="small" for="users-access-filter">App access</label><select id="users-access-filter"><option value="">All access states</option><option value="requester">Requester enabled</option><option value="donor">Donor enabled</option><option value="none">No app capabilities</option></select>
-   <span id="users-filter-count" class="table-count" aria-live="polite">Showing current page</span>
-  </div>
-  <div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div>
-  <div class="actions users-pagination"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div>
- </section>
+ <section id="page-users" aria-labelledby="page-title" class="panel hidden"><div class="users-intro"><div><h2>User management</h2><p class="muted small">Review account identity, profile role, and app access. Requester and Donor capabilities are managed here; administrator access is verified separately by the server and cannot be granted from this screen.</p></div><div class="users-legend" aria-label="Capability status legend"><span class="tag success">Enabled</span><span class="tag">Disabled</span></div></div><div class="users-guide"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><div><strong>Capability changes are audited.</strong> The profile role is separate from the Requester and Donor capability switches. Search and CSV export apply to the records on the current page.</div></div><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions users-pagination"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
  <section id="page-audit" aria-labelledby="page-title" class="panel hidden">
   <div class="audit-heading"><div><h2>Audit activity</h2><p class="muted small">Read-only record of administrative and platform events. Use exact action names or correlation IDs to trace related activity.</p></div><span class="snapshot-kind">Read only</span></div>
   <div class="table-toolbar audit-toolbar">
