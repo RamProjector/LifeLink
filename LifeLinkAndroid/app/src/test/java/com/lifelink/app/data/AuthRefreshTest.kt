@@ -3,8 +3,8 @@ package com.lifelink.app.data
 import androidx.test.core.app.ApplicationProvider
 import com.lifelink.app.core.auth.AuthSession
 import com.lifelink.app.core.auth.AuthSessionStore
-import com.lifelink.app.core.auth.TestSessionCipher
 import com.lifelink.app.core.auth.SupabaseAuthRepository
+import com.lifelink.app.core.auth.TestSessionCipher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
@@ -41,7 +41,10 @@ class AuthRefreshTest {
         repository = SupabaseAuthRepository(store, server.url("/").toString(), "test-public-key")
     }
 
-    @After fun tearDown() { store.clear(); server.shutdown() }
+    @After fun tearDown() {
+        store.clear()
+        server.shutdown()
+    }
 
     @Test fun temporaryServerFailureKeepsSession() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(503))
@@ -68,8 +71,10 @@ class AuthRefreshTest {
     }
 
     @Test fun refreshResponseCannotSignBackInAfterSignOut() = runBlocking {
-        server.enqueue(MockResponse().setBody("""{"access_token":"fresh","refresh_token":"new-refresh","user":{"id":"alice"}}""")
-            .setBodyDelay(300, TimeUnit.MILLISECONDS))
+        server.enqueue(
+            MockResponse().setBody("""{"access_token":"fresh","refresh_token":"new-refresh","user":{"id":"alice"}}""")
+                .setBodyDelay(300, TimeUnit.MILLISECONDS),
+        )
         val refresh = async(kotlinx.coroutines.Dispatchers.IO) { repository.refreshAccessToken() }
         assertNotNull(server.takeRequest(5, TimeUnit.SECONDS))
         server.enqueue(MockResponse().setResponseCode(204))
@@ -84,8 +89,10 @@ class AuthRefreshTest {
     }
 
     @Test fun refreshDoesNotReplaceAnotherSignedInAccount() = runBlocking {
-        server.enqueue(MockResponse().setBody("""{"access_token":"fresh","user":{"id":"alice"}}""")
-            .setBodyDelay(300, TimeUnit.MILLISECONDS))
+        server.enqueue(
+            MockResponse().setBody("""{"access_token":"fresh","user":{"id":"alice"}}""")
+                .setBodyDelay(300, TimeUnit.MILLISECONDS),
+        )
         val refresh = async(kotlinx.coroutines.Dispatchers.IO) { repository.refreshAccessToken() }
         assertNotNull(server.takeRequest(5, TimeUnit.SECONDS))
         val bob = original.copy(userId = "bob", accessToken = "bob-token")
