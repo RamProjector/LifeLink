@@ -409,6 +409,28 @@ label {
   line-height: 1.6;
 }
 
+/* User directory refinements */
+.users-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.users-heading h2 { margin-bottom:4px; }
+.users-heading p { max-width:680px; margin:0; }
+.users-toolbar { display:grid; grid-template-columns:auto minmax(180px,1fr) auto minmax(170px,.7fr) auto; align-items:center; justify-content:initial; }
+.users-toolbar .search-wrap { width:100%; max-width:none; }
+.users-toolbar select { min-height:36px; font-size:12px; }
+.users-pagination { align-items:center; margin-top:13px; }
+#users-table tbody tr[hidden] { display:none; }
+#users-table .tag { margin:2px 3px 2px 0; }
+#users-table td:last-child .actions { min-width:230px; }
+@media(max-width:900px) {
+  .users-toolbar { grid-template-columns:auto minmax(0,1fr); }
+  .users-toolbar .table-count { grid-column:2; }
+}
+@media(max-width:620px) {
+  .users-toolbar { grid-template-columns:1fr; gap:7px; }
+  .users-toolbar label:not(:first-child) { margin-top:5px; }
+  .users-toolbar .table-count { grid-column:auto; }
+  .users-pagination { justify-content:flex-start; }
+}
+
 /* Tables, filters, and record details */
 .table-toolbar {
   display: flex;
@@ -867,7 +889,16 @@ tbody tr:hover { background: #f0eee7; }
  </section>
  <section id="page-analytics" aria-labelledby="page-title" class="panel hidden"><h2>Activity analytics</h2><p class="muted small">Latest 100 audit events only; not a full historical report.</p><div id="analytics-summary" class="grid"></div><div class="panel"><h2>Audit activity by day</h2><div id="analytics-chart" role="img" aria-label="Audit event counts by day from the latest 100 returned events"><div class="empty">Loading analytics…</div></div></div><div class="panel"><h2>Most frequent actions</h2><div id="analytics-actions"></div></div></section>
  <section id="page-roles" aria-labelledby="page-title" class="panel hidden"><h2>Role and permission registry</h2><p class="muted small">Read-only role and permission registry. Assignments remain protected by backend RBAC.</p><div id="roles-table" class="tablewrap"><div class="empty">Loading role registry…</div></div></section>
- <section id="page-users" aria-labelledby="page-title" class="panel hidden"><h2>User management</h2><p class="muted small">Review account capabilities and status. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-users" aria-labelledby="page-title" class="panel hidden">
+  <div class="users-heading"><div><h2>User management</h2><p class="muted small">Review account identity and app capabilities. Administrator access is managed separately and cannot be changed here.</p></div><span class="snapshot-kind">Account directory</span></div>
+  <div class="table-toolbar users-toolbar">
+   <label class="small" for="users-search">Search this page</label><div class="search-wrap"><input id="users-search" type="search" maxlength="120" placeholder="Name, email, or user ID" autocomplete="off"></div>
+   <label class="small" for="users-access-filter">App access</label><select id="users-access-filter"><option value="">All access states</option><option value="requester">Requester enabled</option><option value="donor">Donor enabled</option><option value="none">No app capabilities</option></select>
+   <span id="users-filter-count" class="table-count" aria-live="polite">Showing current page</span>
+  </div>
+  <div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div>
+  <div class="actions users-pagination"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div>
+ </section>
  <section id="page-audit" aria-labelledby="page-title" class="panel hidden"><h2>Audit history</h2><div class="table-toolbar"><label class="small" for="audit-action-filter">Exact action</label><div class="search-wrap"><input id="audit-action-filter" type="search" maxlength="64" placeholder="e.g. admin.user.update" autocomplete="off"></div><label class="small" for="audit-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="audit-correlation-filter" type="search" maxlength="128" placeholder="Trace related events" autocomplete="off"></div><button id="audit-filter-apply" class="secondary" type="button">Apply filters</button><button id="audit-filter-clear" class="secondary" type="button">Clear</button></div><p class="muted small" id="audit-filter-note">Showing all audit actions.</p><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div><div class="actions" style="margin-top:14px"><button id="audit-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="audit-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="audit-page" class="muted small" aria-live="polite"></span></div></section>
  <section id="page-sessions" aria-labelledby="page-title" class="panel hidden"><h2>User sessions</h2><p class="muted small">Protected API access records sessions. Revocation blocks subsequent protected requests.</p><div id="sessions-table" class="tablewrap"><div class="empty">Select Sessions to load records.</div></div><div class="actions" style="margin-top:14px"><button id="sessions-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="sessions-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="sessions-page" class="muted small" aria-live="polite"></span></div></section>
  <section id="page-alerts" aria-labelledby="page-title" class="panel hidden">
@@ -1040,6 +1071,30 @@ async function loadUsers() {
       $("users-page").textContent=(Number(data.total)===0?"0 users":(offset+1)+"–"+Math.min(offset+pageSize,Number(data.total))+" of "+data.total);
       tableEl.innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Current access",render:u=>'<span class="tag '+(u.can_request?'success':'')+'">Requester '+(u.can_request?'enabled':'disabled')+'</span><br><span class="tag '+(u.can_donate?'success':'')+'">Donor '+(u.can_donate?'enabled':'disabled')+'</span>'},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Capabilities",render:u=>'<div class="actions"><button class="secondary" data-capability="request" data-enabled="'+String(!!u.can_request)+'" data-id="'+esc(u.user_id)+'">'+(u.can_request?'Disable requester':'Enable requester')+'</button><button class="secondary" data-capability="donate" data-enabled="'+String(!!u.can_donate)+'" data-id="'+esc(u.user_id)+'">'+(u.can_donate?'Disable donor':'Enable donor')+'</button></div>'}]);
       renderIcons(tableEl);wireTableTools(tableEl);
+      const searchInput=$("users-search"),accessFilter=$("users-access-filter"),filterCount=$("users-filter-count");
+      const applyUserFilters=()=>{
+        const query=(searchInput?.value||"").trim().toLocaleLowerCase();
+        const access=accessFilter?.value||"";
+        const rows=Array.from(tableEl.querySelectorAll("tbody tr"));
+        let visible=0;
+        rows.forEach(row=>{
+          const content=(row.textContent||"").toLocaleLowerCase();
+          const requester=content.includes("requester enabled");
+          const donor=content.includes("donor enabled");
+          const matchesQuery=!query||content.includes(query);
+          const matchesAccess=!access||(access==="requester"&&requester)||(access==="donor"&&donor)||(access==="none"&&!requester&&!donor);
+          row.hidden=!(matchesQuery&&matchesAccess);
+          if(!row.hidden)visible++;
+        });
+        if(filterCount)filterCount.textContent=rows.length===0?"No accounts on this page":(visible+" of "+rows.length+" accounts shown on this page");
+        let empty=tableEl.querySelector("[data-user-filter-empty]");
+        if(rows.length&&visible===0){
+          if(!empty){empty=document.createElement("div");empty.className="empty";empty.dataset.userFilterEmpty="true";empty.textContent="No accounts on this page match these filters.";tableEl.appendChild(empty);}
+        }else if(empty)empty.remove();
+      };
+      searchInput?.addEventListener("input",applyUserFilters);
+      accessFilter?.addEventListener("change",applyUserFilters);
+      applyUserFilters();
       tableEl.querySelectorAll("button[data-capability]").forEach(btn=>btn.addEventListener("click",async()=>{
         const row=data.items.find(user=>user.user_id===btn.dataset.id);if(!row)return;
         const capability=btn.dataset.capability,enabled=btn.dataset.enabled==="true";
