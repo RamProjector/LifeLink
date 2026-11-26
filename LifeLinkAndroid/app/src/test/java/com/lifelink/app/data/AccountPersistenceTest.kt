@@ -1,6 +1,7 @@
 package com.lifelink.app.data
 
 import android.content.Context
+import android.util.Base64
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
@@ -163,6 +164,25 @@ class AccountPersistenceTest {
 
         assertEquals(saved, restored.session.value)
         assertTrue(legacy.all.isEmpty())
+        restored.clear()
+    }
+
+    @Test fun tamperedEncryptedSessionFailsAuthenticationAndRequiresSignIn() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val secure = context.getSharedPreferences("lifelink_auth_secure", Context.MODE_PRIVATE)
+        secure.edit().clear().commit()
+        AuthSessionStore(context, TestSessionCipher()).save(
+            AuthSession("protected-access", "protected-refresh", "protected-user", "protected@example.test"),
+        )
+
+        secure.edit()
+            .putString("session_ciphertext", Base64.encodeToString(ByteArray(80) { 1 }, Base64.NO_WRAP))
+            .commit()
+
+        val restored = AuthSessionStore(context, TestSessionCipher())
+
+        assertNull(restored.session.value)
+        assertTrue(secure.all.isEmpty())
         restored.clear()
     }
 
