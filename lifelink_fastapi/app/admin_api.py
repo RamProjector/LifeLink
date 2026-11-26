@@ -478,6 +478,7 @@ async def admin_update_security_alert(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(require_admin),
+    x_correlation_id: str | None = Header(default=None),
 ):
     if payload.status in {"acknowledged", "investigating"}:
         update_sql = (
@@ -504,7 +505,9 @@ async def admin_update_security_alert(
     await _write_audit(
         session, principal.subject, "admin.security.alert.update", request=request,
         session_id=principal.session_id, session_expires_at=principal.session_expires_at,
-        target_type="security_alert", target_id=alert_id, metadata={"status": payload.status},
+        target_type="security_alert", target_id=alert_id,
+        correlation_id=_correlation_id(x_correlation_id),
+        metadata={"status": payload.status},
     )
     await session.commit()
     return {"id": str(row["id"]), "rule_id": row["rule_id"], "status": row["status"]}
