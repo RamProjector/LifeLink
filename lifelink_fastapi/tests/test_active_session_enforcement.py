@@ -59,6 +59,9 @@ def test_active_principal_registers_session_before_request():
 
     assert result is principal
     assert "INSERT INTO lifelink_user_sessions" in session.statement
+    assert "FROM auth.sessions AS supabase_session" in session.statement
+    assert "supabase_session.id::text = :session_id" in session.statement
+    assert "supabase_session.user_id::text = :user_id" in session.statement
     assert "ON CONFLICT (session_id) DO UPDATE" in session.statement
     assert "lifelink_user_sessions.revoked_at IS NULL" in session.statement
     assert "lifelink_user_sessions.status <> 'revoked'" in session.statement
