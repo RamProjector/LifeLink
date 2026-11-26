@@ -142,6 +142,30 @@ class AccountPersistenceTest {
         store.clear()
     }
 
+    @Test fun encryptedSessionRecoveryRemovesStrandedLegacyPlaintext() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val legacy = context.getSharedPreferences("lifelink_auth", Context.MODE_PRIVATE)
+        val secure = context.getSharedPreferences("lifelink_auth_secure", Context.MODE_PRIVATE)
+        legacy.edit().clear().commit()
+        secure.edit().clear().commit()
+        val saved = AuthSession("secure-access", "secure-refresh", "secure-user", "secure@example.test")
+        AuthSessionStore(context, TestSessionCipher()).save(saved)
+
+        // Simulate a process interruption after the encrypted write but before
+        // the legacy plaintext preference file was cleared.
+        legacy.edit()
+            .putString("access_token", "stranded-plaintext-token")
+            .putString("refresh_token", "stranded-plaintext-refresh")
+            .putString("user_id", "secure-user")
+            .commit()
+
+        val restored = AuthSessionStore(context, TestSessionCipher())
+
+        assertEquals(saved, restored.session.value)
+        assertTrue(legacy.all.isEmpty())
+        restored.clear()
+    }
+
     @Test fun unreadableEncryptedSessionIsDiscardedAndRequiresSignIn() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val secure = context.getSharedPreferences("lifelink_auth_secure", Context.MODE_PRIVATE)
