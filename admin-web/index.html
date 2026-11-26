@@ -1497,7 +1497,9 @@ async function loadUsers() {
         const next={role:row.role,can_request:!!row.can_request,can_donate:!!row.can_donate};
         if(capability==="request")next.can_request=!enabled;else next.can_donate=!enabled;
         const action=(next[capability==="request"?"can_request":"can_donate"]?"Enable ":"Disable ")+(capability==="request"?"requester":"donor")+" capability";
-        if(!confirm(action+" for this user? The change will be recorded in the audit log."))return;
+        const identity=[row.display_name||"Unnamed account",row.email||"Email unavailable","User ID: "+row.user_id].join("\n");
+         const consequence=next[capability==="request"?"can_request":"can_donate"]?"This enables the capability for this account.":"This disables the capability for this account and may limit the user’s access to that app mode.";
+         if(!confirm("Review capability change\n\n"+action+"\n"+identity+"\n\n"+consequence+"\n\nThis change will be sent to the admin API and recorded in the audit log. Continue?"))return;
         btn.disabled=true;
         try{
           await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify(next)});
@@ -1533,7 +1535,9 @@ async function loadUsers() {
       ]);
       renderIcons(tableEl);wireTableTools(tableEl);
       tableEl.querySelectorAll("button[data-revoke]").forEach(btn=>btn.addEventListener("click",async()=>{
-        if(!confirm("Revoke this session? Its next protected API request will be rejected."))return;
+        const sessionRecord=data.items.find(item=>item.session_id===btn.dataset.revoke);if(!sessionRecord)return;
+         const sessionContext=[sessionRecord.device_used||"Unknown device",sessionRecord.ip_address||"IP unavailable","Session ID: "+sessionRecord.session_id,"Account ID: "+sessionRecord.user_id].join("\n");
+         if(!confirm("Review session revocation\n\n"+sessionContext+"\n\nRevocation blocks subsequent protected API requests for this session. This cannot be undone from this screen.\n\nRevoke this session?"))return;
         btn.disabled=true;
         try{
           await api("/v1/admin/sessions/"+encodeURIComponent(btn.dataset.revoke)+"/revoke",{method:"POST"});
