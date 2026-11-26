@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-MvgAhysrCBuPEsnIFbGCAdbFHXVPFgb9re1bcD/E/nc='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-CnnpavQ3YlncyuUIK2Gzdilkhf266agevjSu2UbewoA='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -1599,7 +1599,7 @@ async function loadUsers() {
  }
  function renderAnalyticsBars(items) {
    const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-(6-i));return d;});
-   const counts=days.map(day=>items.filter(e=>{const t=new Date(e.timestamp||e.created_at);return !Number.isNaN(t.valueOf())&&t.toDateString()===day.toDateString();}).length);
+   const counts=days.map(day=>items.filter(e=>{const t=new Date(e.created_at||e.timestamp);return !Number.isNaN(t.valueOf())&&t.toDateString()===day.toDateString();}).length);
    const max=Math.max(1,...counts), width=680, height=220, left=42, bottom=34, top=14, plotH=height-top-bottom, barW=48, gap=34;
    const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
    svg.setAttribute("viewBox","0 0 "+width+" "+height);svg.setAttribute("role","img");svg.setAttribute("aria-label","Audit event counts per day for the latest 100 events");svg.style.width="100%";svg.style.maxHeight="260px";
@@ -1622,7 +1622,8 @@ async function loadUsers() {
       const validDates=items.map(e=>new Date(e.created_at||e.timestamp)).filter(d=>!Number.isNaN(d.valueOf()));
       const days=new Set(validDates.map(d=>d.toDateString()));
       const dateRange=validDates.length?new Date(Math.min(...validDates.map(d=>d.valueOf()))).toLocaleDateString()+ " – "+new Date(Math.max(...validDates.map(d=>d.valueOf()))).toLocaleDateString():"No timestamps available";
-      $("analytics-summary").innerHTML='<div class="stat"><small>Events returned</small><strong>'+items.length+'</strong><span class="stat-meta">Records in this response</span></div><div class="stat"><small>Distinct actions</small><strong>'+Object.keys(byAction).length+'</strong><span class="stat-meta">Action names in sample</span></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong><span class="stat-meta">Distinct local calendar days</span></div><div class="stat"><small>Sample window</small><strong class="analytics-range-value">'+esc(dateRange)+'</strong><span class="stat-meta">Earliest to latest returned event</span></div>';\n      $("analytics-generated").textContent="Retrieved "+new Date().toLocaleString()+" (browser local time) · Newest-first audit page · Maximum 100 records";
+      $("analytics-summary").innerHTML='<div class="stat"><small>Events returned</small><strong>'+items.length+'</strong><span class="stat-meta">Records in this response</span></div><div class="stat"><small>Distinct actions</small><strong>'+Object.keys(byAction).length+'</strong><span class="stat-meta">Action names in sample</span></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong><span class="stat-meta">Distinct local calendar days</span></div><div class="stat"><small>Sample window</small><strong class="analytics-range-value">'+esc(dateRange)+'</strong><span class="stat-meta">Earliest to latest returned event</span></div>';
+      $("analytics-generated").textContent="Retrieved "+new Date().toLocaleString()+" (browser local time) · Newest-first audit page · Maximum 100 records";
       renderAnalyticsBars(items);
       const top=Object.entries(byAction).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,8);
       $("analytics-actions").innerHTML=top.length?'<div class="tablewrap analytics-actions-table"><table><thead><tr><th>Action</th><th>Events</th></tr></thead><tbody>'+top.map(([k,v])=>'<tr><td><code>'+esc(k)+'</code></td><td><strong>'+v.toLocaleString()+'</strong></td></tr>').join("")+'</tbody></table></div>':'<div class="empty"><strong>No audit events in this sample</strong><span class="muted small">There are no returned records to summarize right now.</span></div>';
