@@ -28,7 +28,13 @@
     key: [["circle",{cx:"8",cy:"15",r:"5"}],["path",{d:"m21 2-9.6 9.6M15.5 7.5l3 3L22 7"}]],
     edit: [["path",{d:"M12 20h9"}],["path",{d:"M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"}]],
     download: [["path",{d:"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"}],["path",{d:"m7 10 5 5 5-5M12 15V3"}]],
-    filter: [["path",{d:"M4 7h16M7 12h10M10 17h4"}]]
+    filter: [["path",{d:"M4 7h16M7 12h10M10 17h4"}]],
+    analytics: [["path",{d:"M3 20h18"}],["rect",{x:"5",y:"11",width:"3",height:"6",rx:"1"}],["rect",{x:"11",y:"7",width:"3",height:"10",rx:"1"}],["rect",{x:"17",y:"4",width:"3",height:"13",rx:"1"}],["path",{d:"m5 8 5-3 4 1 5-4"}]],
+    securityAlerts: [["path",{d:"M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"}],["path",{d:"M5.5 12h3l1.4-2.3 2.1 4.6 1.5-2.3h5"}]],
+    sessions: [["rect",{x:"3",y:"4",width:"15",height:"12",rx:"2"}],["path",{d:"M8 20h5M10.5 16v4"}],["circle",{cx:"18",cy:"17",r:"4"}],["path",{d:"M18 15v2l1.3 1"}]],
+    audit: [["path",{d:"M7 3h8l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"}],["path",{d:"M15 3v5h5M9 12h6M9 16h3"}],["path",{d:"m14 17 1.5 1.5L19 15"}]],
+    systemErrors: [["path",{d:"m10.3 3.9-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3.1l-8-14a2 2 0 0 0-3.4 0Z"}],["path",{d:"M12 9v4"}],["circle",{cx:"12",cy:"17",r:".7"}]],
+    roles: [["path",{d:"M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"}],["circle",{cx:"12",cy:"11",r:"2.3"}],["path",{d:"M12 13.5V17"}]]
   };
   function create(name, size = 18, className = "") {
     const svg = document.createElementNS(NS, "svg");
