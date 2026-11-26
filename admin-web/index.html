@@ -1100,6 +1100,47 @@ tbody tr:hover { background: #f0eee7; }
  #page-alerts .alerts-pagination > span { width: 100%; margin: 4px 0 0; }
 }
 
+
+/* Incident review and diagnostic tables: improve scan order and responsive density */
+#alerts-table table { min-width: 1080px; }
+#alerts-table th:nth-child(2), #alerts-table td:nth-child(2),
+#alerts-table th:nth-child(3), #alerts-table td:nth-child(3) { width: 112px; }
+#alerts-table td:nth-child(2) .tag,
+#alerts-table td:nth-child(3) .tag { display: inline-flex; justify-content: center; min-width: 88px; }
+#alerts-table td:nth-child(5) { min-width: 190px; max-width: 280px; }
+#alerts-table td:nth-child(5) strong { display: block; line-height: 1.45; overflow-wrap: anywhere; }
+#alerts-table td:nth-child(5) .small { display: inline-block; margin-top: 5px; font-variant-numeric: tabular-nums; }
+#alerts-table td:nth-child(4) { min-width: 150px; }
+#alerts-table td:nth-child(4) code { display: block; max-width: 190px; overflow-wrap: anywhere; }
+#alerts-table td:nth-child(6) { min-width: 145px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#alerts-table td:last-child .actions { display: grid; grid-template-columns: repeat(2,minmax(100px,1fr)); }
+#alerts-table td:last-child .actions button { width: 100%; }
+#errors-table table { min-width: 940px; }
+#errors-table td:nth-child(1) { min-width: 160px; }
+#errors-table td:nth-child(2) { min-width: 170px; max-width: 250px; }
+#errors-table td:nth-child(2) strong { display: block; overflow-wrap: anywhere; }
+#errors-table td:nth-child(3), #errors-table td:nth-child(4) { min-width: 145px; }
+#errors-table td:nth-child(5) { min-width: 120px; }
+#errors-table td:last-child { min-width: 120px; }
+#errors-table .event-recorded strong { font-variant-numeric: tabular-nums; }
+#errors-table .event-source, #errors-table .event-trace, #errors-table .event-target { display: grid; justify-items: start; gap: 4px; }
+@media(max-width:760px) {
+  #alerts-table td:last-child .actions { grid-template-columns: 1fr; }
+  #alerts-table td:last-child .actions button { justify-content: flex-start; }
+}
+@media(max-width:620px) {
+  #page-alerts .alerts-intro { align-items: flex-start; }
+  #page-alerts .severity-key { justify-content: flex-start; }
+  #page-alerts .alerts-toolbar { align-items: stretch; }
+  #page-alerts .alerts-toolbar label { margin: 0; }
+  #page-alerts #alert-status-filter { width: 100%; min-width: 0; }
+  #page-alerts .alerts-toolbar > span { flex-basis: 100%; }
+  #alerts-table td:last-child .actions { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media(prefers-reduced-motion:reduce) {
+  #alerts-table .tag, #errors-table .tag { transition: none; }
+}
+
 </style>
 </head>
 <body>
