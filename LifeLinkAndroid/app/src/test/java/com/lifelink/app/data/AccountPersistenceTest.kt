@@ -114,6 +114,46 @@ class AccountPersistenceTest {
         preferences.edit().clear().commit()
     }
 
+    @Test fun legacyPlaintextSessionMigratesToEncryptedPreferences() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val legacy = context.getSharedPreferences("lifelink_auth", Context.MODE_PRIVATE)
+        val secure = context.getSharedPreferences("lifelink_auth_secure", Context.MODE_PRIVATE)
+        legacy.edit().clear()
+            .putString("access_token", "legacy-access-token")
+            .putString("refresh_token", "legacy-refresh-token")
+            .putString("user_id", "legacy-user")
+            .putString("email", "legacy@example.test")
+            .commit()
+        secure.edit().clear().commit()
+
+        val store = AuthSessionStore(context, TestSessionCipher())
+
+        assertEquals("legacy-access-token", store.session.value?.accessToken)
+        assertEquals("legacy-refresh-token", store.session.value?.refreshToken)
+        assertEquals("legacy-user", store.session.value?.userId)
+        assertTrue(legacy.all.isEmpty())
+        val ciphertext = secure.getString("session_ciphertext", null)
+        assertNotNull(ciphertext)
+        assertFalse(ciphertext!!.contains("legacy-access-token"))
+        assertFalse(secure.contains("access_token"))
+        store.clear()
+    }
+
+    @Test fun unreadableEncryptedSessionIsDiscardedAndRequiresSignIn() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val secure = context.getSharedPreferences("lifelink_auth_secure", Context.MODE_PRIVATE)
+        secure.edit().clear()
+            .putString("session_iv", "invalid-iv")
+            .putString("session_ciphertext", "invalid-ciphertext")
+            .commit()
+
+        val store = AuthSessionStore(context, TestSessionCipher())
+
+        assertNull(store.session.value)
+        assertTrue(secure.all.isEmpty())
+        store.clear()
+    }
+
     @Test fun accountRemovalTriggersCleanupWithoutAnActivity() = runBlocking {
         val removedAccounts = mutableListOf<String>()
         val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>(), TestSessionCipher()) {
