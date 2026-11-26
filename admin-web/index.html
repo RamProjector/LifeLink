@@ -1223,6 +1223,24 @@ tbody tr:hover { background: #f0eee7; }
   .login input, #recovery-view button, #signin { min-height:46px; }
 }
 
+
+/* Final touch-target floor: override earlier dense-table component sizing. */
+.top button.secondary,
+.audit-filter-actions button,
+.users-toolbar select,
+.table-toolbar input,
+.table-export,
+.actions button,
+#sessions-table td:last-child button,
+#page-sessions #sessions-table td:last-child button,
+#page-users #users-table td:last-child button,
+#alerts-table .actions button {
+  min-height: 40px;
+}
+#audit-table details summary,
+#errors-table details summary {
+  min-height: 40px;
+}
 </style>
 </head>
 <body>
