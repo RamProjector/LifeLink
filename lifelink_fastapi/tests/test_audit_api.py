@@ -7,7 +7,7 @@ import httpx
 
 from app.db import get_db_session
 from app.main_postgres import app
-from app.security import Principal, get_postgres_principal
+from app.security import Principal, get_active_postgres_principal, get_postgres_principal
 
 
 class _Rows:
@@ -51,6 +51,11 @@ def test_personal_audit_api_returns_only_callers_events_and_redacts_metadata():
 
     app.dependency_overrides[get_db_session] = fake_session
     app.dependency_overrides[get_postgres_principal] = lambda: Principal(
+        subject="user-123",
+        email_verified=True,
+        session_id="session-1",
+    )
+    app.dependency_overrides[get_active_postgres_principal] = lambda: Principal(
         subject="user-123",
         email_verified=True,
         session_id="session-1",

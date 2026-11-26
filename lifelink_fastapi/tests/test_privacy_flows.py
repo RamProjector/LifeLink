@@ -22,6 +22,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from fastapi import Depends
 
 pgserver = pytest.importorskip("pgserver")
 
@@ -52,6 +53,28 @@ def run_scenario(pg_url: str, scenario):
             await conn.execute(text("DROP SCHEMA public CASCADE"))
             await conn.execute(text("CREATE SCHEMA public"))
             await conn.run_sync(db_models.Base.metadata.create_all)
+            await conn.execute(text("CREATE SCHEMA IF NOT EXISTS auth"))
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS auth.sessions (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL
+                )
+            """))
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS lifelink_user_sessions (
+                    session_id VARCHAR(128) PRIMARY KEY,
+                    user_id VARCHAR(128) NOT NULL,
+                    device_used VARCHAR(255) NOT NULL DEFAULT 'unknown',
+                    ip_address VARCHAR(64),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    expires_at TIMESTAMPTZ,
+                    revoked_at TIMESTAMPTZ,
+                    revoked_by VARCHAR(128),
+                    status VARCHAR(16) NOT NULL DEFAULT 'active'
+                        CHECK (status IN ('active', 'revoked', 'expired'))
+                )
+            """))
         sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
         current = {"id": "nobody", "sessions": sessions, "engine": engine}
 
@@ -60,9 +83,21 @@ def run_scenario(pg_url: str, scenario):
                 yield session
 
         app.dependency_overrides[get_db_session] = session_dependency
-        app.dependency_overrides[get_postgres_principal] = lambda: Principal(
-            subject=current["id"], email=f"{current['id']}@example.com"
-        )
+        async def principal_dependency(session=Depends(get_db_session)):
+            user_id = current["id"]
+            session_id = f"test-session-{user_id}"
+            await session.execute(
+                text("INSERT INTO auth.sessions (id, user_id) VALUES (:session_id, :user_id) ON CONFLICT (id) DO NOTHING"),
+                {"session_id": session_id, "user_id": user_id},
+            )
+            await session.commit()
+            return Principal(
+                subject=user_id,
+                email=f"{user_id}@example.com",
+                session_id=session_id,
+            )
+
+        app.dependency_overrides[get_postgres_principal] = principal_dependency
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
         try:
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1531,6 +1566,28 @@ def test_migration_007_applies_cleanly(pg_url):
             await conn.execute(text("DROP SCHEMA public CASCADE"))
             await conn.execute(text("CREATE SCHEMA public"))
             await conn.run_sync(db_models.Base.metadata.create_all)
+            await conn.execute(text("CREATE SCHEMA IF NOT EXISTS auth"))
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS auth.sessions (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL
+                )
+            """))
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS lifelink_user_sessions (
+                    session_id VARCHAR(128) PRIMARY KEY,
+                    user_id VARCHAR(128) NOT NULL,
+                    device_used VARCHAR(255) NOT NULL DEFAULT 'unknown',
+                    ip_address VARCHAR(64),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    expires_at TIMESTAMPTZ,
+                    revoked_at TIMESTAMPTZ,
+                    revoked_by VARCHAR(128),
+                    status VARCHAR(16) NOT NULL DEFAULT 'active'
+                        CHECK (status IN ('active', 'revoked', 'expired'))
+                )
+            """))
         sql = (
             Path(__file__).resolve().parents[1] / "sql" / "007_donor_map_chat_contact_sharing.sql"
         ).read_text()
@@ -1819,6 +1876,28 @@ def test_migration_008_applies_cleanly(pg_url):
             await conn.execute(text("DROP SCHEMA public CASCADE"))
             await conn.execute(text("CREATE SCHEMA public"))
             await conn.run_sync(db_models.Base.metadata.create_all)
+            await conn.execute(text("CREATE SCHEMA IF NOT EXISTS auth"))
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS auth.sessions (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL
+                )
+            """))
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS lifelink_user_sessions (
+                    session_id VARCHAR(128) PRIMARY KEY,
+                    user_id VARCHAR(128) NOT NULL,
+                    device_used VARCHAR(255) NOT NULL DEFAULT 'unknown',
+                    ip_address VARCHAR(64),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    expires_at TIMESTAMPTZ,
+                    revoked_at TIMESTAMPTZ,
+                    revoked_by VARCHAR(128),
+                    status VARCHAR(16) NOT NULL DEFAULT 'active'
+                        CHECK (status IN ('active', 'revoked', 'expired'))
+                )
+            """))
         sql = (
             Path(__file__).resolve().parents[1] / "sql" / "008_conversation_blocks.sql"
         ).read_text()
@@ -1847,6 +1926,21 @@ def test_migration_013_saved_messages_applies_cleanly(pg_url):
             await conn.run_sync(
                 lambda sync_conn: db_models.Base.metadata.create_all(sync_conn, tables=prerequisite_tables)
             )
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS lifelink_user_sessions (
+                    session_id VARCHAR(128) PRIMARY KEY,
+                    user_id VARCHAR(128) NOT NULL,
+                    device_used VARCHAR(255) NOT NULL DEFAULT 'unknown',
+                    ip_address VARCHAR(64),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    expires_at TIMESTAMPTZ,
+                    revoked_at TIMESTAMPTZ,
+                    revoked_by VARCHAR(128),
+                    status VARCHAR(16) NOT NULL DEFAULT 'active'
+                        CHECK (status IN ('active', 'revoked', 'expired'))
+                )
+            """))
         sql = (Path(__file__).resolve().parents[1] / "sql" / "013_saved_messages.sql").read_text()
         async with engine.begin() as conn:
             for statement in [statement.strip() for statement in sql.split(";") if statement.strip()]:
