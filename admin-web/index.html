@@ -409,6 +409,21 @@ label {
   line-height: 1.6;
 }
 
+/* Session access review refinements */
+.sessions-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.sessions-heading h2 { margin-bottom:4px; }
+.sessions-heading p { max-width:700px; margin:0; }
+.sessions-guidance { display:flex; align-items:flex-start; gap:10px; margin:13px 0; padding:11px 13px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface-soft); color:var(--ink-soft); }
+.sessions-guidance .ll-icon { flex:0 0 auto; color:var(--success); }
+#sessions-table th:first-child, #sessions-table td:first-child { min-width:145px; }
+#sessions-table td code { overflow-wrap:anywhere; }
+#sessions-table td:last-child button { min-height:36px; }
+.sessions-pagination { align-items:center; margin-top:13px; }
+@media(max-width:620px) {
+ .sessions-guidance { padding:10px; }
+ .sessions-pagination { justify-content:flex-start; }
+}
+
 /* Audit activity refinements */
 .audit-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
 .audit-heading h2 { margin-bottom:4px; }
@@ -937,7 +952,12 @@ tbody tr:hover { background: #f0eee7; }
   <div id="audit-table" class="tablewrap" aria-live="polite"><div class="empty">Select Audit activity to load events.</div></div>
   <div class="actions audit-pagination"><button id="audit-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="audit-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="audit-page" class="muted small" aria-live="polite"></span></div>
  </section>
- <section id="page-sessions" aria-labelledby="page-title" class="panel hidden"><h2>User sessions</h2><p class="muted small">Protected API access records sessions. Revocation blocks subsequent protected requests.</p><div id="sessions-table" class="tablewrap"><div class="empty">Select Sessions to load records.</div></div><div class="actions" style="margin-top:14px"><button id="sessions-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="sessions-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="sessions-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-sessions" aria-labelledby="page-title" class="panel hidden">
+  <div class="sessions-heading"><div><h2>User sessions</h2><p class="muted small">Review protected API sessions, device context, activity, and expiry. Revocation blocks subsequent protected requests.</p></div><span class="snapshot-kind">Access control</span></div>
+  <div class="sessions-guidance"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><span class="small">Only revoke a session when you have verified the account and session context. Revocation cannot be undone from this screen.</span></div>
+  <div id="sessions-table" class="tablewrap" aria-live="polite"><div class="empty">Select Sessions to load records.</div></div>
+  <div class="actions sessions-pagination"><button id="sessions-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="sessions-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="sessions-page" class="muted small" aria-live="polite"></span></div>
+ </section>
  <section id="page-alerts" aria-labelledby="page-title" class="panel hidden">
   <div class="alerts-intro"><div><h2>Security alerts</h2><p class="muted small">Incidents are deduplicated. Review severity, investigation status, and supporting evidence before taking action.</p></div><div class="severity-key" role="group" aria-label="Severity levels"><span class="tag severity-critical">Critical</span><span class="tag severity-high">High</span><span class="tag severity-medium">Medium</span><span class="tag severity-low">Low</span></div></div>
   <div class="table-toolbar alerts-toolbar"><label class="small" for="alert-status-filter">Investigation status</label><select id="alert-status-filter" aria-label="Filter security alerts by investigation status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select><span class="muted small">Severity is shown separately from investigation status.</span></div>
@@ -1168,13 +1188,13 @@ async function loadUsers() {
       tableEl.innerHTML=table(data.items,[
         {label:"User",render:s=>'<code>'+esc(s.user_id)+'</code>'},
         {label:"Session",render:s=>'<code>'+esc(s.session_id)+'</code>'},
-        {label:"Device",render:s=>esc(s.device_used||"unknown")},
-        {label:"IP",render:s=>'<code>'+esc(s.ip_address||"Unavailable")+'</code>'},
+        {label:"Device context",render:s=>'<strong>'+esc(s.device_used||"Unknown device")+'</strong><br><span class="muted small">'+esc(s.ip_address||"IP unavailable")+'</span>'},
+        
         {label:"Created",render:s=>esc(s.created_at?new Date(s.created_at).toLocaleString():"—")},
         {label:"Last seen",render:s=>esc(s.last_seen_at?new Date(s.last_seen_at).toLocaleString():"—")},
         {label:"Expiry",render:s=>esc(s.expires_at?new Date(s.expires_at).toLocaleString():"Not supplied")},
         {label:"Revocation",render:s=>s.revoked_at?esc(new Date(s.revoked_at).toLocaleString())+'<br><span class="muted small">By <code>'+esc(s.revoked_by||"Unavailable")+'</code></span>':"—"},
-        {label:"Status",render:s=>'<span class="tag '+(s.status==="active"?"success":"fail")+'">'+esc(s.status)+'</span>'},
+        {label:"Session status",render:s=>'<span class="tag '+(s.status==="active"?"success":"fail")+'" aria-label="'+(s.status==="active"?"Active session":"Revoked or inactive session")+'">'+esc(s.status==="active"?"Active":s.status||"Inactive")+'</span>'},
         {label:"Action",render:s=>s.status==="active"?'<button class="secondary" data-revoke="'+esc(s.session_id)+'"><span class="ll-icon" data-icon="shieldAlert"></span>Revoke</button>':'—'}
       ]);
       renderIcons(tableEl);wireTableTools(tableEl);
