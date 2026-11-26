@@ -409,6 +409,33 @@ label {
   line-height: 1.6;
 }
 
+/* Audit activity refinements */
+.audit-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.audit-heading h2 { margin-bottom:4px; }
+.audit-heading p { max-width:720px; margin:0; }
+.audit-toolbar { display:grid; grid-template-columns:minmax(180px,1fr) minmax(220px,1.2fr) auto; align-items:end; gap:12px; padding:12px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface-soft); }
+.audit-filter-field { min-width:0; }
+.audit-filter-field label { margin:0 0 6px; color:var(--ink-soft); font-size:11px; }
+.audit-filter-field input { min-height:38px; background:var(--surface); font-size:12px; }
+.audit-filter-actions { display:flex; align-items:center; gap:7px; }
+.audit-filter-actions button { min-height:38px; white-space:nowrap; }
+.audit-filter-note { margin:10px 2px; overflow-wrap:anywhere; }
+.audit-pagination { align-items:center; margin-top:13px; }
+#audit-table th:first-child, #audit-table td:first-child { min-width:150px; }
+#audit-table td code { overflow-wrap:anywhere; }
+#audit-table details summary { color:#665638; font-weight:650; }
+#audit-table .tag { margin:2px 0; }
+@media(max-width:760px) {
+ .audit-toolbar { grid-template-columns:1fr 1fr; }
+ .audit-filter-actions { grid-column:1/-1; }
+}
+@media(max-width:520px) {
+ .audit-toolbar { grid-template-columns:1fr; }
+ .audit-filter-actions { grid-column:auto; }
+ .audit-filter-actions button { flex:1; }
+ .audit-pagination { justify-content:flex-start; }
+}
+
 /* User directory refinements */
 .users-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
 .users-heading h2 { margin-bottom:4px; }
@@ -899,7 +926,17 @@ tbody tr:hover { background: #f0eee7; }
   <div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div>
   <div class="actions users-pagination"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div>
  </section>
- <section id="page-audit" aria-labelledby="page-title" class="panel hidden"><h2>Audit history</h2><div class="table-toolbar"><label class="small" for="audit-action-filter">Exact action</label><div class="search-wrap"><input id="audit-action-filter" type="search" maxlength="64" placeholder="e.g. admin.user.update" autocomplete="off"></div><label class="small" for="audit-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="audit-correlation-filter" type="search" maxlength="128" placeholder="Trace related events" autocomplete="off"></div><button id="audit-filter-apply" class="secondary" type="button">Apply filters</button><button id="audit-filter-clear" class="secondary" type="button">Clear</button></div><p class="muted small" id="audit-filter-note">Showing all audit actions.</p><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div><div class="actions" style="margin-top:14px"><button id="audit-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="audit-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="audit-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-audit" aria-labelledby="page-title" class="panel hidden">
+  <div class="audit-heading"><div><h2>Audit activity</h2><p class="muted small">Read-only record of administrative and platform events. Use exact action names or correlation IDs to trace related activity.</p></div><span class="snapshot-kind">Read only</span></div>
+  <div class="table-toolbar audit-toolbar">
+   <div class="audit-filter-field"><label for="audit-action-filter">Exact action</label><input id="audit-action-filter" type="search" maxlength="64" placeholder="e.g. admin.user.update" autocomplete="off"></div>
+   <div class="audit-filter-field"><label for="audit-correlation-filter">Correlation ID</label><input id="audit-correlation-filter" type="search" maxlength="128" placeholder="Trace related events" autocomplete="off"></div>
+   <div class="audit-filter-actions"><button id="audit-filter-apply" class="secondary" type="button">Apply filters</button><button id="audit-filter-clear" class="secondary" type="button">Clear</button></div>
+  </div>
+  <p class="muted small audit-filter-note" id="audit-filter-note" aria-live="polite">Showing all audit actions.</p>
+  <div id="audit-table" class="tablewrap" aria-live="polite"><div class="empty">Select Audit activity to load events.</div></div>
+  <div class="actions audit-pagination"><button id="audit-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="audit-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="audit-page" class="muted small" aria-live="polite"></span></div>
+ </section>
  <section id="page-sessions" aria-labelledby="page-title" class="panel hidden"><h2>User sessions</h2><p class="muted small">Protected API access records sessions. Revocation blocks subsequent protected requests.</p><div id="sessions-table" class="tablewrap"><div class="empty">Select Sessions to load records.</div></div><div class="actions" style="margin-top:14px"><button id="sessions-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="sessions-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="sessions-page" class="muted small" aria-live="polite"></span></div></section>
  <section id="page-alerts" aria-labelledby="page-title" class="panel hidden">
   <div class="alerts-intro"><div><h2>Security alerts</h2><p class="muted small">Incidents are deduplicated. Review severity, investigation status, and supporting evidence before taking action.</p></div><div class="severity-key" role="group" aria-label="Severity levels"><span class="tag severity-critical">Critical</span><span class="tag severity-high">High</span><span class="tag severity-medium">Medium</span><span class="tag severity-low">Low</span></div></div>
@@ -1225,8 +1262,8 @@ async function loadUsers() {
      } else {
        tableEl.innerHTML=table(data.items,[
          {label:"Timestamp",render:e=>esc(e.timestamp||e.created_at?new Date(e.timestamp||e.created_at).toLocaleString():"—")},
-         {label:"Event",render:e=>'<strong>'+esc(e.action||"event")+'</strong><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span>'},
-         {label:"CRUD",render:e=>'<span class="tag">'+esc(e.actions||"OTHER")+'</span>'},
+         {label:"Event / outcome",render:e=>'<strong>'+esc(e.action||"event")+'</strong><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span><br><span class="muted small">'+esc(e.actions||"OTHER")+"</span>"},
+         {label:"Correlation ID",render:e=>'<code>'+esc(e.correlation_id||"—")+'</code>'},
          {label:"Session",render:e=>'<code>'+esc(e.session_id||"Unavailable")+'</code>'},
          {label:"IP / Device",render:e=>'<code>'+esc(e.ip_address||"Unavailable")+'</code><br><span class="muted small">'+esc(e.device_used||"unknown")+'</span>'},
          {label:"Actor / Target",render:e=>'<code>'+esc(e.actor_id||"system")+'</code><br>'+esc(e.target_type||"—")+' <code>'+esc(e.target_id||"")+'</code>'},
