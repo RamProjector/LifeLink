@@ -20,7 +20,7 @@ button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(
 .tab:hover{background:#f1f5fa;color:var(--ink)}.tab.active{color:var(--blue);background:#eaf1ff;border:0}
 .content-area{min-width:0}.content-area>.panel{margin-top:0;margin-bottom:16px;padding:clamp(14px,2vw,22px);border-radius:16px}
 .table-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:8px 0 12px}
-.table-toolbar .search-wrap{flex:1 1 240px;max-width:440px}.table-toolbar input{padding:9px 11px;font-size:13px}
+.table-toolbar .search-wrap{flex:1 1 240px;max-width:440px}.table-toolbar input{padding:9px 11px;font-size:13px}.table-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.table-export{min-height:36px;padding:7px 11px;font-size:12px}
 .table-count{font-size:12px;color:var(--muted);white-space:nowrap}
 .tablewrap{border:1px solid var(--line);border-radius:12px;max-width:100%;background:#fff}
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;line-height:1.45}
@@ -33,11 +33,100 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
 .cell-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:320px;max-height:220px;overflow:auto;padding:9px;background:#f5f7fa;border-radius:8px;font-size:11px;color:#334155}
 .table-empty-filter{display:none;padding:24px;text-align:center;color:var(--muted);font-size:13px}
 @media(max-width:900px){.console-layout{grid-template-columns:1fr;gap:12px}.sidebar{position:static;padding:8px}.tabs{display:flex;overflow-x:auto;gap:5px}.nav-group{display:none}.tab{width:auto;white-space:nowrap;flex:0 0 auto}.content-area>.panel{margin-bottom:12px}}
-@media(max-width:620px){.wrap{margin:16px auto}.headrow{align-items:flex-start}.headrow .actions{width:100%}.headrow .actions button{width:100%}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stat{padding:13px}.stat strong{font-size:23px}.tablewrap{border:0;background:transparent;overflow:visible}table,tbody{display:block;width:100%}thead{display:none}tbody{display:grid;gap:10px}tbody tr{display:grid;gap:0;background:#fff!important;border:1px solid var(--line);border-radius:12px;padding:5px 12px;box-shadow:0 3px 12px #18345406}td{display:grid;grid-template-columns:minmax(94px,34%) minmax(0,1fr);gap:10px;max-width:none;padding:9px 2px;border-bottom:1px solid #edf1f5}td:last-child{border-bottom:0}td:before{content:attr(data-label);font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}.cell-detail{max-width:100%}.cell-detail pre{max-width:100%}.table-toolbar{align-items:stretch}.table-toolbar .search-wrap{max-width:none;flex-basis:100%}.table-count{width:100%}}
+@media(max-width:620px){.wrap{margin:16px auto}.headrow{align-items:flex-start}.headrow .actions{width:100%}.headrow .actions button{width:100%}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stat{padding:13px}.stat strong{font-size:23px}.tablewrap{border:0;background:transparent;overflow:visible}table,tbody{display:block;width:100%}thead{display:none}tbody{display:grid;gap:10px}tbody tr{display:grid;gap:0;background:#fff!important;border:1px solid var(--line);border-radius:12px;padding:5px 12px;box-shadow:0 3px 12px #18345406}td{display:grid;grid-template-columns:minmax(94px,34%) minmax(0,1fr);gap:10px;max-width:none;padding:9px 2px;border-bottom:1px solid #edf1f5}td:last-child{border-bottom:0}td:before{content:attr(data-label);font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}.cell-detail{max-width:100%}.cell-detail pre{max-width:100%}.table-toolbar{align-items:stretch}.table-toolbar .search-wrap{max-width:none;flex-basis:100%}.table-actions{justify-content:space-between;width:100%}.table-count{width:auto}}
+
+/* LifeLink website refresh — shared visual tokens and responsive application shell */
+:root{
+ --ink:#15243a;--muted:#66768d;--line:#e3e9f1;--paper:#f3f6fa;--white:#fff;
+ --blue:#2864d7;--blue-strong:#174db5;--navy:#102847;--red:#b42318;--green:#18794e;
+ --surface-soft:#f7f9fc;--shadow:0 14px 36px rgba(18,42,72,.07);--radius:18px;
+}
+body{background:radial-gradient(ellipse at 88% -12%,rgba(45,105,214,.08),transparent 34%),var(--paper);color:var(--ink);font-size:14px}
+.top{min-height:76px;padding:14px clamp(18px,4vw,54px);background:linear-gradient(112deg,#102746,#183a63);box-shadow:0 4px 18px rgba(9,28,52,.13)}
+.brand{display:flex;align-items:center;gap:11px;font-size:18px;letter-spacing:-.45px}
+.brand span{color:#a9caff}
+.brand-mark{width:38px;height:38px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(255,255,255,.09);color:#c5dcff}
+.brand-mark .ll-icon-svg{width:23px;height:23px}
+.top small{display:block;margin:3px 0 0 49px;color:#c3d1e3;font-size:12px}
+.top button.secondary{display:inline-flex;align-items:center;gap:9px;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.22);color:#fff}
+button{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:40px;border-radius:11px;padding:9px 14px;transition:background .16s,border-color .16s,transform .16s}
+button:not(:disabled):active{transform:translateY(1px)}
+button:not(.secondary):hover{background:var(--blue-strong)}
+button.secondary:hover{background:#f4f7fc;border-color:#cbd7e7}
+.ll-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;line-height:0}
+.ll-icon-svg{display:block;width:18px;height:18px}
+.wrap{max-width:1560px;margin:30px auto;padding:0 clamp(16px,3vw,42px)}
+.login{max-width:480px;margin:clamp(34px,8vh,90px) auto;background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:22px;padding:clamp(24px,4vw,36px);box-shadow:var(--shadow)}
+.login h1{font-size:32px;letter-spacing:-1.2px;margin:9px 0 10px}
+.login .eyebrow{display:flex;align-items:center;gap:8px}
+.login .eyebrow:before{content:"";width:7px;height:7px;border-radius:50%;background:#2e72df;box-shadow:0 0 0 4px #e8f0ff}
+.login>p{line-height:1.65}
+.login input{min-height:44px;border-color:#d5deea;border-radius:11px}
+.login>button{min-height:46px}
+.headrow{margin-bottom:22px;align-items:center}
+.headrow h1{font-size:clamp(27px,3vw,34px);letter-spacing:-1.2px;margin:5px 0}
+.headrow .eyebrow{letter-spacing:1.5px}
+#identity{margin-top:5px}
+.console-layout{grid-template-columns:238px minmax(0,1fr);gap:22px}
+.sidebar{top:18px;border-radius:18px;padding:12px;box-shadow:0 7px 22px rgba(18,42,72,.045)}
+.nav-group{padding:13px 12px 7px;font-size:10px;letter-spacing:1.15px}
+.tabs{gap:4px}
+.tab{display:flex;align-items:center;gap:11px;min-height:43px;padding:10px 12px;border-radius:11px;font-size:13px;color:#43536a}
+.tab .ll-icon{color:#72829a}
+.tab:hover{background:#f3f6fb}
+.tab.active{color:#1d59c4;background:#eaf1ff;font-weight:750}
+.tab.active .ll-icon{color:#1d59c4}
+.content-area>.panel,.content-area section>.panel{border-radius:18px;border-color:var(--line);box-shadow:0 7px 22px rgba(18,42,72,.035)}
+.stat{position:relative;min-height:126px;padding:19px;border-radius:16px;box-shadow:0 5px 18px rgba(18,42,72,.035)}
+.stat small{display:flex;align-items:center;gap:8px;color:#64748b;font-size:12px}
+.stat .stat-icon{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:10px;background:#edf3ff;color:#2864d7}
+.stat strong{font-size:32px;margin-top:13px}
+.panel{border-radius:16px;box-shadow:0 5px 18px rgba(18,42,72,.03)}
+.panel h2{letter-spacing:-.3px}
+.table-toolbar{margin:12px 0 14px}
+.table-toolbar input{min-height:40px;border-radius:10px}
+.tablewrap{border-color:#e5ebf3;border-radius:14px}
+th{background:#f6f8fc;color:#66768d;font-size:10px;letter-spacing:.8px;padding:13px 14px}
+td{padding:13px 14px}
+tbody tr:hover{background:#f4f8ff}
+.tag{padding:4px 9px;font-size:10px;letter-spacing:.15px}
+.empty{min-height:116px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:28px 18px}
+.empty .ll-icon{width:38px;height:38px;border-radius:12px;background:#eef3fb;color:#68809f}
+.notice{border:1px solid #d9e7fb;border-radius:12px;padding:13px 15px}
+.notice.error{border-color:#f5d0cc}
+.foot{padding-top:14px;border-top:1px solid #e6ebf2;line-height:1.6}
+.actions{align-items:center}
+.actions button{min-height:38px}
+#page-overview .panel{margin-top:18px}
+#page-overview .panel p{max-width:900px}
+@media(max-width:900px){
+ .console-layout{grid-template-columns:minmax(0,1fr);gap:14px}
+ .sidebar{padding:9px}
+ .tabs{display:flex;overflow-x:auto;scrollbar-width:thin;padding-bottom:2px}
+ .tab{flex:0 0 auto;width:auto;white-space:nowrap}
+ .nav-group{display:none}
+ .content-area>.panel{margin-bottom:14px}
+}
+@media(max-width:620px){
+ .top{padding:12px 16px;min-height:68px}
+ .top small{margin-left:45px;font-size:11px}
+ .brand-mark{width:34px;height:34px}
+ .wrap{margin:20px auto;padding:0 14px}
+ .headrow{gap:13px}
+ .headrow .actions{width:auto}
+ .headrow .actions button{width:auto}
+ .grid{gap:10px}
+ .stat{min-height:112px;padding:13px}
+ .stat strong{font-size:25px;margin-top:10px}
+ .stat .stat-icon{width:27px;height:27px}
+ .content-area>.panel{padding:14px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
 </style>
 </head>
 <body>
-<header class="top"><div><div class="brand">Life<span>Link</span> / Admin</div><small>Restricted operations console</small></div><div id="session-tools" class="hidden"><button id="signout" class="secondary">Sign out</button></div></header>
+<header class="top"><div><div class="brand"><span class="brand-mark ll-icon" data-icon="lifelink" data-icon-size="23"></span><span>LifeLink <span>/ Admin</span></span></div><small>Restricted operations console</small></div><div id="session-tools" class="hidden"><button id="signout" class="secondary"><span class="ll-icon" data-icon="logout"></span>Sign out</button></div></header>
 <main id="login-view" class="login">
  <div class="eyebrow">Administrator access</div><h1>Sign in securely.</h1><p class="muted">Use your existing LifeLink account. The server verifies administrator authorization after sign-in; creating an account does not grant admin access.</p>
  <p class="muted small">Connected to the LifeLink production services. Only your existing account can sign in; administrator access is checked by the server.</p>
@@ -50,26 +139,34 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
  <p class="foot">Your session token stays in memory for this tab and is cleared when you sign out or close it. Admin rights are verified server-side.</p>
 </main>
 <main id="app-view" class="wrap hidden">
- <div class="headrow"><div><div class="eyebrow" id="page-eyebrow">Operations overview</div><h1 id="page-title">Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary">Refresh data</button></div></div>
- <div class="console-layout"><aside class="sidebar" aria-label="Admin navigation"><div class="nav-group">Workspace</div><nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview" aria-current="page" aria-controls="page-overview">Overview</button><button class="tab" data-page="users" aria-controls="page-users">User management</button><div class="nav-group">Security center</div><button class="tab" data-page="alerts" aria-controls="page-alerts">Security alerts</button><button class="tab" data-page="sessions" aria-controls="page-sessions">Sessions</button><button class="tab" data-page="audit" aria-controls="page-audit">Audit activity</button><button class="tab" data-page="errors" aria-controls="page-errors">System errors</button></nav></aside><div class="content-area">
- <section id="page-overview" aria-labelledby="page-title"><div class="grid"><div class="stat"><small>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small>Donor records</small><strong id="stat-donors">—</strong></div><div class="stat"><small>Emergency requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small>Authorization</small><strong style="font-size:20px;color:var(--green)">Verified</strong></div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is checked by the API on every request. User capability changes are audited. Audit records are read-only in this interface. Error entries contain operational context, not passwords or access tokens.</p><p id="generated" class="small muted"></p></div></section>
- <section id="page-users" aria-labelledby="page-title" class="panel hidden"><h2>User management</h2><p class="muted small">Change requester/donor capabilities only. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled>Previous</button><button id="users-next" class="secondary" disabled>Next</button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-audit" aria-labelledby="page-title" class="panel hidden"><h2>Audit history</h2><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div><div class="actions" style="margin-top:14px"><button id="audit-prev" class="secondary" disabled>Previous</button><button id="audit-next" class="secondary" disabled>Next</button><span id="audit-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-sessions" aria-labelledby="page-title" class="panel hidden"><h2>User sessions</h2><p class="muted small">Sessions are recorded when a signed-in user reaches a protected admin endpoint. Revocation blocks subsequent admin API requests using that session.</p><div id="sessions-table" class="tablewrap"><div class="empty">Select Sessions to load records.</div></div><div class="actions" style="margin-top:14px"><button id="sessions-prev" class="secondary" disabled>Previous</button><button id="sessions-next" class="secondary" disabled>Next</button><span id="sessions-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-alerts" aria-labelledby="page-title" class="panel hidden"><h2>Security alerts</h2><p class="muted small">Detected events are grouped into deduplicated incidents. Review evidence and update the investigation status.</p><div id="alerts-table" class="tablewrap"><div class="empty">Select Security alerts to load incidents.</div></div><div class="actions" style="margin-top:14px"><button id="alerts-prev" class="secondary" disabled>Previous</button><button id="alerts-next" class="secondary" disabled>Next</button><span id="alerts-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-errors" aria-labelledby="page-title" class="panel hidden"><h2>Application errors</h2><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div><div class="actions" style="margin-top:14px"><button id="errors-prev" class="secondary" disabled>Previous</button><button id="errors-next" class="secondary" disabled>Next</button><span id="errors-page" class="muted small" aria-live="polite"></span></div></section>
+ <div class="headrow"><div><div class="eyebrow" id="page-eyebrow">Operations overview</div><h1 id="page-title">Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary"><span class="ll-icon" data-icon="refresh"></span>Refresh data</button></div></div>
+ <div class="console-layout"><aside class="sidebar" aria-label="Admin navigation"><div class="nav-group">Workspace</div><nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview" aria-current="page" aria-controls="page-overview"><span class="ll-icon" data-icon="dashboard"></span><span>Overview</span></button><button class="tab" data-page="users" aria-controls="page-users"><span class="ll-icon" data-icon="users"></span><span>User management</span></button><button class="tab" data-page="analytics" aria-controls="page-analytics"><span class="ll-icon" data-icon="chart"></span><span>Analytics</span></button><div class="nav-group">Security center</div><button class="tab" data-page="alerts" aria-controls="page-alerts"><span class="ll-icon" data-icon="shieldAlert"></span><span>Security alerts</span></button><button class="tab" data-page="sessions" aria-controls="page-sessions"><span class="ll-icon" data-icon="monitor"></span><span>Sessions</span></button><button class="tab" data-page="audit" aria-controls="page-audit"><span class="ll-icon" data-icon="clipboard"></span><span>Audit activity</span></button><button class="tab" data-page="errors" aria-controls="page-errors"><span class="ll-icon" data-icon="alert"></span><span>System errors</span></button><button class="tab" data-page="roles" aria-controls="page-roles"><span class="ll-icon" data-icon="key"></span><span>Role registry</span></button></nav></aside><div class="content-area">
+ <section id="page-overview" aria-labelledby="page-title"><div class="grid"><div class="stat"><small><span class="stat-icon ll-icon" data-icon="usersRound"></span>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small><span class="stat-icon ll-icon" data-icon="activity"></span>Donor records</small><strong id="stat-donors">—</strong></div><div class="stat"><small><span class="stat-icon ll-icon" data-icon="inbox"></span>Emergency requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small><span class="stat-icon ll-icon" data-icon="shieldCheck"></span>Authorization</small><strong style="font-size:20px;color:var(--green)">Verified</strong></div></div><div class="panel"><h2>Current record totals</h2><p class="muted small">Live totals returned by the admin dashboard API. These are different record types and should not be interpreted as a shared population or historical trend.</p><div id="overview-chart" role="img" aria-label="Current counts of registered profiles, donor records, and emergency requests"><div class="empty">Loading record totals…</div></div><div class="small muted" id="overview-chart-caption">Counts refresh when you select Refresh data.</div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is checked by the API on every request. User capability changes are audited. Audit records are read-only in this interface. Error entries contain operational context, not passwords or access tokens.</p><p id="generated" class="small muted"></p></div></section>
+ <section id="page-analytics" aria-labelledby="page-title" class="panel hidden"><h2>Activity analytics</h2><p class="muted small">A transparent snapshot calculated from the latest 100 audit events returned by the API. This is not a complete historical trend.</p><div id="analytics-summary" class="grid"></div><div class="panel"><h2>Audit activity by day</h2><div id="analytics-chart" role="img" aria-label="Audit event counts by day from the latest 100 returned events"><div class="empty">Loading analytics…</div></div></div><div class="panel"><h2>Most frequent actions</h2><div id="analytics-actions"></div></div></section>
+ <section id="page-roles" aria-labelledby="page-title" class="panel hidden"><h2>Role and permission registry</h2><p class="muted small">Read-only view of configured roles and their permission mappings. Role assignments remain protected by the backend RBAC manager authorization.</p><div id="roles-table" class="tablewrap"><div class="empty">Loading role registry…</div></div></section>
+ <section id="page-users" aria-labelledby="page-title" class="panel hidden"><h2>User management</h2><p class="muted small">Enable or disable requester and donor capabilities independently. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-audit" aria-labelledby="page-title" class="panel hidden"><h2>Audit history</h2><div class="table-toolbar"><label class="small" for="audit-action-filter">Exact action</label><div class="search-wrap"><input id="audit-action-filter" type="search" maxlength="64" placeholder="e.g. admin.user.update" autocomplete="off"></div><label class="small" for="audit-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="audit-correlation-filter" type="search" maxlength="128" placeholder="Trace related events" autocomplete="off"></div><button id="audit-filter-apply" class="secondary" type="button">Apply filters</button><button id="audit-filter-clear" class="secondary" type="button">Clear</button></div><p class="muted small" id="audit-filter-note">Showing all audit actions.</p><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div><div class="actions" style="margin-top:14px"><button id="audit-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="audit-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="audit-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-sessions" aria-labelledby="page-title" class="panel hidden"><h2>User sessions</h2><p class="muted small">Sessions are recorded when a signed-in user reaches a protected admin endpoint. Revocation blocks subsequent admin API requests using that session.</p><div id="sessions-table" class="tablewrap"><div class="empty">Select Sessions to load records.</div></div><div class="actions" style="margin-top:14px"><button id="sessions-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="sessions-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="sessions-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-alerts" aria-labelledby="page-title" class="panel hidden"><h2>Security alerts</h2><p class="muted small">Detected events are grouped into deduplicated incidents. Review evidence and update the investigation status.</p><div class="table-toolbar"><label class="small" for="alert-status-filter">Filter by status</label><select id="alert-status-filter" aria-label="Filter security alerts by status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select></div><div id="alerts-table" class="tablewrap"><div class="empty">Select Security alerts to load incidents.</div></div><div class="actions" style="margin-top:14px"><button id="alerts-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="alerts-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="alerts-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-errors" aria-labelledby="page-title" class="panel hidden"><h2>Application errors</h2><div class="table-toolbar"><label class="small" for="errors-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="errors-correlation-filter" type="search" maxlength="128" placeholder="Trace related errors" autocomplete="off"></div><button id="errors-filter-apply" class="secondary" type="button">Apply filter</button><button id="errors-filter-clear" class="secondary" type="button">Clear</button></div><p id="errors-filter-note" class="muted small">Showing all recorded errors and denied events.</p><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div><div class="actions" style="margin-top:14px"><button id="errors-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="errors-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="errors-page" class="muted small" aria-live="polite"></span></div></section>
  </div></div><div id="app-message" class="notice hidden" role="status" aria-live="polite"></div><p class="foot">LifeLink Admin · Keep this browser session private. Sign out when finished.</p>
 </main>
+<script src="./icons.js"></script>
 <script>
 (() => {
  const SUPABASE_URL = "https://nphbhlxnujmylhubzmne.supabase.co";
  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_0BnXY2k96nRr0k0zaZvMgQ_IQYSlyQu";
  const API_BASE_URL = "https://lifelink-api-uzje.onrender.com";
- let accessToken = null, activePage = "overview", recoveryMode = false;
+ let accessToken = null, activePage = "overview", recoveryMode = false, alertStatus = "";
  const ADMIN_REDIRECT_URL = "https://lifelink-admin-console.onrender.com/";
  const pageSize = 50;
+ let auditAction = "";
+ let auditCorrelation = "";
+ let errorsCorrelation = "";
  const offsets = { users: 0, audit: 0, sessions: 0, alerts: 0, errors: 0 };
  const $ = id => document.getElementById(id);
+ const renderIcons = root => window.LifeLinkIcons?.render(root || document);
+ renderIcons();
  const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
  const message = (id, text, error=false) => { const el=$(id); el.textContent=text; el.classList.toggle("hidden",!text); el.classList.toggle("error",error); };
  function safeError(error, fallback="Something went wrong. Please try again.") {
@@ -155,7 +252,7 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
    const plural=filterKey==='status'?'statuses':filterKey==='outcome'?'outcomes':filterKey+'s';
    const select=values.length?'<label class="small muted">Filter <select data-table-filter aria-label="Filter table rows" style="width:auto;padding:8px;border:1px solid var(--line);border-radius:8px;background:white"><option value="">All '+esc(plural)+'</option>'+values.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select></label>':'';
    const rows=items.map(item=>'<tr data-filter-value="'+esc(filterKey?item[filterKey]??'':'')+'">'+cols.map(col=>'<td data-label="'+esc(col.label)+'">'+col.render(item)+'</td>').join('')+'</tr>').join('');
-   return '<div class="table-toolbar"><div class="search-wrap"><input type="search" data-table-search placeholder="Search visible records…" aria-label="Search visible table records"></div>'+select+'<span class="table-count" data-table-count>'+items.length+' records on this page</span></div><table><thead><tr>'+cols.map(col=>'<th scope="col">'+esc(col.label)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table><div class="table-empty-filter" data-table-empty>No matching records on this page.</div>';
+   return '<div class="table-toolbar"><div class="search-wrap"><input type="search" data-table-search placeholder="Search visible records…" aria-label="Search visible table records"></div>'+select+'<div class="table-actions"><button type="button" class="secondary table-export" data-table-export><span class="ll-icon" data-icon="download"></span>Export CSV</button><span class="table-count" data-table-count>'+items.length+' records on this page</span></div></div><table><thead><tr>'+cols.map(col=>'<th scope="col">'+esc(col.label)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table><div class="table-empty-filter" data-table-empty>No matching records on this page.</div>';
  }
  function wireTableTools(container) {
    const search=container.querySelector('[data-table-search]');
@@ -171,6 +268,23 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
      if(count)count.textContent=visible+' of '+rows.length+' records shown';
      if(empty)empty.style.display=visible?'none':'block';
    };
+   const csvCell=value=>{
+     let text=String(value??'').replace(/\s+/g,' ').trim();
+     if(/^[=+@\-\t\r]/.test(text)) text="'"+text;
+     return '"'+text.replace(/"/g,'""')+'"';
+   };
+   container.querySelector('[data-table-export]')?.addEventListener('click',()=>{
+     const headers=[...container.querySelectorAll('thead th')].map(th=>th.textContent.trim());
+     const visibleRows=rows.filter(row=>!row.hidden);
+     const records=visibleRows.map(row=>[...row.querySelectorAll(':scope > td')].map(td=>td.innerText.split(String.fromCharCode(10)).join(' · ').trim()));
+     if(!headers.length||!records.length){message('app-message','There are no visible records to export.',true);return;}
+     const csv=[headers,...records].map(record=>record.map(csvCell).join(',')).join(String.fromCharCode(13,10));
+     const blob=new Blob(['\uFEFF',csv],{type:'text/csv;charset=utf-8;'});
+     const href=URL.createObjectURL(blob),anchor=document.createElement('a');
+     anchor.href=href;anchor.download='lifelink-admin-'+(activePage||'table')+'-'+new Date().toISOString().slice(0,10)+'.csv';
+     document.body.appendChild(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(href);
+     message('app-message','Exported '+records.length+' visible records from this page.');
+   });
    search?.addEventListener('input',apply);filter?.addEventListener('change',apply);
  }
  async function loadUsers() {
@@ -179,9 +293,10 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
    $("users-prev").disabled=offset===0;
    $("users-next").disabled=offset+pageSize>=data.total;
    $("users-page").textContent=(data.total===0?"0 users":(offset+1)+"–"+Math.min(offset+pageSize,data.total)+" of "+data.total);
-   $("users-table").innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Capabilities",render:u=>'Request: '+(u.can_request?'Yes':'No')+'<br>Donate: '+(u.can_donate?'Yes':'No')},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Actions",render:u=>'<div class="actions"><button class="secondary" data-action="requester" data-id="'+esc(u.user_id)+'">Requester</button><button class="secondary" data-action="donor" data-id="'+esc(u.user_id)+'">Donor</button></div>'}]);
+   $("users-table").innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Current access",render:u=>'<span class="tag '+(u.can_request?'success':'')+'">Requester '+(u.can_request?'enabled':'disabled')+'</span><br><span class="tag '+(u.can_donate?'success':'')+'">Donor '+(u.can_donate?'enabled':'disabled')+'</span>'},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Capabilities",render:u=>'<div class="actions"><button class="secondary" data-capability="request" data-enabled="'+String(!!u.can_request)+'" data-id="'+esc(u.user_id)+'">'+(u.can_request?'Disable requester':'Enable requester')+'</button><button class="secondary" data-capability="donate" data-enabled="'+String(!!u.can_donate)+'" data-id="'+esc(u.user_id)+'">'+(u.can_donate?'Disable donor':'Enable donor')+'</button></div>'}]);
+   renderIcons($("users-table"));
    wireTableTools($("users-table"));
-   $("users-table").querySelectorAll("button[data-action]").forEach(btn=>btn.addEventListener("click",async()=>{if(!confirm("Update capabilities for this user? This action is recorded in the audit log."))return;try{await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify({role:btn.dataset.action,can_request:btn.dataset.action==="requester",can_donate:btn.dataset.action==="donor"})});message("app-message","User capabilities updated and audit event recorded.");await loadUsers();}catch(e){message("app-message",safeError(e,"The user update could not be completed. Please retry."),true);}}));
+   $("users-table").querySelectorAll("button[data-capability]").forEach(btn=>btn.addEventListener("click",async()=>{const row=data.items.find(user=>user.user_id===btn.dataset.id);if(!row)return;const capability=btn.dataset.capability,enabled=btn.dataset.enabled==="true";const next={role:row.role,can_request:!!row.can_request,can_donate:!!row.can_donate};if(capability==="request")next.can_request=!enabled;else next.can_donate=!enabled;const action=(next[capability==="request"?"can_request":"can_donate"]?"Enable ":"Disable ")+(capability==="request"?"requester":"donor")+" capability";if(!confirm(action+" for this user? The change will be recorded in the audit log."))return;btn.disabled=true;try{await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify(next)});message("app-message",action+" completed and audit event recorded.");await loadUsers();}catch(e){btn.disabled=false;message("app-message",safeError(e,"The user capability update could not be completed. Please retry."),true);}}));
  }
  async function loadSessions() {
    const offset=offsets.sessions;
@@ -194,11 +309,14 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
      {label:"Session",render:s=>'<code>'+esc(s.session_id)+'</code>'},
      {label:"Device",render:s=>esc(s.device_used||"unknown")},
      {label:"IP",render:s=>'<code>'+esc(s.ip_address||"Unavailable")+'</code>'},
+     {label:"Created",render:s=>esc(s.created_at?new Date(s.created_at).toLocaleString():"—")},
      {label:"Last seen",render:s=>esc(s.last_seen_at?new Date(s.last_seen_at).toLocaleString():"—")},
      {label:"Expiry",render:s=>esc(s.expires_at?new Date(s.expires_at).toLocaleString():"Not supplied")},
+     {label:"Revocation",render:s=>s.revoked_at?esc(new Date(s.revoked_at).toLocaleString())+'<br><span class="muted small">By <code>'+esc(s.revoked_by||"Unavailable")+'</code></span>':"—"},
      {label:"Status",render:s=>'<span class="tag '+(s.status==="active"?"success":"fail")+'">'+esc(s.status)+'</span>'},
-     {label:"Action",render:s=>s.status==="active"?'<button class="secondary" data-revoke="'+esc(s.session_id)+'">Revoke</button>':'—'}
+     {label:"Action",render:s=>s.status==="active"?'<button class="secondary" data-revoke="'+esc(s.session_id)+'"><span class="ll-icon" data-icon="shieldAlert"></span>Revoke</button>':'—'}
    ]);
+   renderIcons($("sessions-table"));
    wireTableTools($("sessions-table"));
    $("sessions-table").querySelectorAll("button[data-revoke]").forEach(btn=>btn.addEventListener("click",async()=>{
      if(!confirm("Revoke this session? Its next protected admin API request will be rejected."))return;
@@ -208,7 +326,7 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
  }
  async function loadAlerts() {
    const offset=offsets.alerts;
-   const data=await api("/v1/admin/security/alerts?limit="+pageSize+"&offset="+offset);
+   const data=await api("/v1/admin/security/alerts?limit="+pageSize+"&offset="+offset+(alertStatus?"&status="+encodeURIComponent(alertStatus):""));
    $("alerts-prev").disabled=offset===0;
    $("alerts-next").disabled=data.items.length<pageSize;
    $("alerts-page").textContent=data.items.length===0?"No alerts on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
@@ -218,9 +336,10 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
      {label:"User / Session",render:a=>'<code>'+esc(a.user_id)+'</code><br><code>'+esc(a.session_id||"—")+'</code>'},
      {label:"Incident",render:a=>esc(a.summary)+'<br><span class="muted small">'+esc(a.occurrences)+' occurrences</span>'},
      {label:"Last seen",render:a=>esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")},
-     {label:"Evidence",render:a=>'<details class="cell-detail"><summary>View evidence</summary><pre>'+esc(JSON.stringify(a.evidence||{},null,2))+'</pre></details>'},
-     {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" data-alert="'+esc(a.id)+'" data-status="acknowledged">Acknowledge</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="investigating">Investigate</button><button data-alert="'+esc(a.id)+'" data-status="resolved">Resolve</button></div>'}
+     {label:"Evidence / history",render:a=>'<details class="cell-detail"><summary>View evidence &amp; history</summary><p class="small">Created: '+esc(a.created_at?new Date(a.created_at).toLocaleString():"—")+'</p><p class="small">Acknowledged: '+esc(a.acknowledged_at?new Date(a.acknowledged_at).toLocaleString():"—")+' · By '+esc(a.acknowledged_by||"—")+'</p><p class="small">Resolved: '+esc(a.resolved_at?new Date(a.resolved_at).toLocaleString():"—")+' · By '+esc(a.resolved_by||"—")+'</p><p class="small">Correlation: <code>'+esc(a.correlation_id||"—")+'</code></p><pre>'+esc(JSON.stringify(a.evidence||{},null,2))+'</pre></details>'},
+     {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" data-alert="'+esc(a.id)+'" data-status="acknowledged"><span class="ll-icon" data-icon="check"></span>Acknowledge</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="investigating"><span class="ll-icon" data-icon="search"></span>Investigate</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="false_positive">False positive</button><button data-alert="'+esc(a.id)+'" data-status="resolved"><span class="ll-icon" data-icon="shieldCheck"></span>Resolve</button></div>'}
    ]);
+   renderIcons($("alerts-table"));
    wireTableTools($("alerts-table"));
    $("alerts-table").querySelectorAll("button[data-alert]").forEach(btn=>btn.addEventListener("click",async()=>{
      try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");await loadAlerts();}
@@ -229,23 +348,80 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
  }
  async function loadEvents(kind) {
    const offset=offsets[kind];
-   const data=await api("/v1/admin/"+kind+"?limit="+pageSize+"&offset="+offset);
+   const correlation=kind==="audit"?auditCorrelation:errorsCorrelation;
+   const data=await api("/v1/admin/"+kind+"?limit="+pageSize+"&offset="+offset+(kind==="audit"&&auditAction?"&action="+encodeURIComponent(auditAction):"")+(correlation?"&correlation_id="+encodeURIComponent(correlation):""));
    const target=kind==="audit"?"audit-table":"errors-table";
    $(kind+"-prev").disabled=offset===0;
    $(kind+"-next").disabled=data.items.length<pageSize;
-   $(kind+"-page").textContent=data.items.length===0?"No records on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
+   $(kind+"-page").textContent=data.items.length===0?"No records on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);if(kind==="audit")$("audit-filter-note").textContent=[auditAction?"Action: "+auditAction:"",auditCorrelation?"Correlation ID: "+auditCorrelation:""].filter(Boolean).join(" · ")||"Showing all audit actions.";else $("errors-filter-note").textContent=errorsCorrelation?"Filtering correlation ID: "+errorsCorrelation:"Showing all recorded errors and denied events.";
    $(target).innerHTML=table(data.items,[{label:"Timestamp",render:e=>esc(e.timestamp||e.created_at?new Date(e.timestamp||e.created_at).toLocaleString():"—")},{label:"Event",render:e=>'<strong>'+esc(e.action||"event")+'</strong><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span>'},{label:"CRUD",render:e=>'<span class="tag">'+esc(e.actions||"OTHER")+'</span>'},{label:"Session",render:e=>'<code>'+esc(e.session_id||"Unavailable")+'</code>'},{label:"IP / Device",render:e=>'<code>'+esc(e.ip_address||"Unavailable")+'</code><br><span class="muted small">'+esc(e.device_used||"unknown")+'</span>'},{label:"Actor / Target",render:e=>'<code>'+esc(e.actor_id||"system")+'</code><br>'+esc(e.target_type||"—")+' <code>'+esc(e.target_id||"")+'</code>'},{label:"Description",render:e=>esc(e.description||e.action||"—")+'<br><span class="muted small">Correlation: '+esc(e.correlation_id||"—")+'</span>'},{label:"Metadata",render:e=>'<details class="cell-detail"><summary>View metadata</summary><pre>'+esc(JSON.stringify(e.metadata||{},null,2))+'</pre></details>'}]);
+   renderIcons($(target));
    wireTableTools($(target));
  }
+
+ async function loadRoles() {
+   const data=await api("/v1/admin/roles");
+   $("roles-table").innerHTML=table(data.items,[{label:"Role",render:r=>'<strong>'+esc(r.display_name)+'</strong><br><code>'+esc(r.role_key)+'</code>'},{label:"Description",render:r=>esc(r.description||"—")},{label:"Permissions",render:r=>'<span class="tag">'+(r.permissions||[]).length+' permissions</span><details class="cell-detail"><summary>View permissions</summary><pre>'+esc((r.permissions||[]).join("\\n")||"No permissions mapped")+'</pre></details>'}]);
+   renderIcons($("roles-table"));wireTableTools($("roles-table"));
+ }
+ function renderOverviewBars(data) {
+   const series=[
+     {label:"Registered profiles",value:Number(data.users)||0},
+     {label:"Donor records",value:Number(data.donors)||0},
+     {label:"Emergency requests",value:Number(data.requests)||0}
+   ];
+   const width=760,rowHeight=54,left=190,right=56,top=14,height=top+series.length*rowHeight+12,plotWidth=width-left-right;
+   const max=Math.max(1,...series.map(item=>item.value));
+   const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+   svg.setAttribute("viewBox","0 0 "+width+" "+height);
+   svg.setAttribute("role","img");
+   svg.setAttribute("aria-label",series.map(item=>item.label+": "+item.value).join("; "));
+   svg.style.width="100%";svg.style.maxHeight="250px";
+   const add=(tag,attrs,value)=>{const node=document.createElementNS("http://www.w3.org/2000/svg",tag);Object.entries(attrs).forEach(([key,val])=>node.setAttribute(key,String(val)));if(value!==undefined)node.textContent=String(value);svg.appendChild(node);};
+   series.forEach((item,index)=>{
+     const y=top+index*rowHeight;
+     const barWidth=item.value>0?Math.max(3,item.value/max*plotWidth):0;
+     add("text",{x:left-14,y:y+21,"text-anchor":"end",fill:"#64748b","font-size":13},item.label);
+     add("rect",{x:left,y:y,width:plotWidth,height:17,rx:8,fill:"#edf2f8"});
+     if(item.value>0)add("rect",{x:left,y:y,width:barWidth,height:17,rx:8,fill:"#2864d7"});
+     add("text",{x:Math.min(width-8,left+barWidth+10),y:y+14,fill:"#334155","font-size":13,"font-weight":700},item.value.toLocaleString());
+   });
+   $("overview-chart").replaceChildren(svg);
+   $("overview-chart-caption").textContent="Snapshot generated "+new Date(data.generated_at).toLocaleString()+". Bars are scaled to the largest of these three totals.";
+ }
+ function renderAnalyticsBars(items) {
+   const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-(6-i));return d;});
+   const counts=days.map(day=>items.filter(e=>{const t=new Date(e.timestamp||e.created_at);return !Number.isNaN(t.valueOf())&&t.toDateString()===day.toDateString();}).length);
+   const max=Math.max(1,...counts), width=680, height=220, left=42, bottom=34, top=14, plotH=height-top-bottom, barW=48, gap=34;
+   const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+   svg.setAttribute("viewBox","0 0 "+width+" "+height);svg.setAttribute("role","img");svg.setAttribute("aria-label","Audit event counts per day for the latest 100 events");svg.style.width="100%";svg.style.maxHeight="260px";
+   const make=(tag,attrs,text)=>{const n=document.createElementNS("http://www.w3.org/2000/svg",tag);Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,String(v)));if(text)n.textContent=text;svg.appendChild(n);};
+   for(let g=0;g<=4;g++){const y=top+plotH-(plotH*g/4);make("line",{x1:left,y1:y,x2:width-10,y2:y,stroke:"#e7edf5","stroke-width":1});make("text",{x:left-10,y:y+4,"text-anchor":"end",fill:"#718096","font-size":11},String(Math.round(max*g/4)));}
+   days.forEach((day,i)=>{const x=left+18+i*(barW+gap),bh=counts[i]/max*plotH,y=top+plotH-bh;make("rect",{x,y,width:barW,height:Math.max(0,bh),rx:6,fill:"#2864d7"});make("text",{x:x+barW/2,y:height-10,"text-anchor":"middle",fill:"#64748b","font-size":11},day.toLocaleDateString(undefined,{weekday:"short"}));make("text",{x:x+barW/2,y:Math.max(12,y-6),"text-anchor":"middle",fill:"#334155","font-size":11,"font-weight":700},String(counts[i]));});
+   $("analytics-chart").replaceChildren(svg);
+ }
+ async function loadAnalytics() {
+   const data=await api("/v1/admin/audit?limit=100&offset=0");
+   const items=data.items||[];
+   const byAction={};items.forEach(e=>{const k=e.action||"unknown";byAction[k]=(byAction[k]||0)+1;});
+   const days=new Set(items.map(e=>{const d=new Date(e.timestamp||e.created_at);return Number.isNaN(d.valueOf())?"":d.toDateString();}).filter(Boolean));
+   $("analytics-summary").innerHTML='<div class="stat"><small>Events in sample</small><strong>'+items.length+'</strong></div><div class="stat"><small>Distinct actions</small><strong>'+Object.keys(byAction).length+'</strong></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong></div><div class="stat"><small>Sample limit</small><strong>100</strong></div>';
+   renderAnalyticsBars(items);
+   const top=Object.entries(byAction).sort((a,b)=>b[1]-a[1]).slice(0,8);
+   $("analytics-actions").innerHTML=top.length?'<div class="tablewrap"><table><thead><tr><th>Action</th><th>Events</th></tr></thead><tbody>'+top.map(([k,v])=>'<tr><td>'+esc(k)+'</td><td><strong>'+v+'</strong></td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No audit events are available in the returned sample.</div>';
+ }
  async function loadPage(page) {
+   renderIcons();
    activePage=page; document.querySelectorAll(".tab").forEach(b=>{const active=b.dataset.page===page;b.classList.toggle("active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
-   const pageTitles={overview:["Operations overview","Admin dashboard"],users:["Workspace","User management"],alerts:["Security center","Security alerts"],sessions:["Security center","Session registry"],audit:["Security center","Audit activity"],errors:["Security center","System errors"]};
+   const pageTitles={analytics:["Reporting","Activity analytics"],roles:["Access control","Role registry"],overview:["Operations overview","Admin dashboard"],users:["Workspace","User management"],alerts:["Security center","Security alerts"],sessions:["Security center","Session registry"],audit:["Security center","Audit activity"],errors:["Security center","System errors"]};
    const title=pageTitles[page]||["Admin","Admin console"];$("page-eyebrow").textContent=title[0];$("page-title").textContent=title[1];
-   ["overview","users","audit","sessions","alerts","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
+   ["overview","users","analytics","roles","audit","sessions","alerts","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
    message("app-message","");
    try {
-     if(page==="overview"){const d=await api("/v1/admin/dashboard");$("stat-users").textContent=d.users;$("stat-donors").textContent=d.donors;$("stat-requests").textContent=d.requests;$("generated").textContent="Updated "+new Date(d.generated_at).toLocaleString()+" · Correlation ID "+d.correlation_id;}
+     if(page==="overview"){const d=await api("/v1/admin/dashboard");$("stat-users").textContent=d.users;$("stat-donors").textContent=d.donors;$("stat-requests").textContent=d.requests;renderOverviewBars(d);$("generated").textContent="Updated "+new Date(d.generated_at).toLocaleString()+" · Correlation ID "+d.correlation_id;}
      if(page==="users") await loadUsers();
+     if(page==="analytics") await loadAnalytics();
+     if(page==="roles") await loadRoles();
      if(page==="audit") await loadEvents("audit");
      if(page==="sessions") await loadSessions();
      if(page==="alerts") await loadAlerts();
@@ -261,6 +437,14 @@ tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal
  $("password").addEventListener("keydown",e=>{if(e.key==="Enter")signIn()});
  document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>loadPage(b.dataset.page)));
  $("refresh").addEventListener("click",()=>loadPage(activePage));
+ $("alert-status-filter").addEventListener("change",e=>{alertStatus=e.target.value;offsets.alerts=0;loadPage("alerts");});
+ $("audit-filter-apply").addEventListener("click",()=>{auditAction=$("audit-action-filter").value.trim().slice(0,64);auditCorrelation=$("audit-correlation-filter").value.trim().slice(0,128);offsets.audit=0;loadPage("audit");});
+ $("audit-filter-clear").addEventListener("click",()=>{$("audit-action-filter").value="";$("audit-correlation-filter").value="";auditAction="";auditCorrelation="";offsets.audit=0;loadPage("audit");});
+ $("audit-correlation-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("audit-filter-apply").click();});
+ $("errors-filter-apply").addEventListener("click",()=>{errorsCorrelation=$("errors-correlation-filter").value.trim().slice(0,128);offsets.errors=0;loadPage("errors");});
+ $("errors-filter-clear").addEventListener("click",()=>{$("errors-correlation-filter").value="";errorsCorrelation="";offsets.errors=0;loadPage("errors");});
+ $("errors-correlation-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("errors-filter-apply").click();});
+ $("audit-action-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("audit-filter-apply").click();});
  ["users","audit","sessions","alerts","errors"].forEach(kind=>{
    $(kind+"-prev").addEventListener("click",()=>{offsets[kind]=Math.max(0,offsets[kind]-pageSize);loadPage(kind==="users"?"users":kind);});
    $(kind+"-next").addEventListener("click",()=>{offsets[kind]+=pageSize;loadPage(kind==="users"?"users":kind);});

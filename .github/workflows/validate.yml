@@ -103,4 +103,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Validate admin website and inline SVG icons
+        run: node --check admin-web/icons.js && python scripts/check_admin_web.py
       - run: docker build -f lifelink_fastapi/Dockerfile lifelink_fastapi

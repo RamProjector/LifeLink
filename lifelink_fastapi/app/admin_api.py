@@ -517,7 +517,7 @@ async def admin_list_sessions(
     result = await session.execute(
         text(
             "SELECT session_id, user_id, device_used, ip_address, created_at, last_seen_at, "
-            "expires_at, revoked_at, status "
+            "expires_at, revoked_at, revoked_by, status "
             "FROM lifelink_user_sessions ORDER BY last_seen_at DESC LIMIT :limit OFFSET :offset"
         ),
         {"limit": limit, "offset": offset},
@@ -581,19 +581,21 @@ async def admin_audit_logs(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     action: str | None = Query(default=None, max_length=64),
+    correlation_id: str | None = Query(default=None, max_length=128),
     x_correlation_id: str | None = Header(default=None),
 ):
     # Record the read before selecting the page; no endpoint permits audit mutation or deletion.
     await _write_audit(session, principal.subject, "admin.audit.read", request=request, session_id=principal.session_id, session_expires_at=principal.session_expires_at, target_type="audit_log",
                        correlation_id=_correlation_id(x_correlation_id),
-                       metadata={"limit": limit, "offset": offset, "filtered": bool(action)})
+                       metadata={"limit": limit, "offset": offset, "filtered": bool(action or correlation_id)})
     query = (
         "SELECT id, log_id, actor_id, action, actions, description, session_id, ip_address, timestamp, device_used, "
             "metadata, created_at, outcome, target_type, target_id, correlation_id "
         "FROM audit_events WHERE (CAST(:action AS varchar) IS NULL OR action = CAST(:action AS varchar)) "
+        "AND (CAST(:correlation_id AS varchar) IS NULL OR correlation_id = CAST(:correlation_id AS varchar)) "
         "ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
     )
-    result = await session.execute(text(query), {"action": action, "limit": limit, "offset": offset})
+    result = await session.execute(text(query), {"action": action, "correlation_id": correlation_id, "limit": limit, "offset": offset})
     rows = result.mappings().all()
     await session.commit()
     return {
@@ -613,21 +615,35 @@ async def admin_errors(
     principal: Principal = Depends(require_admin),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    correlation_id: str | None = Query(default=None, max_length=128),
 ):
     result = await session.execute(
         text(
-            "SELECT id, actor_id, action, metadata, created_at, outcome, target_type, target_id, correlation_id "
-            "FROM audit_events WHERE action LIKE 'error.%' OR outcome IN ('error', 'denied') "
+            "SELECT id, log_id, actor_id, action, actions, description, session_id, ip_address, timestamp, device_used, "
+            "metadata, created_at, outcome, target_type, target_id, correlation_id "
+            "FROM audit_events WHERE (action LIKE 'error.%' OR outcome IN ('error', 'denied')) "
+            "AND (CAST(:correlation_id AS varchar) IS NULL OR correlation_id = CAST(:correlation_id AS varchar)) "
             "ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
         ),
-        {"limit": limit, "offset": offset},
+        {"correlation_id": correlation_id, "limit": limit, "offset": offset},
     )
     rows = result.mappings().all()
-    await _write_audit(session, principal.subject, "admin.errors.read", request=request, session_id=principal.session_id, session_expires_at=principal.session_expires_at, target_type="error_log",
-                       metadata={"limit": limit, "offset": offset})
+    await _write_audit(
+        session, principal.subject, "admin.errors.read", request=request,
+        session_id=principal.session_id, session_expires_at=principal.session_expires_at,
+        target_type="error_log",
+        metadata={"limit": limit, "offset": offset, "filtered": bool(correlation_id)},
+    )
     await session.commit()
-    return {"items": [{**dict(row), "metadata": _safe_audit_metadata(row["metadata"]), "created_at": row["created_at"].isoformat() if row["created_at"] else None}
-                      for row in rows], "limit": limit, "offset": offset}
+    return {
+        "items": [
+            {**dict(row), "metadata": _safe_audit_metadata(row["metadata"]),
+             "created_at": row["created_at"].isoformat() if row["created_at"] else None}
+            for row in rows
+        ],
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 # RBAC management is deliberately gated by a separate server-side allowlist.
