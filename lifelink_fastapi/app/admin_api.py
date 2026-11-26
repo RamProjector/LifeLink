@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import get_db_session
 from .db_models import Donor, EmergencyRequest, LifeLinkProfile
-from .security import Principal, get_postgres_principal, require_verified_email
+from .security import Principal, get_active_postgres_principal, require_verified_email
 
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
 
@@ -29,7 +29,7 @@ def _configured_admin_ids() -> set[str]:
 
 async def require_admin(
     request: Request,
-    principal: Principal = Depends(get_postgres_principal),
+    principal: Principal = Depends(get_active_postgres_principal),
     session: AsyncSession = Depends(get_db_session),
 ) -> Principal:
     if principal.subject == "development-user":
