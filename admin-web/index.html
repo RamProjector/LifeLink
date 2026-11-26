@@ -262,6 +262,84 @@ tbody tr:hover{background:#f5f1e8}
 }
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 
+
+/* Shopify-inspired admin workspace refinement: structure only, no copied branding */
+body{background:#f0f0ee;color:#252724;font-size:14px;line-height:1.45}
+.top{min-height:56px;padding:9px clamp(16px,3vw,42px);background:#1d1d1d;border-bottom:1px solid #343434;box-shadow:none}
+.brand{font-size:16px;letter-spacing:-.2px;gap:9px}
+.brand-mark{width:30px;height:30px;border-radius:7px;background:#303030;border-color:#4a4a4a}
+.top small{margin:1px 0 0 39px;font-size:10.5px;color:#b8b8b8}
+.top button.secondary{min-height:34px;padding:6px 10px;background:#303030;border-color:#494949}
+.wrap{max-width:1760px;margin:0 auto;padding:25px clamp(16px,2.8vw,40px) 34px}
+#app-view{min-height:calc(100vh - 56px)}
+.headrow{margin-bottom:17px;align-items:center}
+.headrow h1{font-size:25px;line-height:1.2;letter-spacing:-.55px;font-weight:700;margin:2px 0}
+.headrow .eyebrow{font-size:10px;letter-spacing:.9px;color:#77796f}
+#identity{font-size:11px}
+.console-layout{grid-template-columns:210px minmax(0,1fr);gap:20px;align-items:stretch}
+.sidebar{position:sticky;top:14px;align-self:start;min-height:calc(100vh - 112px);background:#e9e9e7;border:1px solid #d9d9d6;border-radius:11px;padding:9px;box-shadow:none}
+.nav-group{padding:13px 10px 6px;color:#777a74;font-size:9px;letter-spacing:.8px}
+.tabs{gap:2px}
+.tab{min-height:36px;padding:8px 10px;border-radius:7px;color:#454843;font-size:12px;font-weight:560}
+.tab .ll-icon{color:#62665f}
+.tab:hover{background:#dededb;color:#252724}
+.tab.active{background:#fff;color:#242622;font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.06);border:1px solid #e4e4e1}
+.tab.active .ll-icon{color:#292e2a}
+.content-area{min-width:0}
+.content-area section>.panel,.content-area>.panel{border-radius:11px;border-color:#dededb;box-shadow:0 1px 2px rgba(0,0,0,.035)}
+#page-overview .grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.stat{min-height:92px;padding:13px 15px;border-radius:10px;border-color:#dededb;box-shadow:none}
+.stat small{font-size:11px;gap:7px;color:#666a63}
+.stat .stat-icon{width:25px;height:25px;border-radius:7px;background:#efeee9;color:#6f725f}
+.stat strong{font-size:25px;line-height:1.1;margin-top:9px;letter-spacing:-.55px}
+.panel{padding:16px;border-radius:11px;box-shadow:none}
+.panel h2{font-size:14px;letter-spacing:-.1px;margin:0 0 9px}
+#page-overview .panel{margin-top:11px}
+#page-overview .panel p{font-size:12px;line-height:1.55}
+.table-toolbar{gap:9px;margin:8px 0 11px}
+.table-toolbar label{font-size:11px}
+.table-toolbar input{min-height:36px;font-size:12px}
+.table-toolbar button,.actions button{min-height:34px;padding:7px 10px;font-size:11.5px}
+.tablewrap{border-color:#dededb;border-radius:9px;box-shadow:none}
+table{font-size:12px;line-height:1.4}
+th{background:#f5f5f3;color:#666a63;font-size:10px;letter-spacing:.45px;padding:10px 11px}
+td{padding:10px 11px;color:#30332e}
+tbody tr:nth-child(even){background:#fbfbfa}
+tbody tr:hover{background:#f2f1ed}
+.tag{font-size:10px;padding:3px 7px;border-radius:5px}
+.empty{min-height:94px;font-size:12px}
+.notice{font-size:12px}
+.foot{font-size:11px;margin:16px 0 0;padding-top:11px;color:#777a73}
+button{border-radius:7px;font-size:12px}
+button:not(.secondary){background:#292e2a}
+button.secondary{border-radius:7px;background:#fff;border-color:#d5d5d1;color:#343731}
+button.secondary:hover{background:#f4f4f1;border-color:#bcbdb7}
+input,select,#alert-status-filter{border-radius:7px}
+:focus-visible{outline:2px solid #8b6b35!important;outline-offset:2px}
+@media(max-width:900px){
+ .wrap{padding-top:19px}
+ .console-layout{grid-template-columns:minmax(0,1fr);gap:11px}
+ .sidebar{position:static;min-height:0;padding:7px;background:#e9e9e7}
+ .tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:thin}
+ .tab{flex:0 0 auto;width:auto;white-space:nowrap}
+ .nav-group{display:none}
+}
+@media(max-width:620px){
+ .top{min-height:54px;padding:8px 13px}
+ .wrap{padding:16px 12px 26px}
+ .headrow{align-items:flex-start}
+ .headrow h1{font-size:23px}
+ .headrow .actions{width:auto}
+ .headrow .actions button{width:auto}
+ #page-overview .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ #page-overview .stat:last-child{grid-column:1/-1}
+ .stat{min-height:82px;padding:11px}
+ .stat strong{font-size:23px}
+ .content-area>.panel,.content-area section>.panel{padding:13px}
+ .tablewrap{border:0;background:transparent;overflow:visible}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
 </style>
 </head>
 <body>
