@@ -629,6 +629,34 @@ tbody tr:last-child td { border-bottom: 0; }
 #alerts-page { padding-left: 4px; }
 #page-alerts .empty strong { color: var(--ink); font-size: 14px; }
 
+/* Analytics reporting scope and sample-first presentation */
+#page-analytics { padding:18px; }
+#page-analytics .analytics-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+#page-analytics .analytics-heading h2 { margin-bottom:4px; }
+#page-analytics .analytics-heading p { max-width:760px; margin:0; }
+#page-analytics .analytics-notice { display:flex; align-items:flex-start; gap:10px; margin:13px 0 14px; padding:11px 13px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface-soft); }
+#page-analytics .analytics-notice > .ll-icon { flex:0 0 auto; color:var(--action); }
+#page-analytics .analytics-notice p { margin:3px 0 0; }
+#page-analytics .analytics-metrics { grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+#page-analytics .analytics-metrics .stat { min-width:0; min-height:108px; padding:13px 14px; }
+#page-analytics .analytics-metrics .stat strong { font-size:25px; font-variant-numeric:tabular-nums; }
+#page-analytics .analytics-metrics .analytics-range-value { font-size:clamp(13px,1.25vw,17px); line-height:1.35; letter-spacing:0; overflow-wrap:anywhere; }
+#page-analytics .analytics-section-heading h2 { margin-bottom:4px; }
+#page-analytics .analytics-section-heading p { margin:0 0 10px; }
+#page-analytics .analytics-chart-panel, #page-analytics .analytics-actions-panel { margin-top:12px; padding:16px 17px; }
+#page-analytics #analytics-chart { min-width:0; padding-top:7px; }
+#page-analytics #analytics-chart svg { display:block; width:100%; max-height:250px; }
+#page-analytics .analytics-actions-table table { min-width:0; }
+#page-analytics .analytics-actions-table td code { overflow-wrap:anywhere; }
+#page-analytics .analytics-actions-table td:last-child, #page-analytics .analytics-actions-table th:last-child { width:100px; text-align:right; font-variant-numeric:tabular-nums; }
+@media(max-width:900px) { #page-analytics .analytics-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:520px) {
+ #page-analytics { padding:13px; }
+ #page-analytics .analytics-metrics { grid-template-columns:1fr 1fr; gap:8px; }
+ #page-analytics .analytics-metrics .stat { padding:11px; }
+ #page-analytics .analytics-chart-panel, #page-analytics .analytics-actions-panel { padding:13px 11px; }
+}
+
 /* Overview dashboard hierarchy and responsive metric layout */
 #page-overview .overview-metrics { gap:12px; }
 #page-overview .stat { position:relative; min-height:116px; padding:15px 17px; overflow:hidden; }
@@ -1002,7 +1030,13 @@ tbody tr:hover { background: #f0eee7; }
    <div class="control-note"><span class="ll-icon" data-icon="audit" aria-hidden="true"></span><div><strong>Accountability</strong><p class="muted small">Capability changes are audited, and audit records are read-only.</p></div></div>
   </div>
  </section>
- <section id="page-analytics" aria-labelledby="page-title" class="panel hidden"><h2>Activity analytics</h2><p class="muted small">Latest 100 audit events only; not a full historical report.</p><div id="analytics-summary" class="grid"></div><div class="panel"><h2>Audit activity by day</h2><div id="analytics-chart" role="img" aria-label="Audit event counts by day from the latest 100 returned events"><div class="empty">Loading analytics…</div></div></div><div class="panel"><h2>Most frequent actions</h2><div id="analytics-actions"></div></div></section>
+ <section id="page-analytics" aria-labelledby="page-title" class="panel hidden">
+  <div class="analytics-heading"><div><h2>Activity analytics</h2><p class="muted small">A compact view of the latest audit sample. Use Audit activity for searchable records and complete paginated review.</p></div><span class="snapshot-kind">Sample-based</span></div>
+  <div class="analytics-notice"><span class="ll-icon" data-icon="info" aria-hidden="true"></span><div><strong class="small">Reporting scope</strong><p class="muted small">This view requests at most 100 recent audit events. Counts and charts describe only those returned records, not all platform activity or a guaranteed seven-day history.</p></div></div>
+  <div id="analytics-summary" class="grid analytics-metrics" aria-label="Audit sample summary"></div>
+  <div class="panel analytics-chart-panel"><div class="analytics-section-heading"><div><h2>Events by day</h2><p class="muted small">Distribution within the latest returned sample, grouped by local calendar day.</p></div></div><div id="analytics-chart" role="img" aria-label="Audit event counts by day within the latest returned sample"><div class="empty">Loading analytics…</div></div></div>
+  <div class="panel analytics-actions-panel"><div class="analytics-section-heading"><div><h2>Most frequent actions</h2><p class="muted small">Top action names in the same sample, ranked by count.</p></div></div><div id="analytics-actions"><div class="empty">Loading action summary…</div></div></div>
+ </section>
  <section id="page-roles" aria-labelledby="page-title" class="panel hidden"><h2>Role and permission registry</h2><p class="muted small">Read-only role and permission registry. Assignments remain protected by backend RBAC.</p><div id="roles-table" class="tablewrap"><div class="empty">Loading role registry…</div></div></section>
  <section id="page-users" aria-labelledby="page-title" class="panel hidden"><div class="users-intro"><div><h2>User management</h2><p class="muted small">Review account identity, profile role, and app access. Requester and Donor capabilities are managed here; administrator access is verified separately by the server and cannot be granted from this screen.</p></div><div class="users-legend" aria-label="Capability status legend"><span class="tag success">Enabled</span><span class="tag">Disabled</span></div></div><div class="users-guide"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><div><strong>Capability changes are audited.</strong> The profile role is separate from the Requester and Donor capability switches. Search and CSV export apply to the records on the current page.</div></div><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions users-pagination"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
  <section id="page-audit" aria-labelledby="page-title" class="panel hidden">
@@ -1440,11 +1474,13 @@ async function loadUsers() {
       if(!data||!Array.isArray(data.items))throw new Error("Unexpected analytics response");
       const items=data.items;
       const byAction={};items.forEach(e=>{const k=e.action||"unknown";byAction[k]=(byAction[k]||0)+1;});
-      const days=new Set(items.map(e=>{const d=new Date(e.timestamp||e.created_at);return Number.isNaN(d.valueOf())?"":d.toDateString();}).filter(Boolean));
-      $("analytics-summary").innerHTML='<div class="stat"><small>Events in sample</small><strong>'+items.length+'</strong></div><div class="stat"><small>Distinct actions</small><strong>'+Object.keys(byAction).length+'</strong></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong></div><div class="stat"><small>Sample limit</small><strong>100</strong></div>';
+      const validDates=items.map(e=>new Date(e.timestamp||e.created_at)).filter(d=>!Number.isNaN(d.valueOf()));
+      const days=new Set(validDates.map(d=>d.toDateString()));
+      const dateRange=validDates.length?new Date(Math.min(...validDates.map(d=>d.valueOf()))).toLocaleDateString()+ " – "+new Date(Math.max(...validDates.map(d=>d.valueOf()))).toLocaleDateString():"No timestamps available";
+      $("analytics-summary").innerHTML='<div class="stat"><small>Events returned</small><strong>'+items.length+'</strong><span class="stat-meta">Records in this response</span></div><div class="stat"><small>Distinct actions</small><strong>'+Object.keys(byAction).length+'</strong><span class="stat-meta">Action names in sample</span></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong><span class="stat-meta">Distinct local calendar days</span></div><div class="stat"><small>Sample window</small><strong class="analytics-range-value">'+esc(dateRange)+'</strong><span class="stat-meta">Earliest to latest returned event</span></div>';
       renderAnalyticsBars(items);
-      const top=Object.entries(byAction).sort((a,b)=>b[1]-a[1]).slice(0,8);
-      $("analytics-actions").innerHTML=top.length?'<div class="tablewrap"><table><thead><tr><th>Action</th><th>Events</th></tr></thead><tbody>'+top.map(([k,v])=>'<tr><td>'+esc(k)+'</td><td><strong>'+v+'</strong></td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No audit events are available in the returned sample.</div>';
+      const top=Object.entries(byAction).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,8);
+      $("analytics-actions").innerHTML=top.length?'<div class="tablewrap analytics-actions-table"><table><thead><tr><th>Action</th><th>Events</th></tr></thead><tbody>'+top.map(([k,v])=>'<tr><td><code>'+esc(k)+'</code></td><td><strong>'+v.toLocaleString()+'</strong></td></tr>').join("")+'</tbody></table></div>':'<div class="empty"><strong>No audit events in this sample</strong><span class="muted small">There are no returned records to summarize right now.</span></div>';
     } catch(e) {
       if(token!==pageLoadToken||activePage!=="analytics")return;
       setErrorState("analytics-summary","Analytics could not be loaded",safeError(e,"The audit sample could not be retrieved."),()=>loadPage("analytics"));
