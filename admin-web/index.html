@@ -702,7 +702,7 @@ tbody tr:last-child td { border-bottom: 0; }
 #page-analytics .analytics-metrics .stat { min-width:0; min-height:108px; padding:13px 14px; }
 #page-analytics .analytics-metrics .stat strong { font-size:25px; font-variant-numeric:tabular-nums; }
 #page-analytics .analytics-metrics .analytics-range-value { font-size:clamp(13px,1.25vw,17px); line-height:1.35; letter-spacing:0; overflow-wrap:anywhere; }
-#page-analytics .analytics-section-heading h2 { margin-bottom:4px; }
+#page-analytics .analytics-generated { margin:8px 2px 0; font-variant-numeric:tabular-nums; }\n#page-analytics .analytics-section-heading h2 { margin-bottom:4px; }
 #page-analytics .analytics-section-heading p { margin:0 0 10px; }
 #page-analytics .analytics-chart-panel, #page-analytics .analytics-actions-panel { margin-top:12px; padding:16px 17px; }
 #page-analytics #analytics-chart { min-width:0; padding-top:7px; }
@@ -1094,7 +1094,7 @@ tbody tr:hover { background: #f0eee7; }
  <section id="page-analytics" aria-labelledby="page-title" class="panel hidden">
   <div class="analytics-heading"><div><h2>Activity analytics</h2><p class="muted small">A compact view of the latest audit sample. Use Audit activity for searchable records and complete paginated review.</p></div><span class="snapshot-kind">Sample-based</span></div>
   <div class="analytics-notice"><span class="ll-icon" data-icon="info" aria-hidden="true"></span><div><strong class="small">Reporting scope</strong><p class="muted small">This view requests at most 100 recent audit events. Counts and charts describe only those returned records, not all platform activity or a guaranteed seven-day history.</p></div></div>
-  <div id="analytics-summary" class="grid analytics-metrics" aria-label="Audit sample summary"></div>
+  <div id="analytics-summary" class="grid analytics-metrics" aria-label="Audit sample summary"></div><p id="analytics-generated" class="muted small analytics-generated" aria-live="polite">Sample retrieval time will appear after loading.</p>
   <div class="panel analytics-chart-panel"><div class="analytics-section-heading"><div><h2>Events by day</h2><p class="muted small">Distribution within the latest returned sample, grouped by local calendar day.</p></div></div><div id="analytics-chart" role="img" aria-label="Audit event counts by day within the latest returned sample"><div class="empty">Loading analytics…</div></div></div>
   <div class="panel analytics-actions-panel"><div class="analytics-section-heading"><div><h2>Most frequent actions</h2><p class="muted small">Top action names in the same sample, ranked by count.</p></div></div><div id="analytics-actions"><div class="empty">Loading action summary…</div></div></div>
  </section>
@@ -1446,7 +1446,7 @@ async function loadUsers() {
        tableEl.innerHTML='<div class="empty"><strong>No '+(kind==="audit"?"audit records":"system errors")+' found</strong><span class="muted small">'+(correlation?"No records match this correlation ID.":kind==="errors"?"No recorded errors or denied events are currently available.":"There are no audit events on this page.")+'</span></div>';
      } else {
        tableEl.innerHTML=table(data.items,[
-         {label:"Recorded",render:e=>'<div class="event-recorded"><strong>'+esc(e.timestamp||e.created_at?new Date(e.timestamp||e.created_at).toLocaleString():"—")+'</strong><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span></div>'},
+         {label:"Recorded",render:e=>'<div class="event-recorded"><strong>'+esc(e.timestamp||e.created_at?new Date(e.created_at||e.timestamp).toLocaleString():"—")+'</strong><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span></div>'},
          {label:"Event",render:e=>'<div class="event-summary"><strong>'+esc(e.action||"event")+'</strong><span class="muted small">'+esc(e.description||e.actions||"No additional description")+'</span><span class="muted small">'+esc(e.actions||"OTHER")+'</span></div>'},
          {label:"Trace",render:e=>'<div class="event-trace"><span class="muted small">Correlation</span><code title="'+esc(e.correlation_id)+'">'+esc(String(e.correlation_id||"—").slice(0,12)+(String(e.correlation_id||"").length>12?"…":""))+'</code><span class="muted small">Session</span><code title="'+esc(e.session_id)+'">'+esc(String(e.session_id||"Unavailable").slice(0,12)+(String(e.session_id||"").length>12?"…":""))+'</code></div>'},
          {label:"Actor and source",render:e=>'<div class="event-source"><code title="'+esc(e.actor_id)+'">'+esc(String(e.actor_id||"system").slice(0,12)+(String(e.actor_id||"").length>12?"…":""))+'</code><span class="muted small">'+esc(e.device_used||"Unknown device")+'</span><span class="muted small">'+esc(e.ip_address||"IP unavailable")+'</span></div>'},
@@ -1532,10 +1532,10 @@ async function loadUsers() {
       if(!data||!Array.isArray(data.items))throw new Error("Unexpected analytics response");
       const items=data.items;
       const byAction={};items.forEach(e=>{const k=e.action||"unknown";byAction[k]=(byAction[k]||0)+1;});
-      const validDates=items.map(e=>new Date(e.timestamp||e.created_at)).filter(d=>!Number.isNaN(d.valueOf()));
+      const validDates=items.map(e=>new Date(e.created_at||e.timestamp)).filter(d=>!Number.isNaN(d.valueOf()));
       const days=new Set(validDates.map(d=>d.toDateString()));
       const dateRange=validDates.length?new Date(Math.min(...validDates.map(d=>d.valueOf()))).toLocaleDateString()+ " – "+new Date(Math.max(...validDates.map(d=>d.valueOf()))).toLocaleDateString():"No timestamps available";
-      $("analytics-summary").innerHTML='<div class="stat"><small>Events returned</small><strong>'+items.length+'</strong><span class="stat-meta">Records in this response</span></div><div class="stat"><small>Distinct actions</small><strong>'+Object.keys(byAction).length+'</strong><span class="stat-meta">Action names in sample</span></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong><span class="stat-meta">Distinct local calendar days</span></div><div class="stat"><small>Sample window</small><strong class="analytics-range-value">'+esc(dateRange)+'</strong><span class="stat-meta">Earliest to latest returned event</span></div>';
+      $("analytics-summary").innerHTML='<div class="stat"><small>Events returned</small><strong>'+items.length+'</strong><span class="stat-meta">Records in this response</span></div><div class="stat"><small>Distinct actions</small><strong>'+Object.keys(byAction).length+'</strong><span class="stat-meta">Action names in sample</span></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong><span class="stat-meta">Distinct local calendar days</span></div><div class="stat"><small>Sample window</small><strong class="analytics-range-value">'+esc(dateRange)+'</strong><span class="stat-meta">Earliest to latest returned event</span></div>';\n      $("analytics-generated").textContent="Retrieved "+new Date().toLocaleString()+" (browser local time) · Newest-first audit page · Maximum 100 records";
       renderAnalyticsBars(items);
       const top=Object.entries(byAction).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,8);
       $("analytics-actions").innerHTML=top.length?'<div class="tablewrap analytics-actions-table"><table><thead><tr><th>Action</th><th>Events</th></tr></thead><tbody>'+top.map(([k,v])=>'<tr><td><code>'+esc(k)+'</code></td><td><strong>'+v.toLocaleString()+'</strong></td></tr>').join("")+'</tbody></table></div>':'<div class="empty"><strong>No audit events in this sample</strong><span class="muted small">There are no returned records to summarize right now.</span></div>';
