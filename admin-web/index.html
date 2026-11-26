@@ -24,6 +24,7 @@
   --action: #292e2a;
   --action-hover: #171c19;
   --accent: #b58a43;
+  --focus-ring: #a77d39;
   --accent-soft: #f3ead9;
   --sage: #718675;
   --danger: #b8463b;
@@ -89,7 +90,7 @@ a.link {
 }
 a.link:hover { text-decoration: underline; }
 :focus-visible {
-  outline: 2px solid var(--accent) !important;
+  outline: 2px solid var(--focus-ring) !important;
   outline-offset: 3px;
 }
 input, select, #alert-status-filter {
@@ -691,7 +692,7 @@ tbody tr:last-child td { border-bottom: 0; }
 /* Shared data tables: clear scope, accessible status, consistent density */
 .table-toolbar { gap:10px 14px; }
 .table-toolbar .search-wrap { min-width:min(100%,220px); }
-.table-toolbar input:focus-visible,.table-toolbar select:focus-visible,.cell-detail summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.table-toolbar input:focus-visible,.table-toolbar select:focus-visible,.cell-detail summary:focus-visible { outline:2px solid var(--focus-ring); outline-offset:2px; }
 .table-actions { gap:10px 14px; }
 .table-count { font-variant-numeric:tabular-nums; }
 .tablewrap { border-color:var(--md-outline-variant); border-radius:var(--radius-md); scrollbar-gutter:stable; }
@@ -981,7 +982,7 @@ input, select, #alert-status-filter {
 input:hover, select:hover { border-color: var(--ink-soft); }
 input:focus, select:focus, #alert-status-filter:focus {
   border-color: var(--md-primary);
-  outline: 2px solid rgba(181,138,67,.24);
+  outline: 2px solid var(--focus-ring);
 }
 label { margin: 14px 0 6px; font-size: 12px; font-weight: 650; }
 .headrow h1 { font-size: 24px; font-weight: 700; letter-spacing: -.45px; }
@@ -1216,7 +1217,7 @@ tbody tr:hover { background: #f0eee7; }
 .login label { display:block; margin:16px 0 6px; color:var(--ink); font-size:12px; font-weight:650; }
 .login input { width:100%; min-height:44px; border:1px solid var(--md-outline); border-radius:var(--md-shape-small); background:var(--surface); padding:10px 12px; color:var(--ink); }
 .login input:hover { border-color:var(--ink-soft); }
-.login input:focus-visible { outline:3px solid rgba(181,138,67,.25); outline-offset:1px; border-color:var(--accent); }
+.login input:focus-visible { outline:2px solid var(--focus-ring); outline-offset:2px; border-color:var(--focus-ring); }
 .login input:disabled, .login button:disabled { cursor:not-allowed; opacity:.65; }
 .login .field-help { margin:5px 0 0; color:var(--ink-muted); font-size:11px; line-height:1.5; }
 #recovery-view { margin-top:18px; padding-top:16px; border-top:1px solid var(--md-outline-variant); }
