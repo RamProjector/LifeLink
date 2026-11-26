@@ -137,7 +137,7 @@ def main() -> None:
         fail("session management must show the recorded revocation timestamp and actor")
 
     if (
-        "latest.correlation_id AS last_correlation_id" not in admin_api
+        "COALESCE(matched.correlation_id, latest.correlation_id) AS last_correlation_id" not in admin_api
         or "CAST(:correlation_id AS varchar) IS NULL" not in admin_api
         or 'id="sessions-correlation-filter"' not in html
         or 'id="alerts-correlation-filter"' not in html
