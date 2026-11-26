@@ -84,6 +84,7 @@ class AuthRefreshTest {
         assertEquals("POST", logoutRequest?.method)
         assertEquals("/auth/v1/logout?scope=local", logoutRequest?.path)
         assertEquals("Bearer old-token", logoutRequest?.getHeader("Authorization"))
+        assertEquals("test-public-key", logoutRequest?.getHeader("apikey"))
         assertNull(refresh.await())
         assertNull(store.session.value)
     }
