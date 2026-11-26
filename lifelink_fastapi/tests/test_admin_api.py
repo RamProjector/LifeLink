@@ -598,3 +598,42 @@ def test_admin_sessions_query_exposes_and_filters_related_correlation(monkeypatc
     assert "ae.correlation_id = CAST(:correlation_id AS varchar)" in query
     assert "matched.correlation_id IS NOT NULL" in query
     assert "COALESCE(matched.correlation_id, latest.correlation_id)" in query
+
+
+def test_security_alert_status_change_audit_uses_request_correlation(monkeypatch):
+    from app import admin_api
+
+    class UpdatedRow:
+        def mappings(self):
+            return self
+
+        def first(self):
+            return {"id": "alert-1", "rule_id": "IDS-03", "status": "resolved"}
+
+    class AlertUpdateSession(FakeSession):
+        async def execute(self, statement, params=None):
+            self.statements.append(str(statement))
+            return UpdatedRow()
+
+    recorded = {}
+
+    async def capture_audit(*args, **kwargs):
+        recorded.update(kwargs)
+
+    monkeypatch.setattr(admin_api, "_write_audit", capture_audit)
+    session = AlertUpdateSession()
+
+    async def check():
+        response = await admin_api.admin_update_security_alert(
+            alert_id="alert-1",
+            payload=admin_api.AdminAlertUpdate(status="resolved"),
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            x_correlation_id="web:alert-close",
+        )
+        assert response == {"id": "alert-1", "rule_id": "IDS-03", "status": "resolved"}
+
+    asyncio.run(check())
+    assert recorded["correlation_id"] == "web:alert-close"
+    assert recorded["target_id"] == "alert-1"
