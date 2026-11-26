@@ -143,7 +143,7 @@ class AccountPersistenceTest {
 
     @Test fun sameAccountSignInWaitsForCleanupBeforeWritingNewData() = runBlocking {
         val releaseCleanup = CompletableDeferred<Unit>()
-        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>()) { owner ->
+        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>(), TestSessionCipher()) { owner ->
             launch {
                 releaseCleanup.await()
                 db.clearLocalAccountData(owner)
@@ -168,7 +168,7 @@ class AccountPersistenceTest {
     }
 
     @Test fun staleRefreshCannotRestoreSignedOutOrReplaceDifferentAccount() = runBlocking {
-        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>())
+        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>(), TestSessionCipher())
         val alice = AuthSession("alice-token", "refresh", "alice", "alice@example.test")
         val bob = alice.copy(accessToken = "bob-token", userId = "bob")
         store.save(alice)
