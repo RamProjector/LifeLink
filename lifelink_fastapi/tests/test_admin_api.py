@@ -438,3 +438,5 @@ def test_admin_audit_query_explicitly_types_nullable_action_filter():
     audit_query = next(statement for statement in session.statements if "FROM audit_events WHERE" in statement)
     assert "CAST(:action AS varchar) IS NULL" in audit_query
     assert "action = CAST(:action AS varchar)" in audit_query
+    assert "CAST(:correlation_id AS varchar) IS NULL" in audit_query
+    assert "correlation_id = CAST(:correlation_id AS varchar)" in audit_query
