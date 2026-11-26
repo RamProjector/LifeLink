@@ -21,7 +21,7 @@ LifeLink is a coordination platform. Treat account identifiers, contact details,
 ## Known project-level hardening items
 
 - **Leaked Password Protection is disabled.** The live Supabase Security Advisor reported this warning on 2026-11-26. The LifeLink Supabase organization is currently on the Free plan, and Supabase documents this feature as Pro-plan-only. It cannot be enabled through application code or a database migration. Do not upgrade the project without explicit cost approval. Revisit this control if the organization later chooses a paid plan.
-- **RLS enabled without policies is currently intentional for backend-only tables.** A live metadata check on 2026-11-26 confirmed that all 22 public base tables have RLS enabled and none grant table privileges to the `anon` or `authenticated` roles. The Security Advisor's 17 `rls_enabled_no_policy` findings are informational in this setup; do not add broad client policies or grants just to silence them. Recheck grants and policies whenever a table's access model changes.
+- **RLS enabled without policies is currently intentional for backend-only tables.** A live metadata check on 2026-11-26 confirmed that all 22 public base tables have RLS enabled and none grant table privileges to `PUBLIC`, `anon`, or `authenticated`. The Security Advisor's 17 `rls_enabled_no_policy` findings are informational in this setup; do not add broad client policies or grants just to silence them. Recheck grants and policies whenever a table's access model changes.
 
 ## Firebase / Google API key in `google-services.json`
 
