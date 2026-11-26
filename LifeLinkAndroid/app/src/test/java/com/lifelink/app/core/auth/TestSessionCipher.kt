@@ -29,6 +29,7 @@ internal class TestSessionCipher : SessionCipher {
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val TAG_LENGTH_BITS = 128
         val ASSOCIATED_DATA = "lifelink-auth-session-test".toByteArray()
-        val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+        const val KEY_SIZE_BITS = 256
+        val key = KeyGenerator.getInstance("AES").apply { init(KEY_SIZE_BITS) }.generateKey()
     }
 }
