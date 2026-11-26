@@ -585,6 +585,8 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 .table-empty-filter { display: none; padding: 24px; color: var(--muted); text-align: center; }
 
+/* Keep the current console single-admin: do not surface the unused RBAC role catalog. */
+.sidebar .tab[data-page="roles"], #page-roles { display: none !important; }
 /* User management: identity-first directory presentation */
 #page-users .users-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;margin:0 0 14px;padding:14px 16px;border:1px solid #e4dfd2;border-radius:12px;background:#f5f2ea}
 #page-users .users-intro h2{margin:0 0 4px;font-size:15px}#page-users .users-intro p{max-width:760px;margin:0}
