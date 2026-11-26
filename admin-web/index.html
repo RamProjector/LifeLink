@@ -293,7 +293,7 @@ tbody tr:hover{background:#f5f1e8}
  const SUPABASE_URL = "https://nphbhlxnujmylhubzmne.supabase.co";
  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_0BnXY2k96nRr0k0zaZvMgQ_IQYSlyQu";
  const API_BASE_URL = "https://lifelink-api-uzje.onrender.com";
- let accessToken = null, activePage = "overview", recoveryMode = false, alertStatus = "";
+ let accessToken = null, activePage = "overview", recoveryMode = false, alertStatus = "", pageLoadToken = 0;
  const ADMIN_REDIRECT_URL = "https://lifelink-admin-console.onrender.com/";
  const pageSize = 50;
  let auditAction = "";
@@ -423,52 +423,102 @@ tbody tr:hover{background:#f5f1e8}
    });
    search?.addEventListener('input',apply);filter?.addEventListener('change',apply);
  }
- async function loadUsers() {
-   const offset=offsets.users;
-   const data=await api("/v1/admin/users?limit="+pageSize+"&offset="+offset);
-   $("users-prev").disabled=offset===0;
-   $("users-next").disabled=offset+pageSize>=data.total;
-   $("users-page").textContent=(data.total===0?"0 users":(offset+1)+"–"+Math.min(offset+pageSize,data.total)+" of "+data.total);
-   $("users-table").innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Current access",render:u=>'<span class="tag '+(u.can_request?'success':'')+'">Requester '+(u.can_request?'enabled':'disabled')+'</span><br><span class="tag '+(u.can_donate?'success':'')+'">Donor '+(u.can_donate?'enabled':'disabled')+'</span>'},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Capabilities",render:u=>'<div class="actions"><button class="secondary" data-capability="request" data-enabled="'+String(!!u.can_request)+'" data-id="'+esc(u.user_id)+'">'+(u.can_request?'Disable requester':'Enable requester')+'</button><button class="secondary" data-capability="donate" data-enabled="'+String(!!u.can_donate)+'" data-id="'+esc(u.user_id)+'">'+(u.can_donate?'Disable donor':'Enable donor')+'</button></div>'}]);
-   renderIcons($("users-table"));
-   wireTableTools($("users-table"));
-   $("users-table").querySelectorAll("button[data-capability]").forEach(btn=>btn.addEventListener("click",async()=>{const row=data.items.find(user=>user.user_id===btn.dataset.id);if(!row)return;const capability=btn.dataset.capability,enabled=btn.dataset.enabled==="true";const next={role:row.role,can_request:!!row.can_request,can_donate:!!row.can_donate};if(capability==="request")next.can_request=!enabled;else next.can_donate=!enabled;const action=(next[capability==="request"?"can_request":"can_donate"]?"Enable ":"Disable ")+(capability==="request"?"requester":"donor")+" capability";if(!confirm(action+" for this user? The change will be recorded in the audit log."))return;btn.disabled=true;try{await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify(next)});message("app-message",action+" completed and audit event recorded.");await loadUsers();}catch(e){btn.disabled=false;message("app-message",safeError(e,"The user capability update could not be completed. Please retry."),true);}}));
- }
- async function loadSessions() {
-   const offset=offsets.sessions;
-   const data=await api("/v1/admin/sessions?limit="+pageSize+"&offset="+offset);
-   $("sessions-prev").disabled=offset===0;
-   $("sessions-next").disabled=data.items.length<pageSize;
-   $("sessions-page").textContent=data.items.length===0?"No sessions on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
-   $("sessions-table").innerHTML=table(data.items,[
-     {label:"User",render:s=>'<code>'+esc(s.user_id)+'</code>'},
-     {label:"Session",render:s=>'<code>'+esc(s.session_id)+'</code>'},
-     {label:"Device",render:s=>esc(s.device_used||"unknown")},
-     {label:"IP",render:s=>'<code>'+esc(s.ip_address||"Unavailable")+'</code>'},
-     {label:"Created",render:s=>esc(s.created_at?new Date(s.created_at).toLocaleString():"—")},
-     {label:"Last seen",render:s=>esc(s.last_seen_at?new Date(s.last_seen_at).toLocaleString():"—")},
-     {label:"Expiry",render:s=>esc(s.expires_at?new Date(s.expires_at).toLocaleString():"Not supplied")},
-     {label:"Revocation",render:s=>s.revoked_at?esc(new Date(s.revoked_at).toLocaleString())+'<br><span class="muted small">By <code>'+esc(s.revoked_by||"Unavailable")+'</code></span>':"—"},
-     {label:"Status",render:s=>'<span class="tag '+(s.status==="active"?"success":"fail")+'">'+esc(s.status)+'</span>'},
-     {label:"Action",render:s=>s.status==="active"?'<button class="secondary" data-revoke="'+esc(s.session_id)+'"><span class="ll-icon" data-icon="shieldAlert"></span>Revoke</button>':'—'}
-   ]);
-   renderIcons($("sessions-table"));
-   wireTableTools($("sessions-table"));
-   $("sessions-table").querySelectorAll("button[data-revoke]").forEach(btn=>btn.addEventListener("click",async()=>{
-     if(!confirm("Revoke this session? Its next protected admin API request will be rejected."))return;
-     try{await api("/v1/admin/sessions/"+encodeURIComponent(btn.dataset.revoke)+"/revoke",{method:"POST"});message("app-message","Session revoked.");await loadSessions();}
-     catch(e){message("app-message",safeError(e,"The session could not be revoked. Please retry."),true);}
-   }));
- }
- async function loadAlerts() {
-   const offset=offsets.alerts;
+   function setLoadingState(containerId,title,description) {
+    const el=$(containerId);
+    el.setAttribute("aria-busy","true");
+    el.innerHTML='<div class="empty"><strong>'+esc(title)+'</strong><span class="muted small">'+esc(description)+'</span></div>';
+  }
+  function setErrorState(containerId,title,error,retry) {
+    const el=$(containerId);
+    el.innerHTML='<div class="empty"><strong>'+esc(title)+'</strong><span class="muted small">'+esc(error)+'</span><button class="secondary" type="button" data-retry>Retry</button></div>';
+    el.querySelector("[data-retry]")?.addEventListener("click",retry);
+  }
+async function loadUsers() {
+    const token=pageLoadToken,offset=offsets.users,tableEl=$("users-table");
+    setLoadingState("users-table","Loading users","Retrieving account records…");
+    try {
+      const data=await api("/v1/admin/users?limit="+pageSize+"&offset="+offset);
+      if(token!==pageLoadToken||activePage!=="users")return;
+      if(!data||!Array.isArray(data.items)||!Number.isFinite(Number(data.total)))throw new Error("Unexpected users response");
+      $("users-prev").disabled=offset===0;
+      $("users-next").disabled=offset+pageSize>=Number(data.total);
+      $("users-page").textContent=(Number(data.total)===0?"0 users":(offset+1)+"–"+Math.min(offset+pageSize,Number(data.total))+" of "+data.total);
+      tableEl.innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Current access",render:u=>'<span class="tag '+(u.can_request?'success':'')+'">Requester '+(u.can_request?'enabled':'disabled')+'</span><br><span class="tag '+(u.can_donate?'success':'')+'">Donor '+(u.can_donate?'enabled':'disabled')+'</span>'},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Capabilities",render:u=>'<div class="actions"><button class="secondary" data-capability="request" data-enabled="'+String(!!u.can_request)+'" data-id="'+esc(u.user_id)+'">'+(u.can_request?'Disable requester':'Enable requester')+'</button><button class="secondary" data-capability="donate" data-enabled="'+String(!!u.can_donate)+'" data-id="'+esc(u.user_id)+'">'+(u.can_donate?'Disable donor':'Enable donor')+'</button></div>'}]);
+      renderIcons(tableEl);wireTableTools(tableEl);
+      tableEl.querySelectorAll("button[data-capability]").forEach(btn=>btn.addEventListener("click",async()=>{
+        const row=data.items.find(user=>user.user_id===btn.dataset.id);if(!row)return;
+        const capability=btn.dataset.capability,enabled=btn.dataset.enabled==="true";
+        const next={role:row.role,can_request:!!row.can_request,can_donate:!!row.can_donate};
+        if(capability==="request")next.can_request=!enabled;else next.can_donate=!enabled;
+        const action=(next[capability==="request"?"can_request":"can_donate"]?"Enable ":"Disable ")+(capability==="request"?"requester":"donor")+" capability";
+        if(!confirm(action+" for this user? The change will be recorded in the audit log."))return;
+        btn.disabled=true;
+        try{
+          await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify(next)});
+          if(activePage==="users"&&token===pageLoadToken){message("app-message",action+" completed and audit event recorded.");await loadPage("users");}
+        }catch(e){
+          if(activePage==="users"&&token===pageLoadToken){btn.disabled=false;message("app-message",safeError(e,"The user capability update could not be completed. Please retry."),true);}
+        }
+      }));
+    } catch(e) {
+      if(token!==pageLoadToken||activePage!=="users")return;
+      setErrorState("users-table","Users could not be loaded",safeError(e,"The user records could not be retrieved."),()=>loadPage("users"));
+      $("users-prev").disabled=offset===0;$("users-next").disabled=true;$("users-page").textContent="Unable to load users";
+    } finally {
+      if(token===pageLoadToken)tableEl.removeAttribute("aria-busy");
+    }
+  }
+  async function loadSessions() {
+    const token=pageLoadToken,offset=offsets.sessions,tableEl=$("sessions-table");
+    setLoadingState("sessions-table","Loading sessions","Retrieving active and revoked session records…");
+    try {
+      const data=await api("/v1/admin/sessions?limit="+pageSize+"&offset="+offset);
+      if(token!==pageLoadToken||activePage!=="sessions")return;
+      if(!data||!Array.isArray(data.items))throw new Error("Unexpected sessions response");
+      $("sessions-prev").disabled=offset===0;
+      $("sessions-next").disabled=data.items.length<pageSize;
+      $("sessions-page").textContent=data.items.length===0?"No sessions on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
+      tableEl.innerHTML=table(data.items,[
+        {label:"User",render:s=>'<code>'+esc(s.user_id)+'</code>'},
+        {label:"Session",render:s=>'<code>'+esc(s.session_id)+'</code>'},
+        {label:"Device",render:s=>esc(s.device_used||"unknown")},
+        {label:"IP",render:s=>'<code>'+esc(s.ip_address||"Unavailable")+'</code>'},
+        {label:"Created",render:s=>esc(s.created_at?new Date(s.created_at).toLocaleString():"—")},
+        {label:"Last seen",render:s=>esc(s.last_seen_at?new Date(s.last_seen_at).toLocaleString():"—")},
+        {label:"Expiry",render:s=>esc(s.expires_at?new Date(s.expires_at).toLocaleString():"Not supplied")},
+        {label:"Revocation",render:s=>s.revoked_at?esc(new Date(s.revoked_at).toLocaleString())+'<br><span class="muted small">By <code>'+esc(s.revoked_by||"Unavailable")+'</code></span>':"—"},
+        {label:"Status",render:s=>'<span class="tag '+(s.status==="active"?"success":"fail")+'">'+esc(s.status)+'</span>'},
+        {label:"Action",render:s=>s.status==="active"?'<button class="secondary" data-revoke="'+esc(s.session_id)+'"><span class="ll-icon" data-icon="shieldAlert"></span>Revoke</button>':'—'}
+      ]);
+      renderIcons(tableEl);wireTableTools(tableEl);
+      tableEl.querySelectorAll("button[data-revoke]").forEach(btn=>btn.addEventListener("click",async()=>{
+        if(!confirm("Revoke this session? Its next protected API request will be rejected."))return;
+        btn.disabled=true;
+        try{
+          await api("/v1/admin/sessions/"+encodeURIComponent(btn.dataset.revoke)+"/revoke",{method:"POST"});
+          if(activePage==="sessions"&&token===pageLoadToken){message("app-message","Session revoked.");await loadPage("sessions");}
+        }catch(e){
+          if(activePage==="sessions"&&token===pageLoadToken){btn.disabled=false;message("app-message",safeError(e,"The session could not be revoked. Please retry."),true);}
+        }
+      }));
+    } catch(e) {
+      if(token!==pageLoadToken||activePage!=="sessions")return;
+      setErrorState("sessions-table","Sessions could not be loaded",safeError(e,"The session records could not be retrieved."),()=>loadPage("sessions"));
+      $("sessions-prev").disabled=offset===0;$("sessions-next").disabled=true;$("sessions-page").textContent="Unable to load sessions";
+    } finally {
+      if(token===pageLoadToken)tableEl.removeAttribute("aria-busy");
+    }
+  }
+  async function loadAlerts() {
+   const token=pageLoadToken,offset=offsets.alerts;
    const tableEl=$("alerts-table");
    tableEl.setAttribute("aria-busy","true");
    tableEl.innerHTML='<div class="empty"><strong>Loading security alerts</strong><span class="muted small">Retrieving the latest incident records…</span></div>';
    try {
      const query="/v1/admin/security/alerts?limit="+pageSize+"&offset="+offset+(alertStatus?"&status="+encodeURIComponent(alertStatus):"");
      const data=await api(query);
-     if(!data || !Array.isArray(data.items)) throw new Error("Unexpected security alert response");
+     if(token!==pageLoadToken||activePage!=="alerts")return;
+      if(!data || !Array.isArray(data.items)) throw new Error("Unexpected security alert response");
      $("alerts-prev").disabled=offset===0;
      $("alerts-next").disabled=data.items.length<pageSize;
      $("alerts-page").textContent=data.items.length===0?"No alerts on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
@@ -489,19 +539,19 @@ tbody tr:hover{background:#f5f1e8}
      wireTableTools(tableEl);
      tableEl.querySelectorAll("button[data-alert]").forEach(btn=>btn.addEventListener("click",async()=>{
        btn.disabled=true;
-       try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");await loadAlerts();}
+       try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");if(activePage==="alerts"&&token===pageLoadToken)await loadPage("alerts");}
        catch(e){btn.disabled=false;message("app-message",safeError(e,"The alert could not be updated. Please retry."),true);}
      }));
    } catch(e) {
      tableEl.innerHTML='<div class="empty"><strong>Security alerts could not be loaded</strong><span class="muted small">'+esc(safeError(e,"The alert records could not be retrieved."))+'</span><button id="alerts-retry" class="secondary" type="button">Retry</button></div>';
-     $("alerts-retry")?.addEventListener("click",loadAlerts);
+     $("alerts-retry")?.addEventListener("click",()=>loadPage("alerts"));
      $("alerts-prev").disabled=offset===0;
      $("alerts-next").disabled=true;
      $("alerts-page").textContent="Unable to load this page";
-   } finally {tableEl.removeAttribute("aria-busy");}
+   } finally {if(token===pageLoadToken)tableEl.removeAttribute("aria-busy");}
  }
  async function loadEvents(kind) {
-   const offset=offsets[kind];
+   const token=pageLoadToken,offset=offsets[kind];
    const correlation=kind==="audit"?auditCorrelation:errorsCorrelation;
    const target=kind==="audit"?"audit-table":"errors-table";
    const tableEl=$(target);
@@ -509,7 +559,8 @@ tbody tr:hover{background:#f5f1e8}
    tableEl.innerHTML='<div class="empty"><strong>Loading '+(kind==="audit"?"audit records":"system errors")+'</strong><span class="muted small">Retrieving the latest records…</span></div>';
    try {
      const data=await api("/v1/admin/"+kind+"?limit="+pageSize+"&offset="+offset+(kind==="audit"&&auditAction?"&action="+encodeURIComponent(auditAction):"")+(correlation?"&correlation_id="+encodeURIComponent(correlation):""));
-     if(!data||!Array.isArray(data.items)) throw new Error("Unexpected "+kind+" response");
+     if(token!==pageLoadToken||activePage!==kind)return;
+      if(!data||!Array.isArray(data.items)) throw new Error("Unexpected "+kind+" response");
      $(kind+"-prev").disabled=offset===0;
      $(kind+"-next").disabled=data.items.length<pageSize;
      $(kind+"-page").textContent=data.items.length===0?"No records on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
@@ -534,7 +585,7 @@ tbody tr:hover{background:#f5f1e8}
    } catch(e) {
      const subject=kind==="audit"?"Audit records":"System errors";
      tableEl.innerHTML='<div class="empty"><strong>'+subject+' could not be loaded</strong><span class="muted small">'+esc(safeError(e,"The records could not be retrieved. Please retry."))+'</span><button id="'+kind+'-retry" class="secondary" type="button">Retry</button></div>';
-     $(kind+"-retry")?.addEventListener("click",()=>loadEvents(kind));
+     $(kind+"-retry")?.addEventListener("click",()=>loadPage(kind));
      $(kind+"-prev").disabled=offset===0;
      $(kind+"-next").disabled=true;
      $(kind+"-page").textContent="Unable to load this page";
@@ -545,11 +596,22 @@ tbody tr:hover{background:#f5f1e8}
  }
 
  async function loadRoles() {
-   const data=await api("/v1/admin/roles");
-   $("roles-table").innerHTML=table(data.items,[{label:"Role",render:r=>'<strong>'+esc(r.display_name)+'</strong><br><code>'+esc(r.role_key)+'</code>'},{label:"Description",render:r=>esc(r.description||"—")},{label:"Permissions",render:r=>'<span class="tag">'+(r.permissions||[]).length+' permissions</span><details class="cell-detail"><summary>View permissions</summary><pre>'+esc((r.permissions||[]).join("\\n")||"No permissions mapped")+'</pre></details>'}]);
-   renderIcons($("roles-table"));wireTableTools($("roles-table"));
- }
- function renderOverviewBars(data) {
+    const token=pageLoadToken,tableEl=$("roles-table");
+    setLoadingState("roles-table","Loading role registry","Retrieving configured roles and permissions…");
+    try {
+      const data=await api("/v1/admin/roles");
+      if(token!==pageLoadToken||activePage!=="roles")return;
+      if(!data||!Array.isArray(data.items))throw new Error("Unexpected role registry response");
+      tableEl.innerHTML=table(data.items,[{label:"Role",render:r=>'<strong>'+esc(r.display_name)+'</strong><br><code>'+esc(r.role_key)+'</code>'},{label:"Description",render:r=>esc(r.description||"—")},{label:"Permissions",render:r=>'<span class="tag">'+(r.permissions||[]).length+' permissions</span><details class="cell-detail"><summary>View permissions</summary><pre>'+esc((r.permissions||[]).join("\\n")||"No permissions mapped")+'</pre></details>'}]);
+      renderIcons(tableEl);wireTableTools(tableEl);
+    } catch(e) {
+      if(token!==pageLoadToken||activePage!=="roles")return;
+      setErrorState("roles-table","Role registry could not be loaded",safeError(e,"The role registry could not be retrieved."),()=>loadPage("roles"));
+    } finally {
+      if(token===pageLoadToken)tableEl.removeAttribute("aria-busy");
+    }
+  }
+  function renderOverviewBars(data) {
    const series=[
      {label:"Registered profiles",value:Number(data.users)||0},
      {label:"Requests",value:Number(data.requests)||0}
@@ -585,34 +647,61 @@ tbody tr:hover{background:#f5f1e8}
    $("analytics-chart").replaceChildren(svg);
  }
  async function loadAnalytics() {
-   const data=await api("/v1/admin/audit?limit=100&offset=0");
-   const items=data.items||[];
-   const byAction={};items.forEach(e=>{const k=e.action||"unknown";byAction[k]=(byAction[k]||0)+1;});
-   const days=new Set(items.map(e=>{const d=new Date(e.timestamp||e.created_at);return Number.isNaN(d.valueOf())?"":d.toDateString();}).filter(Boolean));
-   $("analytics-summary").innerHTML='<div class="stat"><small>Events in sample</small><strong>'+items.length+'</strong></div><div class="stat"><small>Distinct actions</small><strong>'+Object.keys(byAction).length+'</strong></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong></div><div class="stat"><small>Sample limit</small><strong>100</strong></div>';
-   renderAnalyticsBars(items);
-   const top=Object.entries(byAction).sort((a,b)=>b[1]-a[1]).slice(0,8);
-   $("analytics-actions").innerHTML=top.length?'<div class="tablewrap"><table><thead><tr><th>Action</th><th>Events</th></tr></thead><tbody>'+top.map(([k,v])=>'<tr><td>'+esc(k)+'</td><td><strong>'+v+'</strong></td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No audit events are available in the returned sample.</div>';
- }
- async function loadPage(page) {
-   renderIcons();
-   activePage=page; document.querySelectorAll(".tab").forEach(b=>{const active=b.dataset.page===page;b.classList.toggle("active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
-   const pageTitles={analytics:["Reporting","Activity analytics"],roles:["Access control","Role registry"],overview:["Operations overview","Admin dashboard"],users:["Workspace","User management"],alerts:["Security center","Security alerts"],sessions:["Security center","Session registry"],audit:["Security center","Audit activity"],errors:["Security center","System errors"]};
-   const title=pageTitles[page]||["Admin","Admin console"];$("page-eyebrow").textContent=title[0];$("page-title").textContent=title[1];
-   ["overview","users","analytics","roles","audit","sessions","alerts","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
-   message("app-message","");
-   try {
-     if(page==="overview"){const d=await api("/v1/admin/dashboard");$("stat-users").textContent=d.users;$("stat-requests").textContent=d.requests;renderOverviewBars(d);$("generated").textContent="Updated "+new Date(d.generated_at).toLocaleString()+" · Correlation ID "+d.correlation_id;}
-     if(page==="users") await loadUsers();
-     if(page==="analytics") await loadAnalytics();
-     if(page==="roles") await loadRoles();
-     if(page==="audit") await loadEvents("audit");
-     if(page==="sessions") await loadSessions();
-     if(page==="alerts") await loadAlerts();
-     if(page==="errors") await loadEvents("errors");
-   } catch(e) { message("app-message",safeError(e,"Could not load admin data. Please retry."),true); }
- }
- $("signin").addEventListener("click",signIn);
+    const token=pageLoadToken;
+    setLoadingState("analytics-summary","Loading analytics","Retrieving the latest audit sample…");
+    $("analytics-chart").innerHTML='<div class="empty">Preparing activity chart…</div>';
+    $("analytics-actions").innerHTML='<div class="empty">Loading action summary…</div>';
+    try {
+      const data=await api("/v1/admin/audit?limit=100&offset=0");
+      if(token!==pageLoadToken||activePage!=="analytics")return;
+      if(!data||!Array.isArray(data.items))throw new Error("Unexpected analytics response");
+      const items=data.items;
+      const byAction={};items.forEach(e=>{const k=e.action||"unknown";byAction[k]=(byAction[k]||0)+1;});
+      const days=new Set(items.map(e=>{const d=new Date(e.timestamp||e.created_at);return Number.isNaN(d.valueOf())?"":d.toDateString();}).filter(Boolean));
+      $("analytics-summary").innerHTML='<div class="stat"><small>Events in sample</small><strong>'+items.length+'</strong></div><div class="stat"><small>Distinct actions</small><strong>'+Object.keys(byAction).length+'</strong></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong></div><div class="stat"><small>Sample limit</small><strong>100</strong></div>';
+      renderAnalyticsBars(items);
+      const top=Object.entries(byAction).sort((a,b)=>b[1]-a[1]).slice(0,8);
+      $("analytics-actions").innerHTML=top.length?'<div class="tablewrap"><table><thead><tr><th>Action</th><th>Events</th></tr></thead><tbody>'+top.map(([k,v])=>'<tr><td>'+esc(k)+'</td><td><strong>'+v+'</strong></td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No audit events are available in the returned sample.</div>';
+    } catch(e) {
+      if(token!==pageLoadToken||activePage!=="analytics")return;
+      setErrorState("analytics-summary","Analytics could not be loaded",safeError(e,"The audit sample could not be retrieved."),()=>loadPage("analytics"));
+      $("analytics-chart").innerHTML='<div class="empty">Chart unavailable until the audit sample loads.</div>';
+      $("analytics-actions").innerHTML='<div class="empty">Action summary unavailable.</div>';
+    } finally {
+      if(token===pageLoadToken)$("analytics-summary").removeAttribute("aria-busy");
+    }
+  }
+  async function loadPage(page) {
+    const token=++pageLoadToken;
+    renderIcons();
+    activePage=page; document.querySelectorAll(".tab").forEach(b=>{const active=b.dataset.page===page;b.classList.toggle("active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
+    const pageTitles={analytics:["Reporting","Activity analytics"],roles:["Access control","Role registry"],overview:["Operations overview","Admin dashboard"],users:["Workspace","User management"],alerts:["Security center","Security alerts"],sessions:["Security center","Session registry"],audit:["Security center","Audit activity"],errors:["Security center","System errors"]};
+    const title=pageTitles[page]||["Admin","Admin console"];$("page-eyebrow").textContent=title[0];$("page-title").textContent=title[1];
+    ["overview","users","analytics","roles","audit","sessions","alerts","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
+    message("app-message","");
+    try {
+      if(page==="overview"){
+        setLoadingState("overview-chart","Loading platform snapshot","Retrieving current profile and request totals…");
+        const d=await api("/v1/admin/dashboard");
+        if(token!==pageLoadToken||activePage!==page)return;
+        $("stat-users").textContent=d.users;$("stat-requests").textContent=d.requests;renderOverviewBars(d);$("generated").textContent="Updated "+new Date(d.generated_at).toLocaleString()+" · Correlation ID "+d.correlation_id;
+      }
+      if(page==="users") await loadUsers();
+      if(page==="analytics") await loadAnalytics();
+      if(page==="roles") await loadRoles();
+      if(page==="audit") await loadEvents("audit");
+      if(page==="sessions") await loadSessions();
+      if(page==="alerts") await loadAlerts();
+      if(page==="errors") await loadEvents("errors");
+    } catch(e) {
+      if(token!==pageLoadToken||activePage!==page)return;
+      if(page==="overview")setErrorState("overview-chart","Overview could not be loaded",safeError(e,"The dashboard snapshot could not be retrieved."),()=>loadPage("overview"));
+      else message("app-message",safeError(e,"Could not load admin data. Please retry."),true);
+    } finally {
+      if(page==="overview"&&token===pageLoadToken)$("overview-chart").removeAttribute("aria-busy");
+    }
+  }
+  $("signin").addEventListener("click",signIn);
  $("forgot-password").addEventListener("click",e=>{e.preventDefault();$("recovery-email").value=$("email").value.trim();showRecovery("request");});
  $("recovery-submit").addEventListener("click",()=>recoveryMode==="update"?updateRecoveredPassword():requestPasswordReset());
  $("recovery-cancel").addEventListener("click",()=>{$("recovery-view").classList.add("hidden");message("login-message","");});
@@ -633,7 +722,7 @@ tbody tr:hover{background:#f5f1e8}
    $(kind+"-prev").addEventListener("click",()=>{offsets[kind]=Math.max(0,offsets[kind]-pageSize);loadPage(kind==="users"?"users":kind);});
    $(kind+"-next").addEventListener("click",()=>{offsets[kind]+=pageSize;loadPage(kind==="users"?"users":kind);});
  });
- $("signout").addEventListener("click",()=>{accessToken=null;$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("password").value="";message("login-message","Signed out.");});
+ $("signout").addEventListener("click",()=>{pageLoadToken++;accessToken=null;$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("password").value="";message("login-message","Signed out.");});
 })();
 </script>
 </body></html>
