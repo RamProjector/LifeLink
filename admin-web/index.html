@@ -3,264 +3,1330 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#202521">
+<meta name="application-name" content="LifeLink Admin">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-G8KyvWl28MjMzafFh4J7RVVyKr2tau90qeqmY2Guzaw='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-bkWfE/zDDbLmE0NUhP7xnp0piaFFjbTgXU8K/EfJlfE='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
-:root{color-scheme:light;--ink:#182638;--muted:#66758a;--line:#e4eaf0;--paper:#f5f8fb;--white:#fff;--action:#292e2a;--navy:#142b4a;--red:#b42318;--green:#18794e}
-*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-button,input{font:inherit}a.link{display:inline-block;margin-top:12px;color:var(--action);font-weight:650;text-decoration:none}a.link:hover{text-decoration:underline}button{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;background:var(--action);color:white;font-weight:650}button.secondary{background:white;color:var(--ink);border:1px solid var(--line)}button:disabled{opacity:.55;cursor:wait}
-.top{background:var(--navy);color:white;padding:18px clamp(18px,4vw,48px);display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{font-size:19px;font-weight:800;letter-spacing:-.4px}.brand span{color:#9fc5ff}.top small{color:#c5d3e4}.wrap{max-width:1200px;margin:28px auto;padding:0 20px}.login{max-width:470px;margin:7vh auto;background:white;border:1px solid var(--line);border-radius:20px;padding:28px;box-shadow:0 12px 34px #1834540b}.eyebrow{font-size:12px;font-weight:800;letter-spacing:1.3px;color:var(--action);text-transform:uppercase}.login h1{font-size:29px;line-height:1.2;letter-spacing:-.8px;margin:8px 0}.muted{color:var(--muted)}label{display:block;font-weight:650;font-size:13px;margin:16px 0 6px}input{width:100%;padding:11px 12px;border:1px solid #ccd6e2;border-radius:9px;background:#fff;color:var(--ink)}input:focus{outline:3px solid rgba(181,138,67,.25);border-color:var(--action)}.notice{margin-top:14px;padding:10px 12px;border-radius:9px;background:#eff6ff;color:#244a81;overflow-wrap:anywhere}.notice.error{background:#fff0ef;color:var(--red)}.hidden{display:none!important}.headrow{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}.headrow h1{margin:3px 0;font-size:30px;letter-spacing:-1px}.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:22px;overflow:auto}.tab{background:transparent;color:var(--muted);border-radius:9px 9px 0 0;border-bottom:2px solid transparent}.tab.active{color:var(--action);background:#f3ead9;border-bottom-color:var(--action)}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.stat,.panel{background:white;border:1px solid var(--line);border-radius:15px;padding:18px}.stat small{color:var(--muted);font-weight:650}.stat strong{display:block;font-size:30px;letter-spacing:-1px;margin-top:7px}.panel{margin-top:16px}.panel h2{font-size:17px;margin:0 0 12px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px}td code{overflow-wrap:anywhere}.tag{display:inline-block;border-radius:99px;padding:3px 8px;background:#eef2f6;font-size:11px;font-weight:700}.tag.success{background:#e6f6ed;color:var(--green)}.tag.fail{background:#fff0ef;color:var(--red)}.actions{display:flex;gap:8px;flex-wrap:wrap}.empty{padding:30px;text-align:center;color:var(--muted)}.foot{font-size:12px;color:var(--muted);margin:18px 0 40px}.small{font-size:12px}.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1}@media(max-width:780px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.top{align-items:flex-start}.stat strong{font-size:25px}}@media(max-width:440px){.grid{grid-template-columns:1fr 1fr}.login{padding:21px}}
+:root {
+  color-scheme: light;
+  --ink: #252923;
+  --ink-soft: #454a42;
+  --muted: #686d64;
+  --line: #e4e1d8;
+  --line-strong: #d8d5cb;
+  --paper: #f4f2ec;
+  --surface: #ffffff;
+  --surface-soft: #eeece5;
+  --surface-raised: #fffefa;
+  --action: #292e2a;
+  --action-hover: #171c19;
+  --accent: #b58a43;
+  --focus-ring: #a77d39;
+  --accent-soft: #f3ead9;
+  --sage: #718675;
+  --danger: #b8463b;
+  --success: #617b68;
+  --shadow-sm: 0 2px 8px rgba(34,38,32,.035);
+  --shadow-md: 0 10px 28px rgba(34,38,32,.055);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --font-body: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --type-body: 14px;
+  --type-label: 12px;
+  --type-table: 12px;
+  --type-meta: 11.5px;
+  --type-micro: 10.5px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: var(--type-body)/1.5 var(--font-body);
+}
+button, input, select { font: inherit; }
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--action);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color .16s, border-color .16s, transform .16s;
+}
+button:not(:disabled):hover { background: var(--action-hover); }
+button:not(:disabled):active { transform: translateY(1px); }
+button.secondary {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: #343731;
+}
+button.secondary:hover { border-color: #bcb7aa; background: #f1efe8; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+a.link {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--action);
+  font-weight: 650;
+  text-decoration: none;
+}
+a.link:hover { text-decoration: underline; }
+:focus-visible {
+  outline: 2px solid var(--focus-ring) !important;
+  outline-offset: 3px;
+}
+input, select, #alert-status-filter {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
+input:focus, select:focus, #alert-status-filter:focus {
+  border-color: #a77d39;
+  outline: 3px solid rgba(181,138,67,.22);
+}
+label {
+  display: block;
+  margin: 16px 0 6px;
+  color: var(--ink-soft);
+  font-size: var(--type-label);
+  font-weight: 650;
+}
+.hidden { display: none !important; }
+.muted { color: var(--muted); }
+.small { font-size: var(--type-meta); }
+.eyebrow {
+  color: #765729;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.notice {
+  margin-top: 14px;
+  padding: 12px 14px;
+  overflow-wrap: anywhere;
+  border: 1px solid #e5dac4;
+  border-radius: var(--radius-md);
+  background: #f2eee4;
+  color: #4d4638;
+  font-size: 12px;
+}
+.notice.error { border-color: #edc9c3; background: #fbefed; color: #8e3028; }
 
-/* Admin Console 2.0 */
-.wrap{max-width:1480px;margin:26px auto;padding:0 clamp(14px,2.4vw,32px)}
-.headrow{align-items:center;margin-bottom:18px}
-.console-layout{display:grid;grid-template-columns:224px minmax(0,1fr);gap:20px;align-items:start}
-.sidebar{position:sticky;top:16px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px;box-shadow:0 5px 18px #18345408}
-.nav-group{padding:10px 10px 5px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase}
-.tabs{display:grid;gap:4px;border:0;margin:0;overflow:visible}
-.tab{width:100%;text-align:left;padding:11px 12px;border:0;border-radius:9px;color:#43536a;background:transparent;font-weight:650;font-size:13px}
-.tab:hover{background:#f1f5fa;color:var(--ink)}.tab.active{color:var(--action);background:#f3ead9;border:0}
-.content-area{min-width:0}.content-area>.panel{margin-top:0;margin-bottom:16px;padding:clamp(14px,2vw,22px);border-radius:16px}
-.table-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:8px 0 12px}
-.table-toolbar .search-wrap{flex:1 1 240px;max-width:440px}.table-toolbar input{padding:9px 11px;font-size:13px}.table-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.table-export{min-height:36px;padding:7px 11px;font-size:12px}
-.table-count{font-size:12px;color:var(--muted);white-space:nowrap}
-.tablewrap{border:1px solid var(--line);border-radius:12px;max-width:100%;background:#fff}
-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;line-height:1.45}
-th{position:sticky;top:0;z-index:1;background:#f7f9fc;color:#5b6a7e;padding:11px 12px;white-space:nowrap}
-td{padding:12px;max-width:260px;overflow-wrap:anywhere}
-tbody tr:nth-child(even){background:#fbfcfe}tbody tr:hover{background:#f5f1e8}tbody tr[hidden]{display:none!important}
-.tab:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid rgba(181,138,67,.35);outline-offset:2px}
-tbody tr:last-child td{border-bottom:0}td code{font-size:11px;white-space:normal;overflow-wrap:anywhere;color:#40516a}
-.cell-detail{max-width:320px}.cell-detail summary{cursor:pointer;color:var(--action);font-weight:650;font-size:12px}
-.cell-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:320px;max-height:220px;overflow:auto;padding:9px;background:#f5f7fa;border-radius:8px;font-size:11px;color:#334155}
-.table-empty-filter{display:none;padding:24px;text-align:center;color:var(--muted);font-size:13px}
-@media(max-width:900px){.console-layout{grid-template-columns:1fr;gap:12px}.sidebar{position:static;padding:8px}.tabs{display:flex;overflow-x:auto;gap:5px}.nav-group{display:none}.tab{width:auto;white-space:nowrap;flex:0 0 auto}.content-area>.panel{margin-bottom:12px}}
-@media(max-width:620px){.wrap{margin:16px auto}.headrow{align-items:flex-start}.headrow .actions{width:100%}.headrow .actions button{width:100%}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stat{padding:13px}.stat strong{font-size:23px}.tablewrap{border:0;background:transparent;overflow:visible}table,tbody{display:block;width:100%}thead{display:none}tbody{display:grid;gap:10px}tbody tr{display:grid;gap:0;background:#fff!important;border:1px solid var(--line);border-radius:12px;padding:5px 12px;box-shadow:0 3px 12px #18345406}td{display:grid;grid-template-columns:minmax(94px,34%) minmax(0,1fr);gap:10px;max-width:none;padding:9px 2px;border-bottom:1px solid #edf1f5}td:last-child{border-bottom:0}td:before{content:attr(data-label);font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}.cell-detail{max-width:100%}.cell-detail pre{max-width:100%}.table-toolbar{align-items:stretch}.table-toolbar .search-wrap{max-width:none;flex-basis:100%}.table-actions{justify-content:space-between;width:100%}.table-count{width:auto}}
+/* Header and page frame */
+.top {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px clamp(16px, 3vw, 42px);
+  border-bottom: 1px solid #3b413b;
+  background: #202521;
+  color: #fff;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -.2px;
+}
+.brand span { color: #e9e5da; }
+.brand-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #4a514a;
+  border-radius: 7px;
+  background: #303731;
+  color: #e4c58c;
+}
+.brand-mark .ll-icon-svg { width: 21px; height: 21px; }
+.top small {
+  display: block;
+  margin: 1px 0 0 39px;
+  color: #b9beb5;
+  font-size: 10.5px;
+  letter-spacing: .02em;
+}
+.top button.secondary {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-color: #494f49;
+  background: #303731;
+  color: #f6f4ee;
+}
+.top button.secondary:hover { border-color: #687267; background: #414941; }
+.wrap {
+  max-width: 1760px;
+  margin: 0 auto;
+  padding: 25px clamp(16px, 2.8vw, 40px) 34px;
+}
+#app-view { min-height: calc(100vh - 56px); }
+.login {
+  max-width: 480px;
+  margin: clamp(34px, 8vh, 90px) auto;
+  padding: clamp(24px, 4vw, 36px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+.login h1 {
+  margin: 9px 0 10px;
+  font-size: clamp(25px, 2.4vw, 31px);
+  font-weight: 720;
+  line-height: 1.16;
+  letter-spacing: -.8px;
+}
+.login .eyebrow { display: flex; align-items: center; gap: 8px; }
+.login .eyebrow:before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+  content: "";
+}
+.login input { min-height: 44px; }
+.login > button { min-height: 42px; }
+.headrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 17px;
+}
+.headrow h1 {
+  margin: 2px 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -.55px;
+}
+.headrow .eyebrow { color: #666b62; font-size: 10px; letter-spacing: .9px; }
+#identity { margin-top: 5px; color: #666b62; font-size: 11px; }
+.headrow .actions { align-items: center; }
 
-/* LifeLink website refresh — shared visual tokens and responsive application shell */
-:root{
- --ink:#15243a;--muted:#66768d;--line:#e3e9f1;--paper:#f3f6fa;--white:#fff;
- --action:#b58a43;--action-strong:#171c19;--navy:#102847;--red:#b42318;--green:#18794e;
- --surface-soft:#f7f9fc;--shadow:0 14px 36px rgba(18,42,72,.07);--radius:18px;
+/* Adaptive application shell and collapsible navigation rail */
+.console-layout {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 18px;
+  transition: grid-template-columns .18s ease;
 }
-body{background:radial-gradient(ellipse at 88% -12%,rgba(45,105,214,.08),transparent 34%),var(--paper);color:var(--ink);font-size:14px}
-.top{min-height:76px;padding:14px clamp(18px,4vw,54px);background:linear-gradient(112deg,#102746,#183a63);box-shadow:0 4px 18px rgba(9,28,52,.13)}
-.brand{display:flex;align-items:center;gap:11px;font-size:18px;letter-spacing:-.45px}
-.brand span{color:#e9e5da}
-.brand-mark{width:38px;height:38px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(255,255,255,.09);color:#e4c58c}
-.brand-mark .ll-icon-svg{width:23px;height:23px}
-.top small{display:block;margin:3px 0 0 49px;color:#b9beb5;font-size:12px}
-.top button.secondary{display:inline-flex;align-items:center;gap:9px;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.22);color:#fff}
-button{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:40px;border-radius:11px;padding:9px 14px;transition:background .16s,border-color .16s,transform .16s}
-button:not(:disabled):active{transform:translateY(1px)}
-button:not(.secondary):hover{background:var(--action-strong)}
-button.secondary:hover{background:#f4f7fc;border-color:#bcb7aa}
-.ll-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;line-height:0}
-.ll-icon-svg{display:block;width:18px;height:18px}
-.wrap{max-width:1560px;margin:30px auto;padding:0 clamp(16px,3vw,42px)}
-.login{max-width:480px;margin:clamp(34px,8vh,90px) auto;background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:22px;padding:clamp(24px,4vw,36px);box-shadow:var(--shadow)}
-.login h1{font-size:32px;letter-spacing:-1.2px;margin:9px 0 10px}
-.login .eyebrow{display:flex;align-items:center;gap:8px}
-.login .eyebrow:before{content:"";width:7px;height:7px;border-radius:50%;background:#b58a43;box-shadow:0 0 0 4px #f3ead9}
-.login>p{line-height:1.65}
-.login input{min-height:44px;border-color:#d5deea;border-radius:11px}
-.login>button{min-height:46px}
-.headrow{margin-bottom:22px;align-items:center}
-.headrow h1{font-size:clamp(27px,3vw,34px);letter-spacing:-1.2px;margin:5px 0}
-.headrow .eyebrow{letter-spacing:1.5px}
-#identity{margin-top:5px}
-.console-layout{grid-template-columns:238px minmax(0,1fr);gap:22px}
-.sidebar{top:18px;border-radius:18px;padding:12px;box-shadow:0 7px 22px rgba(18,42,72,.045)}
-.nav-group{padding:13px 12px 7px;font-size:10px;letter-spacing:1.15px}
-.tabs{gap:4px}
-.tab{display:flex;align-items:center;gap:11px;min-height:43px;padding:10px 12px;border-radius:11px;font-size:13px;color:#43536a}
-.tab .ll-icon{color:#72829a}
-.tab:hover{background:#f3f6fb}
-.tab.active{color:#292e2a;background:#f3ead9;font-weight:750}
-.tab.active .ll-icon{color:#292e2a}
-.content-area>.panel,.content-area section>.panel{border-radius:18px;border-color:var(--line);box-shadow:0 7px 22px rgba(18,42,72,.035)}
-.stat{position:relative;min-height:126px;padding:19px;border-radius:16px;box-shadow:0 5px 18px rgba(18,42,72,.035)}
-.stat small{display:flex;align-items:center;gap:8px;color:#64748b;font-size:12px}
-.stat .stat-icon{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:10px;background:#f0ede5;color:#b58a43}
-.stat strong{font-size:32px;margin-top:13px}
-.panel{border-radius:16px;box-shadow:0 5px 18px rgba(18,42,72,.03)}
-.panel h2{letter-spacing:-.3px}
-.table-toolbar{margin:12px 0 14px}
-.table-toolbar input{min-height:40px;border-radius:10px}
-.tablewrap{border-color:#e5ebf3;border-radius:14px}
-th{background:#f6f8fc;color:#66768d;font-size:10px;letter-spacing:.8px;padding:13px 14px}
-td{padding:13px 14px}
-tbody tr:hover{background:#f5f1e8}
-.tag{padding:4px 9px;font-size:10px;letter-spacing:.15px}
-.empty{min-height:116px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:28px 18px}
-.empty .ll-icon{width:38px;height:38px;border-radius:12px;background:#f0eee7;color:#85704d}
-.notice{border:1px solid #e5dac4;border-radius:12px;padding:13px 15px}
-.notice.error{border-color:#f5d0cc}
-.foot{padding-top:14px;border-top:1px solid #e6ebf2;line-height:1.6}
-.actions{align-items:center}
-.actions button{min-height:38px}
-#page-overview .panel{margin-top:18px}
-#page-overview .panel p{max-width:900px}
-@media(max-width:900px){
- .console-layout{grid-template-columns:minmax(0,1fr);gap:14px}
- .sidebar{padding:9px}
- .tabs{display:flex;overflow-x:auto;scrollbar-width:thin;padding-bottom:2px}
- .tab{flex:0 0 auto;width:auto;white-space:nowrap}
- .nav-group{display:none}
- .content-area>.panel{margin-bottom:14px}
+.sidebar {
+  position: sticky;
+  top: 14px;
+  align-self: start;
+  min-height: calc(100vh - 112px);
+  padding: 9px 7px;
+  border: 1px solid #343b35;
+  border-radius: var(--radius-md);
+  background: #202521;
 }
-@media(max-width:620px){
- .top{padding:12px 16px;min-height:68px}
- .top small{margin-left:45px;font-size:12px}
- .brand-mark{width:34px;height:34px}
- .wrap{margin:20px auto;padding:0 14px}
- .headrow{gap:13px}
- .headrow .actions{width:auto}
- .headrow .actions button{width:auto}
- .grid{gap:10px}
- .stat{min-height:112px;padding:13px}
- .stat strong{font-size:25px;margin-top:10px}
- .stat .stat-icon{width:27px;height:27px}
- .content-area>.panel{padding:14px}
+.nav-collapse-control {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+.nav-toggle {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  overflow: hidden;
+  margin: 0 0 9px;
+  padding: 8px;
+  border: 1px solid #414941;
+  border-radius: var(--radius-sm);
+  background: #303731;
+  color: #eee9dd;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.nav-toggle svg { width: 19px; height: 19px; flex: 0 0 19px; }
+.nav-toggle span { display: none; }
+.nav-collapse-control:focus-visible + .nav-toggle {
+  outline: 2px solid #d1ad70;
+  outline-offset: 3px;
+}
+.sidebar .nav-group {
+  display: none;
+  padding: 12px 10px 6px;
+  color: #a9b0a7;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .9px;
+  text-transform: uppercase;
+}
+.sidebar .tabs { display: grid; gap: 5px; }
+.sidebar .tab {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  padding: 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #d0d5ce;
+  font-size: 12px;
+  font-weight: 560;
+  text-align: left;
+}
+.sidebar .tab .ll-icon { color: #b9c1b8; }
+.sidebar .tab > span:not(.ll-icon) { display: none; }
+.sidebar .tab:hover { background: #303731; color: #fff; }
+.sidebar .tab.active {
+  border-color: #e2d4b9;
+  background: var(--accent-soft);
+  color: var(--action);
+  font-weight: 700;
+}
+.sidebar .tab.active .ll-icon { color: var(--action); }
+.console-layout:has(#nav-collapse:checked) { grid-template-columns: 218px minmax(0, 1fr); }
+#nav-collapse:checked + .nav-toggle { justify-content: flex-start; padding: 8px 11px; }
+#nav-collapse:checked + .nav-toggle span { display: inline; }
+#nav-collapse:checked ~ .nav-group,
+#nav-collapse:checked ~ .tabs .nav-group { display: block; }
+#nav-collapse:checked ~ .tabs .tab { justify-content: flex-start; padding: 9px 11px; }
+#nav-collapse:checked ~ .tabs .tab > span:not(.ll-icon) { display: inline; }
+.content-area { min-width: 0; }
 
-/* Security Center: clearer incident hierarchy and resilient data states */
-#page-alerts .table-toolbar{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface-soft);border:1px solid var(--line);border-radius:13px}
-#page-alerts .table-toolbar label{margin:0;color:var(--muted);font-size:12px;font-weight:750}
-#alert-status-filter{min-width:190px;min-height:40px;padding:8px 34px 8px 11px;border:1px solid #d5deea;border-radius:10px;background:#fff;color:var(--ink);font:inherit}
-#alerts-table .tag{white-space:nowrap}
-#alerts-table .tag.severity-critical,#alerts-table .tag.severity-high{background:#fff0ef;color:#a52820}
-#alerts-table .tag.severity-medium{background:#fff6df;color:#8a5a00}
-#alerts-table .tag.severity-low{background:#e9eee8;color:#526b56}
-#alerts-table .actions{min-width:210px;gap:6px}
-#alerts-table .actions button{min-height:34px;padding:7px 9px;font-size:11px}
-#alerts-table .cell-detail summary{padding:5px 0}
-#alerts-table .cell-detail pre{max-width:360px}
-#alerts-page{padding-left:4px}
-#page-alerts .empty strong{color:var(--ink);font-size:14px}
-#page-alerts .empty button{margin-top:5px}
-@media(max-width:620px){#page-alerts .table-toolbar{align-items:stretch;flex-wrap:wrap}#alert-status-filter{width:100%}#alerts-table .actions{min-width:0}#alerts-table .actions button{flex:1 1 42%}}
+/* Surfaces, metrics, and content hierarchy */
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+#page-overview .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stat, .panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.stat {
+  min-height: 92px;
+  padding: 13px 15px;
+  box-shadow: none;
+}
+.stat small {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #666a63;
+  font-size: 12px;
+  font-weight: 650;
+}
+.stat .stat-icon {
+  display: inline-grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border-radius: 7px;
+  background: #efeee9;
+  color: #6f725f;
+}
+.stat strong {
+  display: block;
+  margin-top: 9px;
+  color: var(--action);
+  font-size: 25px;
+  line-height: 1.1;
+  letter-spacing: -.55px;
+}
+.panel { margin-top: 11px; padding: 16px; }
+.panel h2 {
+  margin: 0 0 9px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.1px;
+}
+.content-area > .panel,
+.content-area section > .panel {
+  border-color: #dededb;
+  border-radius: 11px;
+  box-shadow: var(--shadow-sm);
+}
+.content-area > .panel { margin-top: 0; margin-bottom: 14px; }
+#page-overview .panel { margin-top: 11px; }
+#page-overview .panel p { max-width: 900px; font-size: 12px; line-height: 1.55; }
+.empty {
+  display: flex;
+  min-height: 94px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 24px 18px;
+  color: #666b62;
+  font-size: 12px;
+  text-align: center;
+}
+.empty strong { color: #343a33; }
+.empty .ll-icon {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 10px;
+  background: #f0eee7;
+  color: #85704d;
+}
+.empty button { margin-top: 5px; }
+.foot {
+  margin: 16px 0 0;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+  color: #666b62;
+  font-size: 11px;
+  line-height: 1.6;
+}
 
-/* Admin Console visual system — graphite / warm ivory / restrained amber */
-:root{
- color-scheme:light;
- --ink:#252923;
- --muted:#73786f;
- --line:#e4e1d8;
- --paper:#f4f2ec;
- --white:#fff;
- --action:#292e2a;
- --action-strong:#171c19;
- --navy:#202521;
- --red:#b8463b;
- --green:#617b68;
- --surface-soft:#eeece5;
- --shadow:0 10px 28px rgba(34,38,32,.055);
- --radius:14px;
- --accent:#b58a43;
- --accent-soft:#f3ead9;
- --sage:#718675;
+/* Application diagnostics refinements */
+.errors-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.errors-heading h2 { margin-bottom:4px; }
+.errors-heading p { max-width:720px; margin:0; }
+.errors-guidance { display:flex; align-items:flex-start; gap:11px; margin:13px 0; padding:11px 13px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface-soft); }
+.errors-guidance > .ll-icon { flex:0 0 auto; color:var(--ink-soft); }
+.errors-guidance p { margin:3px 0 0; }
+.errors-toolbar { align-items:end; }
+.errors-toolbar .search-wrap { flex:1 1 260px; min-width:min(100%,220px); }
+#errors-table td code { overflow-wrap:anywhere; }
+#errors-table details summary { cursor:pointer; color:var(--ink-soft); }
+#errors-table details pre { max-width:min(560px,70vw); max-height:260px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
+.errors-pagination { align-items:center; margin-top:13px; }
+@media(max-width:620px) {
+ .errors-guidance { padding:10px; }
+ .errors-toolbar { align-items:stretch; }
+ .errors-toolbar .search-wrap { flex-basis:100%; }
+ .errors-pagination { justify-content:flex-start; }
 }
-html{scroll-behavior:smooth}
-body{background:var(--paper);color:var(--ink);font-size:14.5px;line-height:1.5;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-.top{min-height:68px;padding:12px clamp(18px,3vw,42px);background:#202521;box-shadow:none;border-bottom:1px solid #3b413b}
-.brand{font-size:16px;letter-spacing:-.25px;gap:10px}
-.brand span{color:#e9e5da}
-.brand-mark{width:34px;height:34px;border-radius:9px;background:#303731;border:1px solid #4a514a;color:#e4c58c}
-.top small{margin:2px 0 0 44px;color:#b9beb5;font-size:11px;letter-spacing:.02em}
-.top button.secondary{background:#303731;border-color:#4a514a;color:#f6f4ee}
-.top button.secondary:hover{background:#414941;border-color:#687267}
-.wrap{max-width:1640px;margin:24px auto;padding:0 clamp(16px,2.8vw,40px)}
-.login{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 44px rgba(35,39,33,.07)}
-.login h1{font-size:clamp(25px,2.4vw,31px);line-height:1.16;letter-spacing:-.8px;font-weight:720}
-.eyebrow{font-size:11px;letter-spacing:1px;color:#8b6b35}
-.login .eyebrow:before{background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
-.login input,input,#alert-status-filter{border-color:#d8d5cb;border-radius:8px;background:#fff;color:var(--ink)}
-input:focus,#alert-status-filter:focus{outline:3px solid rgba(181,138,67,.25);border-color:#a77d39}
-button{background:#292e2a;color:#fff;border-radius:8px;font-weight:650;box-shadow:none}
-button:not(:disabled):hover{background:#171c19}
-button.secondary{background:#fff;color:#30352f;border:1px solid #d8d5cb}
-button.secondary:hover{background:#f1efe8;border-color:#bcb7aa}
-button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #b58a43!important;outline-offset:3px}
-.notice{background:#f2eee4;color:#4d4638;border:1px solid #e5dac4;border-radius:9px}
-.notice.error{background:#fbefed;color:#8e3028;border-color:#edc9c3}
-.headrow{margin-bottom:20px;align-items:center}
-.headrow h1{font-size:clamp(25px,2.4vw,31px);letter-spacing:-.85px;font-weight:720}
-.headrow .eyebrow{color:#8b6b35}
-.console-layout{grid-template-columns:232px minmax(0,1fr);gap:20px}
-.sidebar{background:#202521;border:1px solid #343b35;border-radius:13px;padding:10px;box-shadow:0 10px 24px rgba(29,34,29,.08)}
-.nav-group{color:#a9b0a7;font-size:10px;letter-spacing:.9px;padding:13px 11px 7px}
-.tabs{gap:3px}
-.tab{color:#d0d4cd;min-height:40px;border-radius:8px;padding:9px 11px;font-size:13px;font-weight:570}
-.tab .ll-icon{color:#aeb6aa}
-.tab:hover{background:#303731;color:#fff}
-.tab.active{background:#3b433b;color:#fff;font-weight:680;box-shadow:inset 2px 0 0 #c59a51}
-.tab.active .ll-icon{color:#e1bf82}
-.content-area>.panel,.content-area section>.panel{background:#fff;border:1px solid var(--line);border-radius:13px;box-shadow:0 3px 12px rgba(34,38,32,.025)}
-.panel{border-radius:13px}
-.panel h2{font-size:16px;letter-spacing:-.15px;font-weight:700;margin-bottom:10px}
-.stat{min-height:108px;padding:16px;border:1px solid var(--line);border-radius:12px;box-shadow:none}
-.stat small{font-size:12px;color:#73786f;font-weight:650}
-.stat .stat-icon{width:27px;height:27px;border-radius:8px;background:#f0ede5;color:#8c6b36}
-.stat strong{font-size:28px;letter-spacing:-.8px;margin-top:10px;color:#292e2a}
-.table-toolbar{padding:10px 0;margin:10px 0 12px;background:transparent;border:0}
-.table-toolbar input{min-height:38px;border-radius:8px;border-color:#d8d5cb}
-.tablewrap{border:1px solid #e4e1d8;border-radius:10px;background:#fff}
-table{font-size:12.5px;line-height:1.5}
-th{background:#f1efe9;color:#666b62;font-size:11px;letter-spacing:.6px;font-weight:750;padding:11px 12px}
-td{padding:11px 12px;color:#333831}
-td code{color:#686d64;font-size:11.5px}
-tbody tr:nth-child(even){background:#fcfbf8}
-tbody tr:hover{background:#f5f1e8}
-.tag{background:#eeece6;color:#555a51;border-radius:5px;padding:3px 7px;font-size:11px;font-weight:700}
-.tag.success{background:#e9efe9;color:#49634f}
-.tag.fail{background:#f8eae7;color:#9b3c32}
-.cell-detail summary{color:#87652f}
-.cell-detail pre{background:#f4f2ec;color:#454a42;border:1px solid #e8e5dc}
-.empty{color:#777b72;min-height:112px}
-.empty strong{color:#343a33}
-.empty .ll-icon{background:#f0eee7;color:#85704d}
-.foot{border-color:#e4e1d8;color:#777b72}
-#page-alerts .table-toolbar{background:#f4f1e9;border-color:#e4dfd2}
-#alert-status-filter{min-height:38px}
-#alerts-table .tag.severity-critical,#alerts-table .tag.severity-high{background:#f8eae7;color:#96392f}
-#alerts-table .tag.severity-medium{background:#f5ecd9;color:#80602e}
-#alerts-table .tag.severity-low{background:#e9eee8;color:#526b56}
-#alerts-table .actions button{font-size:11.5px}
-#overview-chart svg text{font-family:inherit}
-#overview-chart svg rect[fill="#eeece5"]{fill:#eeece5}
-#overview-chart svg rect[fill="#b58a43"]{fill:#b58a43}
-#analytics-chart svg line{stroke:#e8e5dc}
-#analytics-chart svg rect{fill:#b58a43}
-#analytics-chart svg text{font-family:inherit}
-#identity{color:#74786f}
-#page-overview>.grid{grid-template-columns:repeat(3,minmax(0,1fr))}
-#analytics-chart svg rect{fill:#b58a43}
-#analytics-chart svg text{fill:#666b62}
-@media(max-width:780px){#page-overview>.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:900px){
- .console-layout{grid-template-columns:minmax(0,1fr);gap:12px}
- .sidebar{position:static}
- .tabs{gap:4px}
- .tab{flex:0 0 auto}
+
+/* Session access review refinements */
+.sessions-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.sessions-heading h2 { margin-bottom:4px; }
+.sessions-heading p { max-width:700px; margin:0; }
+.sessions-guidance { display:flex; align-items:flex-start; gap:10px; margin:13px 0; padding:11px 13px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface-soft); color:var(--ink-soft); }
+.sessions-guidance .ll-icon { flex:0 0 auto; color:var(--success); }
+#sessions-table th:first-child, #sessions-table td:first-child { min-width:145px; }
+#sessions-table td code { overflow-wrap:anywhere; }
+#sessions-table td:last-child button { min-height:36px; }
+.sessions-pagination { align-items:center; margin-top:13px; }
+@media(max-width:620px) {
+ .sessions-guidance { padding:10px; }
+ .sessions-pagination { justify-content:flex-start; }
 }
-@media(max-width:620px){
- .top{padding:11px 14px}
- .wrap{margin:16px auto;padding:0 12px}
- .sidebar{border-radius:10px}
- .tabs{padding-bottom:2px}
- .tab{min-height:38px;padding:8px 10px;font-size:12px}
- #page-overview>.grid{grid-template-columns:repeat(2,minmax(0,1fr))}
- .stat{min-height:98px;padding:12px}
- .stat strong{font-size:24px}
- .content-area>.panel{padding:13px}
- .tablewrap{border:0;background:transparent}
- tbody tr{border-color:#e4e1d8;box-shadow:0 2px 8px rgba(34,38,32,.035)}
- td:before{color:#777b72}
+
+/* Audit activity refinements */
+.audit-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.audit-heading h2 { margin-bottom:4px; }
+.audit-heading p { max-width:720px; margin:0; }
+.audit-toolbar { display:grid; grid-template-columns:minmax(180px,1fr) minmax(220px,1.2fr) auto; align-items:end; gap:12px; padding:12px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface-soft); }
+.audit-filter-field { min-width:0; }
+.audit-filter-field label { margin:0 0 6px; color:var(--ink-soft); font-size:11px; }
+.audit-filter-field input { min-height:40px; background:var(--surface); font-size:12px; }
+.audit-filter-actions { display:flex; align-items:center; gap:7px; }
+.audit-filter-actions button { min-height:38px; white-space:nowrap; }
+.audit-filter-note { margin:10px 2px; overflow-wrap:anywhere; }
+.audit-pagination { align-items:center; margin-top:13px; }
+#audit-table th:first-child, #audit-table td:first-child { min-width:150px; }
+#audit-table td code { overflow-wrap:anywhere; }
+#audit-table details summary { color:#665638; font-weight:650; }
+#audit-table .tag { margin:2px 0; }
+@media(max-width:760px) {
+ .audit-toolbar { grid-template-columns:1fr 1fr; }
+ .audit-filter-actions { grid-column:1/-1; }
 }
-@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media(max-width:520px) {
+ .audit-toolbar { grid-template-columns:1fr; }
+ .audit-filter-actions { grid-column:auto; }
+ .audit-filter-actions button { flex:1; }
+ .audit-pagination { justify-content:flex-start; }
+}
+
+/* User directory refinements */
+.users-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.users-heading h2 { margin-bottom:4px; }
+.users-heading p { max-width:680px; margin:0; }
+.users-toolbar { display:grid; grid-template-columns:auto minmax(180px,1fr) auto minmax(170px,.7fr) auto; align-items:center; justify-content:initial; }
+.users-toolbar .search-wrap { width:100%; max-width:none; }
+.users-toolbar select { min-height:36px; font-size:12px; }
+.users-pagination { align-items:center; margin-top:13px; }
+#users-table tbody tr[hidden] { display:none; }
+#users-table .tag { margin:2px 3px 2px 0; }
+#users-table td:last-child .actions { min-width:230px; }
+@media(max-width:900px) {
+  .users-toolbar { grid-template-columns:auto minmax(0,1fr); }
+  .users-toolbar .table-count { grid-column:2; }
+}
+@media(max-width:620px) {
+  .users-toolbar { grid-template-columns:1fr; gap:7px; }
+  .users-toolbar label:not(:first-child) { margin-top:5px; }
+  .users-toolbar .table-count { grid-column:auto; }
+  .users-pagination { justify-content:flex-start; }
+}
+
+/* Tables, filters, and record details */
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin: 8px 0 11px;
+  padding: 10px 0;
+  border: 0;
+  background: transparent;
+}
+.table-toolbar label { margin: 0; font-size: 11px; }
+.table-toolbar .search-wrap { flex: 1 1 240px; max-width: 440px; }
+.table-toolbar input { min-height: 36px; font-size: 12px; }
+.table-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.table-export { min-height: 34px; padding: 7px 10px; font-size: 11.5px; }
+.table-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.tablewrap {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid #dededb;
+  border-radius: 9px;
+  background: var(--surface);
+}
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--type-table);
+  line-height: 1.45;
+}
+th, td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 11px;
+  background: #f5f5f3;
+  color: #666a63;
+  font-size: var(--type-micro);
+  font-weight: 750;
+  letter-spacing: .45px;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+td {
+  max-width: 260px;
+  padding: 10px 11px;
+  overflow-wrap: anywhere;
+  color: #30332e;
+}
+td code {
+  color: #686d64;
+  font-size: 11.5px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+tbody tr:nth-child(even) { background: #fbfbfa; }
+tbody tr:hover { background: #f2f1ed; }
+tbody tr[hidden] { display: none !important; }
+tbody tr:last-child td { border-bottom: 0; }
+.tag {
+  display: inline-block;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: #eeece6;
+  color: #555a51;
+  font-size: 11px;
+  font-weight: 700;
+}
+.tag.success { background: #e9efe9; color: #49634f; }
+.tag.fail { background: #f8eae7; color: #9b3c32; }
+.actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.actions button { min-height: 34px; padding: 7px 10px; font-size: 11.5px; }
+.cell-detail { max-width: 320px; }
+.cell-detail summary { padding: 5px 0; color: #87652f; cursor: pointer; font-size: 12px; font-weight: 650; }
+.cell-detail pre {
+  max-width: 320px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 9px;
+  border: 1px solid #e8e5dc;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.table-empty-filter { display: none; padding: 24px; color: var(--muted); text-align: center; }
+
+/* Audit and diagnostic event rows: grouped context, scannable identifiers */
+#audit-table table,#errors-table table{min-width:880px}
+#audit-table td,#errors-table td{vertical-align:middle}
+#audit-table .event-recorded,#errors-table .event-recorded,#audit-table .event-summary,#errors-table .event-summary,#audit-table .event-trace,#errors-table .event-trace,#audit-table .event-source,#errors-table .event-source,#audit-table .event-target,#errors-table .event-target{display:grid;gap:5px;min-width:0}
+#audit-table .event-recorded strong,#errors-table .event-recorded strong{color:var(--ink);font-size:11.5px;white-space:nowrap}
+#audit-table .event-recorded .tag,#errors-table .event-recorded .tag{width:fit-content}
+#audit-table .event-summary strong,#errors-table .event-summary strong{color:var(--ink);font-size:11.5px;overflow-wrap:anywhere}
+#audit-table .event-summary .small,#errors-table .event-summary .small,#audit-table .event-source .small,#errors-table .event-source .small{font-size:10.5px;line-height:1.45;overflow-wrap:anywhere}
+#audit-table .event-trace code,#errors-table .event-trace code,#audit-table .event-source code,#errors-table .event-source code,#audit-table .event-target code,#errors-table .event-target code{width:fit-content;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px}
+#audit-table .event-target strong,#errors-table .event-target strong{font-size:11px;color:var(--ink-soft)}
+#audit-table details summary,#errors-table details summary{min-height:36px;display:flex;align-items:center}
+
+/* Session inventory: reduce column sprawl and keep identifiers legible */
+#page-sessions .sessions-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+#page-sessions .sessions-heading h2{margin:0 0 4px}
+#page-sessions .sessions-guidance{display:flex;align-items:flex-start;gap:9px;margin:0 0 13px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-soft);color:var(--muted)}
+#page-sessions #sessions-table table{min-width:760px}
+#page-sessions #sessions-table td{vertical-align:middle}
+#page-sessions .session-identity,#page-sessions .session-context,#page-sessions .session-timeline,#page-sessions .session-lifecycle{display:grid;gap:5px;min-width:0}
+#page-sessions .session-identity strong{color:var(--ink);font-size:12px}
+#page-sessions .session-identity code,#page-sessions .session-context code{display:block;width:fit-content;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10.5px}
+#page-sessions .session-context .small,#page-sessions .session-timeline span,#page-sessions .session-lifecycle .small{overflow-wrap:anywhere;font-size:10.5px;line-height:1.45}
+#page-sessions .session-timeline strong{font-size:10.5px;color:var(--ink-soft)}
+#page-sessions .session-lifecycle .tag{width:fit-content}
+#page-sessions #sessions-table td:last-child button{min-height:38px;white-space:nowrap}
+#page-sessions .sessions-pagination{margin-top:12px}
+
+/* Keep the current console single-admin: do not surface the unused RBAC role catalog. */
+.sidebar .tab[data-page="roles"], #page-roles { display: none !important; }
+/* User management: identity-first directory presentation */
+#page-users .users-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;margin:0 0 14px;padding:14px 16px;border:1px solid #e4dfd2;border-radius:12px;background:#f5f2ea}
+#page-users .users-intro h2{margin:0 0 4px;font-size:15px}#page-users .users-intro p{max-width:760px;margin:0}
+#page-users .users-legend{display:flex;align-items:center;gap:7px;flex-wrap:wrap}#page-users .users-legend .tag{padding:5px 8px}
+#page-users .users-guide{display:flex;align-items:flex-start;gap:9px;margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--muted);font-size:11px;line-height:1.5}
+#page-users .users-guide strong{color:var(--ink-soft)}
+#page-users #users-table .table-toolbar{margin:0;padding:10px 12px;border-bottom:1px solid var(--line);background:#faf9f6}
+#page-users #users-table table{min-width:790px}
+#page-users #users-table th{padding:11px 12px}
+#page-users #users-table td{padding:12px}
+#page-users #users-table td:first-child strong{display:inline-block;margin-bottom:2px;color:var(--ink);font-size:12px}
+#page-users #users-table td:first-child .muted{display:inline-block;margin:2px 0 5px}
+#page-users #users-table td:first-child code{display:block;color:#777b72;font-size:10.5px}
+#page-users #users-table td:nth-child(3) .tag{margin:2px 0}
+#page-users #users-table td:last-child .actions{display:grid;gap:6px;min-width:155px}
+#page-users #users-table td:last-child button{min-height:38px;justify-content:flex-start;padding:7px 10px;font-size:11px}
+#page-users .users-pagination{margin-top:12px}
+@media(max-width:620px){#page-users .users-intro{padding:12px}#page-users #users-table td:last-child .actions{grid-template-columns:repeat(2,minmax(0,1fr));min-width:0}#page-users #users-table td:last-child button{justify-content:center}}
+
+/* Security Center: incident hierarchy and retrieval states */
+#page-alerts .table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e4dfd2;
+  border-radius: 13px;
+  background: #f4f1e9;
+}
+#page-alerts .table-toolbar label { color: var(--muted); font-size: 12px; font-weight: 750; }
+#alert-status-filter { min-width: 190px; min-height: 38px; padding: 8px 34px 8px 11px; }
+#alerts-table .tag { white-space: nowrap; }
+#alerts-table .alert-identifiers,#alerts-table .alert-incident { display:grid; gap:4px; min-width:0; }
+#alerts-table .alert-identifiers code { max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#alerts-table .alert-last-seen { display:block; min-width:145px; font-variant-numeric:tabular-nums; }
+#alerts-table .alert-incident strong { color:var(--ink); font-size:11.5px; line-height:1.45; }
+#alerts-table .alert-incident .muted { font-size:10.5px; }
+#alerts-table .tag.severity-critical,
+#alerts-table .tag.severity-high { background: #f8eae7; color: #96392f; }
+#alerts-table .tag.severity-medium { background: #f5ecd9; color: #80602e; }
+#alerts-table .tag.severity-low { background: #e9eee8; color: #526b56; }
+#alerts-table .actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); min-width:210px; gap:6px; }
+#alerts-table .actions button { min-height: 34px; padding: 7px 9px; font-size: 11.5px; }
+#alerts-table .cell-detail pre { max-width: 360px; }
+#alerts-page { padding-left: 4px; }
+#page-alerts .empty strong { color: var(--ink); font-size: 14px; }
+
+/* Security and diagnostic signal clarity */
+.alerts-scope-note { display:flex; align-items:flex-start; gap:9px; margin:11px 0 13px; padding:10px 12px; border:1px solid var(--md-outline-variant); border-radius:var(--radius-md); background:var(--md-surface-container-low); color:var(--ink-soft); font-size:11px; line-height:1.5; }
+.alerts-scope-note .ll-icon { flex:0 0 auto; color:var(--accent-strong); }
+#alerts-table .tag.severity-critical { background:#f7e4e1; color:#842c25; border:1px solid #e8c3bd; }
+#alerts-table .tag.severity-high { background:#f8ece5; color:#91472c; border:1px solid #ecd2c5; }
+#alerts-table .tag.severity-medium { background:#f5efdf; color:#765b27; border:1px solid #e9ddbd; }
+#alerts-table .tag.severity-low { background:#e9efe9; color:#48624d; border:1px solid #d1dfd2; }
+#alerts-table .tag.status-open { background:#f5efdf; color:#765b27; }
+#alerts-table .tag.status-acknowledged { background:#e9edf0; color:#465c69; }
+#alerts-table .tag.status-investigating { background:#ece9f3; color:#5c4e78; }
+#alerts-table .tag.status-resolved { background:#e9efe9; color:#48624d; }
+#alerts-table .tag.status-false_positive { background:#efeeeb; color:#66645e; }
+#alerts-table .actions button { min-width:100px; }
+#errors-table .tag.neutral { background:var(--md-surface-container-high); color:var(--ink-soft); }
+#errors-table .event-recorded { gap:7px; }
+#errors-table .event-recorded .tag { white-space:normal; overflow-wrap:anywhere; }
+#errors-table .cell-detail pre { tab-size:2; }
+@media(max-width:620px) {
+ .alerts-scope-note { padding:10px; }
+ #alerts-table .actions { min-width:190px; }
+}
+
+/* Shared data tables: clear scope, accessible status, consistent density */
+.table-toolbar { gap:10px 14px; }
+.table-toolbar .search-wrap { min-width:min(100%,220px); }
+.table-toolbar input:focus-visible,.table-toolbar select:focus-visible,.cell-detail summary:focus-visible { outline:2px solid var(--focus-ring); outline-offset:2px; }
+.table-actions { gap:10px 14px; }
+.table-count { font-variant-numeric:tabular-nums; }
+.tablewrap { border-color:var(--md-outline-variant); border-radius:var(--radius-md); scrollbar-gutter:stable; }
+.tablewrap:focus-visible { outline:2px solid var(--focus-ring); outline-offset:2px; }
+.tablewrap table { border-collapse:separate; border-spacing:0; }
+.tablewrap th { background:var(--md-surface-container); color:var(--ink-soft); }
+.tablewrap tbody tr { transition:background-color .12s ease; }
+.table-empty-filter { padding:22px 16px; font-size:12px; line-height:1.5; }
+@media(max-width:620px) {
+ .table-toolbar { align-items:stretch; }
+ .table-toolbar .search-wrap { flex:1 1 100%; max-width:none; }
+ .table-actions { justify-content:space-between; width:100%; }
+ .table-count { white-space:normal; text-align:right; }
+}
+@media(prefers-reduced-motion:reduce) {
+ .tablewrap tbody tr { transition:none; }
+}
+
+/* Role registry: explain the single privileged console role */
+.roles-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.roles-heading h2 { margin-bottom:4px; }
+.roles-heading p { max-width:720px; margin:0; }
+.roles-guidance { display:flex; align-items:flex-start; gap:10px; margin:13px 0; padding:11px 13px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface-soft); color:var(--ink-soft); font-size:11px; line-height:1.55; }
+.roles-guidance .ll-icon { flex:0 0 auto; color:var(--success); }
+.roles-guidance strong { color:var(--ink); }
+#roles-table table { min-width:540px; }
+#roles-table td:first-child strong { display:inline-block; margin-bottom:3px; color:var(--ink); }
+#roles-table td:last-child { min-width:180px; }
+#roles-table .cell-detail { margin-top:7px; }
+#roles-table .cell-detail summary { color:var(--accent-strong); cursor:pointer; font-size:11px; font-weight:650; }
+#roles-table .cell-detail pre { max-width:420px; max-height:220px; overflow:auto; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:var(--surface-soft); color:var(--ink-soft); font-size:10.5px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }
+@media(max-width:620px) {
+ .roles-guidance { padding:10px; }
+ .roles-heading .snapshot-kind { align-self:flex-start; }
+}
+
+/* Global navigation and page-transition accessibility */
+.sidebar .nav-toggle { width:100%; }
+.sidebar .nav-toggle:hover { border-color:#687267; background:#414941; }
+.sidebar .tab { position:relative; transition:background-color .16s ease,border-color .16s ease,color .16s ease; }
+.sidebar .tab:focus-visible { outline:2px solid #d1ad70 !important; outline-offset:2px; }
+.sidebar .tab[aria-current="page"]::before { position:absolute; left:0; top:8px; bottom:8px; width:3px; border-radius:0 3px 3px 0; background:var(--accent); content:""; }
+.content-area[aria-busy="true"] { cursor:progress; }
+#page-title { scroll-margin-top:16px; }
+@media(prefers-reduced-motion:reduce) {
+ .sidebar .tab, .nav-toggle, .console-layout { transition:none !important; }
+}
+@media(max-width:620px) {
+ .sidebar .nav-toggle { width:auto; min-width:40px; }
+ .sidebar .tab[aria-current="page"]::before { top:auto; left:8px; right:8px; bottom:0; width:auto; height:3px; border-radius:3px 3px 0 0; }
+}
+
+/* Analytics reporting scope and sample-first presentation */
+#page-analytics { padding:18px; }
+#page-analytics .analytics-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+#page-analytics .analytics-heading h2 { margin-bottom:4px; }
+#page-analytics .analytics-heading p { max-width:760px; margin:0; }
+#page-analytics .analytics-notice { display:flex; align-items:flex-start; gap:10px; margin:13px 0 14px; padding:11px 13px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface-soft); }
+#page-analytics .analytics-notice > .ll-icon { flex:0 0 auto; color:var(--action); }
+#page-analytics .analytics-notice p { margin:3px 0 0; }
+#page-analytics .analytics-metrics { grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+#page-analytics .analytics-metrics .stat { min-width:0; min-height:108px; padding:13px 14px; }
+#page-analytics .analytics-metrics .stat strong { font-size:25px; font-variant-numeric:tabular-nums; }
+#page-analytics .analytics-metrics .analytics-range-value { font-size:clamp(13px,1.25vw,17px); line-height:1.35; letter-spacing:0; overflow-wrap:anywhere; }
+#page-analytics .analytics-generated { margin:8px 2px 0; font-variant-numeric:tabular-nums; }\n#page-analytics .analytics-section-heading h2 { margin-bottom:4px; }
+#page-analytics .analytics-section-heading p { margin:0 0 10px; }
+#page-analytics .analytics-chart-panel, #page-analytics .analytics-actions-panel { margin-top:12px; padding:16px 17px; }
+#page-analytics #analytics-chart { min-width:0; padding-top:7px; }
+#page-analytics #analytics-chart svg { display:block; width:100%; max-height:250px; }
+#page-analytics .analytics-actions-table table { min-width:0; }
+#page-analytics .analytics-actions-table td code { overflow-wrap:anywhere; }
+#page-analytics .analytics-actions-table td:last-child, #page-analytics .analytics-actions-table th:last-child { width:100px; text-align:right; font-variant-numeric:tabular-nums; }
+@media(max-width:900px) { #page-analytics .analytics-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:520px) {
+ #page-analytics { padding:13px; }
+ #page-analytics .analytics-metrics { grid-template-columns:1fr 1fr; gap:8px; }
+ #page-analytics .analytics-metrics .stat { padding:11px; }
+ #page-analytics .analytics-chart-panel, #page-analytics .analytics-actions-panel { padding:13px 11px; }
+}
+
+/* Overview dashboard hierarchy and responsive metric layout */
+#page-overview .overview-metrics { gap:12px; }
+#page-overview .stat { position:relative; min-height:116px; padding:15px 17px; overflow:hidden; }
+#page-overview .stat small { color:var(--ink-soft); font-size:11px; letter-spacing:.01em; }
+#page-overview .stat .stat-icon { width:29px; height:29px; border:1px solid var(--line); border-radius:9px; background:var(--surface-soft); }
+#page-overview .stat strong { margin-top:12px; font-size:clamp(25px,2.2vw,31px); font-variant-numeric:tabular-nums; }
+#page-overview .stat .stat-meta { display:block; margin-top:5px; color:var(--muted); font-size:10.5px; line-height:1.4; }
+#page-overview .stat-security { background:linear-gradient(145deg,var(--surface),#f4f1e9); }
+#page-overview .stat-security .stat-status { color:var(--success); font-size:20px; letter-spacing:0; }
+#page-overview .overview-snapshot { padding:18px 19px 13px; }
+#page-overview .overview-panel-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+#page-overview .overview-panel-heading h2 { margin-bottom:4px; }
+#page-overview .overview-panel-heading p { margin:0; }
+#page-overview #overview-chart { min-width:0; padding:10px 0 2px; }
+#page-overview #overview-chart svg { display:block; overflow:visible; }
+#page-overview .overview-footnote { display:flex; align-items:center; gap:7px; padding-top:10px; border-top:1px solid var(--line); }
+#page-overview .overview-trace { margin:8px 0 0; overflow-wrap:anywhere; font-size:10.5px; }
+#page-overview .overview-controls { padding:16px 18px; }
+#page-overview .overview-controls h2 { margin-bottom:12px; }
+#page-overview .control-note { min-height:54px; padding:9px 0; }
+#page-overview .control-note + .control-note { border-top:1px solid var(--line); }
+@media(max-width:760px) {
+ #page-overview .grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ #page-overview .stat-security { grid-column:1 / -1; }
+}
+@media(max-width:420px) {
+ #page-overview .grid { grid-template-columns:minmax(0,1fr); }
+ #page-overview .stat-security { grid-column:auto; }
+ #page-overview .overview-snapshot { padding:14px 12px 12px; }
+ #page-overview #overview-chart svg { max-height:190px; }
+}
+
+/* SVG charts use the same restrained accent and typography */
+#overview-chart svg text, #analytics-chart svg text { font-family: inherit; }
+#overview-chart svg rect[fill="#eeece5"] { fill: #eeece5; }
+#overview-chart svg rect[fill="#b58a43"],
+#analytics-chart svg rect { fill: var(--accent); }
+#analytics-chart svg line { stroke: #e8e5dc; }
+#analytics-chart svg text { fill: #666b62; }
+
+/* Responsive workspace: keep the rail usable without collapsing the content */
+@media (max-width: 900px) {
+  .wrap { padding-top: 19px; }
+  .console-layout { grid-template-columns: 54px minmax(0, 1fr); gap: 12px; }
+  .console-layout:has(#nav-collapse:checked) { grid-template-columns: 190px minmax(0, 1fr); }
+  .sidebar { position: sticky; top: 10px; min-height: calc(100vh - 90px); padding: 7px 5px; }
+  .sidebar .tabs { display: grid; gap: 4px; }
+  .sidebar .nav-group { display: none; }
+  .sidebar .tab { width: 100%; flex: 0 0 auto; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #page-overview .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .top { min-height: 54px; padding: 8px 13px; }
+  .brand-mark { width: 28px; height: 28px; }
+  .top small { margin-left: 37px; font-size: 10px; }
+  .wrap { padding: 16px 12px 26px; }
+  .headrow { align-items: flex-start; gap: 13px; }
+  .headrow h1 { font-size: 23px; }
+  .headrow .actions { width: auto; }
+  .headrow .actions button { width: auto; }
+  .console-layout { grid-template-columns: 48px minmax(0, 1fr); gap: 9px; }
+  .console-layout:has(#nav-collapse:checked) { grid-template-columns: 164px minmax(0, 1fr); }
+  .sidebar { top: 8px; padding: 6px 4px; }
+  .sidebar .tab { min-height: 40px; padding: 8px 5px; font-size: 11px; }
+  #nav-collapse:checked ~ .tabs .tab { padding: 8px 7px; }
+  #page-overview .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  #page-overview .stat:last-child { grid-column: 1 / -1; }
+  .stat { min-height: 82px; padding: 11px; }
+  .stat strong { font-size: 23px; }
+  .content-area > .panel, .content-area section > .panel { padding: 13px; }
+  .tablewrap { overflow: visible; border: 0; background: transparent; }
+  table, tbody { display: block; width: 100%; }
+  thead { display: none; }
+  tbody { display: grid; gap: 10px; }
+  tbody tr {
+    display: grid;
+    gap: 0;
+    padding: 5px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff !important;
+    box-shadow: var(--shadow-sm);
+  }
+  td {
+    display: grid;
+    max-width: none;
+    grid-template-columns: minmax(94px, 34%) minmax(0, 1fr);
+    gap: 10px;
+    padding: 9px 2px;
+    border-bottom: 1px solid #edf1f5;
+  }
+  td:before {
+    color: #777b72;
+    content: attr(data-label);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+  }
+  td:last-child { border-bottom: 0; }
+  .cell-detail, .cell-detail pre { max-width: 100%; }
+  .table-toolbar { align-items: stretch; }
+  .table-toolbar .search-wrap { max-width: none; flex-basis: 100%; }
+  .table-actions { width: 100%; justify-content: space-between; }
+  .table-count { width: auto; }
+  #page-alerts .table-toolbar { align-items: stretch; flex-wrap: wrap; }
+  #alert-status-filter { width: 100%; }
+  #alerts-table .actions { min-width: 0; }
+  #alerts-table .actions button { flex: 1 1 42%; }
+}
+/* Phone layout: move navigation above the workspace instead of squeezing content */
+@media (max-width: 620px) {
+  .console-layout,
+  .console-layout:has(#nav-collapse:checked) {
+    display: block;
+  }
+  .sidebar {
+    position: static;
+    width: 100%;
+    min-height: 0;
+    margin: 0 0 12px;
+    padding: 6px;
+  }
+  .nav-collapse-control,
+  .nav-toggle { display: none; }
+  .sidebar .nav-group { display: none !important; }
+  .sidebar .tabs {
+    display: flex;
+    gap: 5px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 1px 1px 5px;
+    scrollbar-width: thin;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sidebar .tab,
+  #nav-collapse:checked ~ .tabs .tab {
+    display: inline-flex;
+    width: auto;
+    min-width: max-content;
+    min-height: 38px;
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    padding: 7px 10px;
+    gap: 7px;
+    font-size: 11px;
+  }
+  .sidebar .tab > span:not(.ll-icon) { display: inline; }
+  .sidebar .tab .ll-icon { width: 17px; height: 17px; }
+  .content-area { min-width: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+  .console-layout { transition: none; }
+}
+
+
+/* Material 3 component refinement — LifeLink's graphite / ivory / amber palette */
+:root {
+  --md-primary: #343a34;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #e8e9df;
+  --md-on-primary-container: #292e2a;
+  --md-surface-container-low: #f8f7f2;
+  --md-surface-container: #eeece5;
+  --md-outline: #777b72;
+  --md-outline-variant: #d8d8cf;
+  --md-shape-small: 8px;
+  --md-shape-medium: 12px;
+  --md-shape-large: 16px;
+}
+/* Filled and outlined actions use consistent Material 3 geometry and state layers. */
+button {
+  min-height: 40px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: .1px;
+  transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+button:not(:disabled):active { transform: none; box-shadow: inset 0 0 0 999px rgba(0,0,0,.10); }
+button:not(.secondary):not(:disabled):hover { background: #414941; }
+button.secondary {
+  min-height: 40px;
+  border-color: var(--md-outline);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--md-primary);
+}
+button.secondary:hover { border-color: var(--md-primary); background: rgba(52,58,52,.07); }
+button:focus-visible { outline: 2px solid var(--focus-ring) !important; outline-offset: 2px; }
+input, select, #alert-status-filter {
+  min-height: 40px;
+  border-color: var(--md-outline);
+  border-radius: var(--md-shape-small);
+  background: var(--surface);
+  font-size: 13px;
+}
+input:hover, select:hover { border-color: var(--ink-soft); }
+input:focus, select:focus, #alert-status-filter:focus {
+  border-color: var(--md-primary);
+  outline: 2px solid var(--focus-ring);
+}
+label { margin: 14px 0 6px; font-size: 12px; font-weight: 650; }
+.headrow h1 { font-size: 24px; font-weight: 700; letter-spacing: -.45px; }
+.stat {
+  min-height: 100px;
+  padding: 16px;
+  border-radius: var(--md-shape-large);
+  background: var(--surface);
+  box-shadow: none;
+}
+.stat .stat-icon { border-radius: 9px; background: var(--md-surface-container); }
+.stat strong { font-size: 28px; font-weight: 700; letter-spacing: -.7px; }
+.panel {
+  padding: 20px;
+  border-radius: var(--md-shape-large);
+  background: var(--surface);
+  box-shadow: none;
+}
+.content-area > .panel, .content-area section > .panel {
+  border-color: var(--md-outline-variant);
+  border-radius: var(--md-shape-large);
+  box-shadow: none;
+}
+.panel h2 { margin-bottom: 12px; font-size: 16px; font-weight: 700; letter-spacing: -.15px; }
+.sidebar .tab {
+  min-height: 44px;
+  border-radius: 12px;
+  transition: background-color .16s ease, color .16s ease;
+}
+.sidebar .tab:hover { background: rgba(255,255,255,.09); }
+.sidebar .tab.active {
+  border-color: transparent;
+  border-radius: 12px;
+  background: #e9e5d9;
+}
+.nav-toggle { min-height: 40px; border-radius: 999px; }
+.table-toolbar {
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--md-shape-medium);
+  background: var(--md-surface-container-low);
+}
+#page-alerts .table-toolbar {
+  border-color: var(--md-outline-variant);
+  border-radius: var(--md-shape-large);
+  background: var(--md-surface-container-low);
+}
+.tablewrap { border-color: var(--md-outline-variant); border-radius: var(--md-shape-medium); }
+th { padding: 12px 14px; background: var(--md-surface-container); font-size: 10px; letter-spacing: .55px; }
+td { padding: 12px 14px; }
+tbody tr { transition: background-color .12s ease; }
+tbody tr:nth-child(even) { background: #fdfcf9; }
+tbody tr:hover { background: #f0eee7; }
+.tag { padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+.empty { min-height: 112px; gap: 10px; }
+.notice { border-radius: var(--md-shape-medium); }
+@media (max-width: 620px) {
+  button { min-height: 40px; padding-inline: 14px; }
+  .sidebar .tab { min-height: 40px; }
+  .panel { padding: 15px; }
+  .stat { min-height: 88px; padding: 13px; }
+  .table-toolbar { align-items: stretch; }
+}
+
+
+/* Overview dashboard hierarchy */
+#page-overview { display: grid; gap: 16px; }
+#page-overview .overview-metrics { gap: 12px; }
+#page-overview .stat { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 8px; }
+#page-overview .stat small { display: flex; align-items: center; gap: 9px; color: var(--ink-soft); font-size: 11px; font-weight: 700; letter-spacing: .15px; }
+#page-overview .stat strong { line-height: 1.1; font-variant-numeric: tabular-nums; }
+#page-overview .stat .stat-meta { color: var(--muted); font-size: 10px; line-height: 1.4; }
+#page-overview .stat .stat-status { color: var(--success); font-size: 20px; }
+.overview-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.overview-panel-heading h2 { margin-bottom: 5px; }
+.overview-panel-heading p { max-width: 620px; margin: 0 0 8px; line-height: 1.5; }
+.snapshot-kind { flex: 0 0 auto; padding: 5px 10px; border: 1px solid var(--md-outline-variant); border-radius: 999px; background: var(--md-surface-container-low); color: var(--md-on-primary-container); font-size: 10px; font-weight: 700; }
+.overview-footnote { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; }
+.overview-footnote .ll-icon { width: 15px; height: 15px; flex: 0 0 auto; color: var(--muted); }
+.overview-trace { margin: 7px 0 0 23px; overflow-wrap: anywhere; }
+.overview-controls { display: grid; gap: 13px; }
+.overview-controls h2 { margin: 0; }
+.control-note { display: flex; align-items: flex-start; gap: 12px; padding-top: 12px; border-top: 1px solid var(--md-outline-variant); }
+.control-note > .ll-icon { width: 19px; height: 19px; flex: 0 0 auto; color: var(--accent); }
+.control-note strong { display: block; margin-bottom: 3px; font-size: 12px; }
+.control-note p { margin: 0; line-height: 1.5; }
+@media (max-width: 620px) {
+ #page-overview { gap: 12px; }
+ #page-overview .overview-metrics { gap: 8px; }
+ #page-overview .stat { gap: 6px; }
+ .overview-panel-heading { flex-direction: column; gap: 4px; }
+ .snapshot-kind { align-self: flex-start; }
+}
+
+
+/* Security alert review: severity and workflow state are separate signals */
+#page-alerts { display: grid; gap: 14px; }
+.alerts-intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.alerts-intro h2 { margin-bottom: 5px; }
+.alerts-intro p { max-width: 650px; margin: 0; line-height: 1.5; }
+.severity-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#page-alerts .alerts-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 12px 14px; border: 1px solid var(--md-outline-variant); border-radius: var(--md-shape-large); background: var(--md-surface-container-low); }
+#page-alerts .alerts-toolbar label { margin: 0; color: var(--ink-soft); font-size: 12px; font-weight: 700; }
+#page-alerts .alerts-toolbar select { width: auto; min-width: 190px; }
+#page-alerts .alerts-toolbar > span { margin-left: auto; }
+#alerts-table .tag { white-space: nowrap; }
+#alerts-table .tag.severity-critical, #alerts-table .tag.severity-high, .severity-key .severity-critical, .severity-key .severity-high { background: #f8eae7; color: #96392f; }
+#alerts-table .tag.severity-medium, .severity-key .severity-medium { background: #f5ecd9; color: #80602e; }
+#alerts-table .tag.severity-low, .severity-key .severity-low { background: #e9eee8; color: #526b56; }
+#alerts-table .tag.severity-unknown { background: var(--md-surface-container); color: var(--md-on-primary-container); }
+#alerts-table .tag.status-open { background: #f5efdf; color: #765b27; }
+#alerts-table .tag.status-acknowledged { background: #e9edf0; color: #465c69; }
+#alerts-table .tag.status-investigating { background: #ece9f3; color: #5c4e78; }
+#alerts-table .tag.status-resolved { background: #e9efe9; color: #48624d; }
+#alerts-table .tag.status-false_positive, #alerts-table .tag.status-unknown { background: #efeeeb; color: #66645e; }
+#alerts-table .actions { min-width: 210px; gap: 6px; }
+#alerts-table .actions button { min-height: 40px; padding: 7px 10px; font-size: 11.5px; }
+#alerts-table .cell-detail pre { max-width: 360px; }
+#page-alerts .alerts-pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 0; }
+#page-alerts .alerts-pagination > span { margin-left: auto; }
+@media (max-width: 720px) {
+ .alerts-intro { flex-direction: column; gap: 10px; }
+ #page-alerts .alerts-toolbar { align-items: stretch; }
+ #page-alerts .alerts-toolbar select { width: 100%; }
+ #page-alerts .alerts-toolbar > span { margin-left: 0; }
+ #page-alerts .alerts-pagination > span { width: 100%; margin: 4px 0 0; }
+}
+
+
+/* Incident review and diagnostic tables: improve scan order and responsive density */
+#alerts-table table { min-width: 1080px; }
+#alerts-table th:nth-child(2), #alerts-table td:nth-child(2),
+#alerts-table th:nth-child(3), #alerts-table td:nth-child(3) { width: 112px; }
+#alerts-table td:nth-child(2) .tag,
+#alerts-table td:nth-child(3) .tag { display: inline-flex; justify-content: center; min-width: 88px; }
+#alerts-table td:nth-child(5) { min-width: 190px; max-width: 280px; }
+#alerts-table td:nth-child(5) strong { display: block; line-height: 1.45; overflow-wrap: anywhere; }
+#alerts-table td:nth-child(5) .small { display: inline-block; margin-top: 5px; font-variant-numeric: tabular-nums; }
+#alerts-table td:nth-child(4) { min-width: 150px; }
+#alerts-table td:nth-child(4) code { display: block; max-width: 190px; overflow-wrap: anywhere; }
+#alerts-table td:nth-child(6) { min-width: 145px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#alerts-table td:last-child .actions { display: grid; grid-template-columns: repeat(2,minmax(100px,1fr)); }
+#alerts-table td:last-child .actions button { width: 100%; }
+#errors-table table { min-width: 940px; }
+#errors-table td:nth-child(1) { min-width: 160px; }
+#errors-table td:nth-child(2) { min-width: 170px; max-width: 250px; }
+#errors-table td:nth-child(2) strong { display: block; overflow-wrap: anywhere; }
+#errors-table td:nth-child(3), #errors-table td:nth-child(4) { min-width: 145px; }
+#errors-table td:nth-child(5) { min-width: 120px; }
+#errors-table td:last-child { min-width: 120px; }
+#errors-table .event-recorded strong { font-variant-numeric: tabular-nums; }
+#errors-table .event-source, #errors-table .event-trace, #errors-table .event-target { display: grid; justify-items: start; gap: 4px; }
+@media(max-width:760px) {
+  #alerts-table td:last-child .actions { grid-template-columns: 1fr; }
+  #alerts-table td:last-child .actions button { justify-content: flex-start; }
+}
+@media(max-width:620px) {
+  #page-alerts .alerts-intro { align-items: flex-start; }
+  #page-alerts .severity-key { justify-content: flex-start; }
+  #page-alerts .alerts-toolbar { align-items: stretch; }
+  #page-alerts .alerts-toolbar label { margin: 0; }
+  #page-alerts #alert-status-filter { width: 100%; min-width: 0; }
+  #page-alerts .alerts-toolbar > span { flex-basis: 100%; }
+  #alerts-table td:last-child .actions { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media(prefers-reduced-motion:reduce) {
+  #alerts-table .tag, #errors-table .tag { transition: none; }
+}
+
+@media(max-width:620px) {
+  #alerts-table table, #errors-table table, #audit-table table,
+  #page-sessions #sessions-table table, #page-users #users-table table { width:100%; min-width:0; }
+  #alerts-table td, #errors-table td { min-width:0 !important; max-width:none !important; }
+  #alerts-table td:nth-child(4) code, #errors-table td code { max-width:100%; }
+  #alerts-table td:last-child .actions { min-width:0; }
+}
+
+/* Responsive type and spacing scale for medium-width admin workspaces */
+#page-title { text-wrap: balance; }
+.headrow h1 { font-size: clamp(22px, 2.1vw, 25px); line-height: 1.2; }
+.headrow .eyebrow { line-height: 1.4; }
+.headrow .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.content-area { overflow-wrap: anywhere; }
+.content-area > .panel,
+.content-area section > .panel { min-width: 0; }
+.panel h2 { line-height: 1.3; }
+.panel p { line-height: 1.55; }
+@media (min-width: 621px) and (max-width: 900px) {
+  .wrap { padding: 18px clamp(14px, 2.2vw, 24px) 28px; }
+  .console-layout { gap: 10px; }
+  .sidebar { padding: 7px 5px; }
+  .headrow { align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+  .headrow h1 { font-size: 23px; }
+  .headrow .actions { justify-content: flex-end; }
+  .stat { min-height: 94px; padding: 13px; }
+  .stat strong { font-size: 25px; }
+  .panel { padding: 16px; }
+  .content-area > .panel,
+  .content-area section > .panel { margin-bottom: 12px; }
+  .tablewrap { max-width: 100%; }
+}
+@media (min-width: 621px) and (max-width: 760px) {
+  .headrow { align-items: stretch; }
+  .headrow .actions { justify-content: flex-start; }
+  .headrow .actions button { min-height: 40px; }
+  .users-toolbar { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .users-toolbar > * { min-width: 0; }
+  .users-toolbar .search-wrap { grid-column: 1 / -1; }
+  .users-toolbar .table-actions { grid-column: 1 / -1; }
+  .audit-toolbar { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .audit-filter-actions { grid-column: 1 / -1; }
+}
+@media (max-width: 620px) {
+  .headrow h1 { font-size: 22px; }
+  .panel h2 { font-size: 15px; }
+  .headrow .actions { width: 100%; }
+  .headrow .actions button { min-height: 40px; }
+}
+
+
+/* Keep dense console actions within the same 40px minimum touch target. */
+.top button.secondary,
+.actions button,
+.audit-filter-actions button,
+.table-export,
+#sessions-table td:last-child button,
+#users-table td:last-child button,
+#alerts-table .actions button {
+  min-height: 40px;
+}
+
+/* Authentication and recovery forms: clear labels, hints, and validation feedback */
+.login label { display:block; margin:16px 0 6px; color:var(--ink); font-size:12px; font-weight:650; }
+.login input { width:100%; min-height:44px; border:1px solid var(--md-outline); border-radius:var(--md-shape-small); background:var(--surface); padding:10px 12px; color:var(--ink); }
+.login input:hover { border-color:var(--ink-soft); }
+.login input:focus-visible { outline:2px solid var(--focus-ring); outline-offset:2px; border-color:var(--focus-ring); }
+.login input:disabled, .login button:disabled { cursor:not-allowed; opacity:.65; }
+.login .field-help { margin:5px 0 0; color:var(--ink-muted); font-size:11px; line-height:1.5; }
+#recovery-view { margin-top:18px; padding-top:16px; border-top:1px solid var(--md-outline-variant); }
+#recovery-view h2 { line-height:1.3; }
+#recovery-view button, #signin { min-height:44px; border-radius:var(--md-shape-full); }
+#login-message { margin-top:16px; line-height:1.5; }
+@media(max-width:620px) {
+  .login { width:min(100% - 28px, 440px); padding:22px 18px; }
+  .login input, #recovery-view button, #signin { min-height:46px; }
+}
+
+
+/* Final touch-target floor: override earlier dense-table component sizing. */
+.top button.secondary,
+.audit-filter-actions button,
+.users-toolbar select,
+.table-toolbar input,
+.table-export,
+.actions button,
+#sessions-table td:last-child button,
+#page-sessions #sessions-table td:last-child button,
+#page-users #users-table td:last-child button,
+#alerts-table .actions button {
+  min-height: 40px;
+}
+#audit-table details summary,
+#errors-table details summary {
+  min-height: 40px;
+}
+
+/* Material accessibility: preserve compact mouse density, enlarge controls for touch pointers. */
+@media (pointer: coarse) {
+  button,
+  input,
+  select,
+  #alert-status-filter,
+  .sidebar .tab,
+  .nav-toggle,
+  .audit-filter-actions button,
+  .table-export,
+  .actions button,
+  #audit-table details summary,
+  #errors-table details summary,
+  #page-sessions #sessions-table td:last-child button,
+  #page-users #users-table td:last-child button,
+  #alerts-table .actions button {
+    min-height: 48px;
+  }
+  .sidebar .tab,
+  .nav-toggle,
+  button {
+    min-width: 48px;
+  }
+  a.link {
+    display: inline-flex;
+    min-height: 48px;
+    align-items: center;
+  }
+}
+
+/* Material motion accessibility: remove smooth scrolling and shorten transitions on request. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Material 3 type refinement: keep dense records compact without dropping below readable small-text sizing. */
+:root {
+  --type-meta: 12px;
+  --type-micro: 11px;
+}
+.small { font-size: var(--type-meta); }
+.eyebrow { font-size: 11px; }
+th { font-size: 11px; line-height: 1.4; }
+.tag { font-size: 11px; }
+#page-overview .stat .stat-meta,
+#page-overview .overview-trace,
+#page-users .users-guide,
+#page-users #users-table td:first-child code,
+#page-alerts .alert-incident .muted,
+#alerts-table .alert-incident .muted,
+#audit-table .event-summary .small,
+#errors-table .event-summary .small,
+#audit-table .event-source .small,
+#errors-table .event-source .small,
+#page-sessions .session-context .small,
+#page-sessions .session-timeline span,
+#page-sessions .session-lifecycle .small {
+  font-size: 11px;
+  line-height: 1.5;
+}
+#audit-table .event-trace code,
+#errors-table .event-trace code,
+#audit-table .event-source code,
+#errors-table .event-source code,
+#audit-table .event-target code,
+#errors-table .event-target code,
+#page-sessions .session-identity code,
+#page-sessions .session-context code {
+  font-size: 11px;
+}
 
 </style>
 </head>
@@ -268,25 +1334,79 @@ tbody tr:hover{background:#f5f1e8}
 <header class="top"><div><div class="brand"><span class="brand-mark ll-icon" data-icon="lifelink" data-icon-size="23"></span><span>LifeLink <span>/ Admin</span></span></div><small>Restricted operations console</small></div><div id="session-tools" class="hidden"><button id="signout" class="secondary"><span class="ll-icon" data-icon="logout"></span>Sign out</button></div></header>
 <main id="login-view" class="login">
  <div class="eyebrow">Administrator access</div><h1>Sign in securely.</h1><p class="muted">Sign in with your LifeLink account. Admin access is verified by the server; public registration never grants it.</p>
- <label for="email">Email</label><input id="email" type="email" autocomplete="username" required>
- <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
- <button id="signin" style="width:100%;margin-top:20px">Sign in</button>
+ <label for="email">Email</label><input id="email" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" aria-describedby="email-help" required><p id="email-help" class="field-help">Use the email address associated with your LifeLink account.</p>
+ <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" aria-describedby="password-help" required><p id="password-help" class="field-help">Admin access is checked by the server after sign-in.</p>
+ <button id="signin" type="button" style="width:100%;margin-top:20px">Sign in</button>
  <a href="#" id="forgot-password" class="link">Forgot password?</a>
- <section id="recovery-view" class="hidden" aria-live="polite"><h2 id="recovery-title" style="font-size:19px;margin:22px 0 6px">Reset your password</h2><p id="recovery-help" class="muted small">Enter your account email and we will send a secure password-reset link.</p><div id="recovery-email-wrap"><label for="recovery-email">Account email</label><input id="recovery-email" type="email" autocomplete="email"></div><div id="new-password-wrap" class="hidden"><label for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="8"><label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8"></div><button id="recovery-submit" style="width:100%;margin-top:14px">Send reset link</button><button id="recovery-cancel" class="secondary" style="width:100%;margin-top:8px">Back to sign in</button></section>
+ <section id="recovery-view" class="hidden" aria-live="polite"><h2 id="recovery-title" style="font-size:19px;margin:22px 0 6px">Reset your password</h2><p id="recovery-help" class="muted small">Enter your account email and we will send a secure password-reset link.</p><div id="recovery-email-wrap"><label for="recovery-email">Account email</label><input id="recovery-email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" aria-describedby="recovery-email-help"><p id="recovery-email-help" class="field-help">We will send a reset link if the account is eligible.</p></div><div id="new-password-wrap" class="hidden"><label for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="8" aria-describedby="new-password-help"><p id="new-password-help" class="field-help">Use at least 8 characters and choose a password you do not use elsewhere.</p><label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8" aria-describedby="confirm-password-help"><p id="confirm-password-help" class="field-help">Enter the same password again to confirm it.</p></div><button id="recovery-submit" type="button" style="width:100%;margin-top:14px">Send reset link</button><button id="recovery-cancel" type="button" class="secondary" style="width:100%;margin-top:8px">Back to sign in</button></section>
  <div id="login-message" class="notice hidden" role="status" aria-live="polite"></div>
  <p class="foot">Your session token stays in memory for this tab and is cleared when you sign out or close it. Admin rights are verified server-side.</p>
 </main>
 <main id="app-view" class="wrap hidden">
- <div class="headrow"><div><div class="eyebrow" id="page-eyebrow">Operations overview</div><h1 id="page-title">Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary"><span class="ll-icon" data-icon="refresh"></span>Refresh data</button></div></div>
- <div class="console-layout"><aside class="sidebar" aria-label="Admin navigation"><div class="nav-group">Workspace</div><nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview" aria-current="page" aria-controls="page-overview"><span class="ll-icon" data-icon="dashboard"></span><span>Overview</span></button><button class="tab" data-page="users" aria-controls="page-users"><span class="ll-icon" data-icon="users"></span><span>User management</span></button><button class="tab" data-page="analytics" aria-controls="page-analytics"><span class="ll-icon" data-icon="analytics"></span><span>Analytics</span></button><div class="nav-group">Security center</div><button class="tab" data-page="alerts" aria-controls="page-alerts"><span class="ll-icon" data-icon="securityAlerts"></span><span>Security alerts</span></button><button class="tab" data-page="sessions" aria-controls="page-sessions"><span class="ll-icon" data-icon="sessions"></span><span>Sessions</span></button><button class="tab" data-page="audit" aria-controls="page-audit"><span class="ll-icon" data-icon="audit"></span><span>Audit activity</span></button><button class="tab" data-page="errors" aria-controls="page-errors"><span class="ll-icon" data-icon="systemErrors"></span><span>System errors</span></button><button class="tab" data-page="roles" aria-controls="page-roles"><span class="ll-icon" data-icon="roles"></span><span>Role registry</span></button></nav></aside><div class="content-area">
- <section id="page-overview" aria-labelledby="page-title"><div class="grid"><div class="stat"><small><span class="stat-icon ll-icon" data-icon="usersRound"></span>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small><span class="stat-icon ll-icon" data-icon="inbox"></span>Requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small><span class="stat-icon ll-icon" data-icon="shieldCheck"></span>Authorization</small><strong style="font-size:20px;color:var(--green)">Verified</strong></div></div><div class="panel"><h2>Platform snapshot</h2><p class="muted small">Live totals from the admin API; not a historical trend.</p><div id="overview-chart" role="img" aria-label="Current counts of registered profiles and requests"><div class="empty">Loading record totals…</div></div><div class="small muted" id="overview-chart-caption">Counts refresh when you select Refresh data.</div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is verified on every API request. Capability changes are audited; audit records are read-only.</p><p id="generated" class="small muted"></p></div></section>
- <section id="page-analytics" aria-labelledby="page-title" class="panel hidden"><h2>Activity analytics</h2><p class="muted small">Latest 100 audit events only; not a full historical report.</p><div id="analytics-summary" class="grid"></div><div class="panel"><h2>Audit activity by day</h2><div id="analytics-chart" role="img" aria-label="Audit event counts by day from the latest 100 returned events"><div class="empty">Loading analytics…</div></div></div><div class="panel"><h2>Most frequent actions</h2><div id="analytics-actions"></div></div></section>
- <section id="page-roles" aria-labelledby="page-title" class="panel hidden"><h2>Role and permission registry</h2><p class="muted small">Read-only role and permission registry. Assignments remain protected by backend RBAC.</p><div id="roles-table" class="tablewrap"><div class="empty">Loading role registry…</div></div></section>
- <section id="page-users" aria-labelledby="page-title" class="panel hidden"><h2>User management</h2><p class="muted small">Review account capabilities and status. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-audit" aria-labelledby="page-title" class="panel hidden"><h2>Audit history</h2><div class="table-toolbar"><label class="small" for="audit-action-filter">Exact action</label><div class="search-wrap"><input id="audit-action-filter" type="search" maxlength="64" placeholder="e.g. admin.user.update" autocomplete="off"></div><label class="small" for="audit-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="audit-correlation-filter" type="search" maxlength="128" placeholder="Trace related events" autocomplete="off"></div><button id="audit-filter-apply" class="secondary" type="button">Apply filters</button><button id="audit-filter-clear" class="secondary" type="button">Clear</button></div><p class="muted small" id="audit-filter-note">Showing all audit actions.</p><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div><div class="actions" style="margin-top:14px"><button id="audit-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="audit-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="audit-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-sessions" aria-labelledby="page-title" class="panel hidden"><h2>User sessions</h2><p class="muted small">Protected API access records sessions. Revocation blocks subsequent protected requests.</p><div id="sessions-table" class="tablewrap"><div class="empty">Select Sessions to load records.</div></div><div class="actions" style="margin-top:14px"><button id="sessions-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="sessions-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="sessions-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-alerts" aria-labelledby="page-title" class="panel hidden"><h2>Security alerts</h2><p class="muted small">Incidents are deduplicated. Review evidence and update investigation status.</p><div class="table-toolbar"><label class="small" for="alert-status-filter">Filter by status</label><select id="alert-status-filter" aria-label="Filter security alerts by status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select></div><div id="alerts-table" class="tablewrap"><div class="empty">Select Security alerts to load incidents.</div></div><div class="actions" style="margin-top:14px"><button id="alerts-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="alerts-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="alerts-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-errors" aria-labelledby="page-title" class="panel hidden"><h2>Application errors</h2><div class="table-toolbar"><label class="small" for="errors-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="errors-correlation-filter" type="search" maxlength="128" placeholder="Trace related errors" autocomplete="off"></div><button id="errors-filter-apply" class="secondary" type="button">Apply filter</button><button id="errors-filter-clear" class="secondary" type="button">Clear</button></div><p id="errors-filter-note" class="muted small">Showing all recorded errors and denied events.</p><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div><div class="actions" style="margin-top:14px"><button id="errors-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="errors-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="errors-page" class="muted small" aria-live="polite"></span></div></section>
+ <div class="headrow"><div><div class="eyebrow" id="page-eyebrow">Operations overview</div><h1 id="page-title" aria-live="polite" aria-atomic="true">Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary"><span class="ll-icon" data-icon="refresh"></span>Refresh data</button></div></div>
+ <div class="console-layout"><aside class="sidebar" aria-label="Admin navigation"><input id="nav-collapse" class="nav-collapse-control" type="checkbox" aria-label="Expand navigation labels" aria-expanded="false" aria-controls="admin-nav"><label class="nav-toggle" for="nav-collapse" title="Expand or collapse navigation"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5.5h16M4 18.5h16M9 5.5v13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Navigation</span></label><nav id="admin-nav" class="tabs" aria-label="Admin sections"><div class="nav-group" role="heading" aria-level="2">Workspace</div><button class="tab active" title="Overview" aria-label="Overview" data-page="overview" aria-current="page" aria-controls="page-overview"><span class="ll-icon" data-icon="dashboard"></span><span>Overview</span></button><button class="tab" title="User management" aria-label="User management" data-page="users" aria-controls="page-users"><span class="ll-icon" data-icon="users"></span><span>User management</span></button><button class="tab" title="Analytics" aria-label="Analytics" data-page="analytics" aria-controls="page-analytics"><span class="ll-icon" data-icon="analytics"></span><span>Analytics</span></button><div class="nav-group" role="heading" aria-level="2">Security center</div><button class="tab" title="Security alerts" aria-label="Security alerts" data-page="alerts" aria-controls="page-alerts"><span class="ll-icon" data-icon="securityAlerts"></span><span>Security alerts</span></button><button class="tab" title="User sessions" aria-label="User sessions" data-page="sessions" aria-controls="page-sessions"><span class="ll-icon" data-icon="sessions"></span><span>User sessions</span></button><button class="tab" title="Audit activity" aria-label="Audit activity" data-page="audit" aria-controls="page-audit"><span class="ll-icon" data-icon="audit"></span><span>Audit activity</span></button><button class="tab" title="Application errors" aria-label="Application errors" data-page="errors" aria-controls="page-errors"><span class="ll-icon" data-icon="systemErrors"></span><span>Application errors</span></button></nav></aside><div class="content-area">
+ <section id="page-overview" aria-labelledby="page-title">
+  <div class="grid overview-metrics" aria-label="Platform summary">
+   <div class="stat"><small><span class="stat-icon ll-icon" data-icon="usersRound" aria-hidden="true"></span>Registered profiles</small><strong id="stat-users" aria-live="polite">—</strong><span class="stat-meta">Current account total</span></div>
+   <div class="stat"><small><span class="stat-icon ll-icon" data-icon="inbox" aria-hidden="true"></span>Requests</small><strong id="stat-requests" aria-live="polite">—</strong><span class="stat-meta">Current request total</span></div>
+   <div class="stat stat-security"><small><span class="stat-icon ll-icon" data-icon="shieldCheck" aria-hidden="true"></span>API authorization</small><strong class="stat-status">Verified</strong><span class="stat-meta">Protected dashboard request accepted</span></div>
+  </div>
+  <div class="panel overview-snapshot">
+   <div class="overview-panel-heading"><div><h2>Platform snapshot</h2><p class="muted small">Current totals returned by the admin API. This is a point-in-time snapshot, not a historical trend or activity chart.</p></div><span class="snapshot-kind">Current totals</span></div>
+   <div id="overview-chart" role="img" aria-label="Current counts of registered profiles and requests"><div class="empty">Loading record totals…</div></div>
+   <div class="overview-footnote"><span class="ll-icon" data-icon="clock" aria-hidden="true"></span><span class="small muted" id="overview-chart-caption">Waiting for the latest dashboard response.</span></div>
+   <p id="generated" class="small muted overview-trace" aria-live="polite"></p>
+  </div>
+  <div class="panel overview-controls">
+   <h2>Administrative safeguards</h2>
+   <div class="control-note"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><div><strong>Protected administration</strong><p class="muted small">Admin access is verified by the API on protected requests.</p></div></div>
+   <div class="control-note"><span class="ll-icon" data-icon="audit" aria-hidden="true"></span><div><strong>Accountability</strong><p class="muted small">Capability changes are audited, and audit records are read-only.</p></div></div>
+  </div>
+ </section>
+ <section id="page-analytics" aria-labelledby="page-title" class="panel hidden">
+  <div class="analytics-heading"><div><p class="muted small">A compact view of the latest audit sample. Use Audit activity for searchable records and complete paginated review.</p></div><span class="snapshot-kind">Sample-based</span></div>
+  <div class="analytics-notice"><span class="ll-icon" data-icon="info" aria-hidden="true"></span><div><strong class="small">Reporting scope</strong><p class="muted small">This view requests at most 100 recent audit events. Counts and charts describe only those returned records, not all platform activity or a guaranteed seven-day history.</p></div></div>
+  <div id="analytics-summary" class="grid analytics-metrics" aria-label="Audit sample summary"></div><p id="analytics-generated" class="muted small analytics-generated" aria-live="polite">Sample retrieval time will appear after loading.</p>
+  <div class="panel analytics-chart-panel"><div class="analytics-section-heading"><div><h2>Events by day</h2><p class="muted small">Last 7 local calendar days within the latest returned sample. Older sampled events are excluded from this chart.</p></div></div><div id="analytics-chart" role="img" aria-label="Audit event counts by day within the latest returned sample"><div class="empty">Loading analytics…</div></div></div>
+  <div class="panel analytics-actions-panel"><div class="analytics-section-heading"><div><h2>Most frequent actions</h2><p class="muted small">Top action names in the same sample, ranked by count.</p></div></div><div id="analytics-actions"><div class="empty">Loading action summary…</div></div></div>
+ </section>
+ <section id="page-roles" aria-labelledby="page-title" class="panel hidden">
+  <div class="roles-heading"><div><p class="muted small">Review the roles and permissions configured by the backend. This page is read-only; it does not create roles or change assignments.</p></div><span class="snapshot-kind">Read only</span></div>
+  <div class="roles-guidance"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><div><strong>One privileged console role: Admin.</strong> Administrative access is verified by the server. Requester and Donor are app capabilities, not additional administrator roles, and cannot grant access to this console.</div></div>
+  <div id="roles-table" class="tablewrap" aria-live="polite"><div class="empty">Select Role registry to load configured roles and permissions.</div></div>
+ </section>
+ <section id="page-users" aria-labelledby="page-title" class="panel hidden"><div class="users-intro"><div><p class="muted small">Review account identity, profile role, and app access. Requester and Donor capabilities are managed here; administrator access is verified separately by the server and cannot be granted from this screen.</p></div><div class="users-legend" aria-label="Capability status legend"><span class="tag success">Enabled</span><span class="tag">Disabled</span></div></div><div class="users-guide"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><div><strong>Capability changes are audited.</strong> The profile role is separate from the Requester and Donor capability switches. Search and CSV export apply to the records on the current page.</div></div><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions users-pagination"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-audit" aria-labelledby="page-title" class="panel hidden">
+  <div class="audit-heading"><div><p class="muted small">Read-only record of administrative and platform events. Use exact action names or correlation IDs to trace related activity.</p></div><span class="snapshot-kind">Read only</span></div>
+  <div class="table-toolbar audit-toolbar">
+   <div class="audit-filter-field"><label for="audit-action-filter">Exact action</label><input id="audit-action-filter" type="search" maxlength="64" placeholder="e.g. admin.user.update" autocomplete="off"></div>
+   <div class="audit-filter-field"><label for="audit-correlation-filter">Correlation ID</label><input id="audit-correlation-filter" type="search" maxlength="128" placeholder="Trace related events" autocomplete="off"></div>
+   <div class="audit-filter-actions"><button id="audit-filter-apply" class="secondary" type="button">Apply filters</button><button id="audit-filter-clear" class="secondary" type="button">Clear</button></div>
+  </div>
+  <p class="muted small audit-filter-note" id="audit-filter-note" aria-live="polite">Showing all audit actions.</p>
+  <div id="audit-table" class="tablewrap" aria-live="polite"><div class="empty">Select Audit activity to load events.</div></div>
+  <div class="actions audit-pagination"><button id="audit-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="audit-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="audit-page" class="muted small" aria-live="polite"></span></div>
+ </section>
+ <section id="page-sessions" aria-labelledby="page-title" class="panel hidden">
+  <div class="sessions-heading"><div><p class="muted small">Review protected API sessions, device context, activity, and expiry. Revocation blocks subsequent protected requests.</p></div><span class="snapshot-kind">Access control</span></div>
+  <div class="sessions-guidance"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><span class="small">Only revoke a session when you have verified the account and session context. Revocation cannot be undone from this screen.</span></div>
+  <div id="sessions-table" class="tablewrap" aria-live="polite"><div class="empty">Select Sessions to load records.</div></div>
+  <div class="actions sessions-pagination"><button id="sessions-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="sessions-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="sessions-page" class="muted small" aria-live="polite"></span></div>
+ </section>
+ <section id="page-alerts" aria-labelledby="page-title" class="panel hidden">
+  <div class="alerts-intro"><div><p class="muted small">Incidents are deduplicated. Assess severity first, then review investigation status and supporting evidence before changing an incident.</p></div><div class="severity-key" role="group" aria-label="Severity levels"><span class="tag severity-critical">Critical</span><span class="tag severity-high">High</span><span class="tag severity-medium">Medium</span><span class="tag severity-low">Low</span></div></div><p class="alerts-scope-note"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><span>Severity describes potential impact; status describes investigation progress. They are independent fields. Status actions below update investigation progress only.</span></p>
+  <div class="table-toolbar alerts-toolbar"><label class="small" for="alert-status-filter">Investigation status</label><select id="alert-status-filter" aria-label="Filter security alerts by investigation status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select></div>
+  <div id="alerts-table" class="tablewrap" aria-live="polite"><div class="empty">Select Security alerts to load incidents.</div></div>
+  <div class="actions alerts-pagination"><button id="alerts-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="alerts-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="alerts-page" class="muted small" aria-live="polite"></span></div>
+ </section>
+ <section id="page-errors" aria-labelledby="page-title" class="panel hidden">
+  <div class="errors-heading"><div><p class="muted small">Review recorded application errors and denied events. Use correlation IDs to follow related activity across diagnostic records.</p></div><span class="snapshot-kind">Read only</span></div>
+  <div class="errors-guidance"><span class="ll-icon" data-icon="activity" aria-hidden="true"></span><div><strong class="small">Diagnostic context</strong><p class="muted small">Metadata may contain operational identifiers. Review it only when needed, and avoid copying sensitive values into external reports.</p></div></div>
+  <div class="table-toolbar errors-toolbar"><label class="small" for="errors-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="errors-correlation-filter" type="search" maxlength="128" placeholder="Enter a correlation ID" autocomplete="off"></div><button id="errors-filter-apply" class="secondary" type="button">Apply filter</button><button id="errors-filter-clear" class="secondary" type="button">Clear</button></div>
+  <p id="errors-filter-note" class="muted small" aria-live="polite">Showing all recorded errors and denied events.</p>
+  <div id="errors-table" class="tablewrap" aria-live="polite"><div class="empty">Select Errors to load events.</div></div>
+  <div class="actions errors-pagination"><button id="errors-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="errors-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="errors-page" class="muted small" aria-live="polite"></span></div>
+ </section>
  </div></div><div id="app-message" class="notice hidden" role="status" aria-live="polite"></div><p class="foot">LifeLink Admin · Keep this browser session private. Sign out when finished.</p>
 </main>
 <script src="./icons.js"></script>
@@ -385,13 +1505,19 @@ tbody tr:hover{background:#f5f1e8}
    finally { $("signin").disabled=false; }
  }
  function table(items, cols) {
-   if(!items?.length) return '<div class="empty">No records found.</div>';
+   if(!items?.length) {
+     const emptyStates={users:["No user records on this page","There are no account records in the current result page."],sessions:["No session records on this page","There are no active or revoked sessions in the current result page."],roles:["No role records returned","The backend did not return any configured role records."],alerts:["No security alerts found","No incidents match the current queue view."],audit:["No audit records on this page","There are no audit events in the current result page."],errors:["No system errors found","No recorded errors or denied events are in the current result page."]};
+     const state=emptyStates[activePage]||["No records found","The current result page contains no records."];
+     return '<div class="empty" role="status" aria-live="polite"><strong>'+esc(state[0])+'</strong><span class="muted small">'+esc(state[1])+'</span></div>';
+   }
    const filterKey=items.some(x=>x.status!=null)?'status':items.some(x=>x.outcome!=null)?'outcome':null;
    const values=filterKey?[...new Set(items.map(x=>String(x[filterKey]??'')).filter(Boolean))].sort():[];
    const plural=filterKey==='status'?'statuses':filterKey==='outcome'?'outcomes':filterKey+'s';
    const select=values.length?'<label class="small muted">Filter <select data-table-filter aria-label="Filter table rows" style="width:auto;padding:8px;border:1px solid var(--line);border-radius:8px;background:white"><option value="">All '+esc(plural)+'</option>'+values.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select></label>':'';
    const rows=items.map(item=>'<tr data-filter-value="'+esc(filterKey?item[filterKey]??'':'')+'">'+cols.map(col=>'<td data-label="'+esc(col.label)+'">'+col.render(item)+'</td>').join('')+'</tr>').join('');
-   return '<div class="table-toolbar"><div class="search-wrap"><input type="search" data-table-search placeholder="Search visible records…" aria-label="Search visible table records"></div>'+select+'<div class="table-actions"><button type="button" class="secondary table-export" data-table-export><span class="ll-icon" data-icon="download"></span>Export CSV</button><span class="table-count" data-table-count>'+items.length+' records on this page</span></div></div><table><thead><tr>'+cols.map(col=>'<th scope="col">'+esc(col.label)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table><div class="table-empty-filter" data-table-empty>No matching records on this page.</div>';
+   const tableNames={users:"User management records",audit:"Audit activity records",alerts:"Security alert records",sessions:"User session records",errors:"Application error records",roles:"Configured roles and permissions"};
+   const tableName=tableNames[activePage]||"Administration records";
+   return '<div class="table-toolbar"><div class="search-wrap"><input type="search" data-table-search placeholder="Search this page… " aria-label="Search records on the current page"></div>'+select+'<div class="table-actions"><button type="button" class="secondary table-export" data-table-export aria-label="Export visible records as CSV"><span class="ll-icon" data-icon="download"></span>Export visible</button><span class="table-count" data-table-count role="status" aria-live="polite" aria-atomic="true">'+items.length+' records on this page</span></div></div><table aria-label="'+esc(tableName)+'"><thead><tr>'+cols.map(col=>'<th scope="col">'+esc(col.label)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table><div class="table-empty-filter" data-table-empty role="status" aria-live="polite">No matching records on this page. Clear the search or status filter to see the full page.</div>';
  }
  function wireTableTools(container) {
    const search=container.querySelector('[data-table-search]');
@@ -444,7 +1570,7 @@ async function loadUsers() {
     try {
       const data=await api("/v1/admin/users?limit="+pageSize+"&offset="+offset);
       if(token!==pageLoadToken||activePage!=="users")return;
-      if(!data||!Array.isArray(data.items)||!Number.isFinite(Number(data.total)))throw new Error("Unexpected users response");
+      if(!data||!Array.isArray(data.items)||!Number.isFinite(Number(data.total))||Number(data.total)<0)throw new Error("Unexpected users response");
       $("users-prev").disabled=offset===0;
       $("users-next").disabled=offset+pageSize>=Number(data.total);
       $("users-page").textContent=(Number(data.total)===0?"0 users":(offset+1)+"–"+Math.min(offset+pageSize,Number(data.total))+" of "+data.total);
@@ -456,7 +1582,9 @@ async function loadUsers() {
         const next={role:row.role,can_request:!!row.can_request,can_donate:!!row.can_donate};
         if(capability==="request")next.can_request=!enabled;else next.can_donate=!enabled;
         const action=(next[capability==="request"?"can_request":"can_donate"]?"Enable ":"Disable ")+(capability==="request"?"requester":"donor")+" capability";
-        if(!confirm(action+" for this user? The change will be recorded in the audit log."))return;
+        const identity=[row.display_name||"Unnamed account",row.email||"Email unavailable","User ID: "+row.user_id].join("\n");
+         const consequence=next[capability==="request"?"can_request":"can_donate"]?"This enables the capability for this account.":"This disables the capability for this account and may limit the user’s access to that app mode.";
+         if(!confirm("Review capability change\n\n"+action+"\n"+identity+"\n\n"+consequence+"\n\nThis change will be sent to the admin API and recorded in the audit log. Continue?"))return;
         btn.disabled=true;
         try{
           await api("/v1/admin/users/"+encodeURIComponent(btn.dataset.id),{method:"PATCH",body:JSON.stringify(next)});
@@ -484,20 +1612,17 @@ async function loadUsers() {
       $("sessions-next").disabled=data.items.length<pageSize;
       $("sessions-page").textContent=data.items.length===0?"No sessions on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
       tableEl.innerHTML=table(data.items,[
-        {label:"User",render:s=>'<code>'+esc(s.user_id)+'</code>'},
-        {label:"Session",render:s=>'<code>'+esc(s.session_id)+'</code>'},
-        {label:"Device",render:s=>esc(s.device_used||"unknown")},
-        {label:"IP",render:s=>'<code>'+esc(s.ip_address||"Unavailable")+'</code>'},
-        {label:"Created",render:s=>esc(s.created_at?new Date(s.created_at).toLocaleString():"—")},
-        {label:"Last seen",render:s=>esc(s.last_seen_at?new Date(s.last_seen_at).toLocaleString():"—")},
-        {label:"Expiry",render:s=>esc(s.expires_at?new Date(s.expires_at).toLocaleString():"Not supplied")},
-        {label:"Revocation",render:s=>s.revoked_at?esc(new Date(s.revoked_at).toLocaleString())+'<br><span class="muted small">By <code>'+esc(s.revoked_by||"Unavailable")+'</code></span>':"—"},
-        {label:"Status",render:s=>'<span class="tag '+(s.status==="active"?"success":"fail")+'">'+esc(s.status)+'</span>'},
+        {label:"Account",render:s=>'<div class="session-identity"><strong>Account ID</strong><code title="'+esc(s.user_id)+'">'+esc(String(s.user_id||"—"))+'</code></div>'},
+        {label:"Session context",render:s=>'<div class="session-context"><strong>'+esc(s.device_used||"Unknown device")+'</strong><code title="'+esc(s.session_id)+'">'+esc(String(s.session_id||"—"))+'</code><span class="muted small">'+esc(s.ip_address||"IP unavailable")+'</span></div>'},
+        {label:"Activity",render:s=>'<div class="session-timeline"><strong>Last seen</strong><span>'+esc(s.last_seen_at?new Date(s.last_seen_at).toLocaleString():"Not recorded")+'</span><span class="muted small">Created '+esc(s.created_at?new Date(s.created_at).toLocaleString():"date unavailable")+'</span></div>'},
+        {label:"Status and expiry",render:s=>'<div class="session-lifecycle"><span class="tag '+(s.status==="active"?"success":"fail")+'" aria-label="'+(s.status==="active"?"Active session":"Revoked or inactive session")+'">'+esc(s.status==="active"?"Active":s.status||"Inactive")+'</span><span class="muted small">Expires '+esc(s.expires_at?new Date(s.expires_at).toLocaleString():"not supplied")+'</span>'+(s.revoked_at?'<span class="muted small">Revoked '+esc(new Date(s.revoked_at).toLocaleString())+' · by '+esc(s.revoked_by||"Unavailable")+'</span>':'')+'</div>'},
         {label:"Action",render:s=>s.status==="active"?'<button class="secondary" data-revoke="'+esc(s.session_id)+'"><span class="ll-icon" data-icon="shieldAlert"></span>Revoke</button>':'—'}
       ]);
       renderIcons(tableEl);wireTableTools(tableEl);
       tableEl.querySelectorAll("button[data-revoke]").forEach(btn=>btn.addEventListener("click",async()=>{
-        if(!confirm("Revoke this session? Its next protected API request will be rejected."))return;
+        const sessionRecord=data.items.find(item=>item.session_id===btn.dataset.revoke);if(!sessionRecord)return;
+         const sessionContext=[sessionRecord.device_used||"Unknown device",sessionRecord.ip_address||"IP unavailable","Session ID: "+sessionRecord.session_id,"Account ID: "+sessionRecord.user_id].join("\n");
+         if(!confirm("Review session revocation\n\n"+sessionContext+"\n\nRevocation blocks subsequent protected API requests for this session. This cannot be undone from this screen.\n\nRevoke this session?"))return;
         btn.disabled=true;
         try{
           await api("/v1/admin/sessions/"+encodeURIComponent(btn.dataset.revoke)+"/revoke",{method:"POST"});
@@ -532,20 +1657,29 @@ async function loadUsers() {
        tableEl.innerHTML='<div class="empty"><strong>No security alerts found</strong><span class="muted small">'+(alertStatus?"No incidents match this status filter.":"No recorded incidents are currently in the alert queue.")+'</span></div>';
      } else {
        tableEl.innerHTML=table(data.items,[
-         {label:"Rule",render:a=>'<strong>'+esc(a.rule_id)+'</strong><br><span class="tag severity-'+esc(String(a.severity||"low").toLowerCase())+'">'+esc(a.severity)+'</span>'},
-         {label:"Status",render:a=>'<span class="tag '+(a.status==="open"?"fail":"")+'">'+esc(a.status)+'</span>'},
-         {label:"User / Session",render:a=>'<code>'+esc(a.user_id)+'</code><br><code>'+esc(a.session_id||"—")+'</code>'},
-         {label:"Incident",render:a=>esc(a.summary)+'<br><span class="muted small">'+esc(a.occurrences)+' occurrences</span>'},
-         {label:"Last seen",render:a=>esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")},
+         {label:"Rule",render:a=>'<strong>'+esc(a.rule_id||"Unknown rule")+'</strong>'},
+         {label:"Severity",render:a=>'<span class="tag severity-'+String(a.severity||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.severity||"Unknown")+'</span>'},
+         {label:"Status",render:a=>'<span class="tag status-'+String(a.status||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.status||"Unknown")+'</span>'},
+         {label:"Account / session",render:a=>{const user=String(a.user_id||"—"),session=String(a.session_id||"—");return '<div class="alert-identifiers"><span class="muted small">Account</span><code title="'+esc(user)+'">'+esc(user)+'</code><span class="muted small">Session</span><code title="'+esc(session)+'">'+esc(session)+'</code></div>';}},
+         {label:"Incident summary",render:a=>'<div class="alert-incident"><strong>'+esc(a.summary||"No summary provided")+'</strong><span class="muted small">'+esc(a.occurrences??"—")+' recorded occurrences</span></div>'},
+         {label:"Last observed",render:a=>'<span class="alert-last-seen">'+esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")+'</span>'},
          {label:"Evidence / history",render:a=>'<details class="cell-detail"><summary>View evidence &amp; history</summary><p class="small">Created: '+esc(a.created_at?new Date(a.created_at).toLocaleString():"—")+'</p><p class="small">Acknowledged: '+esc(a.acknowledged_at?new Date(a.acknowledged_at).toLocaleString():"—")+' · By '+esc(a.acknowledged_by||"—")+'</p><p class="small">Resolved: '+esc(a.resolved_at?new Date(a.resolved_at).toLocaleString():"—")+' · By '+esc(a.resolved_by||"—")+'</p><p class="small">Correlation: <code>'+esc(a.correlation_id||"—")+'</code></p><pre>'+esc(JSON.stringify(a.evidence||{},null,2))+'</pre></details>'},
-         {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" data-alert="'+esc(a.id)+'" data-status="acknowledged"><span class="ll-icon" data-icon="check"></span>Acknowledge</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="investigating"><span class="ll-icon" data-icon="search"></span>Investigate</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="false_positive">False positive</button><button data-alert="'+esc(a.id)+'" data-status="resolved"><span class="ll-icon" data-icon="shieldCheck"></span>Resolve</button></div>'}
+         {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" aria-label="Acknowledge alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="acknowledged"><span class="ll-icon" data-icon="check"></span>Acknowledge</button><button class="secondary" aria-label="Investigate alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="investigating"><span class="ll-icon" data-icon="search"></span>Investigate</button><button class="secondary" aria-label="Mark alert '+esc(a.rule_id||a.id||"record")+' as false positive" data-alert="'+esc(a.id)+'" data-status="false_positive">False positive</button><button aria-label="Resolve alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="resolved"><span class="ll-icon" data-icon="shieldCheck"></span>Resolve</button></div>'}
        ]);
      }
      renderIcons(tableEl);
      wireTableTools(tableEl);
      tableEl.querySelectorAll("button[data-alert]").forEach(btn=>btn.addEventListener("click",async()=>{
+       const alertRecord=data.items.find(item=>String(item.id)===btn.dataset.alert);if(!alertRecord)return;
+       const nextStatus=btn.dataset.status;
+       if(alertRecord.status===nextStatus)return;
+       if(nextStatus==="resolved"||nextStatus==="false_positive"){
+         const details=[alertRecord.summary||"No summary provided","Severity: "+(alertRecord.severity||"Unknown"),"Current status: "+(alertRecord.status||"Unknown"),"Account: "+(alertRecord.user_id||"Unavailable"),"Alert ID: "+alertRecord.id].join("\n");
+         const effect=nextStatus==="resolved"?"This marks the investigation as resolved and closes the alert in this queue.":"This classifies the alert as a false positive and closes it in this queue.";
+         if(!confirm("Review alert closure\n\n"+details+"\n\n"+effect+"\n\nReview the evidence and history before continuing. Proceed?"))return;
+       }
        btn.disabled=true;
-       try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");if(activePage==="alerts"&&token===pageLoadToken)await loadPage("alerts");}
+       try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:nextStatus})});message("app-message","Alert updated: "+nextStatus+".");if(activePage==="alerts"&&token===pageLoadToken)await loadPage("alerts");}
        catch(e){if(activePage==="alerts"&&token===pageLoadToken){btn.disabled=false;message("app-message",safeError(e,"The alert could not be updated. Please retry."),true);}}
      }));
    } catch(e) {
@@ -578,14 +1712,12 @@ async function loadUsers() {
        tableEl.innerHTML='<div class="empty"><strong>No '+(kind==="audit"?"audit records":"system errors")+' found</strong><span class="muted small">'+(correlation?"No records match this correlation ID.":kind==="errors"?"No recorded errors or denied events are currently available.":"There are no audit events on this page.")+'</span></div>';
      } else {
        tableEl.innerHTML=table(data.items,[
-         {label:"Timestamp",render:e=>esc(e.timestamp||e.created_at?new Date(e.timestamp||e.created_at).toLocaleString():"—")},
-         {label:"Event",render:e=>'<strong>'+esc(e.action||"event")+'</strong><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span>'},
-         {label:"CRUD",render:e=>'<span class="tag">'+esc(e.actions||"OTHER")+'</span>'},
-         {label:"Session",render:e=>'<code>'+esc(e.session_id||"Unavailable")+'</code>'},
-         {label:"IP / Device",render:e=>'<code>'+esc(e.ip_address||"Unavailable")+'</code><br><span class="muted small">'+esc(e.device_used||"unknown")+'</span>'},
-         {label:"Actor / Target",render:e=>'<code>'+esc(e.actor_id||"system")+'</code><br>'+esc(e.target_type||"—")+' <code>'+esc(e.target_id||"")+'</code>'},
-         {label:"Description",render:e=>esc(e.description||e.action||"—")+'<br><span class="muted small">Correlation: '+esc(e.correlation_id||"—")+'</span>'},
-         {label:"Metadata",render:e=>'<details class="cell-detail"><summary>View metadata</summary><pre>'+esc(JSON.stringify(e.metadata||{},null,2))+'</pre></details>'}
+         {label:"Recorded",render:e=>{const outcome=String(e.outcome||"").toLowerCase();const outcomeClass=["error","denied","failed","failure"].includes(outcome)?"fail":["success","allowed","ok"].includes(outcome)?"success":"neutral";return '<div class="event-recorded"><strong>'+esc(e.timestamp||e.created_at?new Date(e.created_at||e.timestamp).toLocaleString():"—")+'</strong><span class="tag '+outcomeClass+'">'+esc(e.outcome||"Outcome unavailable")+'</span></div>';}},
+         {label:"Event",render:e=>'<div class="event-summary"><strong>'+esc(e.action||"event")+'</strong><span class="muted small">'+esc(e.description||e.actions||"No additional description")+'</span><span class="muted small">'+esc(e.actions||"OTHER")+'</span></div>'},
+         {label:"Trace",render:e=>'<div class="event-trace"><span class="muted small">Correlation</span><code title="'+esc(e.correlation_id)+'">'+esc(String(e.correlation_id||"—"))+'</code><span class="muted small">Session</span><code title="'+esc(e.session_id)+'">'+esc(String(e.session_id||"Unavailable"))+'</code></div>'},
+         {label:"Actor and source",render:e=>'<div class="event-source"><code title="'+esc(e.actor_id)+'">'+esc(String(e.actor_id||"system"))+'</code><span class="muted small">'+esc(e.device_used||"Unknown device")+'</span><span class="muted small">'+esc(e.ip_address||"IP unavailable")+'</span></div>'},
+         {label:"Target",render:e=>'<div class="event-target"><strong>'+esc(e.target_type||"—")+'</strong><code title="'+esc(e.target_id)+'">'+esc(String(e.target_id||"—"))+'</code></div>'},
+         {label:"Details",render:e=>'<details class="cell-detail"><summary>View metadata</summary><pre>'+esc(JSON.stringify(e.metadata||{},null,2))+'</pre></details>'}
        ]);
        renderIcons(tableEl);
        wireTableTools(tableEl);
@@ -606,7 +1738,7 @@ async function loadUsers() {
 
  async function loadRoles() {
     const token=pageLoadToken,tableEl=$("roles-table");
-    setLoadingState("roles-table","Loading role registry","Retrieving configured roles and permissions…");
+    setLoadingState("roles-table","Loading configured roles","Retrieving the server-defined role and permission records…");
     try {
       const data=await api("/v1/admin/roles");
       if(token!==pageLoadToken||activePage!=="roles")return;
@@ -646,7 +1778,7 @@ async function loadUsers() {
  }
  function renderAnalyticsBars(items) {
    const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-(6-i));return d;});
-   const counts=days.map(day=>items.filter(e=>{const t=new Date(e.timestamp||e.created_at);return !Number.isNaN(t.valueOf())&&t.toDateString()===day.toDateString();}).length);
+   const counts=days.map(day=>items.filter(e=>{const t=new Date(e.created_at||e.timestamp);return !Number.isNaN(t.valueOf())&&t.toDateString()===day.toDateString();}).length);
    const max=Math.max(1,...counts), width=680, height=220, left=42, bottom=34, top=14, plotH=height-top-bottom, barW=48, gap=34;
    const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
    svg.setAttribute("viewBox","0 0 "+width+" "+height);svg.setAttribute("role","img");svg.setAttribute("aria-label","Audit event counts per day for the latest 100 events");svg.style.width="100%";svg.style.maxHeight="260px";
@@ -666,11 +1798,14 @@ async function loadUsers() {
       if(!data||!Array.isArray(data.items))throw new Error("Unexpected analytics response");
       const items=data.items;
       const byAction={};items.forEach(e=>{const k=e.action||"unknown";byAction[k]=(byAction[k]||0)+1;});
-      const days=new Set(items.map(e=>{const d=new Date(e.timestamp||e.created_at);return Number.isNaN(d.valueOf())?"":d.toDateString();}).filter(Boolean));
-      $("analytics-summary").innerHTML='<div class="stat"><small>Events in sample</small><strong>'+items.length+'</strong></div><div class="stat"><small>Distinct actions</small><strong>'+Object.keys(byAction).length+'</strong></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong></div><div class="stat"><small>Sample limit</small><strong>100</strong></div>';
+      const validDates=items.map(e=>new Date(e.created_at||e.timestamp)).filter(d=>!Number.isNaN(d.valueOf()));
+      const days=new Set(validDates.map(d=>d.toDateString()));
+      const dateRange=validDates.length?new Date(Math.min(...validDates.map(d=>d.valueOf()))).toLocaleDateString()+ " – "+new Date(Math.max(...validDates.map(d=>d.valueOf()))).toLocaleDateString():"No timestamps available";
+      $("analytics-summary").innerHTML='<div class="stat"><small>Events returned</small><strong>'+items.length+'</strong><span class="stat-meta">Records in this response</span></div><div class="stat"><small>Distinct actions</small><strong>'+Object.keys(byAction).length+'</strong><span class="stat-meta">Action names in sample</span></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong><span class="stat-meta">Distinct local calendar days</span></div><div class="stat"><small>Sample window</small><strong class="analytics-range-value">'+esc(dateRange)+'</strong><span class="stat-meta">Earliest to latest returned event</span></div>';
+      $("analytics-generated").textContent="Retrieved "+new Date().toLocaleString()+" (browser local time) · Newest-first audit page · Maximum 100 records";
       renderAnalyticsBars(items);
-      const top=Object.entries(byAction).sort((a,b)=>b[1]-a[1]).slice(0,8);
-      $("analytics-actions").innerHTML=top.length?'<div class="tablewrap"><table><thead><tr><th>Action</th><th>Events</th></tr></thead><tbody>'+top.map(([k,v])=>'<tr><td>'+esc(k)+'</td><td><strong>'+v+'</strong></td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No audit events are available in the returned sample.</div>';
+      const top=Object.entries(byAction).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,8);
+      $("analytics-actions").innerHTML=top.length?'<div class="tablewrap analytics-actions-table"><table><thead><tr><th>Action</th><th>Events</th></tr></thead><tbody>'+top.map(([k,v])=>'<tr><td><code>'+esc(k)+'</code></td><td><strong>'+v.toLocaleString()+'</strong></td></tr>').join("")+'</tbody></table></div>':'<div class="empty"><strong>No audit events in this sample</strong><span class="muted small">There are no returned records to summarize right now.</span></div>';
     } catch(e) {
       if(token!==pageLoadToken||activePage!=="analytics")return;
       setErrorState("analytics-summary","Analytics could not be loaded",safeError(e,"The audit sample could not be retrieved."),()=>loadPage("analytics"));
@@ -683,8 +1818,8 @@ async function loadUsers() {
   async function loadPage(page) {
     const token=++pageLoadToken;
     renderIcons();
-    activePage=page; document.querySelectorAll(".tab").forEach(b=>{const active=b.dataset.page===page;b.classList.toggle("active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
-    const pageTitles={analytics:["Reporting","Activity analytics"],roles:["Access control","Role registry"],overview:["Operations overview","Admin dashboard"],users:["Workspace","User management"],alerts:["Security center","Security alerts"],sessions:["Security center","Session registry"],audit:["Security center","Audit activity"],errors:["Security center","System errors"]};
+    activePage=page; const contentArea=document.querySelector(".content-area");contentArea?.setAttribute("aria-busy","true");document.querySelectorAll(".tab").forEach(b=>{const active=b.dataset.page===page;b.classList.toggle("active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
+    const pageTitles={analytics:["Reporting","Activity analytics"],roles:["Access control","Role registry"],overview:["Operations overview","Admin dashboard"],users:["Workspace","User management"],alerts:["Security center","Security alerts"],sessions:["Security center","User sessions"],audit:["Security center","Audit activity"],errors:["Security center","Application errors"]};
     const title=pageTitles[page]||["Admin","Admin console"];$("page-eyebrow").textContent=title[0];$("page-title").textContent=title[1];
     ["overview","users","analytics","roles","audit","sessions","alerts","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
     message("app-message","");
@@ -693,7 +1828,10 @@ async function loadUsers() {
         setLoadingState("overview-chart","Loading platform snapshot","Retrieving current profile and request totals…");
         const d=await api("/v1/admin/dashboard");
         if(token!==pageLoadToken||activePage!==page)return;
-        $("stat-users").textContent=d.users;$("stat-requests").textContent=d.requests;renderOverviewBars(d);$("generated").textContent="Updated "+new Date(d.generated_at).toLocaleString()+" · Correlation ID "+d.correlation_id;
+        const users=Number(d?.users),requests=Number(d?.requests),generatedAt=Date.parse(d?.generated_at);
+        if(!Number.isFinite(users)||users<0||!Number.isFinite(requests)||requests<0||!Number.isFinite(generatedAt))throw new Error("The dashboard returned incomplete or invalid snapshot data.");
+        const snapshot={...d,users,requests};
+        $("stat-users").textContent=users.toLocaleString();$("stat-requests").textContent=requests.toLocaleString();renderOverviewBars(snapshot);$("generated").textContent="Updated "+new Date(generatedAt).toLocaleString()+" · Correlation ID "+(typeof d.correlation_id==="string"&&d.correlation_id.trim()?d.correlation_id:"Not supplied");
       }
       if(page==="users") await loadUsers();
       if(page==="analytics") await loadAnalytics();
@@ -707,6 +1845,7 @@ async function loadUsers() {
       if(page==="overview")setErrorState("overview-chart","Overview could not be loaded",safeError(e,"The dashboard snapshot could not be retrieved."),()=>loadPage("overview"));
       else message("app-message",safeError(e,"Could not load admin data. Please retry."),true);
     } finally {
+      if(token===pageLoadToken&&activePage===page)contentArea?.removeAttribute("aria-busy");
       if(page==="overview"&&token===pageLoadToken)$("overview-chart").removeAttribute("aria-busy");
     }
   }
@@ -722,6 +1861,7 @@ async function loadUsers() {
  }
  $("password").addEventListener("keydown",e=>{if(e.key==="Enter")signIn()});
  document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>loadPage(b.dataset.page)));
+ $("nav-collapse").addEventListener("change",e=>{e.currentTarget.setAttribute("aria-expanded",String(e.currentTarget.checked));e.currentTarget.setAttribute("aria-label",e.currentTarget.checked?"Collapse navigation labels":"Expand navigation labels");});
  $("refresh").addEventListener("click",()=>loadPage(activePage));
  $("alert-status-filter").addEventListener("change",e=>{alertStatus=e.target.value;offsets.alerts=0;loadPage("alerts");});
  $("audit-filter-apply").addEventListener("click",()=>{auditAction=$("audit-action-filter").value.trim().slice(0,64);auditCorrelation=$("audit-correlation-filter").value.trim().slice(0,128);offsets.audit=0;loadPage("audit");});

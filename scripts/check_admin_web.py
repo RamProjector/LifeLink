@@ -104,8 +104,13 @@ def main() -> None:
     if missing:
         fail("HTML references undefined SVG icons: " + ", ".join(missing))
 
-    if "overview-chart" not in html or "function renderOverviewBars(data)" not in html or "renderOverviewBars(d)" not in html:
-        fail("overview must visualize live dashboard record totals with an accessible chart")
+    if (
+        "overview-chart" not in html
+        or "function renderOverviewBars(data)" not in html
+        or "const snapshot={...d,users,requests}" not in html
+        or "renderOverviewBars(snapshot)" not in html
+    ):
+        fail("overview must visualize validated live dashboard totals with an accessible chart")
 
     if "data-table-export" not in html or "URL.createObjectURL(blob)" not in html:
         fail("admin data tables must provide client-side CSV export")
