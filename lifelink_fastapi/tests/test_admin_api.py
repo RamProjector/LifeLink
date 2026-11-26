@@ -226,7 +226,7 @@ def test_non_admin_is_denied_by_every_admin_endpoint(monkeypatch, method, path, 
 
     from app.db import get_db_session
     from app.main_postgres import app
-    from app.security import get_postgres_principal
+    from app.security import get_active_postgres_principal, get_postgres_principal
 
     monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
 
@@ -235,6 +235,9 @@ def test_non_admin_is_denied_by_every_admin_endpoint(monkeypatch, method, path, 
 
     app.dependency_overrides[get_db_session] = fake_session
     app.dependency_overrides[get_postgres_principal] = lambda: Principal(
+        subject="regular-user", email="regular@example.test", email_verified=True
+    )
+    app.dependency_overrides[get_active_postgres_principal] = lambda: Principal(
         subject="regular-user", email="regular@example.test", email_verified=True
     )
 
