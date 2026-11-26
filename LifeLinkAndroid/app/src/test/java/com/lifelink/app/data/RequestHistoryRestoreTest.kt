@@ -7,6 +7,7 @@ import androidx.work.Configuration
 import androidx.work.WorkManager
 import com.lifelink.app.core.auth.AuthSession
 import com.lifelink.app.core.auth.AuthSessionStore
+import com.lifelink.app.core.auth.TestSessionCipher
 import com.lifelink.app.data.local.LifeLinkDatabase
 import com.lifelink.app.data.local.toEntity
 import com.lifelink.app.data.remote.LifeLinkApi
@@ -63,7 +64,7 @@ class RequestHistoryRestoreTest {
     )
 
     @Test fun sameAccountLoginRestoresSubmittedRequestAfterLogoutCleanup() = runBlocking {
-        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>()) { owner ->
+        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>(), TestSessionCipher()) { owner ->
             launch { db.clearLocalAccountData(owner) }
         }
         val session = AuthSession("synthetic-token", "refresh", "alice", "alice@example.test")
