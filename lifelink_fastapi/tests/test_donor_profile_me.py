@@ -23,6 +23,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from fastapi import Depends
 
 pgserver = pytest.importorskip("pgserver")
 
@@ -56,21 +57,28 @@ def run_scenario(pg_url: str, scenario):
             await conn.execute(text("DROP SCHEMA public CASCADE"))
             await conn.execute(text("CREATE SCHEMA public"))
             await conn.run_sync(db_models.Base.metadata.create_all)
-        await conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS lifelink_user_sessions (
-                session_id VARCHAR(128) PRIMARY KEY,
-                user_id VARCHAR(128) NOT NULL,
-                device_used VARCHAR(255) NOT NULL DEFAULT 'unknown',
-                ip_address VARCHAR(64),
-                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                expires_at TIMESTAMPTZ,
-                revoked_at TIMESTAMPTZ,
-                revoked_by VARCHAR(128),
-                status VARCHAR(16) NOT NULL DEFAULT 'active'
-                    CHECK (status IN ('active', 'revoked', 'expired'))
-            )
-        """))
+            await conn.execute(text("CREATE SCHEMA IF NOT EXISTS auth"))
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS auth.sessions (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL
+                )
+            """))
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS lifelink_user_sessions (
+                    session_id VARCHAR(128) PRIMARY KEY,
+                    user_id VARCHAR(128) NOT NULL,
+                    device_used VARCHAR(255) NOT NULL DEFAULT 'unknown',
+                    ip_address VARCHAR(64),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    expires_at TIMESTAMPTZ,
+                    revoked_at TIMESTAMPTZ,
+                    revoked_by VARCHAR(128),
+                    status VARCHAR(16) NOT NULL DEFAULT 'active'
+                        CHECK (status IN ('active', 'revoked', 'expired'))
+                )
+            """))
         sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
         current: dict[str, Any] = {"id": "nobody", "_session_factory": sessions}
 
@@ -79,9 +87,21 @@ def run_scenario(pg_url: str, scenario):
                 yield session
 
         app.dependency_overrides[get_db_session] = session_dependency
-        app.dependency_overrides[get_postgres_principal] = lambda: Principal(
-            subject=current["id"], email=f"{current['id']}@example.com", session_id=f"test-session-{current['id']}"
-        )
+        async def principal_dependency(session=Depends(get_db_session)):
+            user_id = current["id"]
+            session_id = f"test-session-{user_id}"
+            await session.execute(
+                text("INSERT INTO auth.sessions (id, user_id) VALUES (:session_id, :user_id) ON CONFLICT (id) DO NOTHING"),
+                {"session_id": session_id, "user_id": user_id},
+            )
+            await session.commit()
+            return Principal(
+                subject=user_id,
+                email=f"{user_id}@example.com",
+                session_id=session_id,
+            )
+
+        app.dependency_overrides[get_postgres_principal] = principal_dependency
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
         try:
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
