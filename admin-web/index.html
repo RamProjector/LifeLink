@@ -123,6 +123,22 @@ tbody tr:hover{background:#f4f8ff}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 
+/* Security Center: clearer incident hierarchy and resilient data states */
+#page-alerts .table-toolbar{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface-soft);border:1px solid var(--line);border-radius:13px}
+#page-alerts .table-toolbar label{margin:0;color:var(--muted);font-size:12px;font-weight:750}
+#alert-status-filter{min-width:190px;min-height:40px;padding:8px 34px 8px 11px;border:1px solid #d5deea;border-radius:10px;background:#fff;color:var(--ink);font:inherit}
+#alerts-table .tag{white-space:nowrap}
+#alerts-table .tag.severity-critical,#alerts-table .tag.severity-high{background:#fff0ef;color:#a52820}
+#alerts-table .tag.severity-medium{background:#fff6df;color:#8a5a00}
+#alerts-table .tag.severity-low{background:#eaf2ff;color:#2859a6}
+#alerts-table .actions{min-width:210px;gap:6px}
+#alerts-table .actions button{min-height:34px;padding:7px 9px;font-size:11px}
+#alerts-table .cell-detail summary{padding:5px 0}
+#alerts-table .cell-detail pre{max-width:360px}
+#alerts-page{padding-left:4px}
+#page-alerts .empty strong{color:var(--ink);font-size:14px}
+#page-alerts .empty button{margin-top:5px}
+@media(max-width:620px){#page-alerts .table-toolbar{align-items:stretch;flex-wrap:wrap}#alert-status-filter{width:100%}#alerts-table .actions{min-width:0}#alerts-table .actions button{flex:1 1 42%}}
 </style>
 </head>
 <body>
@@ -326,25 +342,43 @@ tbody tr:hover{background:#f4f8ff}
  }
  async function loadAlerts() {
    const offset=offsets.alerts;
-   const data=await api("/v1/admin/security/alerts?limit="+pageSize+"&offset="+offset+(alertStatus?"&status="+encodeURIComponent(alertStatus):""));
-   $("alerts-prev").disabled=offset===0;
-   $("alerts-next").disabled=data.items.length<pageSize;
-   $("alerts-page").textContent=data.items.length===0?"No alerts on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
-   $("alerts-table").innerHTML=table(data.items,[
-     {label:"Rule",render:a=>'<strong>'+esc(a.rule_id)+'</strong><br><span class="tag">'+esc(a.severity)+'</span>'},
-     {label:"Status",render:a=>'<span class="tag '+(a.status==="open"?"fail":"")+'">'+esc(a.status)+'</span>'},
-     {label:"User / Session",render:a=>'<code>'+esc(a.user_id)+'</code><br><code>'+esc(a.session_id||"—")+'</code>'},
-     {label:"Incident",render:a=>esc(a.summary)+'<br><span class="muted small">'+esc(a.occurrences)+' occurrences</span>'},
-     {label:"Last seen",render:a=>esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")},
-     {label:"Evidence / history",render:a=>'<details class="cell-detail"><summary>View evidence &amp; history</summary><p class="small">Created: '+esc(a.created_at?new Date(a.created_at).toLocaleString():"—")+'</p><p class="small">Acknowledged: '+esc(a.acknowledged_at?new Date(a.acknowledged_at).toLocaleString():"—")+' · By '+esc(a.acknowledged_by||"—")+'</p><p class="small">Resolved: '+esc(a.resolved_at?new Date(a.resolved_at).toLocaleString():"—")+' · By '+esc(a.resolved_by||"—")+'</p><p class="small">Correlation: <code>'+esc(a.correlation_id||"—")+'</code></p><pre>'+esc(JSON.stringify(a.evidence||{},null,2))+'</pre></details>'},
-     {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" data-alert="'+esc(a.id)+'" data-status="acknowledged"><span class="ll-icon" data-icon="check"></span>Acknowledge</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="investigating"><span class="ll-icon" data-icon="search"></span>Investigate</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="false_positive">False positive</button><button data-alert="'+esc(a.id)+'" data-status="resolved"><span class="ll-icon" data-icon="shieldCheck"></span>Resolve</button></div>'}
-   ]);
-   renderIcons($("alerts-table"));
-   wireTableTools($("alerts-table"));
-   $("alerts-table").querySelectorAll("button[data-alert]").forEach(btn=>btn.addEventListener("click",async()=>{
-     try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");await loadAlerts();}
-     catch(e){message("app-message",safeError(e,"The alert could not be updated. Please retry."),true);}
-   }));
+   const tableEl=$("alerts-table");
+   tableEl.setAttribute("aria-busy","true");
+   tableEl.innerHTML='<div class="empty"><strong>Loading security alerts</strong><span class="muted small">Retrieving the latest incident records…</span></div>';
+   try {
+     const query="/v1/admin/security/alerts?limit="+pageSize+"&offset="+offset+(alertStatus?"&status="+encodeURIComponent(alertStatus):"");
+     const data=await api(query);
+     if(!data || !Array.isArray(data.items)) throw new Error("Unexpected security alert response");
+     $("alerts-prev").disabled=offset===0;
+     $("alerts-next").disabled=data.items.length<pageSize;
+     $("alerts-page").textContent=data.items.length===0?"No alerts on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
+     if(data.items.length===0){
+       tableEl.innerHTML='<div class="empty"><strong>No security alerts found</strong><span class="muted small">'+(alertStatus?"No incidents match this status filter.":"No recorded incidents are currently in the alert queue.")+'</span></div>';
+     } else {
+       tableEl.innerHTML=table(data.items,[
+         {label:"Rule",render:a=>'<strong>'+esc(a.rule_id)+'</strong><br><span class="tag severity-'+esc(String(a.severity||"low").toLowerCase())+'">'+esc(a.severity)+'</span>'},
+         {label:"Status",render:a=>'<span class="tag '+(a.status==="open"?"fail":"")+'">'+esc(a.status)+'</span>'},
+         {label:"User / Session",render:a=>'<code>'+esc(a.user_id)+'</code><br><code>'+esc(a.session_id||"—")+'</code>'},
+         {label:"Incident",render:a=>esc(a.summary)+'<br><span class="muted small">'+esc(a.occurrences)+' occurrences</span>'},
+         {label:"Last seen",render:a=>esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")},
+         {label:"Evidence / history",render:a=>'<details class="cell-detail"><summary>View evidence &amp; history</summary><p class="small">Created: '+esc(a.created_at?new Date(a.created_at).toLocaleString():"—")+'</p><p class="small">Acknowledged: '+esc(a.acknowledged_at?new Date(a.acknowledged_at).toLocaleString():"—")+' · By '+esc(a.acknowledged_by||"—")+'</p><p class="small">Resolved: '+esc(a.resolved_at?new Date(a.resolved_at).toLocaleString():"—")+' · By '+esc(a.resolved_by||"—")+'</p><p class="small">Correlation: <code>'+esc(a.correlation_id||"—")+'</code></p><pre>'+esc(JSON.stringify(a.evidence||{},null,2))+'</pre></details>'},
+         {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" data-alert="'+esc(a.id)+'" data-status="acknowledged"><span class="ll-icon" data-icon="check"></span>Acknowledge</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="investigating"><span class="ll-icon" data-icon="search"></span>Investigate</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="false_positive">False positive</button><button data-alert="'+esc(a.id)+'" data-status="resolved"><span class="ll-icon" data-icon="shieldCheck"></span>Resolve</button></div>'}
+       ]);
+     }
+     renderIcons(tableEl);
+     wireTableTools(tableEl);
+     tableEl.querySelectorAll("button[data-alert]").forEach(btn=>btn.addEventListener("click",async()=>{
+       btn.disabled=true;
+       try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");await loadAlerts();}
+       catch(e){btn.disabled=false;message("app-message",safeError(e,"The alert could not be updated. Please retry."),true);}
+     }));
+   } catch(e) {
+     tableEl.innerHTML='<div class="empty"><strong>Security alerts could not be loaded</strong><span class="muted small">'+esc(safeError(e,"The alert records could not be retrieved."))+'</span><button id="alerts-retry" class="secondary" type="button">Retry</button></div>';
+     $("alerts-retry")?.addEventListener("click",loadAlerts);
+     $("alerts-prev").disabled=offset===0;
+     $("alerts-next").disabled=true;
+     $("alerts-page").textContent="Unable to load this page";
+   } finally {tableEl.removeAttribute("aria-busy");}
  }
  async function loadEvents(kind) {
    const offset=offsets[kind];
