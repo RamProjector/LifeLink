@@ -340,6 +340,43 @@ input,select,#alert-status-filter{border-radius:7px}
 }
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 
+
+/* Collapsible icon rail — default to the compact reference layout */
+.console-layout{grid-template-columns:60px minmax(0,1fr);gap:18px;transition:grid-template-columns .18s ease}
+.sidebar{position:sticky;top:14px;min-height:calc(100vh - 112px);padding:9px 7px;background:#202521;border:1px solid #343b35;border-radius:12px;box-shadow:none}
+.nav-collapse-control{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.nav-toggle{display:flex;align-items:center;justify-content:center;gap:10px;min-height:38px;margin:0 0 9px;padding:8px;border:1px solid #414941;border-radius:8px;background:#303731;color:#eee9dd;cursor:pointer;font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden}
+.nav-toggle svg{width:19px;height:19px;flex:0 0 19px}
+.nav-toggle span{display:none}
+.nav-collapse-control:focus-visible+.nav-toggle{outline:2px solid #d1ad70;outline-offset:3px}
+.sidebar .nav-group{display:none;color:#a9b0a7;font-size:9px;letter-spacing:.9px;padding:12px 10px 6px}
+.sidebar .tabs{display:grid;gap:5px}
+.sidebar .tab{justify-content:center;width:100%;min-height:42px;padding:9px;border:1px solid transparent;border-radius:8px;color:#d0d5ce;background:transparent}
+.sidebar .tab .ll-icon{color:#b9c1b8}
+.sidebar .tab>span:not(.ll-icon){display:none}
+.sidebar .tab:hover{background:#303731;color:#fff}
+.sidebar .tab.active{background:#f3ead9;color:#292e2a;border-color:#e2d4b9;box-shadow:none}
+.sidebar .tab.active .ll-icon{color:#292e2a}
+.console-layout:has(#nav-collapse:checked){grid-template-columns:218px minmax(0,1fr)}
+#nav-collapse:checked+.nav-toggle{justify-content:flex-start;padding:8px 11px}
+#nav-collapse:checked+.nav-toggle span{display:inline}
+#nav-collapse:checked~.nav-group{display:block}
+#nav-collapse:checked~.tabs .tab{justify-content:flex-start;padding:9px 11px}
+#nav-collapse:checked~.tabs .tab>span:not(.ll-icon){display:inline}
+@media(max-width:900px){
+ .console-layout{grid-template-columns:54px minmax(0,1fr);gap:12px}
+ .console-layout:has(#nav-collapse:checked){grid-template-columns:190px minmax(0,1fr)}
+ .sidebar{position:sticky;top:10px;min-height:calc(100vh - 90px);padding:7px 5px}
+}
+@media(max-width:620px){
+ .console-layout{grid-template-columns:48px minmax(0,1fr);gap:9px}
+ .console-layout:has(#nav-collapse:checked){grid-template-columns:164px minmax(0,1fr)}
+ .sidebar{top:8px;padding:6px 4px}
+ .sidebar .tab{min-height:40px;padding:8px 5px;font-size:11px}
+ #nav-collapse:checked~.tabs .tab{padding:8px 7px}
+}
+@media(prefers-reduced-motion:reduce){.console-layout{transition:none}}
+
 </style>
 </head>
 <body>
@@ -356,7 +393,7 @@ input,select,#alert-status-filter{border-radius:7px}
 </main>
 <main id="app-view" class="wrap hidden">
  <div class="headrow"><div><div class="eyebrow" id="page-eyebrow">Operations overview</div><h1 id="page-title">Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary"><span class="ll-icon" data-icon="refresh"></span>Refresh data</button></div></div>
- <div class="console-layout"><aside class="sidebar" aria-label="Admin navigation"><div class="nav-group">Workspace</div><nav class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview" aria-current="page" aria-controls="page-overview"><span class="ll-icon" data-icon="dashboard"></span><span>Overview</span></button><button class="tab" data-page="users" aria-controls="page-users"><span class="ll-icon" data-icon="users"></span><span>User management</span></button><button class="tab" data-page="analytics" aria-controls="page-analytics"><span class="ll-icon" data-icon="analytics"></span><span>Analytics</span></button><div class="nav-group">Security center</div><button class="tab" data-page="alerts" aria-controls="page-alerts"><span class="ll-icon" data-icon="securityAlerts"></span><span>Security alerts</span></button><button class="tab" data-page="sessions" aria-controls="page-sessions"><span class="ll-icon" data-icon="sessions"></span><span>Sessions</span></button><button class="tab" data-page="audit" aria-controls="page-audit"><span class="ll-icon" data-icon="audit"></span><span>Audit activity</span></button><button class="tab" data-page="errors" aria-controls="page-errors"><span class="ll-icon" data-icon="systemErrors"></span><span>System errors</span></button><button class="tab" data-page="roles" aria-controls="page-roles"><span class="ll-icon" data-icon="roles"></span><span>Role registry</span></button></nav></aside><div class="content-area">
+ <div class="console-layout"><aside class="sidebar" aria-label="Admin navigation"><input id="nav-collapse" class="nav-collapse-control" type="checkbox" aria-label="Expand navigation" aria-controls="admin-nav"><label class="nav-toggle" for="nav-collapse" title="Expand or collapse navigation"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5.5h16M4 18.5h16M9 5.5v13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Navigation</span></label><div class="nav-group">Workspace</div><nav id="admin-nav" class="tabs" aria-label="Admin sections"><button class="tab active" data-page="overview" aria-current="page" aria-controls="page-overview"><span class="ll-icon" data-icon="dashboard"></span><span>Overview</span></button><button class="tab" data-page="users" aria-controls="page-users"><span class="ll-icon" data-icon="users"></span><span>User management</span></button><button class="tab" data-page="analytics" aria-controls="page-analytics"><span class="ll-icon" data-icon="analytics"></span><span>Analytics</span></button><div class="nav-group">Security center</div><button class="tab" data-page="alerts" aria-controls="page-alerts"><span class="ll-icon" data-icon="securityAlerts"></span><span>Security alerts</span></button><button class="tab" data-page="sessions" aria-controls="page-sessions"><span class="ll-icon" data-icon="sessions"></span><span>Sessions</span></button><button class="tab" data-page="audit" aria-controls="page-audit"><span class="ll-icon" data-icon="audit"></span><span>Audit activity</span></button><button class="tab" data-page="errors" aria-controls="page-errors"><span class="ll-icon" data-icon="systemErrors"></span><span>System errors</span></button><button class="tab" data-page="roles" aria-controls="page-roles"><span class="ll-icon" data-icon="roles"></span><span>Role registry</span></button></nav></aside><div class="content-area">
  <section id="page-overview" aria-labelledby="page-title"><div class="grid"><div class="stat"><small><span class="stat-icon ll-icon" data-icon="usersRound"></span>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small><span class="stat-icon ll-icon" data-icon="inbox"></span>Requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small><span class="stat-icon ll-icon" data-icon="shieldCheck"></span>Authorization</small><strong style="font-size:20px;color:var(--green)">Verified</strong></div></div><div class="panel"><h2>Platform snapshot</h2><p class="muted small">Live totals from the admin API; not a historical trend.</p><div id="overview-chart" role="img" aria-label="Current counts of registered profiles and requests"><div class="empty">Loading record totals…</div></div><div class="small muted" id="overview-chart-caption">Counts refresh when you select Refresh data.</div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is verified on every API request. Capability changes are audited; audit records are read-only.</p><p id="generated" class="small muted"></p></div></section>
  <section id="page-analytics" aria-labelledby="page-title" class="panel hidden"><h2>Activity analytics</h2><p class="muted small">Latest 100 audit events only; not a full historical report.</p><div id="analytics-summary" class="grid"></div><div class="panel"><h2>Audit activity by day</h2><div id="analytics-chart" role="img" aria-label="Audit event counts by day from the latest 100 returned events"><div class="empty">Loading analytics…</div></div></div><div class="panel"><h2>Most frequent actions</h2><div id="analytics-actions"></div></div></section>
  <section id="page-roles" aria-labelledby="page-title" class="panel hidden"><h2>Role and permission registry</h2><p class="muted small">Read-only role and permission registry. Assignments remain protected by backend RBAC.</p><div id="roles-table" class="tablewrap"><div class="empty">Loading role registry…</div></div></section>
