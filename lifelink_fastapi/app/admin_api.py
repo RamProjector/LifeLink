@@ -523,18 +523,21 @@ async def admin_list_sessions(
     result = await session.execute(
         text(
             "SELECT s.session_id, s.user_id, s.device_used, s.ip_address, s.created_at, s.last_seen_at, "
-            "s.expires_at, s.revoked_at, s.revoked_by, s.status, latest.correlation_id AS last_correlation_id "
+            "s.expires_at, s.revoked_at, s.revoked_by, s.status, "
+            "COALESCE(matched.correlation_id, latest.correlation_id) AS last_correlation_id "
             "FROM lifelink_user_sessions s "
             "LEFT JOIN LATERAL ("
             "SELECT ae.correlation_id FROM audit_events ae "
             "WHERE ae.session_id = s.session_id AND ae.correlation_id IS NOT NULL "
             "ORDER BY ae.timestamp DESC LIMIT 1"
             ") latest ON TRUE "
-            "WHERE (CAST(:correlation_id AS varchar) IS NULL OR EXISTS ("
-            "SELECT 1 FROM audit_events filtered "
-            "WHERE filtered.session_id = s.session_id "
-            "AND filtered.correlation_id = CAST(:correlation_id AS varchar)"
-            ")) "
+            "LEFT JOIN LATERAL ("
+            "SELECT ae.correlation_id FROM audit_events ae "
+            "WHERE ae.session_id = s.session_id "
+            "AND ae.correlation_id = CAST(:correlation_id AS varchar) "
+            "ORDER BY ae.timestamp DESC LIMIT 1"
+            ") matched ON TRUE "
+            "WHERE (CAST(:correlation_id AS varchar) IS NULL OR matched.correlation_id IS NOT NULL) "
             "ORDER BY s.last_seen_at DESC LIMIT :limit OFFSET :offset"
         ),
         {"correlation_id": correlation_id, "limit": limit, "offset": offset},
