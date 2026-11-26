@@ -1761,6 +1761,11 @@ async function loadUsers() {
         setLoadingState("overview-chart","Loading platform snapshot","Retrieving current profile and request totals…");
         const d=await api("/v1/admin/dashboard");
         if(token!==pageLoadToken||activePage!==page)return;
+        const users=Number(d?.users),requests=Number(d?.requests),generatedAt=Date.parse(d?.generated_at);
+        if(!Number.isFinite(users)||users<0||!Number.isFinite(requests)||requests<0||!Number.isFinite(generatedAt))throw new Error("The dashboard returned incomplete or invalid snapshot data.");
+        const snapshot={...d,users,requests};
+        $("stat-users").textContent=users.toLocaleString();$("stat-requests").textContent=requests.toLocaleString();renderOverviewBars(snapshot);$("generated").textContent="Updated "+new Date(generatedAt).toLocaleString()+" · Correlation ID "+(typeof d.correlation_id==="string"&&d.correlation_id.trim()?d.correlation_id:"Not supplied");
+        if(token!==pageLoadToken||activePage!==page)return;
         $("stat-users").textContent=d.users;$("stat-requests").textContent=d.requests;renderOverviewBars(d);$("generated").textContent="Updated "+new Date(d.generated_at).toLocaleString()+" · Correlation ID "+d.correlation_id;
       }
       if(page==="users") await loadUsers();
