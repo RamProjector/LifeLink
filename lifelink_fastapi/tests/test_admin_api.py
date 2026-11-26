@@ -451,8 +451,11 @@ def test_admin_audit_query_explicitly_types_nullable_action_filter():
     assert "correlation_id = CAST(:correlation_id AS varchar)" in audit_query
 
 
-@pytest.mark.parametrize("alert_status", [None, "open"])
-def test_security_alert_query_explicitly_types_nullable_status_filter(monkeypatch, alert_status):
+@pytest.mark.parametrize(
+    ("alert_status", "correlation_id"),
+    [(None, None), ("open", "web:alert-123")],
+)
+def test_security_alert_query_explicitly_types_nullable_filters(monkeypatch, alert_status, correlation_id):
     from app import admin_api
 
     class EmptyRows:
@@ -468,6 +471,7 @@ def test_security_alert_query_explicitly_types_nullable_status_filter(monkeypatc
             self.statements.append(sql)
             if "FROM lifelink_security_alerts" in sql:
                 assert params["status"] == alert_status
+                assert params["correlation_id"] == correlation_id
                 return EmptyRows()
             return None
 
@@ -489,6 +493,8 @@ def test_security_alert_query_explicitly_types_nullable_status_filter(monkeypatc
             limit=50,
             offset=0,
             alert_status=alert_status,
+            correlation_id=correlation_id,
+            x_correlation_id="web:alerts-list",
         )
         assert response["items"] == []
 
@@ -496,6 +502,8 @@ def test_security_alert_query_explicitly_types_nullable_status_filter(monkeypatc
     alert_query = next(statement for statement in session.statements if "FROM lifelink_security_alerts" in statement)
     assert "CAST(:status AS varchar) IS NULL" in alert_query
     assert "status = CAST(:status AS varchar)" in alert_query
+    assert "CAST(:correlation_id AS varchar) IS NULL" in alert_query
+    assert "correlation_id = CAST(:correlation_id AS varchar)" in alert_query
 
 
 @pytest.mark.parametrize("correlation_id", [None, "web:error-123"])
@@ -542,3 +550,49 @@ def test_admin_errors_query_explicitly_types_nullable_correlation_filter(monkeyp
     )
     assert "CAST(:correlation_id AS varchar) IS NULL" in error_query
     assert "correlation_id = CAST(:correlation_id AS varchar)" in error_query
+
+
+@pytest.mark.parametrize("correlation_id", [None, "web:session-123"])
+def test_admin_sessions_query_exposes_and_filters_related_correlation(monkeypatch, correlation_id):
+    from app import admin_api
+
+    class EmptyRows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class SessionQuerySession(FakeSession):
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            self.statements.append(sql)
+            if "FROM lifelink_user_sessions s" in sql:
+                assert params["correlation_id"] == correlation_id
+                return EmptyRows()
+            return None
+
+    async def no_audit(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(admin_api, "_write_audit", no_audit)
+    session = SessionQuerySession()
+
+    async def check():
+        response = await admin_api.admin_list_sessions(
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            limit=50,
+            offset=0,
+            correlation_id=correlation_id,
+            x_correlation_id="web:sessions-list",
+        )
+        assert response["items"] == []
+
+    asyncio.run(check())
+    query = next(statement for statement in session.statements if "FROM lifelink_user_sessions s" in statement)
+    assert "latest.correlation_id AS last_correlation_id" in query
+    assert "LEFT JOIN LATERAL" in query
+    assert "CAST(:correlation_id AS varchar) IS NULL" in query
+    assert "filtered.correlation_id = CAST(:correlation_id AS varchar)" in query
