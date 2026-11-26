@@ -440,3 +440,50 @@ def test_admin_audit_query_explicitly_types_nullable_action_filter():
     assert "action = CAST(:action AS varchar)" in audit_query
     assert "CAST(:correlation_id AS varchar) IS NULL" in audit_query
     assert "correlation_id = CAST(:correlation_id AS varchar)" in audit_query
+
+
+@pytest.mark.parametrize("alert_status", [None, "open"])
+def test_security_alert_query_explicitly_types_nullable_status_filter(monkeypatch, alert_status):
+    from app import admin_api
+
+    class EmptyRows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class AlertQuerySession(FakeSession):
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            self.statements.append(sql)
+            if "FROM lifelink_security_alerts" in sql:
+                assert params["status"] == alert_status
+                return EmptyRows()
+            return None
+
+    async def no_rbac_scan(*args, **kwargs):
+        return 0
+
+    async def no_audit(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(admin_api, "_scan_rbac_discrepancies", no_rbac_scan)
+    monkeypatch.setattr(admin_api, "_write_audit", no_audit)
+    session = AlertQuerySession()
+
+    async def check():
+        response = await admin_api.admin_security_alerts(
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            limit=50,
+            offset=0,
+            alert_status=alert_status,
+        )
+        assert response["items"] == []
+
+    asyncio.run(check())
+    alert_query = next(statement for statement in session.statements if "FROM lifelink_security_alerts" in statement)
+    assert "CAST(:status AS varchar) IS NULL" in alert_query
+    assert "status = CAST(:status AS varchar)" in alert_query
