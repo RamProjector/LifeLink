@@ -7,6 +7,7 @@ import androidx.work.ListenableWorker
 import com.google.gson.Gson
 import com.lifelink.app.core.auth.AuthSession
 import com.lifelink.app.core.auth.AuthSessionStore
+import com.lifelink.app.core.auth.TestSessionCipher
 import com.lifelink.app.data.local.DonorRequestEntity
 import com.lifelink.app.data.local.EmergencyRequestDraftEntity
 import com.lifelink.app.data.local.LifeLinkDatabase
@@ -109,13 +110,13 @@ class AccountPersistenceTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val preferences = context.getSharedPreferences("lifelink_auth", Context.MODE_PRIVATE)
         preferences.edit().clear().putString("access_token", "legacy-token").commit()
-        assertNull(AuthSessionStore(context).session.value)
+        assertNull(AuthSessionStore(context, TestSessionCipher()).session.value)
         preferences.edit().clear().commit()
     }
 
     @Test fun accountRemovalTriggersCleanupWithoutAnActivity() = runBlocking {
         val removedAccounts = mutableListOf<String>()
-        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>()) {
+        val store = AuthSessionStore(ApplicationProvider.getApplicationContext<Context>(), TestSessionCipher()) {
             removedAccounts += it
             null
         }
