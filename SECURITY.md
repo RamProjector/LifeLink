@@ -18,9 +18,10 @@ LifeLink is a coordination platform. Treat account identifiers, contact details,
 - Both legacy and encrypted auth preference files are excluded from Android backup and device transfer.
 - Sign-out clears local credentials immediately and requests Supabase Auth sign-out for the current device session (`scope=local`). If the network request fails, the user remains signed out locally but server-side revocation is unconfirmed; the app displays a warning.
 
-## Known project-level hardening item
+## Known project-level hardening items
 
-The Supabase Security Advisor reported **Leaked Password Protection disabled** on 2026-11-26. This is a Supabase Auth project setting, not an application-code switch. Enable it in the Supabase Dashboard's Auth password-security settings when the project plan supports the feature, then re-run the Security Advisor.
+- **Leaked Password Protection is disabled.** The live Supabase Security Advisor reported this warning on 2026-11-26. The LifeLink Supabase organization is currently on the Free plan, and Supabase documents this feature as Pro-plan-only. It cannot be enabled through application code or a database migration. Do not upgrade the project without explicit cost approval. Revisit this control if the organization later chooses a paid plan.
+- **RLS enabled without policies is currently intentional for backend-only tables.** A live metadata check on 2026-11-26 confirmed that all 22 public base tables have RLS enabled and none grant table privileges to the `anon` or `authenticated` roles. The Security Advisor's 17 `rls_enabled_no_policy` findings are informational in this setup; do not add broad client policies or grants just to silence them. Recheck grants and policies whenever a table's access model changes.
 
 ## Firebase / Google API key in `google-services.json`
 
