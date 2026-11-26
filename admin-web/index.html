@@ -656,6 +656,28 @@ tbody tr:last-child td { border-bottom: 0; }
 #alerts-page { padding-left: 4px; }
 #page-alerts .empty strong { color: var(--ink); font-size: 14px; }
 
+/* Security and diagnostic signal clarity */
+.alerts-scope-note { display:flex; align-items:flex-start; gap:9px; margin:11px 0 13px; padding:10px 12px; border:1px solid var(--md-outline-variant); border-radius:var(--radius-md); background:var(--md-surface-container-low); color:var(--ink-soft); font-size:11px; line-height:1.5; }
+.alerts-scope-note .ll-icon { flex:0 0 auto; color:var(--accent-strong); }
+#alerts-table .tag.severity-critical { background:#f7e4e1; color:#842c25; border:1px solid #e8c3bd; }
+#alerts-table .tag.severity-high { background:#f8ece5; color:#91472c; border:1px solid #ecd2c5; }
+#alerts-table .tag.severity-medium { background:#f5efdf; color:#765b27; border:1px solid #e9ddbd; }
+#alerts-table .tag.severity-low { background:#e9efe9; color:#48624d; border:1px solid #d1dfd2; }
+#alerts-table .tag.status-open { background:#f5efdf; color:#765b27; }
+#alerts-table .tag.status-acknowledged { background:#e9edf0; color:#465c69; }
+#alerts-table .tag.status-investigating { background:#ece9f3; color:#5c4e78; }
+#alerts-table .tag.status-resolved { background:#e9efe9; color:#48624d; }
+#alerts-table .tag.status-false_positive { background:#efeeeb; color:#66645e; }
+#alerts-table .actions button { min-width:100px; }
+#errors-table .tag.neutral { background:var(--md-surface-container-high); color:var(--ink-soft); }
+#errors-table .event-recorded { gap:7px; }
+#errors-table .event-recorded .tag { white-space:normal; overflow-wrap:anywhere; }
+#errors-table .cell-detail pre { tab-size:2; }
+@media(max-width:620px) {
+ .alerts-scope-note { padding:10px; }
+ #alerts-table .actions { min-width:190px; }
+}
+
 /* Shared data tables: clear scope, accessible status, consistent density */
 .table-toolbar { gap:10px 14px; }
 .table-toolbar .search-wrap { min-width:min(100%,220px); }
@@ -1144,7 +1166,7 @@ tbody tr:hover { background: #f0eee7; }
   <div class="actions sessions-pagination"><button id="sessions-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="sessions-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="sessions-page" class="muted small" aria-live="polite"></span></div>
  </section>
  <section id="page-alerts" aria-labelledby="page-title" class="panel hidden">
-  <div class="alerts-intro"><div><h2>Security alerts</h2><p class="muted small">Incidents are deduplicated. Review severity, investigation status, and supporting evidence before taking action.</p></div><div class="severity-key" role="group" aria-label="Severity levels"><span class="tag severity-critical">Critical</span><span class="tag severity-high">High</span><span class="tag severity-medium">Medium</span><span class="tag severity-low">Low</span></div></div>
+  <div class="alerts-intro"><div><h2>Security alerts</h2><p class="muted small">Incidents are deduplicated. Assess severity first, then review investigation status and supporting evidence before changing an incident.</p></div><div class="severity-key" role="group" aria-label="Severity levels"><span class="tag severity-critical">Critical</span><span class="tag severity-high">High</span><span class="tag severity-medium">Medium</span><span class="tag severity-low">Low</span></div></div><p class="alerts-scope-note"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><span>Severity describes potential impact; status describes investigation progress. They are independent fields.</span></p>
   <div class="table-toolbar alerts-toolbar"><label class="small" for="alert-status-filter">Investigation status</label><select id="alert-status-filter" aria-label="Filter security alerts by investigation status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select><span class="muted small">Severity is shown separately from investigation status.</span></div>
   <div id="alerts-table" class="tablewrap" aria-live="polite"><div class="empty">Select Security alerts to load incidents.</div></div>
   <div class="actions alerts-pagination"><button id="alerts-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="alerts-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="alerts-page" class="muted small" aria-live="polite"></span></div>
@@ -1430,7 +1452,7 @@ async function loadUsers() {
          {label:"Incident",render:a=>'<strong>'+esc(a.summary||"No summary provided")+'</strong><br><span class="muted small">'+esc(a.occurrences??"—")+' occurrences</span>'},
          {label:"Last seen",render:a=>esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")},
          {label:"Evidence / history",render:a=>'<details class="cell-detail"><summary>View evidence &amp; history</summary><p class="small">Created: '+esc(a.created_at?new Date(a.created_at).toLocaleString():"—")+'</p><p class="small">Acknowledged: '+esc(a.acknowledged_at?new Date(a.acknowledged_at).toLocaleString():"—")+' · By '+esc(a.acknowledged_by||"—")+'</p><p class="small">Resolved: '+esc(a.resolved_at?new Date(a.resolved_at).toLocaleString():"—")+' · By '+esc(a.resolved_by||"—")+'</p><p class="small">Correlation: <code>'+esc(a.correlation_id||"—")+'</code></p><pre>'+esc(JSON.stringify(a.evidence||{},null,2))+'</pre></details>'},
-         {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" data-alert="'+esc(a.id)+'" data-status="acknowledged"><span class="ll-icon" data-icon="check"></span>Acknowledge</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="investigating"><span class="ll-icon" data-icon="search"></span>Investigate</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="false_positive">False positive</button><button data-alert="'+esc(a.id)+'" data-status="resolved"><span class="ll-icon" data-icon="shieldCheck"></span>Resolve</button></div>'}
+         {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" aria-label="Acknowledge alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="acknowledged"><span class="ll-icon" data-icon="check"></span>Acknowledge</button><button class="secondary" aria-label="Investigate alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="investigating"><span class="ll-icon" data-icon="search"></span>Investigate</button><button class="secondary" aria-label="Mark alert '+esc(a.rule_id||a.id||"record")+' as false positive" data-alert="'+esc(a.id)+'" data-status="false_positive">False positive</button><button aria-label="Resolve alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="resolved"><span class="ll-icon" data-icon="shieldCheck"></span>Resolve</button></div>'}
        ]);
      }
      renderIcons(tableEl);
@@ -1470,7 +1492,7 @@ async function loadUsers() {
        tableEl.innerHTML='<div class="empty"><strong>No '+(kind==="audit"?"audit records":"system errors")+' found</strong><span class="muted small">'+(correlation?"No records match this correlation ID.":kind==="errors"?"No recorded errors or denied events are currently available.":"There are no audit events on this page.")+'</span></div>';
      } else {
        tableEl.innerHTML=table(data.items,[
-         {label:"Recorded",render:e=>'<div class="event-recorded"><strong>'+esc(e.timestamp||e.created_at?new Date(e.created_at||e.timestamp).toLocaleString():"—")+'</strong><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span></div>'},
+         {label:"Recorded",render:e=>{const outcome=String(e.outcome||"").toLowerCase();const outcomeClass=["error","denied","failed","failure"].includes(outcome)?"fail":["success","allowed","ok"].includes(outcome)?"success":"neutral";return '<div class="event-recorded"><strong>'+esc(e.timestamp||e.created_at?new Date(e.created_at||e.timestamp).toLocaleString():"—")+'</strong><span class="tag '+outcomeClass+'">'+esc(e.outcome||"Outcome unavailable")+'</span></div>';}},
          {label:"Event",render:e=>'<div class="event-summary"><strong>'+esc(e.action||"event")+'</strong><span class="muted small">'+esc(e.description||e.actions||"No additional description")+'</span><span class="muted small">'+esc(e.actions||"OTHER")+'</span></div>'},
          {label:"Trace",render:e=>'<div class="event-trace"><span class="muted small">Correlation</span><code title="'+esc(e.correlation_id)+'">'+esc(String(e.correlation_id||"—").slice(0,12)+(String(e.correlation_id||"").length>12?"…":""))+'</code><span class="muted small">Session</span><code title="'+esc(e.session_id)+'">'+esc(String(e.session_id||"Unavailable").slice(0,12)+(String(e.session_id||"").length>12?"…":""))+'</code></div>'},
          {label:"Actor and source",render:e=>'<div class="event-source"><code title="'+esc(e.actor_id)+'">'+esc(String(e.actor_id||"system").slice(0,12)+(String(e.actor_id||"").length>12?"…":""))+'</code><span class="muted small">'+esc(e.device_used||"Unknown device")+'</span><span class="muted small">'+esc(e.ip_address||"IP unavailable")+'</span></div>'},
