@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-zjI/UaxN98hpM07shoTufSRZ8CyL4kVEtZsoqy5ye6U='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-0KuL0v2hcf5C7jUeeCBJKPMZCIdedX6atqslLk/i2To='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -40,6 +40,11 @@
   --space-5: 20px;
   --space-6: 24px;
   --font-body: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --type-body: 14px;
+  --type-label: 12px;
+  --type-table: 12px;
+  --type-meta: 11.5px;
+  --type-micro: 10.5px;
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -47,7 +52,7 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font: 14px/1.5 var(--font-body);
+  font: var(--type-body)/1.5 var(--font-body);
 }
 button, input, select { font: inherit; }
 button {
@@ -104,12 +109,12 @@ label {
   display: block;
   margin: 16px 0 6px;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: var(--type-label);
   font-weight: 650;
 }
 .hidden { display: none !important; }
 .muted { color: var(--muted); }
-.small { font-size: 12px; }
+.small { font-size: var(--type-meta); }
 .eyebrow {
   color: #8b6b35;
   font-size: 10px;
@@ -220,7 +225,7 @@ label {
 }
 .headrow h1 {
   margin: 2px 0;
-  font-size: 25px;
+  font-size: 26px;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -.55px;
@@ -341,7 +346,7 @@ label {
   align-items: center;
   gap: 7px;
   color: #666a63;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
 }
 .stat .stat-icon {
@@ -364,7 +369,7 @@ label {
 .panel { margin-top: 11px; padding: 16px; }
 .panel h2 {
   margin: 0 0 9px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: -.1px;
 }
@@ -522,8 +527,8 @@ table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: var(--type-table);
+  line-height: 1.45;
 }
 th, td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
 th {
@@ -533,7 +538,7 @@ th {
   padding: 10px 11px;
   background: #f5f5f3;
   color: #666a63;
-  font-size: 10px;
+  font-size: var(--type-micro);
   font-weight: 750;
   letter-spacing: .45px;
   white-space: nowrap;
@@ -561,7 +566,7 @@ tbody tr:last-child td { border-bottom: 0; }
   border-radius: 5px;
   background: #eeece6;
   color: #555a51;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
 }
 .tag.success { background: #e9efe9; color: #49634f; }
