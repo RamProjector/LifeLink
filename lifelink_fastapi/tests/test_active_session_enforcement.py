@@ -84,6 +84,24 @@ def test_active_principal_rejects_revoked_or_mismatched_session():
     assert session.committed is False
 
 
+def test_active_principal_rejects_expired_supabase_session():
+    session = _Session(result_value=None)
+    principal = Principal(
+        subject="user-1",
+        session_id="expired-session",
+        session_expires_at=datetime(2026, 12, 1, tzinfo=timezone.utc),
+    )
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(get_active_postgres_principal(_request(), principal, session))
+
+    assert error.value.status_code == 401
+    assert "supabase_session.not_after IS NULL OR supabase_session.not_after > :now" in session.statement
+    assert session.params["now"].tzinfo == timezone.utc
+    assert session.rolled_back is True
+    assert session.committed is False
+
+
 def test_active_principal_rejects_missing_session_identifier():
     session = _Session()
     principal = Principal(subject="user-1")
