@@ -191,6 +191,7 @@ class SupabaseAuthRepository(
             }
         }
 
+    @Suppress("TooGenericExceptionCaught")
     suspend fun signOut(): Result<Unit> {
         val activeSession = sessionStore.session.value
         // Remove credentials from local storage immediately; the captured token is
