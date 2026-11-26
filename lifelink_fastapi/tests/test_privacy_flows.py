@@ -1892,6 +1892,21 @@ def test_migration_013_saved_messages_applies_cleanly(pg_url):
             await conn.run_sync(
                 lambda sync_conn: db_models.Base.metadata.create_all(sync_conn, tables=prerequisite_tables)
             )
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS lifelink_user_sessions (
+                    session_id VARCHAR(128) PRIMARY KEY,
+                    user_id VARCHAR(128) NOT NULL,
+                    device_used VARCHAR(255) NOT NULL DEFAULT 'unknown',
+                    ip_address VARCHAR(64),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    expires_at TIMESTAMPTZ,
+                    revoked_at TIMESTAMPTZ,
+                    revoked_by VARCHAR(128),
+                    status VARCHAR(16) NOT NULL DEFAULT 'active'
+                        CHECK (status IN ('active', 'revoked', 'expired'))
+                )
+            """))
         sql = (Path(__file__).resolve().parents[1] / "sql" / "013_saved_messages.sql").read_text()
         async with engine.begin() as conn:
             for statement in [statement.strip() for statement in sql.split(";") if statement.strip()]:
