@@ -656,6 +656,24 @@ tbody tr:last-child td { border-bottom: 0; }
 #alerts-page { padding-left: 4px; }
 #page-alerts .empty strong { color: var(--ink); font-size: 14px; }
 
+/* Role registry: explain the single privileged console role */
+.roles-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.roles-heading h2 { margin-bottom:4px; }
+.roles-heading p { max-width:720px; margin:0; }
+.roles-guidance { display:flex; align-items:flex-start; gap:10px; margin:13px 0; padding:11px 13px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface-soft); color:var(--ink-soft); font-size:11px; line-height:1.55; }
+.roles-guidance .ll-icon { flex:0 0 auto; color:var(--success); }
+.roles-guidance strong { color:var(--ink); }
+#roles-table table { min-width:540px; }
+#roles-table td:first-child strong { display:inline-block; margin-bottom:3px; color:var(--ink); }
+#roles-table td:last-child { min-width:180px; }
+#roles-table .cell-detail { margin-top:7px; }
+#roles-table .cell-detail summary { color:var(--accent-strong); cursor:pointer; font-size:11px; font-weight:650; }
+#roles-table .cell-detail pre { max-width:420px; max-height:220px; overflow:auto; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:var(--surface-soft); color:var(--ink-soft); font-size:10.5px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }
+@media(max-width:620px) {
+ .roles-guidance { padding:10px; }
+ .roles-heading .snapshot-kind { align-self:flex-start; }
+}
+
 /* Global navigation and page-transition accessibility */
 .sidebar .nav-toggle { width:100%; }
 .sidebar .nav-toggle:hover { border-color:#687267; background:#414941; }
@@ -1080,7 +1098,11 @@ tbody tr:hover { background: #f0eee7; }
   <div class="panel analytics-chart-panel"><div class="analytics-section-heading"><div><h2>Events by day</h2><p class="muted small">Distribution within the latest returned sample, grouped by local calendar day.</p></div></div><div id="analytics-chart" role="img" aria-label="Audit event counts by day within the latest returned sample"><div class="empty">Loading analytics…</div></div></div>
   <div class="panel analytics-actions-panel"><div class="analytics-section-heading"><div><h2>Most frequent actions</h2><p class="muted small">Top action names in the same sample, ranked by count.</p></div></div><div id="analytics-actions"><div class="empty">Loading action summary…</div></div></div>
  </section>
- <section id="page-roles" aria-labelledby="page-title" class="panel hidden"><h2>Role and permission registry</h2><p class="muted small">Read-only role and permission registry. Assignments remain protected by backend RBAC.</p><div id="roles-table" class="tablewrap"><div class="empty">Loading role registry…</div></div></section>
+ <section id="page-roles" aria-labelledby="page-title" class="panel hidden">
+  <div class="roles-heading"><div><h2>Role registry</h2><p class="muted small">Review the roles and permissions configured by the backend. This page is read-only; it does not create roles or change assignments.</p></div><span class="snapshot-kind">Read only</span></div>
+  <div class="roles-guidance"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><div><strong>One privileged console role: Admin.</strong> Administrative access is verified by the server. Requester and Donor are app capabilities, not additional administrator roles, and cannot grant access to this console.</div></div>
+  <div id="roles-table" class="tablewrap" aria-live="polite"><div class="empty">Select Role registry to load configured roles and permissions.</div></div>
+ </section>
  <section id="page-users" aria-labelledby="page-title" class="panel hidden"><div class="users-intro"><div><h2>User management</h2><p class="muted small">Review account identity, profile role, and app access. Requester and Donor capabilities are managed here; administrator access is verified separately by the server and cannot be granted from this screen.</p></div><div class="users-legend" aria-label="Capability status legend"><span class="tag success">Enabled</span><span class="tag">Disabled</span></div></div><div class="users-guide"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><div><strong>Capability changes are audited.</strong> The profile role is separate from the Requester and Donor capability switches. Search and CSV export apply to the records on the current page.</div></div><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions users-pagination"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
  <section id="page-audit" aria-labelledby="page-title" class="panel hidden">
   <div class="audit-heading"><div><h2>Audit activity</h2><p class="muted small">Read-only record of administrative and platform events. Use exact action names or correlation IDs to trace related activity.</p></div><span class="snapshot-kind">Read only</span></div>
@@ -1450,7 +1472,7 @@ async function loadUsers() {
 
  async function loadRoles() {
     const token=pageLoadToken,tableEl=$("roles-table");
-    setLoadingState("roles-table","Loading role registry","Retrieving configured roles and permissions…");
+    setLoadingState("roles-table","Loading configured roles","Retrieving the server-defined role and permission records…");
     try {
       const data=await api("/v1/admin/roles");
       if(token!==pageLoadToken||activePage!=="roles")return;
