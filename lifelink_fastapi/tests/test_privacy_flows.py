@@ -61,7 +61,7 @@ def run_scenario(pg_url: str, scenario):
 
         app.dependency_overrides[get_db_session] = session_dependency
         app.dependency_overrides[get_postgres_principal] = lambda: Principal(
-            subject=current["id"], email=f"{current['id']}@example.com"
+            subject=current["id"], email=f"{current['id']}@example.com", session_id=f"test-session-{current['id']}"
         )
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
         try:
