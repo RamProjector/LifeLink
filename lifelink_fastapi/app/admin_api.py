@@ -441,7 +441,7 @@ async def admin_security_alerts(
             "SELECT id, rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, "
             "created_at, last_seen_at, acknowledged_at, acknowledged_by, resolved_at, resolved_by, correlation_id "
             "FROM lifelink_security_alerts "
-            "WHERE (:status IS NULL OR status = :status) "
+            "WHERE (CAST(:status AS varchar) IS NULL OR status = CAST(:status AS varchar)) "
             "ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, "
             "last_seen_at DESC LIMIT :limit OFFSET :offset"
         ),
