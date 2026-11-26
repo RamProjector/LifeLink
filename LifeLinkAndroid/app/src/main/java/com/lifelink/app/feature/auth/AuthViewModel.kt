@@ -17,8 +17,9 @@ sealed interface AuthState {
     data object Loading : AuthState
     data object SignedOut : AuthState
     data object SessionExpired : AuthState
-    data class SignedIn(val session: AuthSession) : AuthState
+    data class SignedIn(val session: AuthSession, val emailChangePending: Boolean = false) : AuthState
     data object EmailConfirmationRequired : AuthState
+    data object EmailChangePending : AuthState
     data class PasswordResetReady(val email: String?, val accessToken: String) : AuthState
     data object PasswordResetComplete : AuthState
     data class Message(val text: String, val isError: Boolean = false) : AuthState
@@ -35,8 +36,14 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
                 // A recovery callback takes priority over a previously persisted session.
                 // Otherwise opening a reset link while already signed in immediately
                 // routes to the app shell before the user can choose a new password.
-                if (_state.value !is AuthState.PasswordResetReady && _state.value !is AuthState.PasswordResetComplete) {
-                    _state.value = if (session != null) AuthState.SignedIn(session) else AuthState.SignedOut
+                if (
+                    _state.value !is AuthState.PasswordResetReady &&
+                    _state.value !is AuthState.PasswordResetComplete &&
+                    _state.value != AuthState.EmailChangePending
+                ) {
+                    val emailChangePending = (_state.value as? AuthState.SignedIn)?.emailChangePending == true
+                    _state.value =
+                        if (session != null) AuthState.SignedIn(session, emailChangePending) else AuthState.SignedOut
                 }
             }
         }
@@ -56,17 +63,32 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
         if (uri == null) return
         repository.parseAuthCallback(uri)
             .onSuccess { callback ->
-                if (callback.kind == AuthCallbackKind.RECOVERY) {
-                    _state.value = AuthState.PasswordResetReady(callback.email, callback.accessToken)
-                } else {
-                    viewModelScope.launch {
-                        _state.value = AuthState.Loading
-                        repository.completeEmailConfirmation(callback)
-                            .onSuccess { session -> _state.value = AuthState.SignedIn(session) }
-                            .onFailure {
-                                _state.value =
-                                    AuthState.Message(it.message ?: "Account confirmation could not be completed. Please sign in.", true)
+                when (callback.kind) {
+                    AuthCallbackKind.RECOVERY -> {
+                        _state.value = AuthState.PasswordResetReady(callback.email, callback.accessToken)
+                    }
+                    AuthCallbackKind.EMAIL_CHANGE_PENDING -> {
+                        val session = repository.session.value
+                        _state.value =
+                            if (session != null) {
+                                AuthState.SignedIn(session, emailChangePending = true)
+                            } else {
+                                AuthState.EmailChangePending
                             }
+                    }
+                    AuthCallbackKind.CONFIRMATION, AuthCallbackKind.EMAIL_CHANGE -> {
+                        viewModelScope.launch {
+                            _state.value = AuthState.Loading
+                            repository.completeEmailConfirmation(callback)
+                                .onSuccess { session -> _state.value = AuthState.SignedIn(session) }
+                                .onFailure {
+                                    _state.value =
+                                        AuthState.Message(
+                                            it.message ?: "Account confirmation could not be completed. Please sign in.",
+                                            true,
+                                        )
+                                }
+                        }
                     }
                 }
             }

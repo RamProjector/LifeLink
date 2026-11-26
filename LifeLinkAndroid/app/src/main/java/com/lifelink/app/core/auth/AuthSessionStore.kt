@@ -8,10 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class AuthSessionStore(
-    context: Context,
-    private val onAccountRemoved: (String) -> Job? = { null }
-) {
+class AuthSessionStore(context: Context, private val onAccountRemoved: (String) -> Job? = { null }) {
     private val preferences = context.getSharedPreferences("lifelink_auth", Context.MODE_PRIVATE)
     private val _session = MutableStateFlow(readSession())
     val session: StateFlow<AuthSession?> = _session.asStateFlow()
@@ -62,6 +59,27 @@ class AuthSessionStore(
         return true
     }
 
+    /**
+     * Replace the stored credentials with the complete session returned by the
+     * successful same-account re-authentication. A password change can terminate
+     * the previous Supabase session, so its refresh token must never be paired
+     * with the newly verified access token. Never overwrite a signed-out or
+     * different-account state; a concurrent refresh of the old session is safely
+     * superseded by this newly verified token pair.
+     */
+    @Synchronized
+    fun replaceForUser(
+        userId: String,
+        expected: AuthSession,
+        replacement: AuthSession,
+    ): Boolean {
+        if (expected.userId != userId || replacement.userId != userId) return false
+        val current = _session.value ?: return false
+        if (current.userId != userId) return false
+        saveImmediately(replacement)
+        return true
+    }
+
     private fun scheduleCleanup(ownerId: String) {
         val job = onAccountRemoved(ownerId) ?: return
         cleanupJobs[ownerId] = job
@@ -83,14 +101,9 @@ class AuthSessionStore(
             accessToken = accessToken,
             refreshToken = preferences.getString("refresh_token", "").orEmpty(),
             userId = userId,
-            email = preferences.getString("email", "").orEmpty()
+            email = preferences.getString("email", "").orEmpty(),
         )
     }
 }
 
-data class AuthSession(
-    val accessToken: String,
-    val refreshToken: String,
-    val userId: String,
-    val email: String
-)
+data class AuthSession(val accessToken: String, val refreshToken: String, val userId: String, val email: String)

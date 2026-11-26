@@ -86,7 +86,7 @@ class SupabaseAuthRepository(
 
     suspend fun completeEmailConfirmation(callback: AuthCallback): Result<AuthSession> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            cancellableResult {
                 val response =
                     api?.getUser(
                         publishableKey,
@@ -109,10 +109,22 @@ class SupabaseAuthRepository(
     fun parseAuthCallback(uri: Uri): Result<AuthCallback> =
         runCatching {
             require(uri.scheme == "lifelink" && uri.host == "auth") { "This is not a LifeLink authentication link." }
+            val path = uri.path.orEmpty().trimEnd('/')
             val type = uri.getQueryParameter("type") ?: uri.getFragmentParameter("type")
             val accessToken = uri.getQueryParameter("access_token") ?: uri.getFragmentParameter("access_token")
+            if (path == "/email-change") {
+                val message = uri.getQueryParameter("message") ?: uri.getFragmentParameter("message")
+                if (message?.replace("+", " ") == EMAIL_CHANGE_FIRST_CONFIRMATION_MESSAGE) {
+                    return@runCatching AuthCallback(
+                        kind = AuthCallbackKind.EMAIL_CHANGE_PENDING,
+                        email = null,
+                        accessToken = "",
+                        refreshToken = null,
+                    )
+                }
+                require(type == "email_change") { "This link is not an email-change confirmation link." }
+            }
             require(!accessToken.isNullOrBlank()) { "The authentication link is missing its confirmation token." }
-            val path = uri.path.orEmpty().trimEnd('/')
             val kind =
                 when (path) {
                     "/recovery" -> {
@@ -123,6 +135,7 @@ class SupabaseAuthRepository(
                         require(type == "signup" || type == "email") { "This link is not an account-confirmation link." }
                         AuthCallbackKind.CONFIRMATION
                     }
+                    "/email-change" -> AuthCallbackKind.EMAIL_CHANGE
                     else -> error("This LifeLink authentication link is no longer supported.")
                 }
             AuthCallback(
@@ -133,9 +146,51 @@ class SupabaseAuthRepository(
             )
         }
 
+    /**
+     * Requests an email change through Supabase Auth. The local session is deliberately
+     * left unchanged until the new address is confirmed and the authenticated user is re-read.
+     */
+    suspend fun requestEmailChange(userId: String, accessToken: String, email: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            cancellableResult {
+                require(userId.isNotBlank()) { "Sign in again before changing your email." }
+                require(accessToken.isNotBlank()) { "Sign in again before changing your email." }
+                require(EMAIL_PATTERN.matches(email.trim())) { "Enter a valid email address." }
+                if (publishableKey.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
+                val currentSession = sessionStore.session.value
+                    ?.takeIf { it.userId == userId }
+                    ?: error("Your signed-in account changed. Please try again.")
+                val authApi = api ?: error("Supabase URL is not configured")
+                var token = currentSession.accessToken.ifBlank { accessToken }
+                var response = authApi.updateEmail(
+                    publishableKey,
+                    "Bearer $token",
+                    EmailUpdateRequest(email.trim()),
+                    EMAIL_CHANGE_REDIRECT_URI,
+                )
+                if (response.code() == 401) {
+                    token = refreshAccessToken()
+                        ?.takeIf { sessionStore.session.value?.userId == userId }
+                        ?: error("Your session expired. Please sign in again and retry.")
+                    response = authApi.updateEmail(
+                        publishableKey,
+                        "Bearer $token",
+                        EmailUpdateRequest(email.trim()),
+                        EMAIL_CHANGE_REDIRECT_URI,
+                    )
+                }
+                require(sessionStore.session.value?.userId == userId) {
+                    "Your signed-in account changed. Please sign in again."
+                }
+                if (!response.isSuccessful) {
+                    error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+                }
+            }
+        }
+
     suspend fun updatePassword(accessToken: String, password: String): Result<Unit> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            cancellableResult {
                 if (publishableKey.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
                 val response =
                     api?.updateUser(
@@ -144,6 +199,64 @@ class SupabaseAuthRepository(
                         PasswordUpdateRequest(password),
                     ) ?: error("Supabase URL is not configured")
                 if (!response.isSuccessful) error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+            }
+        }
+
+    /**
+     * Changes the password only after Supabase has re-authenticated the same signed-in user
+     * with their current password. The verified session replaces the local session only after
+     * the password update succeeds; access and refresh tokens are never written to logs.
+     */
+    suspend fun changePassword(userId: String, currentPassword: String, newPassword: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            cancellableResult {
+                require(userId.isNotBlank()) { "Sign in again before changing your password." }
+                require(currentPassword.isNotBlank()) { "Enter your current password." }
+                require(newPassword.length >= MIN_PASSWORD_LENGTH) { "Use a password with at least 6 characters." }
+                val currentSession = sessionStore.session.value
+                    ?.takeIf { it.userId == userId }
+                    ?: error("Your signed-in account changed. Please try again.")
+                if (publishableKey.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
+                val authApi = api ?: error("Supabase URL is not configured")
+                val verification = authApi.signIn(
+                    publishableKey,
+                    AuthRequest(currentSession.email, currentPassword),
+                )
+                if (!verification.isSuccessful) {
+                    error(readableAuthError(verification.errorBody()?.string().orEmpty(), verification.code()))
+                }
+                val verified = verification.body() ?: error("Supabase returned an empty sign-in response")
+                require(verified.user?.id == userId) {
+                    "The current password did not verify this signed-in account."
+                }
+                val verifiedToken = verified.accessToken?.takeIf { it.isNotBlank() }
+                    ?: error("Supabase did not return a verified session. Please sign in again.")
+                val verifiedRefreshToken = verified.refreshToken?.takeIf { it.isNotBlank() }
+                    ?: error("Supabase did not return a complete verified session. Please sign in again.")
+                require(sessionStore.session.value?.userId == userId) {
+                    "Your signed-in account changed. Please sign in again."
+                }
+                val response = authApi.updateUser(
+                    publishableKey,
+                    "Bearer $verifiedToken",
+                    PasswordUpdateRequest(newPassword),
+                )
+                require(sessionStore.session.value?.userId == userId) {
+                    "Your signed-in account changed. Please sign in again."
+                }
+                if (!response.isSuccessful) {
+                    error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+                }
+                val verifiedSession = AuthSession(
+                    accessToken = verifiedToken,
+                    refreshToken = verifiedRefreshToken,
+                    userId = userId,
+                    email = verified.user?.email ?: currentSession.email,
+                )
+                if (!sessionStore.replaceForUser(userId, currentSession, verifiedSession)) {
+                    error("Your session changed during the password update. Please sign in again.")
+                }
+                Unit
             }
         }
 
@@ -195,7 +308,7 @@ class SupabaseAuthRepository(
 
     private suspend fun authenticate(call: suspend () -> Response<SupabaseAuthResponse>): Result<AuthResult> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            cancellableResult {
                 if (publishableKey.isBlank()) {
                     error("Add the Supabase URL and publishable key to the Android build")
                 }
@@ -221,11 +334,21 @@ class SupabaseAuthRepository(
 
     private suspend fun simpleAuthAction(call: suspend () -> Response<Unit>): Result<Unit> =
         withContext(Dispatchers.IO) {
-            runCatching {
-                if (publishableKey.isBlank()) error("Add the Supabase URL and publishable key to the Android build")
+            cancellableResult {
+                if (publishableKey.isBlank()) {
+                    error("Add the Supabase URL and publishable key to the Android build")
+                }
                 val response = call()
-                if (!response.isSuccessful) error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+                if (!response.isSuccessful) {
+                    error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+                }
             }
+        }
+
+    /** Preserve structured-concurrency cancellation instead of converting it into Result.failure. */
+    private suspend fun <T> cancellableResult(block: suspend () -> T): Result<T> =
+        runCatching { block() }.onFailure { failure ->
+            if (failure is CancellationException) throw failure
         }
 
     private fun readableAuthError(raw: String, statusCode: Int): String {
@@ -254,6 +377,11 @@ class SupabaseAuthRepository(
     private companion object {
         const val RECOVERY_REDIRECT_URI = "lifelink://auth/recovery"
         const val SIGNUP_REDIRECT_URI = "lifelink://auth/confirm"
+        const val EMAIL_CHANGE_REDIRECT_URI = "lifelink://auth/email-change"
+        const val EMAIL_CHANGE_FIRST_CONFIRMATION_MESSAGE =
+            "Confirmation link accepted. Please proceed to confirm link sent to the other email"
+        const val MIN_PASSWORD_LENGTH = 6
+        val EMAIL_PATTERN = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
     }
 }
 
@@ -310,6 +438,14 @@ private interface SupabaseAuthApi {
         @Header("Authorization") authorization: String,
         @Body request: PasswordUpdateRequest,
     ): Response<SupabaseUser>
+
+    @PUT("auth/v1/user")
+    suspend fun updateEmail(
+        @Header("apikey") publishableKey: String,
+        @Header("Authorization") authorization: String,
+        @Body request: EmailUpdateRequest,
+        @Query("redirect_to") redirectTo: String,
+    ): Response<SupabaseUser>
 }
 
 // Every field that crosses the Supabase wire is pinned with an explicit
@@ -331,11 +467,13 @@ data class PasswordRecoveryRequest(@SerializedName("email") val email: String)
 
 data class ResendRequest(@SerializedName("type") val type: String, @SerializedName("email") val email: String)
 
-enum class AuthCallbackKind { RECOVERY, CONFIRMATION }
+enum class AuthCallbackKind { RECOVERY, CONFIRMATION, EMAIL_CHANGE, EMAIL_CHANGE_PENDING }
 
 data class AuthCallback(val kind: AuthCallbackKind, val email: String?, val accessToken: String, val refreshToken: String?)
 
 data class PasswordUpdateRequest(@SerializedName("password") val password: String)
+
+data class EmailUpdateRequest(@SerializedName("email") val email: String)
 
 data class SupabaseAuthResponse(
     @SerializedName("access_token") val accessToken: String?,

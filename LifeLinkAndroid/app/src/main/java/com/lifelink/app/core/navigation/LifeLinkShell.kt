@@ -152,7 +152,7 @@ private enum class SettingsSection(val label: String) {
  */
 // This root composable intentionally coordinates shared navigation and saveable shell state.
 // Keep feature UI in destination composables; extract routing/state only when ownership can move safely.
-@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
+@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount", "LongParameterList")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3WindowSizeClassApi::class)
 @Composable
 fun LifeLinkShell(
@@ -181,6 +181,12 @@ fun LifeLinkShell(
     onMarkAllUpdatesRead: () -> Unit,
     notificationOpenUpdates: Boolean = false,
     notificationRequestId: String? = null,
+    onRequestEmailChange: (String, (String) -> Unit) -> Unit = { _, showMessage ->
+        showMessage("Email changes are not available right now.")
+    },
+    onChangePassword: (String, String, (String, Boolean) -> Unit) -> Unit = { _, _, showResult ->
+        showResult("Password changes are not available right now.", false)
+    },
 ) {
     val context = LocalContext.current
     val welcomePrefs = context.getSharedPreferences("lifelink_welcome", 0)
@@ -473,77 +479,83 @@ fun LifeLinkShell(
                         } else {
                             Modifier.widthIn(max = 840.dp).fillMaxSize()
                         }
-                    Surface(destinationModifier, color = MaterialTheme.colorScheme.background) {
-                        when (tab) {
-                            ShellTab.HOME ->
-                                HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = {
-                                    showActive =
-                                        true
-                                }, onDonor = openDonorWorkspace, updates = updates, onRequests = {
-                                    tab =
-                                        ShellTab.REQUESTS
-                                }, onOpenUpdate = { update ->
-                                    onUpdateRead(update.id)
-                                    update.requestId?.let { requestId ->
-                                        onAction(EmergencyRequestAction.OpenRequest(requestId))
-                                        showActive = true
-                                    } ?: run { showNotifications = true }
-                                }, onRefreshHistory = {
-                                    onAction(EmergencyRequestAction.RefreshHistory)
-                                })
-                            ShellTab.REQUESTS ->
-                                RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = {
-                                    showRequest =
-                                        true
-                                }, onActive = { showActive = true })
-                            ShellTab.MAP ->
-                                DonorMapScreen(
-                                    state = privacyState,
-                                    onAction = onPrivacyAction,
-                                    onBack = { tab = ShellTab.HOME },
-                                    eligibleDonors = state.discoveredDonors,
-                                    onRequestChat = state.activeRequest?.requestId?.let { requestId ->
-                                        { donor -> openConversation(requestId, donor.donorId) }
-                                    },
-                                    centerLatitude = state.draft.requesterLatitude,
-                                    centerLongitude = state.draft.requesterLongitude,
-                                    showCloseButton = false,
-                                    embeddedInShell = true,
-                                )
-                            ShellTab.UPDATES ->
-                                MessagingScreen(
-                                    state = privacyState,
-                                    onAction = onPrivacyAction,
-                                    onOpenConversation = openConversation,
-                                    currentUserId = accountUserId,
-                                    useListDetailLayout = windowSize.widthSizeClass == WindowWidthSizeClass.Expanded,
-                                    targetConversationId = notificationRequestId
-                                        ?.takeIf { it.startsWith("conversation:") }
-                                        ?.substringAfter("conversation:")
-                                        ?.substringBefore("|"),
-                                    targetConversationEventId = notificationRequestId
-                                        ?.takeIf { it.startsWith("conversation:") }
-                                        ?.substringAfter("|"),
-                                )
-                            ShellTab.SETTINGS ->
-                                SettingsContent(
-                                    role,
-                                    accountEmail,
-                                    accountDisplayName,
-                                    profileSaving,
-                                    profileMessage,
-                                    onSaveProfile,
-                                    themeMode,
-                                    onThemeModeChange,
-                                    onRequestPasswordReset,
-                                    onSwitchRole,
-                                    onOpenDonor = openDonorWorkspace,
-                                    onBecomeDonor = {
-                                        showStart = false
-                                        showBecomeDonor = true
-                                    },
-                                    onSignOut = onSignOut,
-                                )
+                    screenStateHolder.SaveableStateProvider("tab-${tab.name}") {
+                        Surface(destinationModifier, color = MaterialTheme.colorScheme.background) {
+                            when (tab) {
+                                ShellTab.HOME ->
+                                    HomeContent(state, donorState, role, onCreate = { showRequest = true }, onActive = {
+                                        showActive =
+                                            true
+                                    }, onDonor = openDonorWorkspace, updates = updates, onRequests = {
+                                        tab =
+                                            ShellTab.REQUESTS
+                                    }, onOpenUpdate = { update ->
+                                        onUpdateRead(update.id)
+                                        update.requestId?.let { requestId ->
+                                            onAction(EmergencyRequestAction.OpenRequest(requestId))
+                                            showActive = true
+                                        } ?: run { showNotifications = true }
+                                    }, onRefreshHistory = {
+                                        onAction(EmergencyRequestAction.RefreshHistory)
+                                    })
+                                ShellTab.REQUESTS ->
+                                    RequestsContent(state, onAction = onAction, onCreate = { showRequest = true }, onOpen = {
+                                        showRequest =
+                                            true
+                                    }, onActive = { showActive = true })
+                                ShellTab.MAP ->
+                                    DonorMapScreen(
+                                        state = privacyState,
+                                        onAction = onPrivacyAction,
+                                        onBack = { tab = ShellTab.HOME },
+                                        eligibleDonors = state.discoveredDonors,
+                                        onRequestChat = state.activeRequest?.requestId?.let { requestId ->
+                                            { donor -> openConversation(requestId, donor.donorId) }
+                                        },
+                                        centerLatitude = state.draft.requesterLatitude,
+                                        centerLongitude = state.draft.requesterLongitude,
+                                        showCloseButton = false,
+                                        embeddedInShell = true,
+                                        onOpenNotifications = { showNotifications = true },
+                                        onOpenProfile = { tab = ShellTab.SETTINGS },
+                                    )
+                                ShellTab.UPDATES ->
+                                    MessagingScreen(
+                                        state = privacyState,
+                                        onAction = onPrivacyAction,
+                                        onOpenConversation = openConversation,
+                                        currentUserId = accountUserId,
+                                        useListDetailLayout = windowSize.widthSizeClass == WindowWidthSizeClass.Expanded,
+                                        targetConversationId = notificationRequestId
+                                            ?.takeIf { it.startsWith("conversation:") }
+                                            ?.substringAfter("conversation:")
+                                            ?.substringBefore("|"),
+                                        targetConversationEventId = notificationRequestId
+                                            ?.takeIf { it.startsWith("conversation:") }
+                                            ?.substringAfter("|"),
+                                    )
+                                ShellTab.SETTINGS ->
+                                    SettingsContent(
+                                        role,
+                                        accountEmail,
+                                        accountDisplayName,
+                                        profileSaving,
+                                        profileMessage,
+                                        onSaveProfile,
+                                        onRequestEmailChange,
+                                        themeMode,
+                                        onThemeModeChange,
+                                        onRequestPasswordReset,
+                                        onChangePassword,
+                                        onSwitchRole,
+                                        onOpenDonor = openDonorWorkspace,
+                                        onBecomeDonor = {
+                                            showStart = false
+                                            showBecomeDonor = true
+                                        },
+                                        onSignOut = onSignOut,
+                                    )
+                            }
                         }
                     }
                 }
@@ -1496,9 +1508,11 @@ private fun SettingsContent(
     profileSaving: Boolean,
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
+    onRequestEmailChange: (String, (String) -> Unit) -> Unit,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     onRequestPasswordReset: ((String) -> Unit) -> Unit,
+    onChangePassword: (String, String, (String, Boolean) -> Unit) -> Unit,
     onSwitchRole: () -> Unit,
     onOpenDonor: () -> Unit,
     onBecomeDonor: () -> Unit,
@@ -1552,6 +1566,8 @@ private fun SettingsContent(
                     profileSaving,
                     profileMessage,
                     onSaveProfile,
+                    onRequestEmailChange,
+                    onChangePassword,
                     onSwitchRole,
                     onOpenDonor,
                     onBecomeDonor,
@@ -1895,6 +1911,8 @@ private fun ProfileContent(
     profileSaving: Boolean,
     profileMessage: String?,
     onSaveProfile: (String) -> Unit,
+    onRequestEmailChange: (String, (String) -> Unit) -> Unit,
+    onChangePassword: (String, String, (String, Boolean) -> Unit) -> Unit,
     onSwitchRole: () -> Unit,
     onOpenDonor: () -> Unit,
     onBecomeDonor: () -> Unit,
@@ -1978,6 +1996,11 @@ private fun ProfileContent(
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
+                AccountSecurityControls(
+                    accountEmail = accountEmail,
+                    onRequestEmailChange = onRequestEmailChange,
+                    onChangePassword = onChangePassword,
+                )
             }
         }
         Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
@@ -2017,3 +2040,149 @@ private fun ProfileContent(
         androidx.compose.material3.OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
     }
 }
+
+/** Keeps sensitive account identity changes separate from donor operational details. */
+@Composable
+private fun AccountSecurityControls(
+    accountEmail: String,
+    onRequestEmailChange: (String, (String) -> Unit) -> Unit,
+    onChangePassword: (String, String, (String, Boolean) -> Unit) -> Unit,
+) {
+    var accountActionMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    AccountEmailChangeControls(accountEmail, onRequestEmailChange)
+    PhoneAndPasswordControls(onChangePassword) { message ->
+        accountActionMessage = message
+    }
+    accountActionMessage?.let {
+        Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+    }
+}
+
+@Composable
+private fun AccountEmailChangeControls(
+    accountEmail: String,
+    onRequestEmailChange: (String, (String) -> Unit) -> Unit,
+) {
+    var emailDraft by rememberSaveable(accountEmail) { mutableStateOf(accountEmail) }
+    var emailChangeSaving by remember { mutableStateOf(false) }
+    var emailChangeMessage by rememberSaveable { mutableStateOf<String?>(null) }
+
+    HorizontalDivider()
+    Text("Account email", fontWeight = FontWeight.SemiBold)
+    OutlinedTextField(
+        value = emailDraft,
+        onValueChange = {
+            emailDraft = it.take(254)
+            emailChangeMessage = null
+        },
+        modifier = Modifier.fillMaxWidth().testTag("account-email-field"),
+        label = { Text("New email address") },
+        singleLine = true,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Email,
+            imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+        ),
+    )
+    OutlinedButton(
+        onClick = {
+            emailChangeSaving = true
+            emailChangeMessage = null
+            onRequestEmailChange(emailDraft) { message ->
+                emailChangeSaving = false
+                emailChangeMessage = message
+            }
+        },
+        enabled = !emailChangeSaving &&
+            emailDraft.trim().isNotBlank() &&
+            emailDraft.trim().lowercase() != accountEmail.trim().lowercase(),
+        modifier = Modifier.fillMaxWidth().testTag("request-email-change"),
+    ) { Text(if (emailChangeSaving) "Sending confirmation…" else "Change email") }
+    Text(
+        "Your current email stays active until you confirm the link sent to the new address.",
+        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+    )
+    emailChangeMessage?.let {
+        Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+    }
+}
+
+@Suppress("LongMethod")
+@Composable
+private fun PhoneAndPasswordControls(
+    onChangePassword: (String, String, (String, Boolean) -> Unit) -> Unit,
+    onMessage: (String) -> Unit,
+) {
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var savingPassword by remember { mutableStateOf(false) }
+
+    HorizontalDivider()
+    Text("Phone number", fontWeight = FontWeight.SemiBold)
+    Text(
+        "Phone verification is not configured yet. " +
+            "LifeLink will not save or verify a number until an SMS provider is available.",
+        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.testTag("phone-verification-unavailable"),
+    )
+    HorizontalDivider()
+    Text("Change password", fontWeight = FontWeight.SemiBold)
+    OutlinedTextField(
+        value = currentPassword,
+        onValueChange = { currentPassword = it },
+        modifier = Modifier.fillMaxWidth().testTag("current-password-field"),
+        label = { Text("Current password") },
+        singleLine = true,
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+        ),
+    )
+    OutlinedTextField(
+        value = newPassword,
+        onValueChange = { newPassword = it },
+        modifier = Modifier.fillMaxWidth().testTag("new-password-field"),
+        label = { Text("New password") },
+        supportingText = { Text("Use at least 6 characters.") },
+        singleLine = true,
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+        ),
+    )
+    OutlinedTextField(
+        value = confirmPassword,
+        onValueChange = { confirmPassword = it },
+        modifier = Modifier.fillMaxWidth().testTag("confirm-new-password-field"),
+        label = { Text("Confirm new password") },
+        singleLine = true,
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+        ),
+    )
+    TextButton(
+        onClick = {
+            savingPassword = true
+            onChangePassword(currentPassword, newPassword) { message, success ->
+                savingPassword = false
+                if (success) {
+                    currentPassword = ""
+                    newPassword = ""
+                    confirmPassword = ""
+                }
+                onMessage(message)
+            }
+        },
+        enabled = !savingPassword &&
+            currentPassword.isNotBlank() &&
+            newPassword.length >= 6 &&
+            newPassword == confirmPassword,
+        modifier = Modifier.fillMaxWidth().testTag("account-change-password"),
+    ) {
+        Text(if (savingPassword) "Updating password…" else "Change password")
+    }
+}
+
