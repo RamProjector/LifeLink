@@ -434,6 +434,8 @@ async def admin_security_alerts(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     alert_status: str | None = Query(default=None, alias="status", pattern="^(open|acknowledged|investigating|resolved|false_positive)$"),
+    correlation_id: str | None = Query(default=None, max_length=80),
+    x_correlation_id: str | None = Header(default=None),
 ):
     await _scan_rbac_discrepancies(session, principal, request)
     result = await session.execute(
@@ -442,16 +444,18 @@ async def admin_security_alerts(
             "created_at, last_seen_at, acknowledged_at, acknowledged_by, resolved_at, resolved_by, correlation_id "
             "FROM lifelink_security_alerts "
             "WHERE (CAST(:status AS varchar) IS NULL OR status = CAST(:status AS varchar)) "
+            "AND (CAST(:correlation_id AS varchar) IS NULL OR correlation_id = CAST(:correlation_id AS varchar)) "
             "ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, "
             "last_seen_at DESC LIMIT :limit OFFSET :offset"
         ),
-        {"status": alert_status, "limit": limit, "offset": offset},
+        {"status": alert_status, "correlation_id": correlation_id, "limit": limit, "offset": offset},
     )
     rows = result.mappings().all()
     await _write_audit(
         session, principal.subject, "admin.security.alerts.read", request=request,
         session_id=principal.session_id, session_expires_at=principal.session_expires_at,
-        target_type="security_alerts", metadata={"limit": limit, "offset": offset, "status": alert_status},
+        target_type="security_alerts", correlation_id=_correlation_id(x_correlation_id),
+        metadata={"limit": limit, "offset": offset, "status": alert_status, "correlation_filtered": bool(correlation_id)},
     )
     await session.commit()
     return {
@@ -513,20 +517,34 @@ async def admin_list_sessions(
     principal: Principal = Depends(require_admin),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    correlation_id: str | None = Query(default=None, max_length=80),
+    x_correlation_id: str | None = Header(default=None),
 ):
     result = await session.execute(
         text(
-            "SELECT session_id, user_id, device_used, ip_address, created_at, last_seen_at, "
-            "expires_at, revoked_at, revoked_by, status "
-            "FROM lifelink_user_sessions ORDER BY last_seen_at DESC LIMIT :limit OFFSET :offset"
+            "SELECT s.session_id, s.user_id, s.device_used, s.ip_address, s.created_at, s.last_seen_at, "
+            "s.expires_at, s.revoked_at, s.revoked_by, s.status, latest.correlation_id AS last_correlation_id "
+            "FROM lifelink_user_sessions s "
+            "LEFT JOIN LATERAL ("
+            "SELECT ae.correlation_id FROM audit_events ae "
+            "WHERE ae.session_id = s.session_id AND ae.correlation_id IS NOT NULL "
+            "ORDER BY ae.timestamp DESC LIMIT 1"
+            ") latest ON TRUE "
+            "WHERE (CAST(:correlation_id AS varchar) IS NULL OR EXISTS ("
+            "SELECT 1 FROM audit_events filtered "
+            "WHERE filtered.session_id = s.session_id "
+            "AND filtered.correlation_id = CAST(:correlation_id AS varchar)"
+            ")) "
+            "ORDER BY s.last_seen_at DESC LIMIT :limit OFFSET :offset"
         ),
-        {"limit": limit, "offset": offset},
+        {"correlation_id": correlation_id, "limit": limit, "offset": offset},
     )
     rows = result.mappings().all()
     await _write_audit(
         session, principal.subject, "admin.sessions.list", request=request,
         session_id=principal.session_id, session_expires_at=principal.session_expires_at,
-        target_type="session_list", metadata={"limit": limit, "offset": offset},
+        target_type="session_list", correlation_id=_correlation_id(x_correlation_id),
+        metadata={"limit": limit, "offset": offset, "correlation_filtered": bool(correlation_id)},
     )
     await session.commit()
     return {
@@ -548,6 +566,7 @@ async def admin_revoke_session(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(require_admin),
+    x_correlation_id: str | None = Header(default=None),
 ):
     if principal.session_id and session_id == principal.session_id:
         raise HTTPException(status_code=409, detail="Use sign-out to end your current administrator session")
@@ -567,6 +586,7 @@ async def admin_revoke_session(
         session, principal.subject, "admin.session.revoke", request=request,
         session_id=principal.session_id, session_expires_at=principal.session_expires_at,
         target_type="user_session", target_id=session_id,
+        correlation_id=_correlation_id(x_correlation_id),
         metadata={"affected_user_id": row["user_id"]},
     )
     await session.commit()
