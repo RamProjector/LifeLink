@@ -1206,17 +1206,34 @@ tbody tr:hover { background: #f0eee7; }
 #alerts-table .actions button {
   min-height: 40px;
 }
+
+/* Authentication and recovery forms: clear labels, hints, and validation feedback */
+.login label { display:block; margin:16px 0 6px; color:var(--ink); font-size:12px; font-weight:650; }
+.login input { width:100%; min-height:44px; border:1px solid var(--md-outline); border-radius:var(--md-shape-small); background:var(--surface); padding:10px 12px; color:var(--ink); }
+.login input:hover { border-color:var(--ink-soft); }
+.login input:focus-visible { outline:3px solid rgba(181,138,67,.25); outline-offset:1px; border-color:var(--accent); }
+.login input:disabled, .login button:disabled { cursor:not-allowed; opacity:.65; }
+.login .field-help { margin:5px 0 0; color:var(--ink-muted); font-size:11px; line-height:1.5; }
+#recovery-view { margin-top:18px; padding-top:16px; border-top:1px solid var(--md-outline-variant); }
+#recovery-view h2 { line-height:1.3; }
+#recovery-view button, #signin { min-height:44px; border-radius:var(--md-shape-full); }
+#login-message { margin-top:16px; line-height:1.5; }
+@media(max-width:620px) {
+  .login { width:min(100% - 28px, 440px); padding:22px 18px; }
+  .login input, #recovery-view button, #signin { min-height:46px; }
+}
+
 </style>
 </head>
 <body>
 <header class="top"><div><div class="brand"><span class="brand-mark ll-icon" data-icon="lifelink" data-icon-size="23"></span><span>LifeLink <span>/ Admin</span></span></div><small>Restricted operations console</small></div><div id="session-tools" class="hidden"><button id="signout" class="secondary"><span class="ll-icon" data-icon="logout"></span>Sign out</button></div></header>
 <main id="login-view" class="login">
  <div class="eyebrow">Administrator access</div><h1>Sign in securely.</h1><p class="muted">Sign in with your LifeLink account. Admin access is verified by the server; public registration never grants it.</p>
- <label for="email">Email</label><input id="email" type="email" autocomplete="username" required>
- <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
- <button id="signin" style="width:100%;margin-top:20px">Sign in</button>
+ <label for="email">Email</label><input id="email" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" aria-describedby="email-help" required><p id="email-help" class="field-help">Use the email address associated with your LifeLink account.</p>
+ <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" aria-describedby="password-help" required><p id="password-help" class="field-help">Admin access is checked by the server after sign-in.</p>
+ <button id="signin" type="button" style="width:100%;margin-top:20px">Sign in</button>
  <a href="#" id="forgot-password" class="link">Forgot password?</a>
- <section id="recovery-view" class="hidden" aria-live="polite"><h2 id="recovery-title" style="font-size:19px;margin:22px 0 6px">Reset your password</h2><p id="recovery-help" class="muted small">Enter your account email and we will send a secure password-reset link.</p><div id="recovery-email-wrap"><label for="recovery-email">Account email</label><input id="recovery-email" type="email" autocomplete="email"></div><div id="new-password-wrap" class="hidden"><label for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="8"><label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8"></div><button id="recovery-submit" style="width:100%;margin-top:14px">Send reset link</button><button id="recovery-cancel" class="secondary" style="width:100%;margin-top:8px">Back to sign in</button></section>
+ <section id="recovery-view" class="hidden" aria-live="polite"><h2 id="recovery-title" style="font-size:19px;margin:22px 0 6px">Reset your password</h2><p id="recovery-help" class="muted small">Enter your account email and we will send a secure password-reset link.</p><div id="recovery-email-wrap"><label for="recovery-email">Account email</label><input id="recovery-email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" aria-describedby="recovery-email-help"><p id="recovery-email-help" class="field-help">We will send a reset link if the account is eligible.</p></div><div id="new-password-wrap" class="hidden"><label for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="8" aria-describedby="new-password-help"><p id="new-password-help" class="field-help">Use at least 8 characters and choose a password you do not use elsewhere.</p><label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8" aria-describedby="confirm-password-help"><p id="confirm-password-help" class="field-help">Enter the same password again to confirm it.</p></div><button id="recovery-submit" type="button" style="width:100%;margin-top:14px">Send reset link</button><button id="recovery-cancel" type="button" class="secondary" style="width:100%;margin-top:8px">Back to sign in</button></section>
  <div id="login-message" class="notice hidden" role="status" aria-live="polite"></div>
  <p class="foot">Your session token stays in memory for this tab and is cleared when you sign out or close it. Admin rights are verified server-side.</p>
 </main>
