@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-0wOqvobzSSz95IIHlSlKJtHzI5E14mASP00SQ1C+SBE='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-bkWfE/zDDbLmE0NUhP7xnp0piaFFjbTgXU8K/EfJlfE='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -611,7 +611,7 @@ tbody tr:last-child td { border-bottom: 0; }
 #page-sessions #sessions-table td{vertical-align:middle}
 #page-sessions .session-identity,#page-sessions .session-context,#page-sessions .session-timeline,#page-sessions .session-lifecycle{display:grid;gap:5px;min-width:0}
 #page-sessions .session-identity strong{color:var(--ink);font-size:12px}
-#page-sessions .session-identity code,#page-sessions .session-context code{width:fit-content;color:var(--muted);font-size:10.5px}
+#page-sessions .session-identity code,#page-sessions .session-context code{display:block;width:fit-content;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10.5px}
 #page-sessions .session-context .small,#page-sessions .session-timeline span,#page-sessions .session-lifecycle .small{overflow-wrap:anywhere;font-size:10.5px;line-height:1.45}
 #page-sessions .session-timeline strong{font-size:10.5px;color:var(--ink-soft)}
 #page-sessions .session-lifecycle .tag{width:fit-content}
@@ -883,6 +883,8 @@ tbody tr:last-child td { border-bottom: 0; }
   #alert-status-filter { width: 100%; }
   #alerts-table .actions { min-width: 0; }
   #alerts-table .actions button { flex: 1 1 42%; }
+  #alerts-table table, #errors-table table, #audit-table table,
+  #page-sessions #sessions-table table, #page-users #users-table table { width: 100%; min-width: 0; }
 }
 /* Phone layout: move navigation above the workspace instead of squeezing content */
 @media (max-width: 620px) {
@@ -1611,8 +1613,8 @@ async function loadUsers() {
       $("sessions-next").disabled=data.items.length<pageSize;
       $("sessions-page").textContent=data.items.length===0?"No sessions on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
       tableEl.innerHTML=table(data.items,[
-        {label:"Account",render:s=>'<div class="session-identity"><strong>Account ID</strong><code title="'+esc(s.user_id)+'">'+esc(String(s.user_id||"").slice(0,8)+(String(s.user_id||"").length>8?"…":""))+'</code></div>'},
-        {label:"Session context",render:s=>'<div class="session-context"><strong>'+esc(s.device_used||"Unknown device")+'</strong><code title="'+esc(s.session_id)+'">'+esc(String(s.session_id||"").slice(0,8)+(String(s.session_id||"").length>8?"…":""))+'</code><span class="muted small">'+esc(s.ip_address||"IP unavailable")+'</span></div>'},
+        {label:"Account",render:s=>'<div class="session-identity"><strong>Account ID</strong><code title="'+esc(s.user_id)+'">'+esc(String(s.user_id||"—"))+'</code></div>'},
+        {label:"Session context",render:s=>'<div class="session-context"><strong>'+esc(s.device_used||"Unknown device")+'</strong><code title="'+esc(s.session_id)+'">'+esc(String(s.session_id||"—"))+'</code><span class="muted small">'+esc(s.ip_address||"IP unavailable")+'</span></div>'},
         {label:"Activity",render:s=>'<div class="session-timeline"><strong>Last seen</strong><span>'+esc(s.last_seen_at?new Date(s.last_seen_at).toLocaleString():"Not recorded")+'</span><span class="muted small">Created '+esc(s.created_at?new Date(s.created_at).toLocaleString():"date unavailable")+'</span></div>'},
         {label:"Status and expiry",render:s=>'<div class="session-lifecycle"><span class="tag '+(s.status==="active"?"success":"fail")+'" aria-label="'+(s.status==="active"?"Active session":"Revoked or inactive session")+'">'+esc(s.status==="active"?"Active":s.status||"Inactive")+'</span><span class="muted small">Expires '+esc(s.expires_at?new Date(s.expires_at).toLocaleString():"not supplied")+'</span>'+(s.revoked_at?'<span class="muted small">Revoked '+esc(new Date(s.revoked_at).toLocaleString())+' · by '+esc(s.revoked_by||"Unavailable")+'</span>':'')+'</div>'},
         {label:"Action",render:s=>s.status==="active"?'<button class="secondary" data-revoke="'+esc(s.session_id)+'"><span class="ll-icon" data-icon="shieldAlert"></span>Revoke</button>':'—'}
@@ -1659,7 +1661,7 @@ async function loadUsers() {
          {label:"Rule",render:a=>'<strong>'+esc(a.rule_id||"Unknown rule")+'</strong>'},
          {label:"Severity",render:a=>'<span class="tag severity-'+String(a.severity||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.severity||"Unknown")+'</span>'},
          {label:"Status",render:a=>'<span class="tag status-'+String(a.status||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.status||"Unknown")+'</span>'},
-         {label:"Account / session",render:a=>{const user=String(a.user_id||"—"),session=String(a.session_id||"—");return '<div class="alert-identifiers"><span class="muted small">Account</span><code title="'+esc(user)+'">'+esc(user.length>16?user.slice(0,12)+"…":user)+'</code><span class="muted small">Session</span><code title="'+esc(session)+'">'+esc(session.length>16?session.slice(0,12)+"…":session)+'</code></div>';}},
+         {label:"Account / session",render:a=>{const user=String(a.user_id||"—"),session=String(a.session_id||"—");return '<div class="alert-identifiers"><span class="muted small">Account</span><code title="'+esc(user)+'">'+esc(user)+'</code><span class="muted small">Session</span><code title="'+esc(session)+'">'+esc(session)+'</code></div>';}},
          {label:"Incident summary",render:a=>'<div class="alert-incident"><strong>'+esc(a.summary||"No summary provided")+'</strong><span class="muted small">'+esc(a.occurrences??"—")+' recorded occurrences</span></div>'},
          {label:"Last observed",render:a=>'<span class="alert-last-seen">'+esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")+'</span>'},
          {label:"Evidence / history",render:a=>'<details class="cell-detail"><summary>View evidence &amp; history</summary><p class="small">Created: '+esc(a.created_at?new Date(a.created_at).toLocaleString():"—")+'</p><p class="small">Acknowledged: '+esc(a.acknowledged_at?new Date(a.acknowledged_at).toLocaleString():"—")+' · By '+esc(a.acknowledged_by||"—")+'</p><p class="small">Resolved: '+esc(a.resolved_at?new Date(a.resolved_at).toLocaleString():"—")+' · By '+esc(a.resolved_by||"—")+'</p><p class="small">Correlation: <code>'+esc(a.correlation_id||"—")+'</code></p><pre>'+esc(JSON.stringify(a.evidence||{},null,2))+'</pre></details>'},
@@ -1713,9 +1715,9 @@ async function loadUsers() {
        tableEl.innerHTML=table(data.items,[
          {label:"Recorded",render:e=>{const outcome=String(e.outcome||"").toLowerCase();const outcomeClass=["error","denied","failed","failure"].includes(outcome)?"fail":["success","allowed","ok"].includes(outcome)?"success":"neutral";return '<div class="event-recorded"><strong>'+esc(e.timestamp||e.created_at?new Date(e.created_at||e.timestamp).toLocaleString():"—")+'</strong><span class="tag '+outcomeClass+'">'+esc(e.outcome||"Outcome unavailable")+'</span></div>';}},
          {label:"Event",render:e=>'<div class="event-summary"><strong>'+esc(e.action||"event")+'</strong><span class="muted small">'+esc(e.description||e.actions||"No additional description")+'</span><span class="muted small">'+esc(e.actions||"OTHER")+'</span></div>'},
-         {label:"Trace",render:e=>'<div class="event-trace"><span class="muted small">Correlation</span><code title="'+esc(e.correlation_id)+'">'+esc(String(e.correlation_id||"—").slice(0,12)+(String(e.correlation_id||"").length>12?"…":""))+'</code><span class="muted small">Session</span><code title="'+esc(e.session_id)+'">'+esc(String(e.session_id||"Unavailable").slice(0,12)+(String(e.session_id||"").length>12?"…":""))+'</code></div>'},
-         {label:"Actor and source",render:e=>'<div class="event-source"><code title="'+esc(e.actor_id)+'">'+esc(String(e.actor_id||"system").slice(0,12)+(String(e.actor_id||"").length>12?"…":""))+'</code><span class="muted small">'+esc(e.device_used||"Unknown device")+'</span><span class="muted small">'+esc(e.ip_address||"IP unavailable")+'</span></div>'},
-         {label:"Target",render:e=>'<div class="event-target"><strong>'+esc(e.target_type||"—")+'</strong><code title="'+esc(e.target_id)+'">'+esc(String(e.target_id||"").slice(0,12)+(String(e.target_id||"").length>12?"…":""))+'</code></div>'},
+         {label:"Trace",render:e=>'<div class="event-trace"><span class="muted small">Correlation</span><code title="'+esc(e.correlation_id)+'">'+esc(String(e.correlation_id||"—"))+'</code><span class="muted small">Session</span><code title="'+esc(e.session_id)+'">'+esc(String(e.session_id||"Unavailable"))+'</code></div>'},
+         {label:"Actor and source",render:e=>'<div class="event-source"><code title="'+esc(e.actor_id)+'">'+esc(String(e.actor_id||"system"))+'</code><span class="muted small">'+esc(e.device_used||"Unknown device")+'</span><span class="muted small">'+esc(e.ip_address||"IP unavailable")+'</span></div>'},
+         {label:"Target",render:e=>'<div class="event-target"><strong>'+esc(e.target_type||"—")+'</strong><code title="'+esc(e.target_id)+'">'+esc(String(e.target_id||"—"))+'</code></div>'},
          {label:"Details",render:e=>'<details class="cell-detail"><summary>View metadata</summary><pre>'+esc(JSON.stringify(e.metadata||{},null,2))+'</pre></details>'}
        ]);
        renderIcons(tableEl);
