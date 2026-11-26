@@ -592,7 +592,7 @@ def test_admin_sessions_query_exposes_and_filters_related_correlation(monkeypatc
 
     asyncio.run(check())
     query = next(statement for statement in session.statements if "FROM lifelink_user_sessions s" in statement)
-    assert "latest.correlation_id AS last_correlation_id" in query
+    assert "COALESCE(matched.correlation_id, latest.correlation_id) AS last_correlation_id" in query
     assert "LEFT JOIN LATERAL" in query
     assert "CAST(:correlation_id AS varchar) IS NULL" in query
     assert "ae.correlation_id = CAST(:correlation_id AS varchar)" in query
