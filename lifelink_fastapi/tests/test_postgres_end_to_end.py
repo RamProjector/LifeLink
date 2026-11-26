@@ -55,7 +55,8 @@ def run_scenario(pg_url: str, scenario):
             await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS auth.sessions (
                     id TEXT PRIMARY KEY,
-                    user_id TEXT NOT NULL
+                    user_id TEXT NOT NULL,
+                    not_after TIMESTAMPTZ
                 )
             """))
             await conn.execute(text("""

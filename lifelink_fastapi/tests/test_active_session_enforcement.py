@@ -62,6 +62,7 @@ def test_active_principal_registers_session_before_request():
     assert "FROM auth.sessions AS supabase_session" in session.statement
     assert "supabase_session.id::varchar = CAST(:session_id AS varchar)" in session.statement
     assert "supabase_session.user_id::varchar = CAST(:user_id AS varchar)" in session.statement
+    assert "supabase_session.not_after IS NULL OR supabase_session.not_after > :now" in session.statement
     assert "ON CONFLICT (session_id) DO UPDATE" in session.statement
     assert "lifelink_user_sessions.revoked_at IS NULL" in session.statement
     assert "lifelink_user_sessions.status <> 'revoked'" in session.statement
@@ -79,6 +80,24 @@ def test_active_principal_rejects_revoked_or_mismatched_session():
         asyncio.run(get_active_postgres_principal(_request(), principal, session))
 
     assert error.value.status_code == 401
+    assert session.rolled_back is True
+    assert session.committed is False
+
+
+def test_active_principal_rejects_expired_supabase_session():
+    session = _Session(result_value=None)
+    principal = Principal(
+        subject="user-1",
+        session_id="expired-session",
+        session_expires_at=datetime(2026, 12, 1, tzinfo=timezone.utc),
+    )
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(get_active_postgres_principal(_request(), principal, session))
+
+    assert error.value.status_code == 401
+    assert "supabase_session.not_after IS NULL OR supabase_session.not_after > :now" in session.statement
+    assert session.params["now"].tzinfo == timezone.utc
     assert session.rolled_back is True
     assert session.committed is False
 
