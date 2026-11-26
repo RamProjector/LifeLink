@@ -198,7 +198,7 @@ class SupabaseAuthRepository(
         sessionStore.clear()
         if (activeSession == null) return Result.success(Unit)
         return withContext(Dispatchers.IO) {
-            runCatching {
+            try {
                 val response = api?.signOut(
                     publishableKey,
                     "Bearer ${activeSession.accessToken}",
@@ -207,6 +207,11 @@ class SupabaseAuthRepository(
                 if (!response.isSuccessful) {
                     error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
                 }
+                Result.success(Unit)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
             }
         }
     }
