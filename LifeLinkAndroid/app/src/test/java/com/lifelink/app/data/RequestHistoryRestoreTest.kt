@@ -61,8 +61,12 @@ class RequestHistoryRestoreTest {
     }
 
     private fun repository(owner: String) = EmergencyRequestRepositoryImpl(
-        db.emergencyRequestDraftDao(), db.pendingSubmissionDao(), db.activeRequestDao(),
-        api, workManager, requesterIdProvider = { owner }
+        db.emergencyRequestDraftDao(),
+        db.pendingSubmissionDao(),
+        db.activeRequestDao(),
+        api,
+        workManager,
+        requesterIdProvider = { owner },
     )
 
     @Test fun sameAccountLoginRestoresSubmittedRequestAfterLogoutCleanup() = runBlocking {
@@ -79,7 +83,9 @@ class RequestHistoryRestoreTest {
         store.clear()
         store.save(session.copy(accessToken = "new-synthetic-token"))
         assertNull(repository("alice").observeActiveRequest().first())
-        server.enqueue(MockResponse().setBody("[${historyItem("closed-request", "fulfilled")},${historyItem("saved-request", "awaiting_responses")}]"))
+        server.enqueue(
+            MockResponse().setBody("[${historyItem("closed-request", "fulfilled")},${historyItem("saved-request", "awaiting_responses")}]"),
+        )
         val history = repository("alice").refreshRequestHistory()
         assertEquals(2, history.size)
         val restored = repository("alice").observeActiveRequest().first()!!
@@ -116,9 +122,11 @@ class RequestHistoryRestoreTest {
     }
 
     @Test fun successfulContactResponseMapsTheConfirmedDonors() = runBlocking {
-        server.enqueue(MockResponse().setBody(
-            """{"request_id":"request-1","donor_ids":["donor-1"],"status":"contact_requested"}"""
-        ))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"request_id":"request-1","donor_ids":["donor-1"],"status":"contact_requested"}""",
+            ),
+        )
 
         val result = repository("alice").contactSelectedDonors("request-1", listOf("donor-1"))
 
