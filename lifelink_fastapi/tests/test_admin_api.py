@@ -357,6 +357,12 @@ def test_ordinary_admin_cannot_assign_roles_through_http(monkeypatch):
         email_verified=True,
         session_id="ordinary-admin-session",
     )
+    from app.security import get_active_postgres_principal
+    app.dependency_overrides[get_active_postgres_principal] = lambda: Principal(
+        subject="ordinary-admin",
+        email_verified=True,
+        session_id="ordinary-admin-session",
+    )
 
     async def make_request():
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
