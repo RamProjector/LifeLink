@@ -766,6 +766,36 @@ tbody tr:hover { background: #f0eee7; }
   .table-toolbar { align-items: stretch; }
 }
 
+
+/* Overview dashboard hierarchy */
+#page-overview { display: grid; gap: 16px; }
+#page-overview .overview-metrics { gap: 12px; }
+#page-overview .stat { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 8px; }
+#page-overview .stat small { display: flex; align-items: center; gap: 9px; color: var(--ink-soft); font-size: 11px; font-weight: 700; letter-spacing: .15px; }
+#page-overview .stat strong { line-height: 1.1; font-variant-numeric: tabular-nums; }
+#page-overview .stat .stat-meta { color: var(--muted); font-size: 10px; line-height: 1.4; }
+#page-overview .stat .stat-status { color: var(--success); font-size: 20px; }
+.overview-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.overview-panel-heading h2 { margin-bottom: 5px; }
+.overview-panel-heading p { max-width: 620px; margin: 0 0 8px; line-height: 1.5; }
+.snapshot-kind { flex: 0 0 auto; padding: 5px 10px; border: 1px solid var(--md-outline-variant); border-radius: 999px; background: var(--md-surface-container-low); color: var(--md-on-primary-container); font-size: 10px; font-weight: 700; }
+.overview-footnote { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; }
+.overview-footnote .ll-icon { width: 15px; height: 15px; flex: 0 0 auto; color: var(--muted); }
+.overview-trace { margin: 7px 0 0 23px; overflow-wrap: anywhere; }
+.overview-controls { display: grid; gap: 13px; }
+.overview-controls h2 { margin: 0; }
+.control-note { display: flex; align-items: flex-start; gap: 12px; padding-top: 12px; border-top: 1px solid var(--md-outline-variant); }
+.control-note > .ll-icon { width: 19px; height: 19px; flex: 0 0 auto; color: var(--accent); }
+.control-note strong { display: block; margin-bottom: 3px; font-size: 12px; }
+.control-note p { margin: 0; line-height: 1.5; }
+@media (max-width: 620px) {
+ #page-overview { gap: 12px; }
+ #page-overview .overview-metrics { gap: 8px; }
+ #page-overview .stat { gap: 6px; }
+ .overview-panel-heading { flex-direction: column; gap: 4px; }
+ .snapshot-kind { align-self: flex-start; }
+}
+
 </style>
 </head>
 <body>
@@ -783,7 +813,24 @@ tbody tr:hover { background: #f0eee7; }
 <main id="app-view" class="wrap hidden">
  <div class="headrow"><div><div class="eyebrow" id="page-eyebrow">Operations overview</div><h1 id="page-title">Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary"><span class="ll-icon" data-icon="refresh"></span>Refresh data</button></div></div>
  <div class="console-layout"><aside class="sidebar" aria-label="Admin navigation"><input id="nav-collapse" class="nav-collapse-control" type="checkbox" aria-label="Toggle navigation expansion" aria-controls="admin-nav"><label class="nav-toggle" for="nav-collapse" title="Expand or collapse navigation"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5.5h16M4 18.5h16M9 5.5v13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Navigation</span></label><div class="nav-group">Workspace</div><nav id="admin-nav" class="tabs" aria-label="Admin sections"><button class="tab active" title="Overview" aria-label="Overview" data-page="overview" aria-current="page" aria-controls="page-overview"><span class="ll-icon" data-icon="dashboard"></span><span>Overview</span></button><button class="tab" title="User management" aria-label="User management" data-page="users" aria-controls="page-users"><span class="ll-icon" data-icon="users"></span><span>User management</span></button><button class="tab" title="Analytics" aria-label="Analytics" data-page="analytics" aria-controls="page-analytics"><span class="ll-icon" data-icon="analytics"></span><span>Analytics</span></button><div class="nav-group">Security center</div><button class="tab" title="Security alerts" aria-label="Security alerts" data-page="alerts" aria-controls="page-alerts"><span class="ll-icon" data-icon="securityAlerts"></span><span>Security alerts</span></button><button class="tab" title="Sessions" aria-label="Sessions" data-page="sessions" aria-controls="page-sessions"><span class="ll-icon" data-icon="sessions"></span><span>Sessions</span></button><button class="tab" title="Audit activity" aria-label="Audit activity" data-page="audit" aria-controls="page-audit"><span class="ll-icon" data-icon="audit"></span><span>Audit activity</span></button><button class="tab" title="System errors" aria-label="System errors" data-page="errors" aria-controls="page-errors"><span class="ll-icon" data-icon="systemErrors"></span><span>System errors</span></button><button class="tab" title="Role registry" aria-label="Role registry" data-page="roles" aria-controls="page-roles"><span class="ll-icon" data-icon="roles"></span><span>Role registry</span></button></nav></aside><div class="content-area">
- <section id="page-overview" aria-labelledby="page-title"><div class="grid"><div class="stat"><small><span class="stat-icon ll-icon" data-icon="usersRound"></span>Registered profiles</small><strong id="stat-users">—</strong></div><div class="stat"><small><span class="stat-icon ll-icon" data-icon="inbox"></span>Requests</small><strong id="stat-requests">—</strong></div><div class="stat"><small><span class="stat-icon ll-icon" data-icon="shieldCheck"></span>Authorization</small><strong style="font-size:20px;color:var(--success)">Verified</strong></div></div><div class="panel"><h2>Platform snapshot</h2><p class="muted small">Live totals from the admin API; not a historical trend.</p><div id="overview-chart" role="img" aria-label="Current counts of registered profiles and requests"><div class="empty">Loading record totals…</div></div><div class="small muted" id="overview-chart-caption">Counts refresh when you select Refresh data.</div></div><div class="panel"><h2>Security notes</h2><p class="muted">Admin access is verified on every API request. Capability changes are audited; audit records are read-only.</p><p id="generated" class="small muted"></p></div></section>
+ <section id="page-overview" aria-labelledby="page-title">
+  <div class="grid overview-metrics" aria-label="Platform summary">
+   <div class="stat"><small><span class="stat-icon ll-icon" data-icon="usersRound" aria-hidden="true"></span>Registered profiles</small><strong id="stat-users" aria-live="polite">—</strong><span class="stat-meta">Current account total</span></div>
+   <div class="stat"><small><span class="stat-icon ll-icon" data-icon="inbox" aria-hidden="true"></span>Requests</small><strong id="stat-requests" aria-live="polite">—</strong><span class="stat-meta">Current request total</span></div>
+   <div class="stat"><small><span class="stat-icon ll-icon" data-icon="shieldCheck" aria-hidden="true"></span>API authorization</small><strong class="stat-status">Verified</strong><span class="stat-meta">Admin access confirmed for this view</span></div>
+  </div>
+  <div class="panel overview-snapshot">
+   <div class="overview-panel-heading"><div><h2>Platform snapshot</h2><p class="muted small">Current totals returned by the admin API. This is a live snapshot, not a historical trend.</p></div><span class="snapshot-kind">Live totals</span></div>
+   <div id="overview-chart" role="img" aria-label="Current counts of registered profiles and requests"><div class="empty">Loading record totals…</div></div>
+   <div class="overview-footnote"><span class="ll-icon" data-icon="clock" aria-hidden="true"></span><span class="small muted" id="overview-chart-caption">Waiting for the latest dashboard response.</span></div>
+   <p id="generated" class="small muted overview-trace" aria-live="polite"></p>
+  </div>
+  <div class="panel overview-controls">
+   <h2>Administrative safeguards</h2>
+   <div class="control-note"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><div><strong>Protected administration</strong><p class="muted small">Admin access is verified by the API on protected requests.</p></div></div>
+   <div class="control-note"><span class="ll-icon" data-icon="fileCheck" aria-hidden="true"></span><div><strong>Accountability</strong><p class="muted small">Capability changes are audited, and audit records are read-only.</p></div></div>
+  </div>
+ </section>
  <section id="page-analytics" aria-labelledby="page-title" class="panel hidden"><h2>Activity analytics</h2><p class="muted small">Latest 100 audit events only; not a full historical report.</p><div id="analytics-summary" class="grid"></div><div class="panel"><h2>Audit activity by day</h2><div id="analytics-chart" role="img" aria-label="Audit event counts by day from the latest 100 returned events"><div class="empty">Loading analytics…</div></div></div><div class="panel"><h2>Most frequent actions</h2><div id="analytics-actions"></div></div></section>
  <section id="page-roles" aria-labelledby="page-title" class="panel hidden"><h2>Role and permission registry</h2><p class="muted small">Read-only role and permission registry. Assignments remain protected by backend RBAC.</p><div id="roles-table" class="tablewrap"><div class="empty">Loading role registry…</div></div></section>
  <section id="page-users" aria-labelledby="page-title" class="panel hidden"><h2>User management</h2><p class="muted small">Review account capabilities and status. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
