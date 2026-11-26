@@ -1575,30 +1575,6 @@ async function loadUsers() {
       $("users-page").textContent=(Number(data.total)===0?"0 users":(offset+1)+"–"+Math.min(offset+pageSize,Number(data.total))+" of "+data.total);
       tableEl.innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Current access",render:u=>'<span class="tag '+(u.can_request?'success':'')+'">Requester '+(u.can_request?'enabled':'disabled')+'</span><br><span class="tag '+(u.can_donate?'success':'')+'">Donor '+(u.can_donate?'enabled':'disabled')+'</span>'},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Capabilities",render:u=>'<div class="actions"><button class="secondary" data-capability="request" data-enabled="'+String(!!u.can_request)+'" data-id="'+esc(u.user_id)+'">'+(u.can_request?'Disable requester':'Enable requester')+'</button><button class="secondary" data-capability="donate" data-enabled="'+String(!!u.can_donate)+'" data-id="'+esc(u.user_id)+'">'+(u.can_donate?'Disable donor':'Enable donor')+'</button></div>'}]);
       renderIcons(tableEl);wireTableTools(tableEl);
-      const searchInput=$("users-search"),accessFilter=$("users-access-filter"),filterCount=$("users-filter-count");
-      const applyUserFilters=()=>{
-        const query=(searchInput?.value||"").trim().toLocaleLowerCase();
-        const access=accessFilter?.value||"";
-        const rows=Array.from(tableEl.querySelectorAll("tbody tr"));
-        let visible=0;
-        rows.forEach(row=>{
-          const content=(row.textContent||"").toLocaleLowerCase();
-          const requester=content.includes("requester enabled");
-          const donor=content.includes("donor enabled");
-          const matchesQuery=!query||content.includes(query);
-          const matchesAccess=!access||(access==="requester"&&requester)||(access==="donor"&&donor)||(access==="none"&&!requester&&!donor);
-          row.hidden=!(matchesQuery&&matchesAccess);
-          if(!row.hidden)visible++;
-        });
-        if(filterCount)filterCount.textContent=rows.length===0?"No accounts on this page":(visible+" of "+rows.length+" accounts shown on this page");
-        let empty=tableEl.querySelector("[data-user-filter-empty]");
-        if(rows.length&&visible===0){
-          if(!empty){empty=document.createElement("div");empty.className="empty";empty.dataset.userFilterEmpty="true";empty.textContent="No accounts on this page match these filters.";tableEl.appendChild(empty);}
-        }else if(empty)empty.remove();
-      };
-      searchInput?.addEventListener("input",applyUserFilters);
-      accessFilter?.addEventListener("change",applyUserFilters);
-      applyUserFilters();
       tableEl.querySelectorAll("button[data-capability]").forEach(btn=>btn.addEventListener("click",async()=>{
         const row=data.items.find(user=>user.user_id===btn.dataset.id);if(!row)return;
         const capability=btn.dataset.capability,enabled=btn.dataset.enabled==="true";
