@@ -3,6 +3,7 @@ package com.lifelink.app.data
 import androidx.test.core.app.ApplicationProvider
 import com.lifelink.app.core.auth.AuthSession
 import com.lifelink.app.core.auth.AuthSessionStore
+import com.lifelink.app.core.auth.TestSessionCipher
 import com.lifelink.app.core.auth.SupabaseAuthRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -28,7 +29,7 @@ class AuthRefreshTest {
     @Before fun setUp() {
         server = MockWebServer()
         server.start()
-        store = AuthSessionStore(ApplicationProvider.getApplicationContext())
+        store = AuthSessionStore(ApplicationProvider.getApplicationContext(), TestSessionCipher())
         runBlocking { store.save(original) }
         repository = SupabaseAuthRepository(store, server.url("/").toString(), "test-public-key")
     }
