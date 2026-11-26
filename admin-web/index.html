@@ -1585,8 +1585,16 @@ async function loadUsers() {
      renderIcons(tableEl);
      wireTableTools(tableEl);
      tableEl.querySelectorAll("button[data-alert]").forEach(btn=>btn.addEventListener("click",async()=>{
+       const alertRecord=data.items.find(item=>String(item.id)===btn.dataset.alert);if(!alertRecord)return;
+       const nextStatus=btn.dataset.status;
+       if(alertRecord.status===nextStatus)return;
+       if(nextStatus==="resolved"||nextStatus==="false_positive"){
+         const details=[alertRecord.summary||"No summary provided","Severity: "+(alertRecord.severity||"Unknown"),"Current status: "+(alertRecord.status||"Unknown"),"Account: "+(alertRecord.user_id||"Unavailable"),"Alert ID: "+alertRecord.id].join("\n");
+         const effect=nextStatus==="resolved"?"This marks the investigation as resolved and closes the alert in this queue.":"This classifies the alert as a false positive and closes it in this queue.";
+         if(!confirm("Review alert closure\n\n"+details+"\n\n"+effect+"\n\nReview the evidence and history before continuing. Proceed?"))return;
+       }
        btn.disabled=true;
-       try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");if(activePage==="alerts"&&token===pageLoadToken)await loadPage("alerts");}
+       try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:nextStatus})});message("app-message","Alert updated: "+nextStatus+".");if(activePage==="alerts"&&token===pageLoadToken)await loadPage("alerts");}
        catch(e){if(activePage==="alerts"&&token===pageLoadToken){btn.disabled=false;message("app-message",safeError(e,"The alert could not be updated. Please retry."),true);}}
      }));
    } catch(e) {
