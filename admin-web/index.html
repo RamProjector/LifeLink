@@ -515,6 +515,7 @@ async function loadUsers() {
    const token=pageLoadToken,offset=offsets.alerts;
    const tableEl=$("alerts-table");
    tableEl.setAttribute("aria-busy","true");
+   tableEl.setAttribute("aria-live","polite");
    tableEl.innerHTML='<div class="empty"><strong>Loading security alerts</strong><span class="muted small">Retrieving the latest incident records…</span></div>';
    try {
      const query="/v1/admin/security/alerts?limit="+pageSize+"&offset="+offset+(alertStatus?"&status="+encodeURIComponent(alertStatus):"");
@@ -542,9 +543,10 @@ async function loadUsers() {
      tableEl.querySelectorAll("button[data-alert]").forEach(btn=>btn.addEventListener("click",async()=>{
        btn.disabled=true;
        try{await api("/v1/admin/security/alerts/"+encodeURIComponent(btn.dataset.alert),{method:"PATCH",body:JSON.stringify({status:btn.dataset.status})});message("app-message","Alert updated: "+btn.dataset.status+".");if(activePage==="alerts"&&token===pageLoadToken)await loadPage("alerts");}
-       catch(e){btn.disabled=false;message("app-message",safeError(e,"The alert could not be updated. Please retry."),true);}
+       catch(e){if(activePage==="alerts"&&token===pageLoadToken){btn.disabled=false;message("app-message",safeError(e,"The alert could not be updated. Please retry."),true);}}
      }));
    } catch(e) {
+     if(token!==pageLoadToken||activePage!=="alerts")return;
      tableEl.innerHTML='<div class="empty"><strong>Security alerts could not be loaded</strong><span class="muted small">'+esc(safeError(e,"The alert records could not be retrieved."))+'</span><button id="alerts-retry" class="secondary" type="button">Retry</button></div>';
      $("alerts-retry")?.addEventListener("click",()=>loadPage("alerts"));
      $("alerts-prev").disabled=offset===0;
@@ -558,6 +560,7 @@ async function loadUsers() {
    const target=kind==="audit"?"audit-table":"errors-table";
    const tableEl=$(target);
    tableEl.setAttribute("aria-busy","true");
+   tableEl.setAttribute("aria-live","polite");
    tableEl.innerHTML='<div class="empty"><strong>Loading '+(kind==="audit"?"audit records":"system errors")+'</strong><span class="muted small">Retrieving the latest records…</span></div>';
    try {
      const data=await api("/v1/admin/"+kind+"?limit="+pageSize+"&offset="+offset+(kind==="audit"&&auditAction?"&action="+encodeURIComponent(auditAction):"")+(correlation?"&correlation_id="+encodeURIComponent(correlation):""));
@@ -585,6 +588,7 @@ async function loadUsers() {
        wireTableTools(tableEl);
      }
    } catch(e) {
+     if(token!==pageLoadToken||activePage!==kind)return;
      const subject=kind==="audit"?"Audit records":"System errors";
      tableEl.innerHTML='<div class="empty"><strong>'+subject+' could not be loaded</strong><span class="muted small">'+esc(safeError(e,"The records could not be retrieved. Please retry."))+'</span><button id="'+kind+'-retry" class="secondary" type="button">Retry</button></div>';
      $(kind+"-retry")?.addEventListener("click",()=>loadPage(kind));
@@ -593,7 +597,7 @@ async function loadUsers() {
      $(kind+"-page").textContent="Unable to load this page";
      if(kind==="errors") $("errors-filter-note").textContent="Retrieval failed. Your correlation filter has been preserved.";
    } finally {
-     tableEl.removeAttribute("aria-busy");
+     if(token===pageLoadToken)tableEl.removeAttribute("aria-busy");
    }
  }
 
