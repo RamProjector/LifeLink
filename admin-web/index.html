@@ -383,14 +383,45 @@ tbody tr:hover{background:#f4f8ff}
  async function loadEvents(kind) {
    const offset=offsets[kind];
    const correlation=kind==="audit"?auditCorrelation:errorsCorrelation;
-   const data=await api("/v1/admin/"+kind+"?limit="+pageSize+"&offset="+offset+(kind==="audit"&&auditAction?"&action="+encodeURIComponent(auditAction):"")+(correlation?"&correlation_id="+encodeURIComponent(correlation):""));
    const target=kind==="audit"?"audit-table":"errors-table";
-   $(kind+"-prev").disabled=offset===0;
-   $(kind+"-next").disabled=data.items.length<pageSize;
-   $(kind+"-page").textContent=data.items.length===0?"No records on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);if(kind==="audit")$("audit-filter-note").textContent=[auditAction?"Action: "+auditAction:"",auditCorrelation?"Correlation ID: "+auditCorrelation:""].filter(Boolean).join(" · ")||"Showing all audit actions.";else $("errors-filter-note").textContent=errorsCorrelation?"Filtering correlation ID: "+errorsCorrelation:"Showing all recorded errors and denied events.";
-   $(target).innerHTML=table(data.items,[{label:"Timestamp",render:e=>esc(e.timestamp||e.created_at?new Date(e.timestamp||e.created_at).toLocaleString():"—")},{label:"Event",render:e=>'<strong>'+esc(e.action||"event")+'</strong><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span>'},{label:"CRUD",render:e=>'<span class="tag">'+esc(e.actions||"OTHER")+'</span>'},{label:"Session",render:e=>'<code>'+esc(e.session_id||"Unavailable")+'</code>'},{label:"IP / Device",render:e=>'<code>'+esc(e.ip_address||"Unavailable")+'</code><br><span class="muted small">'+esc(e.device_used||"unknown")+'</span>'},{label:"Actor / Target",render:e=>'<code>'+esc(e.actor_id||"system")+'</code><br>'+esc(e.target_type||"—")+' <code>'+esc(e.target_id||"")+'</code>'},{label:"Description",render:e=>esc(e.description||e.action||"—")+'<br><span class="muted small">Correlation: '+esc(e.correlation_id||"—")+'</span>'},{label:"Metadata",render:e=>'<details class="cell-detail"><summary>View metadata</summary><pre>'+esc(JSON.stringify(e.metadata||{},null,2))+'</pre></details>'}]);
-   renderIcons($(target));
-   wireTableTools($(target));
+   const tableEl=$(target);
+   tableEl.setAttribute("aria-busy","true");
+   tableEl.innerHTML='<div class="empty"><strong>Loading '+(kind==="audit"?"audit records":"system errors")+'</strong><span class="muted small">Retrieving the latest records…</span></div>';
+   try {
+     const data=await api("/v1/admin/"+kind+"?limit="+pageSize+"&offset="+offset+(kind==="audit"&&auditAction?"&action="+encodeURIComponent(auditAction):"")+(correlation?"&correlation_id="+encodeURIComponent(correlation):""));
+     if(!data||!Array.isArray(data.items)) throw new Error("Unexpected "+kind+" response");
+     $(kind+"-prev").disabled=offset===0;
+     $(kind+"-next").disabled=data.items.length<pageSize;
+     $(kind+"-page").textContent=data.items.length===0?"No records on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
+     if(kind==="audit") $("audit-filter-note").textContent=[auditAction?"Action: "+auditAction:"",auditCorrelation?"Correlation ID: "+auditCorrelation:""].filter(Boolean).join(" · ")||"Showing all audit actions.";
+     else $("errors-filter-note").textContent=errorsCorrelation?"Filtering correlation ID: "+errorsCorrelation:"Showing all recorded errors and denied events.";
+     if(data.items.length===0){
+       tableEl.innerHTML='<div class="empty"><strong>No '+(kind==="audit"?"audit records":"system errors")+' found</strong><span class="muted small">'+(correlation?"No records match this correlation ID.":kind==="errors"?"No recorded errors or denied events are currently available.":"There are no audit events on this page.")+'</span></div>';
+     } else {
+       tableEl.innerHTML=table(data.items,[
+         {label:"Timestamp",render:e=>esc(e.timestamp||e.created_at?new Date(e.timestamp||e.created_at).toLocaleString():"—")},
+         {label:"Event",render:e=>'<strong>'+esc(e.action||"event")+'</strong><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span>'},
+         {label:"CRUD",render:e=>'<span class="tag">'+esc(e.actions||"OTHER")+'</span>'},
+         {label:"Session",render:e=>'<code>'+esc(e.session_id||"Unavailable")+'</code>'},
+         {label:"IP / Device",render:e=>'<code>'+esc(e.ip_address||"Unavailable")+'</code><br><span class="muted small">'+esc(e.device_used||"unknown")+'</span>'},
+         {label:"Actor / Target",render:e=>'<code>'+esc(e.actor_id||"system")+'</code><br>'+esc(e.target_type||"—")+' <code>'+esc(e.target_id||"")+'</code>'},
+         {label:"Description",render:e=>esc(e.description||e.action||"—")+'<br><span class="muted small">Correlation: '+esc(e.correlation_id||"—")+'</span>'},
+         {label:"Metadata",render:e=>'<details class="cell-detail"><summary>View metadata</summary><pre>'+esc(JSON.stringify(e.metadata||{},null,2))+'</pre></details>'}
+       ]);
+       renderIcons(tableEl);
+       wireTableTools(tableEl);
+     }
+   } catch(e) {
+     const subject=kind==="audit"?"Audit records":"System errors";
+     tableEl.innerHTML='<div class="empty"><strong>'+subject+' could not be loaded</strong><span class="muted small">'+esc(safeError(e,"The records could not be retrieved. Please retry."))+'</span><button id="'+kind+'-retry" class="secondary" type="button">Retry</button></div>';
+     $(kind+"-retry")?.addEventListener("click",()=>loadEvents(kind));
+     $(kind+"-prev").disabled=offset===0;
+     $(kind+"-next").disabled=true;
+     $(kind+"-page").textContent="Unable to load this page";
+     if(kind==="errors") $("errors-filter-note").textContent="Retrieval failed. Your correlation filter has been preserved.";
+   } finally {
+     tableEl.removeAttribute("aria-busy");
+   }
  }
 
  async function loadRoles() {
