@@ -159,9 +159,8 @@ async def get_active_postgres_principal(
     """Verify and register the Supabase session before serving application APIs.
 
     Supabase JWT validation proves that the access token was issued and has not
-    expired. The application registry adds immediate revocation: once an admin
-    revokes a session, every protected API route using this dependency rejects
-    that session, not only the admin console routes.
+    expired. The Supabase session table rejects signed-out sessions, while the application
+    registry adds immediate administrator revocation across all protected API routes.
     """
     if principal.subject == "development-user":
         return principal
@@ -179,7 +178,10 @@ async def get_active_postgres_principal(
         text(
             "INSERT INTO lifelink_user_sessions "
             "(session_id, user_id, device_used, ip_address, created_at, last_seen_at, expires_at, status) "
-            "VALUES (:session_id, :user_id, :device_used, :ip_address, :now, :now, :expires_at, 'active') "
+            "SELECT :session_id, :user_id, :device_used, :ip_address, :now, :now, :expires_at, 'active' "
+            "WHERE EXISTS (SELECT 1 FROM auth.sessions AS supabase_session "
+            "WHERE supabase_session.id::text = :session_id "
+            "AND supabase_session.user_id::text = :user_id) "
             "ON CONFLICT (session_id) DO UPDATE SET "
             "last_seen_at = EXCLUDED.last_seen_at, device_used = EXCLUDED.device_used, "
             "ip_address = COALESCE(EXCLUDED.ip_address, lifelink_user_sessions.ip_address), "
