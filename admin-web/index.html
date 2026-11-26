@@ -796,6 +796,40 @@ tbody tr:hover { background: #f0eee7; }
  .snapshot-kind { align-self: flex-start; }
 }
 
+
+/* Security alert review: severity and workflow state are separate signals */
+#page-alerts { display: grid; gap: 14px; }
+.alerts-intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.alerts-intro h2 { margin-bottom: 5px; }
+.alerts-intro p { max-width: 650px; margin: 0; line-height: 1.5; }
+.severity-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#page-alerts .alerts-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 12px 14px; border: 1px solid var(--md-outline-variant); border-radius: var(--md-shape-large); background: var(--md-surface-container-low); }
+#page-alerts .alerts-toolbar label { margin: 0; color: var(--ink-soft); font-size: 12px; font-weight: 700; }
+#page-alerts .alerts-toolbar select { width: auto; min-width: 190px; }
+#page-alerts .alerts-toolbar > span { margin-left: auto; }
+#alerts-table .tag { white-space: nowrap; }
+#alerts-table .tag.severity-critical, #alerts-table .tag.severity-high, .severity-key .severity-critical, .severity-key .severity-high { background: #f8eae7; color: #96392f; }
+#alerts-table .tag.severity-medium, .severity-key .severity-medium { background: #f5ecd9; color: #80602e; }
+#alerts-table .tag.severity-low, .severity-key .severity-low { background: #e9eee8; color: #526b56; }
+#alerts-table .tag.severity-unknown { background: var(--md-surface-container); color: var(--md-on-primary-container); }
+#alerts-table .tag.status-open { background: #f8eae7; color: #96392f; }
+#alerts-table .tag.status-acknowledged { background: #f5ecd9; color: #80602e; }
+#alerts-table .tag.status-investigating { background: #e8e9df; color: #343a34; }
+#alerts-table .tag.status-resolved { background: #e9eee8; color: #526b56; }
+#alerts-table .tag.status-false_positive, #alerts-table .tag.status-unknown { background: var(--md-surface-container); color: var(--md-on-primary-container); }
+#alerts-table .actions { min-width: 210px; gap: 6px; }
+#alerts-table .actions button { min-height: 40px; padding: 7px 10px; font-size: 11.5px; }
+#alerts-table .cell-detail pre { max-width: 360px; }
+#page-alerts .alerts-pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 0; }
+#page-alerts .alerts-pagination > span { margin-left: auto; }
+@media (max-width: 720px) {
+ .alerts-intro { flex-direction: column; gap: 10px; }
+ #page-alerts .alerts-toolbar { align-items: stretch; }
+ #page-alerts .alerts-toolbar select { width: 100%; }
+ #page-alerts .alerts-toolbar > span { margin-left: 0; }
+ #page-alerts .alerts-pagination > span { width: 100%; margin: 4px 0 0; }
+}
+
 </style>
 </head>
 <body>
@@ -836,7 +870,12 @@ tbody tr:hover { background: #f0eee7; }
  <section id="page-users" aria-labelledby="page-title" class="panel hidden"><h2>User management</h2><p class="muted small">Review account capabilities and status. This interface cannot grant or revoke administrator status.</p><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions" style="margin-top:14px"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
  <section id="page-audit" aria-labelledby="page-title" class="panel hidden"><h2>Audit history</h2><div class="table-toolbar"><label class="small" for="audit-action-filter">Exact action</label><div class="search-wrap"><input id="audit-action-filter" type="search" maxlength="64" placeholder="e.g. admin.user.update" autocomplete="off"></div><label class="small" for="audit-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="audit-correlation-filter" type="search" maxlength="128" placeholder="Trace related events" autocomplete="off"></div><button id="audit-filter-apply" class="secondary" type="button">Apply filters</button><button id="audit-filter-clear" class="secondary" type="button">Clear</button></div><p class="muted small" id="audit-filter-note">Showing all audit actions.</p><div id="audit-table" class="tablewrap"><div class="empty">Select Audit logs to load events.</div></div><div class="actions" style="margin-top:14px"><button id="audit-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="audit-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="audit-page" class="muted small" aria-live="polite"></span></div></section>
  <section id="page-sessions" aria-labelledby="page-title" class="panel hidden"><h2>User sessions</h2><p class="muted small">Protected API access records sessions. Revocation blocks subsequent protected requests.</p><div id="sessions-table" class="tablewrap"><div class="empty">Select Sessions to load records.</div></div><div class="actions" style="margin-top:14px"><button id="sessions-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="sessions-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="sessions-page" class="muted small" aria-live="polite"></span></div></section>
- <section id="page-alerts" aria-labelledby="page-title" class="panel hidden"><h2>Security alerts</h2><p class="muted small">Incidents are deduplicated. Review evidence and update investigation status.</p><div class="table-toolbar"><label class="small" for="alert-status-filter">Filter by status</label><select id="alert-status-filter" aria-label="Filter security alerts by status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select></div><div id="alerts-table" class="tablewrap"><div class="empty">Select Security alerts to load incidents.</div></div><div class="actions" style="margin-top:14px"><button id="alerts-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="alerts-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="alerts-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-alerts" aria-labelledby="page-title" class="panel hidden">
+  <div class="alerts-intro"><div><h2>Security alerts</h2><p class="muted small">Incidents are deduplicated. Review severity, investigation status, and supporting evidence before taking action.</p></div><div class="severity-key" role="group" aria-label="Severity levels"><span class="tag severity-critical">Critical</span><span class="tag severity-high">High</span><span class="tag severity-medium">Medium</span><span class="tag severity-low">Low</span></div></div>
+  <div class="table-toolbar alerts-toolbar"><label class="small" for="alert-status-filter">Investigation status</label><select id="alert-status-filter" aria-label="Filter security alerts by investigation status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select><span class="muted small">Severity is shown separately from investigation status.</span></div>
+  <div id="alerts-table" class="tablewrap" aria-live="polite"><div class="empty">Select Security alerts to load incidents.</div></div>
+  <div class="actions alerts-pagination"><button id="alerts-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="alerts-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="alerts-page" class="muted small" aria-live="polite"></span></div>
+ </section>
  <section id="page-errors" aria-labelledby="page-title" class="panel hidden"><h2>Application errors</h2><div class="table-toolbar"><label class="small" for="errors-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="errors-correlation-filter" type="search" maxlength="128" placeholder="Trace related errors" autocomplete="off"></div><button id="errors-filter-apply" class="secondary" type="button">Apply filter</button><button id="errors-filter-clear" class="secondary" type="button">Clear</button></div><p id="errors-filter-note" class="muted small">Showing all recorded errors and denied events.</p><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div><div class="actions" style="margin-top:14px"><button id="errors-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="errors-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="errors-page" class="muted small" aria-live="polite"></span></div></section>
  </div></div><div id="app-message" class="notice hidden" role="status" aria-live="polite"></div><p class="foot">LifeLink Admin · Keep this browser session private. Sign out when finished.</p>
 </main>
@@ -1083,10 +1122,11 @@ async function loadUsers() {
        tableEl.innerHTML='<div class="empty"><strong>No security alerts found</strong><span class="muted small">'+(alertStatus?"No incidents match this status filter.":"No recorded incidents are currently in the alert queue.")+'</span></div>';
      } else {
        tableEl.innerHTML=table(data.items,[
-         {label:"Rule",render:a=>'<strong>'+esc(a.rule_id)+'</strong><br><span class="tag severity-'+esc(String(a.severity||"low").toLowerCase())+'">'+esc(a.severity)+'</span>'},
-         {label:"Status",render:a=>'<span class="tag '+(a.status==="open"?"fail":"")+'">'+esc(a.status)+'</span>'},
-         {label:"User / Session",render:a=>'<code>'+esc(a.user_id)+'</code><br><code>'+esc(a.session_id||"—")+'</code>'},
-         {label:"Incident",render:a=>esc(a.summary)+'<br><span class="muted small">'+esc(a.occurrences)+' occurrences</span>'},
+         {label:"Rule",render:a=>'<strong>'+esc(a.rule_id||"Unknown rule")+'</strong>'},
+         {label:"Severity",render:a=>'<span class="tag severity-'+String(a.severity||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.severity||"Unknown")+'</span>'},
+         {label:"Status",render:a=>'<span class="tag status-'+String(a.status||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.status||"Unknown")+'</span>'},
+         {label:"User / Session",render:a=>'<code>'+esc(a.user_id||"—")+'</code><br><code>'+esc(a.session_id||"—")+'</code>'},
+         {label:"Incident",render:a=>'<strong>'+esc(a.summary||"No summary provided")+'</strong><br><span class="muted small">'+esc(a.occurrences??"—")+' occurrences</span>'},
          {label:"Last seen",render:a=>esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")},
          {label:"Evidence / history",render:a=>'<details class="cell-detail"><summary>View evidence &amp; history</summary><p class="small">Created: '+esc(a.created_at?new Date(a.created_at).toLocaleString():"—")+'</p><p class="small">Acknowledged: '+esc(a.acknowledged_at?new Date(a.acknowledged_at).toLocaleString():"—")+' · By '+esc(a.acknowledged_by||"—")+'</p><p class="small">Resolved: '+esc(a.resolved_at?new Date(a.resolved_at).toLocaleString():"—")+' · By '+esc(a.resolved_by||"—")+'</p><p class="small">Correlation: <code>'+esc(a.correlation_id||"—")+'</code></p><pre>'+esc(JSON.stringify(a.evidence||{},null,2))+'</pre></details>'},
          {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" data-alert="'+esc(a.id)+'" data-status="acknowledged"><span class="ll-icon" data-icon="check"></span>Acknowledge</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="investigating"><span class="ll-icon" data-icon="search"></span>Investigate</button><button class="secondary" data-alert="'+esc(a.id)+'" data-status="false_positive">False positive</button><button data-alert="'+esc(a.id)+'" data-status="resolved"><span class="ll-icon" data-icon="shieldCheck"></span>Resolve</button></div>'}
