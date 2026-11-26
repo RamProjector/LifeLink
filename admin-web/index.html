@@ -295,7 +295,7 @@ tbody tr:hover{background:#f5f1e8}
  const SUPABASE_URL = "https://nphbhlxnujmylhubzmne.supabase.co";
  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_0BnXY2k96nRr0k0zaZvMgQ_IQYSlyQu";
  const API_BASE_URL = "https://lifelink-api-uzje.onrender.com";
- let accessToken = null, activePage = "overview", recoveryMode = false, alertStatus = "", pageLoadToken = 0;
+ let accessToken = null, recoveryAccessToken = null, activePage = "overview", recoveryMode = false, alertStatus = "", pageLoadToken = 0;
  const ADMIN_REDIRECT_URL = "https://lifelink-admin-console.onrender.com/";
  const pageSize = 50;
  let auditAction = "";
@@ -353,14 +353,15 @@ tbody tr:hover{background:#f5f1e8}
    if(password.length<8){message("login-message","Use a password with at least 8 characters.",true);return;}
    if(password!==confirmPassword){message("login-message","The passwords do not match.",true);return;}
    const hash=new URLSearchParams(location.hash.slice(1));
-   const token=hash.get("access_token");
-   if(!token||hash.get("type")!=="recovery"){message("login-message","This reset link is invalid or expired. Request a new one.",true);return;}
+   const token=recoveryAccessToken;
+   if(!token){message("login-message","This reset link is invalid or expired. Request a new one.",true);return;}
    $("recovery-submit").disabled=true; message("login-message","Updating your password…");
    try {
      const response=await fetch(SUPABASE_URL+"/auth/v1/user",{method:"PUT",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Authorization":"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({password})});
      const data=await response.json().catch(()=>({}));
      if(!response.ok) { const error=new Error("Password update failed"); error.status=response.status; throw error; }
      history.replaceState(null,"",location.pathname+location.search);
+     recoveryAccessToken=null;
      $("new-password").value=""; $("confirm-password").value=""; $("recovery-view").classList.add("hidden");
      message("login-message","Password updated. Sign in with your new password.");
    } catch(e){message("login-message",safeError(e,"Could not update password. Request a fresh reset link."),true);}
@@ -712,9 +713,13 @@ async function loadUsers() {
   $("signin").addEventListener("click",signIn);
  $("forgot-password").addEventListener("click",e=>{e.preventDefault();$("recovery-email").value=$("email").value.trim();showRecovery("request");});
  $("recovery-submit").addEventListener("click",()=>recoveryMode==="update"?updateRecoveredPassword():requestPasswordReset());
- $("recovery-cancel").addEventListener("click",()=>{$("recovery-view").classList.add("hidden");message("login-message","");});
+ $("recovery-cancel").addEventListener("click",()=>{recoveryAccessToken=null;$("new-password").value="";$("confirm-password").value="";$("recovery-view").classList.add("hidden");message("login-message","");});
  const initialHash=new URLSearchParams(location.hash.slice(1));
- if(initialHash.get("type")==="recovery"&&initialHash.get("access_token")){showRecovery("update");message("login-message","Password-reset link verified. Choose a new password.");}
+ if(initialHash.get("type")==="recovery"&&initialHash.get("access_token")){
+   recoveryAccessToken=initialHash.get("access_token");
+   history.replaceState(null,"",location.pathname+location.search);
+   showRecovery("update");message("login-message","Password-reset link verified. Choose a new password.");
+ }
  $("password").addEventListener("keydown",e=>{if(e.key==="Enter")signIn()});
  document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>loadPage(b.dataset.page)));
  $("refresh").addEventListener("click",()=>loadPage(activePage));
