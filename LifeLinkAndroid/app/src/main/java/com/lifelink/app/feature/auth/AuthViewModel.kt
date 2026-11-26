@@ -53,7 +53,8 @@ class AuthViewModel(private val repository: SupabaseAuthRepository) : ViewModel(
         viewModelScope.launch {
             repository.signOut().onFailure {
                 _state.value = AuthState.Message(
-                    "You are signed out on this device, but LifeLink could not confirm server-side session revocation. Reconnect and sign in again.",
+                    "You are signed out on this device, but LifeLink could not confirm " +
+                        "server-side session revocation. Reconnect and sign in again.",
                     isError = true,
                 )
             }
