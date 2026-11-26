@@ -58,7 +58,13 @@ class AuthRefreshTest {
             .setBodyDelay(300, TimeUnit.MILLISECONDS))
         val refresh = async(kotlinx.coroutines.Dispatchers.IO) { repository.refreshAccessToken() }
         assertNotNull(server.takeRequest(5, TimeUnit.SECONDS))
-        repository.signOut()
+        server.enqueue(MockResponse().setResponseCode(204))
+        val signOut = repository.signOut()
+        assertTrue(signOut.isSuccess)
+        val logoutRequest = server.takeRequest(5, TimeUnit.SECONDS)
+        assertEquals("POST", logoutRequest?.method)
+        assertEquals("/auth/v1/logout?scope=local", logoutRequest?.path)
+        assertEquals("Bearer old-token", logoutRequest?.getHeader("Authorization"))
         assertNull(refresh.await())
         assertNull(store.session.value)
     }
