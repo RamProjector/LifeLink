@@ -656,6 +656,28 @@ tbody tr:last-child td { border-bottom: 0; }
 #alerts-page { padding-left: 4px; }
 #page-alerts .empty strong { color: var(--ink); font-size: 14px; }
 
+/* Shared data tables: clear scope, accessible status, consistent density */
+.table-toolbar { gap:10px 14px; }
+.table-toolbar .search-wrap { min-width:min(100%,220px); }
+.table-toolbar input:focus-visible,.table-toolbar select:focus-visible,.cell-detail summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.table-actions { gap:10px 14px; }
+.table-count { font-variant-numeric:tabular-nums; }
+.tablewrap { border-color:var(--md-outline-variant); border-radius:var(--radius-md); scrollbar-gutter:stable; }
+.tablewrap:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.tablewrap table { border-collapse:separate; border-spacing:0; }
+.tablewrap th { background:var(--md-surface-container); color:var(--ink-soft); }
+.tablewrap tbody tr { transition:background-color .12s ease; }
+.table-empty-filter { padding:22px 16px; font-size:12px; line-height:1.5; }
+@media(max-width:620px) {
+ .table-toolbar { align-items:stretch; }
+ .table-toolbar .search-wrap { flex:1 1 100%; max-width:none; }
+ .table-actions { justify-content:space-between; width:100%; }
+ .table-count { white-space:normal; text-align:right; }
+}
+@media(prefers-reduced-motion:reduce) {
+ .tablewrap tbody tr { transition:none; }
+}
+
 /* Role registry: explain the single privileged console role */
 .roles-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
 .roles-heading h2 { margin-bottom:4px; }
@@ -1239,7 +1261,9 @@ tbody tr:hover { background: #f0eee7; }
    const plural=filterKey==='status'?'statuses':filterKey==='outcome'?'outcomes':filterKey+'s';
    const select=values.length?'<label class="small muted">Filter <select data-table-filter aria-label="Filter table rows" style="width:auto;padding:8px;border:1px solid var(--line);border-radius:8px;background:white"><option value="">All '+esc(plural)+'</option>'+values.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select></label>':'';
    const rows=items.map(item=>'<tr data-filter-value="'+esc(filterKey?item[filterKey]??'':'')+'">'+cols.map(col=>'<td data-label="'+esc(col.label)+'">'+col.render(item)+'</td>').join('')+'</tr>').join('');
-   return '<div class="table-toolbar"><div class="search-wrap"><input type="search" data-table-search placeholder="Search visible records…" aria-label="Search visible table records"></div>'+select+'<div class="table-actions"><button type="button" class="secondary table-export" data-table-export><span class="ll-icon" data-icon="download"></span>Export CSV</button><span class="table-count" data-table-count>'+items.length+' records on this page</span></div></div><table><thead><tr>'+cols.map(col=>'<th scope="col">'+esc(col.label)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table><div class="table-empty-filter" data-table-empty>No matching records on this page.</div>';
+   const tableNames={users:"User management records",audit:"Audit activity records",alerts:"Security alert records",sessions:"User session records",errors:"Application error records",roles:"Configured roles and permissions"};
+   const tableName=tableNames[activePage]||"Administration records";
+   return '<div class="table-toolbar"><div class="search-wrap"><input type="search" data-table-search placeholder="Search this page… " aria-label="Search records on the current page"></div>'+select+'<div class="table-actions"><button type="button" class="secondary table-export" data-table-export aria-label="Export visible records as CSV"><span class="ll-icon" data-icon="download"></span>Export visible</button><span class="table-count" data-table-count role="status" aria-live="polite" aria-atomic="true">'+items.length+' records on this page</span></div></div><table aria-label="'+esc(tableName)+'"><thead><tr>'+cols.map(col=>'<th scope="col">'+esc(col.label)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table><div class="table-empty-filter" data-table-empty role="status" aria-live="polite">No matching records on this page. Clear the search or status filter to see the full page.</div>';
  }
  function wireTableTools(container) {
    const search=container.querySelector('[data-table-search]');
