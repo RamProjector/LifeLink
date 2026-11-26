@@ -409,6 +409,26 @@ label {
   line-height: 1.6;
 }
 
+/* Application diagnostics refinements */
+.errors-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.errors-heading h2 { margin-bottom:4px; }
+.errors-heading p { max-width:720px; margin:0; }
+.errors-guidance { display:flex; align-items:flex-start; gap:11px; margin:13px 0; padding:11px 13px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface-soft); }
+.errors-guidance > .ll-icon { flex:0 0 auto; color:var(--ink-soft); }
+.errors-guidance p { margin:3px 0 0; }
+.errors-toolbar { align-items:end; }
+.errors-toolbar .search-wrap { flex:1 1 260px; min-width:min(100%,220px); }
+#errors-table td code { overflow-wrap:anywhere; }
+#errors-table details summary { cursor:pointer; color:var(--ink-soft); }
+#errors-table details pre { max-width:min(560px,70vw); max-height:260px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
+.errors-pagination { align-items:center; margin-top:13px; }
+@media(max-width:620px) {
+ .errors-guidance { padding:10px; }
+ .errors-toolbar { align-items:stretch; }
+ .errors-toolbar .search-wrap { flex-basis:100%; }
+ .errors-pagination { justify-content:flex-start; }
+}
+
 /* Session access review refinements */
 .sessions-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
 .sessions-heading h2 { margin-bottom:4px; }
@@ -964,7 +984,14 @@ tbody tr:hover { background: #f0eee7; }
   <div id="alerts-table" class="tablewrap" aria-live="polite"><div class="empty">Select Security alerts to load incidents.</div></div>
   <div class="actions alerts-pagination"><button id="alerts-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="alerts-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="alerts-page" class="muted small" aria-live="polite"></span></div>
  </section>
- <section id="page-errors" aria-labelledby="page-title" class="panel hidden"><h2>Application errors</h2><div class="table-toolbar"><label class="small" for="errors-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="errors-correlation-filter" type="search" maxlength="128" placeholder="Trace related errors" autocomplete="off"></div><button id="errors-filter-apply" class="secondary" type="button">Apply filter</button><button id="errors-filter-clear" class="secondary" type="button">Clear</button></div><p id="errors-filter-note" class="muted small">Showing all recorded errors and denied events.</p><div id="errors-table" class="tablewrap"><div class="empty">Select Errors to load events.</div></div><div class="actions" style="margin-top:14px"><button id="errors-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="errors-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="errors-page" class="muted small" aria-live="polite"></span></div></section>
+ <section id="page-errors" aria-labelledby="page-title" class="panel hidden">
+  <div class="errors-heading"><div><h2>Application errors</h2><p class="muted small">Review recorded application errors and denied events. Use correlation IDs to follow related activity across diagnostic records.</p></div><span class="snapshot-kind">Read only</span></div>
+  <div class="errors-guidance"><span class="ll-icon" data-icon="activity" aria-hidden="true"></span><div><strong class="small">Diagnostic context</strong><p class="muted small">Metadata may contain operational identifiers. Review it only when needed, and avoid copying sensitive values into external reports.</p></div></div>
+  <div class="table-toolbar errors-toolbar"><label class="small" for="errors-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="errors-correlation-filter" type="search" maxlength="128" placeholder="Enter a correlation ID" autocomplete="off"></div><button id="errors-filter-apply" class="secondary" type="button">Apply filter</button><button id="errors-filter-clear" class="secondary" type="button">Clear</button></div>
+  <p id="errors-filter-note" class="muted small" aria-live="polite">Showing all recorded errors and denied events.</p>
+  <div id="errors-table" class="tablewrap" aria-live="polite"><div class="empty">Select Errors to load events.</div></div>
+  <div class="actions errors-pagination"><button id="errors-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="errors-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="errors-page" class="muted small" aria-live="polite"></span></div>
+ </section>
  </div></div><div id="app-message" class="notice hidden" role="status" aria-live="polite"></div><p class="foot">LifeLink Admin · Keep this browser session private. Sign out when finished.</p>
 </main>
 <script src="./icons.js"></script>
