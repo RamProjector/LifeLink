@@ -56,6 +56,21 @@ def run_scenario(pg_url: str, scenario):
             await conn.execute(text("DROP SCHEMA public CASCADE"))
             await conn.execute(text("CREATE SCHEMA public"))
             await conn.run_sync(db_models.Base.metadata.create_all)
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS lifelink_user_sessions (
+                session_id VARCHAR(128) PRIMARY KEY,
+                user_id VARCHAR(128) NOT NULL,
+                device_used VARCHAR(255) NOT NULL DEFAULT 'unknown',
+                ip_address VARCHAR(64),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                expires_at TIMESTAMPTZ,
+                revoked_at TIMESTAMPTZ,
+                revoked_by VARCHAR(128),
+                status VARCHAR(16) NOT NULL DEFAULT 'active'
+                    CHECK (status IN ('active', 'revoked', 'expired'))
+            )
+        """))
         sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
         current: dict[str, Any] = {"id": "nobody", "_session_factory": sessions}
 
@@ -65,7 +80,7 @@ def run_scenario(pg_url: str, scenario):
 
         app.dependency_overrides[get_db_session] = session_dependency
         app.dependency_overrides[get_postgres_principal] = lambda: Principal(
-            subject=current["id"], email=f"{current['id']}@example.com"
+            subject=current["id"], email=f"{current['id']}@example.com", session_id=f"test-session-{current['id']}"
         )
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
         try:
