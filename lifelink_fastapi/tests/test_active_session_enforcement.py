@@ -61,6 +61,7 @@ def test_active_principal_registers_session_before_request():
     assert "INSERT INTO lifelink_user_sessions" in session.statement
     assert "ON CONFLICT (session_id) DO UPDATE" in session.statement
     assert "lifelink_user_sessions.revoked_at IS NULL" in session.statement
+    assert "lifelink_user_sessions.status <> 'revoked'" in session.statement
     assert session.params["user_id"] == "user-1"
     assert session.params["session_id"] == "session-1"
     assert session.committed is True
