@@ -172,7 +172,12 @@ class AccountPersistenceTest {
         val secure = context.getSharedPreferences("lifelink_auth_secure", Context.MODE_PRIVATE)
         secure.edit().clear().commit()
         AuthSessionStore(context, TestSessionCipher()).save(
-            AuthSession("protected-access", "protected-refresh", "protected-user", "protected@example.test"),
+            AuthSession(
+                accessToken = "protected-access",
+                refreshToken = "protected-refresh",
+                userId = "protected-user",
+                email = "protected@example.test",
+            ),
         )
 
         secure.edit()
