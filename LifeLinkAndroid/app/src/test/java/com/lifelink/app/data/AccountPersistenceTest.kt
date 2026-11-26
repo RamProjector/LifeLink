@@ -34,9 +34,35 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.xmlpull.v1.XmlPullParser
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.xmlpull.v1.XmlPullParser
+
+private fun readExcludedSharedPreferences(context: Context): Map<String, Set<String>> {
+    val parser = context.resources.getXml(R.xml.data_extraction_rules)
+    val excluded = mutableMapOf<String, MutableSet<String>>()
+    var section = ""
+
+    while (parser.next() != XmlPullParser.END_DOCUMENT) {
+        if (parser.eventType != XmlPullParser.START_TAG) continue
+        when (parser.name) {
+            "cloud-backup", "device-transfer" -> section = parser.name
+            "exclude" -> addSharedPreferenceExclusion(parser, section, excluded)
+        }
+    }
+    parser.close()
+    return excluded
+}
+
+private fun addSharedPreferenceExclusion(
+    parser: XmlPullParser,
+    section: String,
+    excluded: MutableMap<String, MutableSet<String>>,
+) {
+    if (parser.getAttributeValue(null, "domain") != "sharedpref") return
+    val path = parser.getAttributeValue(null, "path") ?: return
+    excluded.getOrPut(section) { mutableSetOf() }.add(path)
+}
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = android.app.Application::class)
@@ -45,32 +71,9 @@ class AccountPersistenceTest {
 
     @Test fun authPreferencesAreExcludedFromCloudBackupAndDeviceTransfer() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val parser = context.resources.getXml(R.xml.data_extraction_rules)
-        val excluded = mutableMapOf<String, MutableSet<String>>()
-        var section = ""
-
-        while (parser.eventType != XmlPullParser.END_DOCUMENT) {
-            if (parser.eventType == XmlPullParser.START_TAG) {
-                when (parser.name) {
-                    "cloud-backup", "device-transfer" -> section = parser.name
-                    "exclude" -> {
-                        if (parser.getAttributeValue(null, "domain") == "sharedpref") {
-                            excluded.getOrPut(section) { mutableSetOf() }
-                                .add(parser.getAttributeValue(null, "path").orEmpty())
-                        }
-                    }
-                }
-            } else if (
-                parser.eventType == XmlPullParser.END_TAG &&
-                (parser.name == "cloud-backup" || parser.name == "device-transfer")
-            ) {
-                section = ""
-            }
-            parser.next()
-        }
-        parser.close()
-
+        val excluded = readExcludedSharedPreferences(context)
         val authPreferences = setOf("lifelink_auth.xml", "lifelink_auth_secure.xml")
+
         assertTrue(authPreferences.all { it in excluded["cloud-backup"].orEmpty() })
         assertTrue(authPreferences.all { it in excluded["device-transfer"].orEmpty() })
     }
