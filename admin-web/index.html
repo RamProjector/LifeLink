@@ -585,6 +585,18 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 .table-empty-filter { display: none; padding: 24px; color: var(--muted); text-align: center; }
 
+/* Audit and diagnostic event rows: grouped context, scannable identifiers */
+#audit-table table,#errors-table table{min-width:880px}
+#audit-table td,#errors-table td{vertical-align:middle}
+#audit-table .event-recorded,#errors-table .event-recorded,#audit-table .event-summary,#errors-table .event-summary,#audit-table .event-trace,#errors-table .event-trace,#audit-table .event-source,#errors-table .event-source,#audit-table .event-target,#errors-table .event-target{display:grid;gap:5px;min-width:0}
+#audit-table .event-recorded strong,#errors-table .event-recorded strong{color:var(--ink);font-size:11.5px;white-space:nowrap}
+#audit-table .event-recorded .tag,#errors-table .event-recorded .tag{width:fit-content}
+#audit-table .event-summary strong,#errors-table .event-summary strong{color:var(--ink);font-size:11.5px;overflow-wrap:anywhere}
+#audit-table .event-summary .small,#errors-table .event-summary .small,#audit-table .event-source .small,#errors-table .event-source .small{font-size:10.5px;line-height:1.45;overflow-wrap:anywhere}
+#audit-table .event-trace code,#errors-table .event-trace code,#audit-table .event-source code,#errors-table .event-source code,#audit-table .event-target code,#errors-table .event-target code{width:fit-content;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px}
+#audit-table .event-target strong,#errors-table .event-target strong{font-size:11px;color:var(--ink-soft)}
+#audit-table details summary,#errors-table details summary{min-height:36px;display:flex;align-items:center}
+
 /* Session inventory: reduce column sprawl and keep identifiers legible */
 #page-sessions .sessions-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px}
 #page-sessions .sessions-heading h2{margin:0 0 4px}
@@ -1396,14 +1408,12 @@ async function loadUsers() {
        tableEl.innerHTML='<div class="empty"><strong>No '+(kind==="audit"?"audit records":"system errors")+' found</strong><span class="muted small">'+(correlation?"No records match this correlation ID.":kind==="errors"?"No recorded errors or denied events are currently available.":"There are no audit events on this page.")+'</span></div>';
      } else {
        tableEl.innerHTML=table(data.items,[
-         {label:"Timestamp",render:e=>esc(e.timestamp||e.created_at?new Date(e.timestamp||e.created_at).toLocaleString():"—")},
-         {label:"Event / outcome",render:e=>'<strong>'+esc(e.action||"event")+'</strong><br><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span><br><span class="muted small">'+esc(e.actions||"OTHER")+"</span>"},
-         {label:"Correlation ID",render:e=>'<code>'+esc(e.correlation_id||"—")+'</code>'},
-         {label:"Session",render:e=>'<code>'+esc(e.session_id||"Unavailable")+'</code>'},
-         {label:"IP / Device",render:e=>'<code>'+esc(e.ip_address||"Unavailable")+'</code><br><span class="muted small">'+esc(e.device_used||"unknown")+'</span>'},
-         {label:"Actor / Target",render:e=>'<code>'+esc(e.actor_id||"system")+'</code><br>'+esc(e.target_type||"—")+' <code>'+esc(e.target_id||"")+'</code>'},
-         {label:"Description",render:e=>esc(e.description||e.action||"—")+'<br><span class="muted small">Correlation: '+esc(e.correlation_id||"—")+'</span>'},
-         {label:"Metadata",render:e=>'<details class="cell-detail"><summary>View metadata</summary><pre>'+esc(JSON.stringify(e.metadata||{},null,2))+'</pre></details>'}
+         {label:"Recorded",render:e=>'<div class="event-recorded"><strong>'+esc(e.timestamp||e.created_at?new Date(e.timestamp||e.created_at).toLocaleString():"—")+'</strong><span class="tag '+(e.outcome==="error"||e.outcome==="denied"?"fail":"success")+'">'+esc(e.outcome||"recorded")+'</span></div>'},
+         {label:"Event",render:e=>'<div class="event-summary"><strong>'+esc(e.action||"event")+'</strong><span class="muted small">'+esc(e.description||e.actions||"No additional description")+'</span><span class="muted small">'+esc(e.actions||"OTHER")+'</span></div>'},
+         {label:"Trace",render:e=>'<div class="event-trace"><span class="muted small">Correlation</span><code title="'+esc(e.correlation_id)+'">'+esc(String(e.correlation_id||"—").slice(0,12)+(String(e.correlation_id||"").length>12?"…":""))+'</code><span class="muted small">Session</span><code title="'+esc(e.session_id)+'">'+esc(String(e.session_id||"Unavailable").slice(0,12)+(String(e.session_id||"").length>12?"…":""))+'</code></div>'},
+         {label:"Actor and source",render:e=>'<div class="event-source"><code title="'+esc(e.actor_id)+'">'+esc(String(e.actor_id||"system").slice(0,12)+(String(e.actor_id||"").length>12?"…":""))+'</code><span class="muted small">'+esc(e.device_used||"Unknown device")+'</span><span class="muted small">'+esc(e.ip_address||"IP unavailable")+'</span></div>'},
+         {label:"Target",render:e=>'<div class="event-target"><strong>'+esc(e.target_type||"—")+'</strong><code title="'+esc(e.target_id)+'">'+esc(String(e.target_id||"").slice(0,12)+(String(e.target_id||"").length>12?"…":""))+'</code></div>'},
+         {label:"Details",render:e=>'<details class="cell-detail"><summary>View metadata</summary><pre>'+esc(JSON.stringify(e.metadata||{},null,2))+'</pre></details>'}
        ]);
        renderIcons(tableEl);
        wireTableTools(tableEl);
