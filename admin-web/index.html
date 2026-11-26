@@ -1289,6 +1289,43 @@ tbody tr:hover { background: #f0eee7; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Material 3 type refinement: keep dense records compact without dropping below readable small-text sizing. */
+:root {
+  --type-meta: 12px;
+  --type-micro: 11px;
+}
+.small { font-size: var(--type-meta); }
+.eyebrow { font-size: 11px; }
+th { font-size: 11px; line-height: 1.4; }
+.tag { font-size: 11px; }
+#page-overview .stat .stat-meta,
+#page-overview .overview-trace,
+#page-users .users-guide,
+#page-users #users-table td:first-child code,
+#page-alerts .alert-incident .muted,
+#alerts-table .alert-incident .muted,
+#audit-table .event-summary .small,
+#errors-table .event-summary .small,
+#audit-table .event-source .small,
+#errors-table .event-source .small,
+#page-sessions .session-context .small,
+#page-sessions .session-timeline span,
+#page-sessions .session-lifecycle .small {
+  font-size: 11px;
+  line-height: 1.5;
+}
+#audit-table .event-trace code,
+#errors-table .event-trace code,
+#audit-table .event-source code,
+#errors-table .event-source code,
+#audit-table .event-target code,
+#errors-table .event-target code,
+#page-sessions .session-identity code,
+#page-sessions .session-context code {
+  font-size: 11px;
+}
+
 </style>
 </head>
 <body>
