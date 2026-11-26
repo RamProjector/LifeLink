@@ -41,6 +41,9 @@ class AccountPersistenceTest {
     private lateinit var db: LifeLinkDatabase
 
     @Before fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.getSharedPreferences("lifelink_auth_secure", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("lifelink_auth", Context.MODE_PRIVATE).edit().clear().commit()
         db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), LifeLinkDatabase::class.java)
             .allowMainThreadQueries().build()
     }
