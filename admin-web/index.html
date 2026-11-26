@@ -426,10 +426,12 @@ tbody tr:hover{background:#f5f1e8}
    function setLoadingState(containerId,title,description) {
     const el=$(containerId);
     el.setAttribute("aria-busy","true");
+    el.setAttribute("aria-live","polite");
     el.innerHTML='<div class="empty"><strong>'+esc(title)+'</strong><span class="muted small">'+esc(description)+'</span></div>';
   }
   function setErrorState(containerId,title,error,retry) {
     const el=$(containerId);
+    el.setAttribute("aria-live","polite");
     el.innerHTML='<div class="empty"><strong>'+esc(title)+'</strong><span class="muted small">'+esc(error)+'</span><button class="secondary" type="button" data-retry>Retry</button></div>';
     el.querySelector("[data-retry]")?.addEventListener("click",retry);
   }
