@@ -179,14 +179,16 @@ class AuthSessionStore internal constructor(
         val ciphertext = preferences.getString(KEY_CIPHERTEXT, null)
         if (iv != null && ciphertext != null) {
             return runCatching {
-                deserializeSession(
+                val session = deserializeSession(
                     sessionCipher.decrypt(
                         Base64.decode(iv, Base64.NO_WRAP),
                         Base64.decode(ciphertext, Base64.NO_WRAP),
                     ),
                 )
-            }.getOrNull()?.takeIf { it.accessToken.isNotBlank() && it.userId.isNotBlank() }
-                ?: invalidateUnreadableSession()
+                require(session.accessToken.isNotBlank() && session.userId.isNotBlank())
+                check(legacyPreferences.edit().clear().commit())
+                session
+            }.getOrNull() ?: invalidateUnreadableSession()
         }
         if (iv != null || ciphertext != null) return invalidateUnreadableSession()
         return migrateLegacySession()
