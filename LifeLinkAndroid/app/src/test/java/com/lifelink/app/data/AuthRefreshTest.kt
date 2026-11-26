@@ -53,6 +53,16 @@ class AuthRefreshTest {
         assertTrue(repository.sessionExpired.value)
     }
 
+    @Test fun failedRemoteSignOutStillClearsLocalCredentials() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(503))
+
+        val result = repository.signOut()
+
+        assertTrue(result.isFailure)
+        assertNull(store.session.value)
+        assertNull(store.accessToken())
+    }
+
     @Test fun refreshResponseCannotSignBackInAfterSignOut() = runBlocking {
         server.enqueue(MockResponse().setBody("""{"access_token":"fresh","refresh_token":"new-refresh","user":{"id":"alice"}}""")
             .setBodyDelay(300, TimeUnit.MILLISECONDS))
