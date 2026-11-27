@@ -1286,3 +1286,103 @@ def test_role_policy_integrity_does_not_infer_unconfigured_role_policy():
     assert findings == 0
     assert len(session.statements) == 5
     assert all("INSERT INTO lifelink_role_security_findings" not in statement for statement, _ in session.statements)
+
+
+
+def test_admin_permission_guard_defaults_to_legacy_compatible_observe_mode(monkeypatch):
+    from app.admin_api import require_admin_permission
+
+    monkeypatch.delenv("LIFELINK_RBAC_ENFORCEMENT_MODE", raising=False)
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    session = FakeSession([0, 2])
+
+    async def check():
+        principal = await require_admin_permission("users.read")(
+            request=_request_context(),
+            principal=Principal(
+                subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+            ),
+            session=session,
+        )
+        assert principal.subject == "admin-1"
+
+    asyncio.run(check())
+    assert len(session.scalar_statements) == 2
+    assert all("lifelink_user_roles" not in statement for statement in session.scalar_statements)
+
+
+def test_admin_permission_guard_enforces_exact_active_role_permission(monkeypatch):
+    from app.admin_api import require_admin_permission
+
+    monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "enforce")
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    session = FakeSession([0, 2, 1])
+
+    async def check():
+        principal = await require_admin_permission("users.read")(
+            request=_request_context(),
+            principal=Principal(
+                subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+            ),
+            session=session,
+        )
+        assert principal.subject == "admin-1"
+
+    asyncio.run(check())
+    permission_query = session.scalar_statements[-1]
+    assert "FROM lifelink_user_roles ur" in permission_query
+    assert "JOIN lifelink_role_permissions rp" in permission_query
+    assert "JOIN lifelink_permissions p" in permission_query
+    assert "p.permission_key = :permission_key" in permission_query
+    assert "ur.expires_at > now()" in permission_query
+
+
+def test_admin_permission_guard_denies_missing_permission_and_records_ids08(monkeypatch):
+    from app import admin_api
+
+    monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "enforce")
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    recorded = {}
+
+    async def capture_denial(session, principal, request, **kwargs):
+        recorded.update(kwargs)
+
+    monkeypatch.setattr(admin_api, "_record_denied_admin_attempt", capture_denial)
+    session = FakeSession([0, 2, 0])
+
+    async def check():
+        with pytest.raises(HTTPException) as error:
+            await admin_api.require_admin_permission("security.sessions.revoke")(
+                request=_request_context(),
+                principal=Principal(
+                    subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+                ),
+                session=session,
+            )
+        assert error.value.status_code == 403
+        assert "does not grant" in error.value.detail
+
+    asyncio.run(check())
+    assert recorded["rule_id"] == "IDS-08"
+    assert recorded["action"] == "security.admin_permission.denied"
+    assert recorded["severity"] == "medium"
+
+
+def test_admin_permission_guard_fails_closed_on_invalid_mode(monkeypatch):
+    from app.admin_api import require_admin_permission
+
+    monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "typo")
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+
+    async def check():
+        with pytest.raises(HTTPException) as error:
+            await require_admin_permission("audit.read")(
+                request=_request_context(),
+                principal=Principal(
+                    subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+                ),
+                session=FakeSession([0, 2]),
+            )
+        assert error.value.status_code == 503
+
+    asyncio.run(check())
