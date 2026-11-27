@@ -28,6 +28,26 @@ class Principal:
     assurance_level: str = "aal1"
 
 
+def device_class(user_agent: str | None) -> str:
+    """Reduce an untrusted user-agent to a coarse OS/device label for audit use.
+
+    Browser/OS versions, model identifiers, and arbitrary header text are not
+    persisted. This is descriptive telemetry, never an authentication signal.
+    """
+    value = (user_agent or "").lower()
+    if "android" in value:
+        return "Android device"
+    if any(token in value for token in ("iphone", "ipad", "ipod", "ios")):
+        return "iOS device"
+    if "windows" in value:
+        return "Windows device"
+    if any(token in value for token in ("macintosh", "mac os", "macos")):
+        return "macOS device"
+    if "linux" in value:
+        return "Linux device"
+    return "Unknown device"
+
+
 def auth_required(default: bool = False) -> bool:
     return os.getenv("LIFELINK_AUTH_REQUIRED", str(default).lower()).lower() == "true"
 
@@ -177,7 +197,7 @@ async def get_active_postgres_principal(
         )
 
     now = datetime.now(timezone.utc)
-    user_agent = request.headers.get("user-agent", "unknown")[:255]
+    device_used = device_class(request.headers.get("user-agent"))
     peer_ip = request.client.host if request.client else None
     result = await session.execute(
         text(
@@ -201,7 +221,7 @@ async def get_active_postgres_principal(
         {
             "session_id": principal.session_id,
             "user_id": principal.subject,
-            "device_used": user_agent,
+            "device_used": device_used,
             "ip_address": peer_ip,
             "now": now,
             "expires_at": principal.session_expires_at,
