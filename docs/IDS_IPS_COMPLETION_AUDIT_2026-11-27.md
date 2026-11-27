@@ -20,7 +20,7 @@ Existing components include:
 - A role/permission registry, least-privilege seed mappings, role-applicability checks, and RBAC-01/RBAC-02 discrepancy alerts.
 - Admin UI/API surfaces for viewing alerts, sessions, audit records, users, and role assignments.
 
-The largest gaps are not missing tables. They are incomplete permission enforcement, incomplete and partly demand-driven detection, no verified end-to-end alert delivery, incomplete identity/role registry reconciliation, and lack of a complete evidence-backed acceptance run across Android and web actions.
+The largest gaps are not missing tables. They are incomplete permission enforcement, remaining role-policy gaps for three unconfigured roles, no verified end-to-end administrator alert delivery, incomplete identity/role registry reconciliation, and lack of a complete evidence-backed acceptance run across Android and web actions.
 
 ## Criteria-to-implementation matrix
 
@@ -35,7 +35,7 @@ The largest gaps are not missing tables. They are incomplete permission enforcem
 | Seven required log fields | `session_id`, `log_id`, `actions`, `description`, `ip_address`, `timestamp`, `device_used` exist in the audit envelope | Implemented in schema | Validate populated/non-null behavior where applicable, safe device/IP attribution, and display/export |
 | Every applicable action logged | Authenticated API middleware plus explicit transaction-bound events for sensitive operations | Partial | Route-by-route and client-to-route verification; close legacy/uncovered operations |
 | Individual logs per user | `GET /v1/audit/me` filters by verified token subject | Implemented in API | Verify UI access and cross-account isolation with multiple real test users |
-| Detect inappropriate role/permission assignments | Write-time applicability validation plus a periodic independent RBAC scanner for active assignments and the four explicitly mapped admin roles | Partial | Role-level policy integrity checks without assigned users, role-source reconciliation, and notification delivery |
+| Detect inappropriate role/permission assignments | Write-time applicability validation, periodic RBAC-02 assignment checks, and RBAC-03 role-level policy checks for four reviewed admin roles | Partial | Approve policies for requester, donor, and super_admin; reconcile legacy role sources; verify alert notification delivery |
 | Warn and notify administrator | Alert records and admin alert queue/lifecycle exist | Partial | Prove an actual administrator notification channel, delivery/retry state, unread indication, and end-to-end delivery |
 
 ## Existing repository implementation
@@ -49,6 +49,7 @@ The repository includes:
 - `018_user_session_registry.sql`
 - `019_security_alerts.sql`
 - `020_rbac_role_permission_registry.sql`
+- `021_role_policy_integrity_findings.sql`
 
 Migration 020 creates:
 
