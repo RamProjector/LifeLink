@@ -44,15 +44,24 @@ import java.io.IOException
 private fun verifiedTotpFactors(factors: List<SupabaseMfaFactor>): List<SupabaseMfaFactor> =
     factors.filter { it.factorType == "totp" && it.status == "verified" }
 
-private enum class AdminMfaStep {
+internal enum class AdminMfaStep {
     LOADING,
     ENROLL_PRIMARY,
     ENROLL_BACKUP,
     VERIFY_ENROLLMENT,
     CHALLENGE,
     AUDIT_PENDING,
+    RELOAD_FACTORS,
     CONFIRM_ACCESS,
 }
+
+internal fun nextAdminMfaStep(assuranceLevel: String, verifiedFactorCount: Int): AdminMfaStep =
+    when {
+        assuranceLevel == "aal2" && verifiedFactorCount >= 2 -> AdminMfaStep.CONFIRM_ACCESS
+        verifiedFactorCount <= 0 -> AdminMfaStep.ENROLL_PRIMARY
+        assuranceLevel == "aal2" -> AdminMfaStep.ENROLL_BACKUP
+        else -> AdminMfaStep.CHALLENGE
+    }
 
 @Suppress("LongMethod", "CyclomaticComplexMethod", "SwallowedException")
 @Composable
@@ -72,6 +81,7 @@ fun AdminMfaGateScreen(
     var selectedFactorId by remember { mutableStateOf("") }
     var pendingAuditType by remember { mutableStateOf<String?>(null) }
     var pendingAuditCount by remember { mutableStateOf(0) }
+    var enrollmentAuditPending by remember { mutableStateOf(false) }
     var backupStoredSeparately by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -129,29 +139,56 @@ fun AdminMfaGateScreen(
         }
     }
 
-    LaunchedEffect(session.userId) {
-        busy = true
+    suspend fun loadFactorInventory() {
         repository.listMfaFactors(activeSession)
             .onSuccess { listed ->
-                factors = listed.filter { it.factorType == "totp" && (it.status == "verified" || it.status == "unverified") }
-                val initialVerifiedFactors = verifiedTotpFactors(factors)
-                when {
-                    repository.assuranceLevel(activeSession.accessToken) == "aal2" && initialVerifiedFactors.size >= 2 ->
-                        confirmAdminAccess()
-                    initialVerifiedFactors.isEmpty() -> {
+                val refreshedFactors = listed.filter {
+                    it.factorType == "totp" && (it.status == "verified" || it.status == "unverified")
+                }
+                factors = refreshedFactors
+                val verified = verifiedTotpFactors(refreshedFactors)
+                if (enrollmentAuditPending) {
+                    if (verified.isEmpty()) {
+                        step = AdminMfaStep.RELOAD_FACTORS
+                        error = "Supabase verified the authenticator, but it is not yet visible in the factor inventory. Retry the check."
+                        return@onSuccess
+                    }
+                    pendingAuditType = if (verified.size >= 2) "backup_factor_verified" else "factor_enrollment_verified"
+                    pendingAuditCount = verified.size
+                    enrollmentAuditPending = false
+                    step = AdminMfaStep.AUDIT_PENDING
+                    recordPendingAudit()
+                    return@onSuccess
+                }
+                when (nextAdminMfaStep(repository.assuranceLevel(activeSession.accessToken), verified.size)) {
+                    AdminMfaStep.CONFIRM_ACCESS -> confirmAdminAccess()
+                    AdminMfaStep.ENROLL_PRIMARY -> {
                         step = AdminMfaStep.ENROLL_PRIMARY
                         factorName = "Primary authenticator"
                     }
-                    else -> {
+                    AdminMfaStep.ENROLL_BACKUP -> {
+                        step = AdminMfaStep.ENROLL_BACKUP
+                        factorName = "Backup authenticator"
+                    }
+                    AdminMfaStep.CHALLENGE -> {
                         step = AdminMfaStep.CHALLENGE
-                        selectedFactorId = initialVerifiedFactors.first().id
+                        selectedFactorId = verified.first().id
+                    }
+                    else -> {
+                        step = AdminMfaStep.RELOAD_FACTORS
+                        error = "LifeLink could not determine the next authenticator step. Retry the check."
                     }
                 }
             }
             .onFailure {
                 error = it.message ?: "LifeLink could not load your authenticator devices."
-                step = AdminMfaStep.CHALLENGE
+                step = AdminMfaStep.RELOAD_FACTORS
             }
+    }
+
+    LaunchedEffect(session.userId) {
+        busy = true
+        loadFactorInventory()
         busy = false
     }
 
@@ -181,7 +218,6 @@ fun AdminMfaGateScreen(
                 return@launch
             }
             val enrolling = step == AdminMfaStep.VERIFY_ENROLLMENT
-            val hadVerifiedFactorBeforeEnrollment = verifiedTotpFactors(factors).isNotEmpty()
             val factorId = if (enrolling) enrollment?.id.orEmpty() else selectedFactorId
             if (factorId.isBlank()) {
                 error = "No verified authenticator is available. Contact the system owner; password reset cannot bypass MFA."
@@ -196,32 +232,8 @@ fun AdminMfaGateScreen(
                         activeSession = refreshed
                         code = ""
                         enrollment = null
-                        repository.listMfaFactors(refreshed)
-                            .onSuccess { listed ->
-                                val refreshedFactors = listed.filter {
-                                    it.factorType == "totp" && (it.status == "verified" || it.status == "unverified")
-                                }
-                                factors = refreshedFactors
-                                val refreshedVerified = verifiedTotpFactors(refreshedFactors)
-                                if (repository.assuranceLevel(refreshed.accessToken) != "aal2") {
-                                    error = "Supabase did not confirm AAL2. Sign in again."
-                                } else if (enrolling) {
-                                    pendingAuditType = if (hadVerifiedFactorBeforeEnrollment) {
-                                        "factor_replacement_verified"
-                                    } else {
-                                        "factor_enrollment_verified"
-                                    }
-                                    pendingAuditCount = refreshedVerified.size
-                                    step = AdminMfaStep.AUDIT_PENDING
-                                    recordPendingAudit()
-                                } else if (refreshedVerified.size < 2) {
-                                    step = AdminMfaStep.ENROLL_BACKUP
-                                    factorName = "Backup authenticator"
-                                } else {
-                                    confirmAdminAccess()
-                                }
-                            }
-                            .onFailure { error = it.message ?: "Authenticator inventory could not be refreshed." }
+                        enrollmentAuditPending = enrolling
+                        loadFactorInventory()
                     }
                     .onFailure { error = it.message ?: "The authenticator code was not accepted." }
             }.onFailure { error = it.message ?: "An authenticator challenge could not be created." }
@@ -362,6 +374,25 @@ fun AdminMfaGateScreen(
                             ) {
                                 Text("Retry access check")
                             }
+                        }
+                    }
+                }
+                AdminMfaStep.RELOAD_FACTORS -> {
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Authenticator devices could not be loaded", style = MaterialTheme.typography.titleMedium)
+                            Text("No administrator access is granted until LifeLink can confirm your registered authenticator devices.")
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        busy = true
+                                        error = null
+                                        loadFactorInventory()
+                                        busy = false
+                                    }
+                                },
+                                enabled = !busy,
+                            ) { Text("Retry authenticator check") }
                         }
                     }
                 }
