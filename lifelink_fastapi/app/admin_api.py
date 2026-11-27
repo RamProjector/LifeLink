@@ -387,11 +387,11 @@ async def admin_mfa_event(
     principal: Principal = Depends(require_admin_mfa_event),
     x_correlation_id: str | None = Header(default=None),
 ):
-    """Record a bounded MFA lifecycle event after AAL2 verification.
+    """Record an AAL2 MFA lifecycle receipt reconciled to Supabase's factor inventory.
 
-    This is an audit receipt, not proof of factor inventory: the client may report
-    only the event it just completed through Supabase Auth. Recovery receipts
-    require an independently approved operator ticket and two verified factors.
+    The client-reported count is retained only for discrepancy review; it is never
+    treated as evidence. Recovery receipts still require external two-operator
+    approval and an independently reconciled incident ticket.
     """
     if payload.event_type == "recovery_reenrollment_verified" and not payload.ticket_reference:
         raise HTTPException(status_code=422, detail="An approved recovery ticket reference is required")
