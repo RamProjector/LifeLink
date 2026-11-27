@@ -200,10 +200,14 @@ def main() -> None:
     if sign_in_start < 0 or sign_in_end < 0:
         fail("admin sign-in flow is missing")
     sign_in_flow = html[sign_in_start:sign_in_end]
-    admin_check = sign_in_flow.find('await api("/v1/admin/me")')
+    admin_check = sign_in_flow.find('await api("/v1/admin/preflight")')
     factor_discovery = sign_in_flow.find("mfaFactors=await")
     if admin_check < 0 or factor_discovery < 0 or admin_check > factor_discovery:
-        fail("server-side admin allowlist verification must run before MFA enrollment")
+        fail("identity-only server-side admin preflight must run before MFA enrollment")
+    enter_start = html.find("async function enterAdminConsole()")
+    enter_end = html.find("function showBackupEnrollment()", enter_start)
+    if enter_start < 0 or enter_end < 0 or 'await api("/v1/admin/me")' not in html[enter_start:enter_end]:
+        fail("full admin identity response must be requested only after the AAL2 enrollment/challenge gate")
     if "mfaFlowGeneration" not in html or "if(flow!==mfaFlowGeneration)" not in html:
         fail("MFA enrollment and verification must ignore stale asynchronous responses after cancellation")
     management_start = html.find("async function showMfaManagement()")
