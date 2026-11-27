@@ -1,6 +1,7 @@
 package com.lifelink.app.core.auth
 
 import android.net.Uri
+import android.util.Base64
 import com.google.gson.annotations.SerializedName
 import com.lifelink.app.BuildConfig
 import com.lifelink.app.core.legal.LIFELINK_PRIVACY_VERSION
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import okhttp3.OkHttpClient
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -20,6 +22,7 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
+import retrofit2.http.Path
 import retrofit2.http.PUT
 import retrofit2.http.Query
 
@@ -191,6 +194,98 @@ class SupabaseAuthRepository(
             }
         }
 
+
+    suspend fun listMfaFactors(session: AuthSession): Result<List<SupabaseMfaFactor>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response = api?.getMfaFactors(publishableKey, "Bearer ${session.accessToken}")
+                    ?: error("Supabase URL is not configured")
+                if (!response.isSuccessful) error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+                response.body()?.factors ?: error("Supabase returned an invalid authenticator inventory")
+            }
+        }
+
+    suspend fun enrollMfaTotp(session: AuthSession, friendlyName: String): Result<SupabaseMfaEnrollment> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val name = friendlyName.trim()
+                require(name.isNotEmpty() && name.length <= 64) { "Enter a valid authenticator name." }
+                val response = api?.enrollMfaFactor(
+                    publishableKey,
+                    "Bearer ${session.accessToken}",
+                    SupabaseMfaEnrollmentRequest(friendlyName = name),
+                ) ?: error("Supabase URL is not configured")
+                if (!response.isSuccessful) error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+                val body = response.body() ?: error("Supabase returned an incomplete authenticator enrollment")
+                require(body.id.isNotBlank() && !body.totp?.secret.isNullOrBlank()) {
+                    "Supabase returned an incomplete authenticator setup."
+                }
+                body
+            }
+        }
+
+    suspend fun challengeMfa(session: AuthSession, factorId: String): Result<String> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                require(factorId.isNotBlank()) { "Choose an authenticator." }
+                val response = api?.challengeMfaFactor(
+                    publishableKey,
+                    "Bearer ${session.accessToken}",
+                    factorId,
+                    EmptyMfaRequest(),
+                ) ?: error("Supabase URL is not configured")
+                if (!response.isSuccessful) error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+                response.body()?.id?.takeIf { it.isNotBlank() }
+                    ?: error("Supabase did not return a valid authenticator challenge.")
+            }
+        }
+
+    suspend fun verifyMfaTotp(
+        session: AuthSession,
+        factorId: String,
+        challengeId: String,
+        code: String,
+    ): Result<AuthSession> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                require(code.matches(Regex("^[0-9]{6}$"))) { "Enter the six-digit code from your authenticator." }
+                val response = api?.verifyMfaFactor(
+                    publishableKey,
+                    "Bearer ${session.accessToken}",
+                    factorId,
+                    SupabaseMfaVerifyRequest(factorId, challengeId, code),
+                ) ?: error("Supabase URL is not configured")
+                if (!response.isSuccessful) error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
+                val body = response.body() ?: error("Supabase returned an empty MFA verification response")
+                val accessToken = body.accessToken?.takeIf { it.isNotBlank() }
+                    ?: error("Supabase did not return a refreshed access token.")
+                val refreshed = AuthSession(
+                    accessToken = accessToken,
+                    refreshToken = body.refreshToken?.takeIf { it.isNotBlank() } ?: session.refreshToken,
+                    userId = body.user?.id?.takeIf { it.isNotBlank() } ?: session.userId,
+                    email = body.user?.email ?: session.email,
+                )
+                require(refreshed.userId == session.userId) { "The verified session belongs to a different account." }
+                require(assuranceLevel(refreshed.accessToken) == "aal2") {
+                    "Supabase did not issue the expected AAL2 session. Sign in again."
+                }
+                sessionStore.save(refreshed)
+                _sessionExpired.value = false
+                refreshed
+            }
+        }
+
+    fun assuranceLevel(accessToken: String): String =
+        runCatching {
+            val encoded = accessToken.split(".").getOrNull(1) ?: return@runCatching "unknown"
+            val decoded = Base64.decode(
+                encoded,
+                Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING,
+            )
+            val claims = JSONObject(decoded.toString(Charsets.UTF_8))
+            if (!claims.has("aal")) "aal1" else claims.optString("aal").takeIf { it == "aal1" || it == "aal2" } ?: "unknown"
+        }.getOrDefault("unknown")
+
     @Suppress("TooGenericExceptionCaught")
     suspend fun signOut(): Result<Unit> {
         val activeSession = sessionStore.session.value
@@ -341,6 +436,35 @@ private interface SupabaseAuthApi {
         @Header("Authorization") authorization: String,
         @Body request: PasswordUpdateRequest,
     ): Response<SupabaseUser>
+
+    @GET("auth/v1/user")
+    suspend fun getMfaFactors(
+        @Header("apikey") publishableKey: String,
+        @Header("Authorization") authorization: String,
+    ): Response<SupabaseMfaUser>
+
+    @POST("auth/v1/factors")
+    suspend fun enrollMfaFactor(
+        @Header("apikey") publishableKey: String,
+        @Header("Authorization") authorization: String,
+        @Body request: SupabaseMfaEnrollmentRequest,
+    ): Response<SupabaseMfaEnrollment>
+
+    @POST("auth/v1/factors/{factorId}/challenge")
+    suspend fun challengeMfaFactor(
+        @Header("apikey") publishableKey: String,
+        @Header("Authorization") authorization: String,
+        @Path("factorId") factorId: String,
+        @Body request: EmptyMfaRequest,
+    ): Response<SupabaseMfaChallenge>
+
+    @POST("auth/v1/factors/{factorId}/verify")
+    suspend fun verifyMfaFactor(
+        @Header("apikey") publishableKey: String,
+        @Header("Authorization") authorization: String,
+        @Path("factorId") factorId: String,
+        @Body request: SupabaseMfaVerifyRequest,
+    ): Response<SupabaseMfaVerifyResponse>
 }
 
 // Every field that crosses the Supabase wire is pinned with an explicit
@@ -367,6 +491,53 @@ enum class AuthCallbackKind { RECOVERY, CONFIRMATION }
 data class AuthCallback(val kind: AuthCallbackKind, val email: String?, val accessToken: String, val refreshToken: String?)
 
 data class PasswordUpdateRequest(@SerializedName("password") val password: String)
+
+
+data class SupabaseMfaUser(
+    @SerializedName("factors") val factors: List<SupabaseMfaFactor>?,
+)
+
+data class SupabaseMfaFactor(
+    @SerializedName("id") val id: String,
+    @SerializedName("factor_type") val factorType: String,
+    @SerializedName("status") val status: String,
+    @SerializedName("friendly_name") val friendlyName: String?,
+)
+
+data class SupabaseMfaEnrollmentRequest(
+    @SerializedName("factor_type") val factorType: String = "totp",
+    @SerializedName("friendly_name") val friendlyName: String,
+    @SerializedName("issuer") val issuer: String = "LifeLink",
+)
+
+data class SupabaseMfaEnrollment(
+    @SerializedName("id") val id: String,
+    @SerializedName("friendly_name") val friendlyName: String?,
+    @SerializedName("totp") val totp: SupabaseTotpSetup?,
+)
+
+data class SupabaseTotpSetup(
+    @SerializedName("secret") val secret: String?,
+    @SerializedName("uri") val uri: String?,
+    @SerializedName("qr_code") val qrCode: String?,
+)
+
+data class SupabaseMfaChallenge(@SerializedName("id") val id: String)
+
+data class EmptyMfaRequest(val unused: String? = null)
+
+data class SupabaseMfaVerifyRequest(
+    @SerializedName("factor_id") val factorId: String,
+    @SerializedName("challenge_id") val challengeId: String,
+    @SerializedName("code") val code: String,
+)
+
+data class SupabaseMfaVerifyResponse(
+    @SerializedName("access_token") val accessToken: String?,
+    @SerializedName("refresh_token") val refreshToken: String?,
+    @SerializedName("user") val user: SupabaseUser?,
+)
+
 
 data class SupabaseAuthResponse(
     @SerializedName("access_token") val accessToken: String?,
