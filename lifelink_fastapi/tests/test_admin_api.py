@@ -876,6 +876,8 @@ def test_role_policy_integrity_scans_seeded_roles_without_user_assignments():
         def all(self):
             return [
                 {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read"]},
+                {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
+                {"role_key": "security_admin", "permissions": ["dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"]},
                 {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
                 {"role_key": "super_admin", "permissions": []},
             ]
@@ -900,7 +902,7 @@ def test_role_policy_integrity_scans_seeded_roles_without_user_assignments():
     assert "ON CONFLICT (rule_id, role_key)" in insert_sql
     assert params["role_key"] == "operations_admin"
     assert '"missing_permission_keys": ["operations.read", "reports.read", "requests.read"]' in params["evidence"]
-    assert session.statements[2][1]["role_key"] == "auditor"
+    assert session.statements[2][1]["role_key"] == "user_admin"
     assert "UPDATE lifelink_role_security_findings" in session.statements[2][0]
 
 
@@ -932,7 +934,7 @@ def test_role_policy_integrity_detects_missing_approved_role_definition():
     findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
 
     assert findings == 1
-    insert_sql, params = session.statements[1]
+    insert_sql, params = session.statements[3]
     assert "INSERT INTO lifelink_role_security_findings" in insert_sql
     assert params["role_key"] == "security_admin"
     assert '"role_definition_missing": true' in params["evidence"]
@@ -946,9 +948,15 @@ def test_role_policy_integrity_does_not_infer_unconfigured_role_policy():
             return self
 
         def all(self):
-            return [{"role_key": "requester", "permissions": []},
-                    {"role_key": "donor", "permissions": []},
-                    {"role_key": "super_admin", "permissions": ["unreviewed.permission"]}]
+            return [
+                {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"]},
+                {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
+                {"role_key": "security_admin", "permissions": ["dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"]},
+                {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
+                {"role_key": "requester", "permissions": []},
+                {"role_key": "donor", "permissions": []},
+                {"role_key": "super_admin", "permissions": ["unreviewed.permission"]},
+            ]
 
     class Session:
         def __init__(self):
@@ -963,4 +971,5 @@ def test_role_policy_integrity_does_not_infer_unconfigured_role_policy():
     findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
 
     assert findings == 0
-    assert len(session.statements) == 1
+    assert len(session.statements) == 5
+    assert all("INSERT INTO lifelink_role_security_findings" not in statement for statement, _ in session.statements)
