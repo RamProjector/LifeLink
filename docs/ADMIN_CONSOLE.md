@@ -42,7 +42,7 @@ The admin TOTP implementation is being developed in draft PR #225. The following
 ### Current draft sign-in sequence
 
 1. The web console signs in through Supabase Auth using the publishable key.
-2. Before asking the account to enroll, it calls `GET /v1/admin/me`. The API's existing verified-token, verified-email, server-managed UUID allowlist, session-context, and revocation checks remain authoritative for this precheck.
+2. Before asking the account to enroll, it calls `GET /v1/admin/preflight`. This minimal response confirms the signed-in identity, verified-email policy, server-managed UUID allowlist, active session, and revocation state, writes an audit event, and returns only `{ authorized: true }`; it exposes no operational admin data.
 3. The console lists the account's TOTP factors. An AAL1 session with a verified factor is challenged; an account without a verified factor is prompted to enroll a primary factor.
 4. After the first factor is verified, the console requires a second factor and asks the operator to attest that it is stored separately (different device or separately protected authenticator vault).
 5. The web console is shown only when the current JWT reports AAL2 and at least two TOTP factors are verified. The API's existing `/v1/admin/me` authorization check is still performed before rendering the console.
