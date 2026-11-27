@@ -1408,6 +1408,7 @@ def test_admin_permission_guard_fails_closed_on_invalid_mode(monkeypatch):
 
 def test_admin_scanner_health_returns_persisted_status_without_error_details(monkeypatch):
     from app import admin_api
+    monkeypatch.setenv("LIFELINK_RBAC_SCAN_SECONDS", "inf")
 
     class Rows:
         def mappings(self):
