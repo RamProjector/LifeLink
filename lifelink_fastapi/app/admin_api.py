@@ -120,7 +120,7 @@ async def require_admin(
     verified_totp_count = await session.scalar(
         text(
             "SELECT count(*) FROM auth.mfa_factors "
-            "WHERE user_id::varchar = :user_id "
+            "WHERE user_id::varchar = CAST(:user_id AS varchar) "
             "AND factor_type = 'totp' AND status = 'verified'"
         ),
         {"user_id": principal.subject},
@@ -402,7 +402,7 @@ async def admin_mfa_event(
     verified_totp_count = int(await session.scalar(
         text(
             "SELECT count(*) FROM auth.mfa_factors "
-            "WHERE user_id::varchar = :user_id "
+            "WHERE user_id::varchar = CAST(:user_id AS varchar) "
             "AND factor_type = 'totp' AND status = 'verified'"
         ),
         {"user_id": principal.subject},
