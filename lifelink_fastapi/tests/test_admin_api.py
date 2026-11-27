@@ -771,7 +771,16 @@ def test_verified_supabase_principal_preserves_authenticator_assurance(
 def test_background_rbac_finding_uses_system_actor_without_request_context():
     from app.admin_api import _record_rbac_mismatch
 
-    session = FakeSession()
+    class CaptureSession(FakeSession):
+        def __init__(self):
+            super().__init__()
+            self.executed = []
+
+        async def execute(self, statement, params=None):
+            self.executed.append((str(statement), params or {}))
+            return await super().execute(statement, params)
+
+    session = CaptureSession()
     principal = Principal(subject="system:rbac-scanner", email_verified=True)
 
     asyncio.run(
@@ -787,7 +796,9 @@ def test_background_rbac_finding_uses_system_actor_without_request_context():
 
     audit_insert = next(statement for statement in session.statements if "INSERT INTO audit_events" in statement)
     alert_insert = next(statement for statement in session.statements if "INSERT INTO lifelink_security_alerts" in statement)
-    assert "system:rbac-scanner" in str(session.params) if hasattr(session, "params") else True
+    audit_params = next(params for statement, params in session.executed if "INSERT INTO audit_events" in statement)
+    assert audit_params["actor_id"] == "system:rbac-scanner"
+    assert audit_params["session_id"] is None
     assert "CASE WHEN lifelink_security_alerts.evidence IS DISTINCT FROM EXCLUDED.evidence THEN 1 ELSE 0 END" in alert_insert
 
 
