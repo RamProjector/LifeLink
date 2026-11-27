@@ -72,6 +72,10 @@ The following is a proposed control design only. It must be implemented as a doc
 
 This proposal does not create an API endpoint or grant an application administrator the ability to bypass MFA. Do not use it until the operator identity checks, dual approval, secret handling, and audit trail are implemented and reviewed.
 
+### Assurance level versus backup-factor count
+
+Supabase's `aal2` claim proves that the current session completed at least one second-factor verification; it does not prove that two separate TOTP factors are registered. The current two-factor enrollment rule is a recovery/resilience policy enforced by the draft web flow, not a claim that AAL2 itself guarantees two devices. If LifeLink later decides to enforce the two-factor count server-side, it must use a trusted factor inventory (for example, a server-side Supabase Admin MFA lookup or a verified database query) and fail closed when that inventory is unavailable. Never infer the factor count from a client-submitted value.
+
 ### Backend enforcement compatibility requirement
 
 The current web flow calls `GET /v1/admin/me` before factor discovery so a normal LifeLink account is rejected before it is asked to enroll an authenticator. When AAL2 enforcement is implemented, do not simply exempt all of `/v1/admin/me` or force this preflight to AAL2: that would either expose an AAL1 admin endpoint unnecessarily or deadlock first-time enrollment.
