@@ -150,6 +150,9 @@ def main() -> None:
     if 'id="alert-status-filter"' not in html or 'alertStatus?"&status="' not in html:
         fail("security alerts must expose and use the server-side status filter")
 
+    if 'id="role-integrity-table"' not in html or '/v1/admin/security/role-integrity?limit=50&offset=0&status=open' not in html or "async function loadRoleIntegrity()" not in html:
+        fail("security center must display role-level RBAC-03 findings from the protected role-integrity endpoint")
+
     if 'data-status="false_positive"' not in html or "a.acknowledged_at" not in html or "a.resolved_at" not in html:
         fail("security alerts must support false-positive disposition and show their recorded handling history")
 
