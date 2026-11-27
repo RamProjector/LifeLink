@@ -665,8 +665,10 @@ def test_security_alert_correlation_filter_does_not_mutate_alerts(monkeypatch):
         scan_calls += 1
         return 0
 
+    audit_filter_flags = []
+
     async def write_audit(*args, **kwargs):
-        return None
+        audit_filter_flags.append(kwargs["metadata"]["correlation_filtered"])
 
     monkeypatch.setattr("app.admin_api._scan_rbac_discrepancies", scan)
     monkeypatch.setattr("app.admin_api._write_audit", write_audit)
@@ -686,6 +688,7 @@ def test_security_alert_correlation_filter_does_not_mutate_alerts(monkeypatch):
         )
         assert filtered["items"] == []
         assert scan_calls == 0
+        assert audit_filter_flags == [True]
 
         # An explicitly empty filter is still a filtered read: it must not
         # trigger a mutating RBAC scan before the SQL filter returns no matches.
@@ -701,6 +704,7 @@ def test_security_alert_correlation_filter_does_not_mutate_alerts(monkeypatch):
         )
         assert empty_filtered["items"] == []
         assert scan_calls == 0
+        assert audit_filter_flags == [True, True]
 
         await admin_security_alerts(
             request=request,
@@ -713,6 +717,7 @@ def test_security_alert_correlation_filter_does_not_mutate_alerts(monkeypatch):
             x_correlation_id="unfiltered-request-correlation",
         )
         assert scan_calls == 1
+        assert audit_filter_flags == [True, True, False]
 
     asyncio.run(check())
 
