@@ -224,6 +224,7 @@ def test_admin_rejects_aal2_with_only_one_verified_totp_factor(monkeypatch):
         assert recorded["action"] == "security.admin_mfa.factor_count_denied"
         factor_query = session.scalar_statements[-1]
         assert "FROM auth.mfa_factors" in factor_query
+        assert "user_id::varchar = CAST(:user_id AS varchar)" in factor_query
         assert "factor_type = 'totp'" in factor_query
         assert "status = 'verified'" in factor_query
 
@@ -335,6 +336,7 @@ def test_mfa_lifecycle_audit_records_only_bounded_non_secret_metadata(monkeypatc
         assert "token" not in recorded["metadata"]
         assert session.statements == []
         assert "FROM auth.mfa_factors" in session.scalar_statements[0]
+        assert "user_id::varchar = CAST(:user_id AS varchar)" in session.scalar_statements[0]
 
     asyncio.run(check())
 
