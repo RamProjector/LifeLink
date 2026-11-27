@@ -97,7 +97,7 @@ When backend AAL2 enforcement is implemented, keep `/v1/admin/preflight` as the 
 
 Run this only against a dedicated non-production Supabase Auth project and a test administrator account. Do not use the production administrator account as the first test subject.
 
-- [ ] A non-allowlisted account is rejected by `GET /v1/admin/me` before factor discovery or enrollment is shown.
+- [ ] A non-allowlisted account is rejected by `GET /v1/admin/preflight` before factor discovery or enrollment is shown.
 - [ ] An allowlisted account with no verified factors is prompted to enroll a primary TOTP factor.
 - [ ] An incorrect enrollment code does not mark the factor verified or open the admin console.
 - [ ] Verifying the primary factor produces an AAL2 session and the UI requires a separately acknowledged backup factor on another device or separately protected vault.
