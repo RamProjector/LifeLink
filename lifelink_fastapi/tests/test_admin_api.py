@@ -4,10 +4,11 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 from fastapi import HTTPException
 
 from app import db
-from app.admin_api import _configured_admin_ids, _correlation_id, admin_identity_preflight, require_admin, require_admin_identity
+from app.admin_api import AdminMfaAuditEvent, _configured_admin_ids, _correlation_id, admin_identity_preflight, require_admin, require_admin_identity
 from app.security import Principal
 
 
@@ -305,10 +306,7 @@ def test_mfa_lifecycle_audit_rejects_incomplete_or_unsafe_events(
 
 
 def test_mfa_recovery_ticket_reference_is_strictly_bounded():
-    from app.admin_api import AdminMfaAuditEvent
-    from pydantic import ValidationError
-
-    with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError):
         AdminMfaAuditEvent(
             event_type="recovery_reenrollment_verified",
             verified_factor_count=2,
