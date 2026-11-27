@@ -462,7 +462,7 @@ async def admin_security_alerts(
         session, principal.subject, "admin.security.alerts.read", request=request,
         session_id=principal.session_id, session_expires_at=principal.session_expires_at,
         target_type="security_alerts", correlation_id=_correlation_id(x_correlation_id),
-        metadata={"limit": limit, "offset": offset, "status": alert_status, "correlation_filtered": bool(correlation_id)},
+        metadata={"limit": limit, "offset": offset, "status": alert_status, "correlation_filtered": correlation_id is not None},
     )
     await session.commit()
     return {
@@ -558,7 +558,7 @@ async def admin_list_sessions(
         session, principal.subject, "admin.sessions.list", request=request,
         session_id=principal.session_id, session_expires_at=principal.session_expires_at,
         target_type="session_list", correlation_id=_correlation_id(x_correlation_id),
-        metadata={"limit": limit, "offset": offset, "correlation_filtered": bool(correlation_id)},
+        metadata={"limit": limit, "offset": offset, "correlation_filtered": correlation_id is not None},
     )
     await session.commit()
     return {
