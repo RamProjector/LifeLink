@@ -828,6 +828,8 @@ async def admin_security_notifications(
     principal: Principal = Depends(require_admin_permission("security.alerts.read")),
 ):
     """Return only new, non-sensitive alert metadata for opt-in browser notifications."""
+    if after.tzinfo is None or after.utcoffset() is None:
+        raise HTTPException(status_code=422, detail="Notification cursor must include a timezone")
     result = await session.execute(
         text(
             "SELECT id, rule_id, severity, created_at, source FROM ("
