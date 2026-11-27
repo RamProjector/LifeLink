@@ -1952,6 +1952,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   <div class="table-toolbar alerts-toolbar"><label class="small" for="alert-status-filter">Investigation status</label><select id="alert-status-filter" aria-label="Filter security alerts by investigation status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select><label class="small" for="alerts-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="alerts-correlation-filter" type="search" maxlength="80" placeholder="Find an incident by correlation ID" autocomplete="off"></div></div>
   <div id="alerts-table" class="tablewrap" aria-live="polite"><div class="empty">Select Security alerts to load incidents.</div></div>
   <div class="actions alerts-pagination"><button id="alerts-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="alerts-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="alerts-page" class="muted small" aria-live="polite"></span></div>
+  <div class="panel role-integrity-panel"><div class="overview-panel-heading"><div><h2>Role policy integrity</h2><p class="muted small">Independent checks of reviewed role-permission policies, including roles with no assigned users. Unconfigured roles are not treated as violations.</p></div><span class="snapshot-kind">RBAC-03 · Read only</span></div><div id="role-integrity-table" class="tablewrap" aria-live="polite"><div class="empty">Loading role policy findings…</div></div></div>
  </section>
  <section id="page-errors" aria-labelledby="page-title" class="panel hidden">
   <div class="errors-heading"><div><p class="muted small">Review recorded application errors and denied events. Use correlation IDs to follow related activity across diagnostic records.</p></div><span class="snapshot-kind">Read only</span></div>
@@ -2375,6 +2376,29 @@ async function loadUsers() {
       if(token===pageLoadToken)$("analytics-summary").removeAttribute("aria-busy");
     }
   }
+  async function loadRoleIntegrity() {
+    const token=pageLoadToken,tableEl=$("role-integrity-table");
+    setLoadingState("role-integrity-table","Checking role policy findings","Retrieving independent RBAC-03 findings…");
+    try {
+      const data=await api("/v1/admin/security/role-integrity?limit=50&offset=0&status=open");
+      if(token!==pageLoadToken||activePage!=="alerts")return;
+      if(!data||!Array.isArray(data.items))throw new Error("Unexpected role integrity response");
+      if(data.items.length===0){tableEl.innerHTML='<div class="empty"><strong>No active role policy findings</strong><span class="muted small">The reviewed role-permission mappings currently match their approved policies, or no reviewed policy drift has been detected.</span></div>';return;}
+      tableEl.innerHTML=table(data.items,[
+        {label:"Role",render:f=>'<strong>'+esc(f.role_key||"Unknown role")+'</strong><span class="muted small">'+esc(f.rule_id||"RBAC-03")+'</span>'},
+        {label:"Policy difference",render:f=>'<div class="alert-incident"><strong>'+esc(f.summary||"Role policy differs")+'</strong><details class="cell-detail"><summary>View permission differences</summary><pre>'+esc(JSON.stringify(f.evidence||{},null,2))+'</pre></details></div>'},
+        {label:"Severity",render:f=>'<span class="tag severity-'+String(f.severity||"high").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(f.severity||"Unknown")+'</span>'},
+        {label:"Occurrences",render:f=>'<strong>'+esc(f.occurrences??"—")+'</strong><span class="muted small">Last observed '+esc(f.last_seen_at?new Date(f.last_seen_at).toLocaleString():"—")+'</span>'}
+      ]);
+      wireTableTools(tableEl);
+    } catch(e) {
+      if(token!==pageLoadToken||activePage!=="alerts")return;
+      setErrorState("role-integrity-table","Role policy findings unavailable",safeError(e,"The role integrity records could not be retrieved."),()=>loadPage("alerts"));
+    } finally {
+      if(token===pageLoadToken)tableEl.removeAttribute("aria-busy");
+    }
+  }
+
   async function loadPage(page) {
     const previousPage=activePage;
     const token=++pageLoadToken;
@@ -2400,7 +2424,7 @@ async function loadUsers() {
       if(page==="roles") await loadRoles();
       if(page==="audit") await loadEvents("audit");
       if(page==="sessions") await loadSessions();
-      if(page==="alerts") await loadAlerts();
+      if(page==="alerts"){ await loadAlerts(); await loadRoleIntegrity(); }
       if(page==="errors") await loadEvents("errors");
     } catch(e) {
       if(token!==pageLoadToken||activePage!==page)return;
