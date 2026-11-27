@@ -47,6 +47,8 @@ const config = {
   const factors = await mfa.listFactors(config);
   assert.deepEqual(factors.map(item => item.id), ["verified", "pending"]);
   assert.deepEqual(mfa.verifiedFactors(factors).map(item => item.id), ["verified"]);
+  nextResponse = { ok: true, status: 200, json: async () => ({}) };
+  await assert.rejects(() => mfa.listFactors(config));
 
   nextResponse = { ok: true, status: 200, json: async () => ({ id: "challenge-1" }) };
   assert.equal(await mfa.challenge(config, "factor/one"), "challenge-1");
