@@ -807,10 +807,15 @@ async def admin_security_scanner_health(
         session_id=principal.session_id, target_type="security_scanner", target_id="rbac",
     )
     await session.commit()
+    try:
+        scan_interval_seconds = max(60, int(float(os.getenv("LIFELINK_RBAC_SCAN_SECONDS", "300"))))
+    except ValueError:
+        scan_interval_seconds = 300
     if row is None:
         return {"scanner_key": "rbac", "status": "never_run", "last_findings": 0,
-                "consecutive_failures": 0, "last_error_code": None}
-    return dict(row)
+                "consecutive_failures": 0, "last_error_code": None,
+                "scan_interval_seconds": scan_interval_seconds}
+    return {**dict(row), "scan_interval_seconds": scan_interval_seconds}
 
 
 @router.get("/security/alerts")
