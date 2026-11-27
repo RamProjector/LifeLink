@@ -101,7 +101,7 @@ def test_admin_allowlist_grants_only_configured_subject(monkeypatch):
     async def check():
         principal = await require_admin(
             principal=Principal(subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"),
-            session=FakeSession([0]),
+            session=FakeSession([0, 2]),
             request=_request_context(),
         )
         assert principal.subject == "admin-1"
@@ -184,10 +184,62 @@ def test_admin_allows_aal2_after_identity_and_revocation_checks(monkeypatch):
                 session_id="session-1",
                 assurance_level="aal2",
             ),
-            session=FakeSession([0]),
+            session=FakeSession([0, 2]),
             request=_request_context(),
         )
         assert principal.assurance_level == "aal2"
+
+    asyncio.run(check())
+
+
+def test_admin_rejects_aal2_with_only_one_verified_totp_factor(monkeypatch):
+    from app import admin_api
+
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    recorded = {}
+
+    async def capture_denial(session, principal, request, **kwargs):
+        recorded.update(kwargs)
+
+    monkeypatch.setattr(admin_api, "_record_denied_admin_attempt", capture_denial)
+
+    async def check():
+        with pytest.raises(HTTPException) as error:
+            await require_admin(
+                principal=Principal(
+                    subject="admin-1",
+                    email_verified=True,
+                    session_id="session-1",
+                    assurance_level="aal2",
+                ),
+                session=FakeSession([0, 1]),
+                request=_request_context(),
+            )
+        assert error.value.status_code == 403
+        assert "two verified TOTP" in error.value.detail
+        assert recorded["rule_id"] == "IDS-07"
+        assert recorded["action"] == "security.admin_mfa.factor_count_denied"
+
+    asyncio.run(check())
+
+
+def test_mfa_audit_dependency_allows_first_factor_receipt_after_aal2(monkeypatch):
+    from app.admin_api import require_admin_mfa_event
+
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+
+    async def check():
+        principal = await require_admin_mfa_event(
+            principal=Principal(
+                subject="admin-1",
+                email_verified=True,
+                session_id="session-1",
+                assurance_level="aal2",
+            ),
+            session=FakeSession([0]),
+            request=_request_context(),
+        )
+        assert principal.subject == "admin-1"
 
     asyncio.run(check())
 
@@ -223,6 +275,10 @@ def test_every_admin_route_uses_aal2_guard_except_identity_preflight():
         if route.path == "/v1/admin/preflight":
             assert "require_admin_identity" in dependency_names
             assert "require_admin" not in dependency_names
+        elif route.path == "/v1/admin/mfa/events":
+            assert "require_admin_mfa_event" in dependency_names
+            assert "require_admin" not in dependency_names
+            protected.append(route.path)
         else:
             assert "require_admin" in dependency_names, route.path
             protected.append(route.path)
