@@ -1182,10 +1182,15 @@ def test_rbac_permission_policy_detects_missing_and_unexpected_grants():
         ["unexpected.permission"],
     )
     assert _rbac_permission_mismatch("auditor", {"dashboard.read", "audit.read", "reports.read"}) == ([], [])
-    # These roles are intentionally not assigned an assumed empty or wildcard policy.
-    assert _rbac_permission_mismatch("requester", set()) is None
-    assert _rbac_permission_mismatch("donor", set()) is None
-    assert _rbac_permission_mismatch("super_admin", set()) is None
+    # End-user roles hold no administrative permission keys; their application
+    # access remains governed by capability, ownership, and participant checks.
+    assert _rbac_permission_mismatch("requester", set()) == ([], [])
+    assert _rbac_permission_mismatch("donor", set()) == ([], [])
+    # super_admin is a separately allowlisted privileged path, not a wildcard grant.
+    assert _rbac_permission_mismatch("super_admin", set()) == ([], [])
+    assert _rbac_permission_mismatch("requester", {"users.read"}) == ([], ["users.read"])
+    assert _rbac_permission_mismatch("donor", {"security.alerts.manage"}) == ([], ["security.alerts.manage"])
+    assert _rbac_permission_mismatch("super_admin", {"permissions.manage"}) == ([], ["permissions.manage"])
 
 
 def test_role_policy_integrity_scans_seeded_roles_without_user_assignments():
@@ -1201,6 +1206,8 @@ def test_role_policy_integrity_scans_seeded_roles_without_user_assignments():
                 {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
                 {"role_key": "security_admin", "permissions": ["dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"]},
                 {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
+                {"role_key": "requester", "permissions": []},
+                {"role_key": "donor", "permissions": []},
                 {"role_key": "super_admin", "permissions": []},
             ]
 
