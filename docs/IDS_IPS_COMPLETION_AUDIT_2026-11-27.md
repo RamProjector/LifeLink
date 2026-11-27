@@ -287,3 +287,48 @@ Do not make a permission-enforcement code change until the permission matrix and
 - Regression coverage for existing admin authentication, session revocation, user management, audit, alert, and session routes.
 
 The source review and this readiness update are documentation-only. No code behavior, live database state, Render configuration, production grants, or deployment was changed.
+
+## IDS/IPS flowchart required by the criteria
+
+The flow below distinguishes existing collection/detection paths from the incomplete independent-monitoring and notification stages. Dashed stages are required work, not claims of deployed behavior.
+
+```mermaid
+flowchart TD
+    A[LifeLink Android / Admin Web] --> B[FastAPI authentication]
+    B --> C{Authenticated and session valid?}
+    C -->|No| D[Reject request]
+    D --> E[Audit denied attempt where applicable]
+    C -->|Yes| F[Server-side authorization]
+    F --> G{Authorized for action?}
+    G -->|No| H[Reject and record denial]
+    G -->|Yes| I[Execute permitted operation]
+    I --> J[Write audit event]
+    J --> K[(LifeLink PostgreSQL / Supabase)]
+    E --> K
+    H --> K
+    K --> L[IDS rules and RBAC discrepancy checks]
+    L --> M[(Security alert lifecycle)]
+    M --> N[Admin Console alert queue]
+    M -. required: verified delivery .-> O[Administrator notification channel]
+    P -. required: independent scheduled trigger .-> L
+    Q[Admin opens unfiltered alert list] --> L
+    O -. delivery result / retry state required .-> M
+```
+
+**Flowchart interpretation:** Authentication, application-session checks, the server-side admin allowlist, audit persistence, alert storage/lifecycle, and the alert-list-triggered RBAC scan exist in the reviewed code. The diagram's server-side authorization box represents current authorization controls, not universal per-permission enforcement: most admin routes still use the legacy allowlist. The independent trigger and verified administrator notification path remain incomplete.
+
+### Independent scan implementation constraints confirmed by source inspection
+
+The existing RBAC discrepancy scanner accepts an administrator principal and request context because it attributes audit events and alert evidence to the caller. It must not be invoked unchanged from a background task: doing so would either fabricate an administrator actor or fail to provide trustworthy request metadata.
+
+The existing FastAPI lifespan already runs bounded periodic maintenance tasks, and render.yaml currently declares a single web service rather than a separate worker. A no-new-service implementation can therefore be evaluated against the existing lifespan, but it must meet all of these conditions before being called independent monitoring:
+
+1. Give automated findings a dedicated non-human actor such as system:rbac-scanner; never impersonate the administrator who last viewed the alert page.
+2. Use a PostgreSQL transaction-scoped advisory lock so only one instance performs a scan at a time when the web service scales horizontally.
+3. Bound scan work and query scope; preserve the existing expiry filter and add explicit batching if registry size warrants it.
+4. Keep alert upserts deduplicated and avoid counting each polling pass as a new occurrence when the underlying mismatch has not changed. Occurrence semantics should represent distinct observations/events, not merely timer ticks.
+5. Record scan start, completion, duration, result count, and failure in an observable health/operations surface without leaking identity evidence.
+6. Catch transient failures and retry on the next interval, but expose prolonged failure rather than silently treating the detector as healthy.
+7. Keep the admin alert-list scan only as a manual/on-demand supplemental check.
+
+Required tests before implementation acceptance: system actor attribution; no administrator identity in system-generated events; advisory-lock contention skips the second scanner; lock release on rollback; repeated unchanged findings do not inflate occurrence counts; changed/new findings update alerts; empty registry is a successful scan; database failure is visible and does not crash the API; cancellation stops the loop cleanly.
