@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-bUEiMroYPrKthnE1sf9hq8TTVDYNoBPrCbUApVyRu80='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-HLeyiN69nMrgvqbhr4bY6C4/QliG19y6GNeaCA5xzm0='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -134,6 +134,20 @@ label {
   font-size: 12px;
 }
 .notice.error { border-color: #edc9c3; background: #fbefed; color: #8e3028; }
+
+/* Authentication is a separate surface: no authenticated workspace chrome. */
+body:has(#login-view:not(.hidden)) {
+  display: grid;
+  min-height: 100vh;
+  min-height: 100svh;
+  place-items: center;
+  padding: 24px 16px;
+}
+body:has(#login-view:not(.hidden)) > .top { display: none; }
+body:has(#login-view:not(.hidden)) > #login-view.login {
+  width: min(100%, 480px);
+  margin: 0 auto;
+}
 
 /* Header and page frame */
 .top {
@@ -1872,7 +1886,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 <body>
 <header class="top"><div><div class="brand"><span class="brand-mark ll-icon" data-icon="lifelink" data-icon-size="23"></span><span>LifeLink <span>/ Admin</span></span></div><small>Restricted operations console</small></div><div id="session-tools" class="hidden"><button id="signout" class="secondary"><span class="ll-icon" data-icon="logout"></span>Sign out</button></div></header>
 <main id="login-view" class="login">
- <div class="eyebrow">Administrator access</div><h1>Sign in securely.</h1><p class="muted">Sign in with your LifeLink account. Admin access is verified by the server; public registration never grants it.</p>
+ <div class="eyebrow">Administrator access</div><h1>Administrator sign-in</h1><p class="muted">Sign in with your LifeLink account. Admin access is verified by the server; public registration never grants it.</p>
  <label for="email">Email</label><input id="email" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" aria-describedby="email-help" required><p id="email-help" class="field-help">Use the email address associated with your LifeLink account.</p>
  <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" aria-describedby="password-help" required><p id="password-help" class="field-help">Admin access is checked by the server after sign-in.</p>
  <button id="signin" type="button" style="width:100%;margin-top:20px">Sign in</button>
@@ -1882,7 +1896,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  <p class="foot">Your session token stays in memory for this tab and is cleared when you sign out or close it. Admin rights are verified server-side.</p>
 </main>
 <main id="app-view" class="wrap hidden">
- <div class="headrow"><div><div class="eyebrow" id="page-eyebrow">Operations overview</div><h1 id="page-title" aria-live="polite" aria-atomic="true">Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary"><span class="ll-icon" data-icon="refresh"></span>Refresh data</button></div></div>
+ <div class="headrow"><div><div class="eyebrow" id="page-eyebrow">Operations overview</div><h1 id="page-title" tabindex="-1" aria-live="polite" aria-atomic="true">Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary"><span class="ll-icon" data-icon="refresh"></span>Refresh data</button></div></div>
  <div class="console-layout"><aside class="sidebar" aria-label="Admin navigation"><input id="nav-collapse" class="nav-collapse-control" type="checkbox" aria-label="Expand navigation labels" aria-expanded="false" aria-controls="admin-nav"><label class="nav-toggle" for="nav-collapse" title="Expand or collapse navigation"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5.5h16M4 18.5h16M9 5.5v13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Navigation</span></label><nav id="admin-nav" class="tabs" aria-label="Admin sections"><div class="nav-group" role="heading" aria-level="2">Workspace</div><button class="tab active" title="Overview" aria-label="Overview" data-page="overview" aria-current="page" aria-controls="page-overview"><span class="ll-icon" data-icon="dashboard"></span><span>Overview</span></button><button class="tab" title="User management" aria-label="User management" data-page="users" aria-controls="page-users"><span class="ll-icon" data-icon="users"></span><span>User management</span></button><button class="tab" title="Analytics" aria-label="Analytics" data-page="analytics" aria-controls="page-analytics"><span class="ll-icon" data-icon="analytics"></span><span>Analytics</span></button><div class="nav-group" role="heading" aria-level="2">Security center</div><button class="tab" title="Security alerts" aria-label="Security alerts" data-page="alerts" aria-controls="page-alerts"><span class="ll-icon" data-icon="securityAlerts"></span><span>Security alerts</span></button><button class="tab" title="User sessions" aria-label="User sessions" data-page="sessions" aria-controls="page-sessions"><span class="ll-icon" data-icon="sessions"></span><span>User sessions</span></button><button class="tab" title="Audit activity" aria-label="Audit activity" data-page="audit" aria-controls="page-audit"><span class="ll-icon" data-icon="audit"></span><span>Audit activity</span></button><button class="tab" title="Application errors" aria-label="Application errors" data-page="errors" aria-controls="page-errors"><span class="ll-icon" data-icon="systemErrors"></span><span>Application errors</span></button></nav></aside><div class="content-area">
  <section id="page-overview" aria-labelledby="page-title">
   <div class="grid overview-metrics" aria-label="Platform summary">
@@ -2044,13 +2058,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
    } catch(e) { accessToken=null; message("login-message",safeError(e,"Sign-in failed. Check your credentials and try again."),true); }
    finally { $("signin").disabled=false; }
  }
- function table(items, cols) {
+ function table(items, cols, options={}) {
    if(!items?.length) {
      const emptyStates={users:["No user records on this page","There are no account records in the current result page."],sessions:["No session records on this page","There are no active or revoked sessions in the current result page."],roles:["No role records returned","The backend did not return any configured role records."],alerts:["No security alerts found","No incidents match the current queue view."],audit:["No audit records on this page","There are no audit events in the current result page."],errors:["No system errors found","No recorded errors or denied events are in the current result page."]};
      const state=emptyStates[activePage]||["No records found","The current result page contains no records."];
      return '<div class="empty" role="status" aria-live="polite"><strong>'+esc(state[0])+'</strong><span class="muted small">'+esc(state[1])+'</span></div>';
    }
-   const filterKey=items.some(x=>x.status!=null)?'status':items.some(x=>x.outcome!=null)?'outcome':null;
+   const filterKey=options.disableLocalStatusFilter?null:items.some(x=>x.status!=null)?'status':items.some(x=>x.outcome!=null)?'outcome':null;
    const values=filterKey?[...new Set(items.map(x=>String(x[filterKey]??'')).filter(Boolean))].sort():[];
    const plural=filterKey==='status'?'statuses':filterKey==='outcome'?'outcomes':filterKey+'s';
    const select=values.length?'<label class="small muted">Filter <select data-table-filter aria-label="Filter table rows" style="width:auto;padding:8px;border:1px solid var(--line);border-radius:8px;background:white"><option value="">All '+esc(plural)+'</option>'+values.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select></label>':'';
@@ -2202,7 +2216,7 @@ async function loadUsers() {
          {label:"Severity & status",render:a=>'<div class="alert-state"><span class="tag severity-'+String(a.severity||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.severity||"Unknown")+'</span><span class="tag status-'+String(a.status||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.status||"Unknown")+'</span></div>'},
          {label:"Affected account",render:a=>{const user=String(a.user_id||"—"),session=String(a.session_id||"—");return '<div class="alert-identifiers"><span class="muted small">Account</span><code title="'+esc(user)+'">'+esc(user)+'</code><span class="muted small">Session</span><code title="'+esc(session)+'">'+esc(session)+'</code></div>';}},
          {label:"Investigation actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions alert-actions"><button class="secondary" aria-label="Acknowledge alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="acknowledged"><span class="ll-icon" data-icon="check"></span>Acknowledge</button><button class="secondary" aria-label="Investigate alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="investigating"><span class="ll-icon" data-icon="search"></span>Investigate</button><button class="secondary" aria-label="Mark alert '+esc(a.rule_id||a.id||"record")+' as false positive" data-alert="'+esc(a.id)+'" data-status="false_positive">False positive</button><button aria-label="Resolve alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="resolved"><span class="ll-icon" data-icon="shieldCheck"></span>Resolve</button></div>'}
-       ]);
+       ],{disableLocalStatusFilter:true});
      }
      renderIcons(tableEl);
      wireTableTools(tableEl);
@@ -2362,11 +2376,13 @@ async function loadUsers() {
     }
   }
   async function loadPage(page) {
+    const previousPage=activePage;
     const token=++pageLoadToken;
     renderIcons();
     activePage=page; const contentArea=document.querySelector(".content-area");contentArea?.setAttribute("aria-busy","true");document.querySelectorAll(".tab").forEach(b=>{const active=b.dataset.page===page;b.classList.toggle("active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
     const pageTitles={analytics:["Reporting","Activity analytics"],roles:["Access control","Role registry"],overview:["Operations overview","Admin dashboard"],users:["Workspace","User management"],alerts:["Security center","Security alerts"],sessions:["Security center","User sessions"],audit:["Security center","Audit activity"],errors:["Security center","Application errors"]};
     const title=pageTitles[page]||["Admin","Admin console"];$("page-eyebrow").textContent=title[0];$("page-title").textContent=title[1];
+    if(previousPage!==page){$("page-title").focus({preventScroll:true});window.scrollTo(0,0);}
     ["overview","users","analytics","roles","audit","sessions","alerts","errors"].forEach(p=>$("page-"+p).classList.toggle("hidden",p!==page));
     message("app-message","");
     try {
