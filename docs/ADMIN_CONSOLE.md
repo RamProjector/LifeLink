@@ -82,6 +82,26 @@ This proposal does not create an API endpoint or grant an application administra
 - Test primary enrollment, backup enrollment on a separate device, sign-in challenge, incorrect/expired codes, refresh rotation, factor loss, and recovery against a non-production Supabase account.
 - Complete manual browser verification at desktop and mobile widths. Automated syntax and transport tests do not replace real authenticator testing.
 
+
+### MFA manual verification checklist (not yet executed)
+
+Run this only against a dedicated non-production Supabase Auth project and a test administrator account. Do not use the production administrator account as the first test subject.
+
+- [ ] A non-allowlisted account is rejected by `GET /v1/admin/me` before factor discovery or enrollment is shown.
+- [ ] An allowlisted account with no verified factors is prompted to enroll a primary TOTP factor.
+- [ ] An incorrect enrollment code does not mark the factor verified or open the admin console.
+- [ ] Verifying the primary factor produces an AAL2 session and the UI requires a separately acknowledged backup factor on another device or separately protected vault.
+- [ ] The console remains hidden until two verified TOTP factors are returned by Supabase and the current token reports AAL2.
+- [ ] A returning account with factors but an AAL1 session sees the factor selector and challenge; a valid code upgrades the session before the console is shown.
+- [ ] Invalid, expired, malformed, and rate-limited challenges produce safe feedback without exposing Supabase response bodies, secrets, OTPs, or tokens.
+- [ ] Refresh-token rotation near expiry updates the in-memory token pair and protected API calls continue with the refreshed access token.
+- [ ] Cancelling during enrollment, challenge, or verification does not allow a late response to reopen the console or restore a cancelled session.
+- [ ] Sign-out clears the in-memory tokens and sends Supabase Auth sign-out for the current session.
+- [ ] Missing JWT `aal` is treated as AAL1; malformed or unsupported values fail closed in the UI and backend.
+- [ ] Verify Supabase's documented behavior that factor verification signs out other active sessions, and ensure the operator understands this before completing enrollment.
+
+**Release blockers:** direct AAL1 requests to admin API endpoints must be denied by the later backend enforcement change; factor replacement/removal and the approved operator recovery process must be implemented; audit lifecycle events must be verified. Those conditions are not satisfied by the current frontend PR. Do not mark this checklist complete until each item has reproducible evidence.
+
 Until these conditions pass review and the rollout is explicitly approved, keep the AAL2 backend gate out of production and leave issue #222 open.
 
 ## Android console
