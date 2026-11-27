@@ -173,6 +173,14 @@ def main() -> None:
     if "audit-action-filter" not in html or "auditAction?" not in html or "audit-filter-apply" not in html:
         fail("audit history must expose its exact-action server-side filter")
 
+    if (
+        '@router.get("/preflight")' not in admin_api
+        or 'action="admin.identity.preflight"' not in admin_api
+        or 'return {"authorized": True}' not in admin_api
+        or 'await api("/v1/admin/preflight")' not in html
+    ):
+        fail("admin MFA preflight must audit identity eligibility and return no operational data")
+
     if "audit-correlation-filter" not in html or "errors-correlation-filter" not in html or "correlation_id" not in admin_api:
         fail("audit and error history must support server-side correlation ID tracing")
     if '"SELECT id, log_id, actor_id, action, actions, description, session_id, ip_address, timestamp, device_used, "' not in admin_api:
