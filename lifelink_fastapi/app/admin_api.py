@@ -629,9 +629,16 @@ async def admin_update_user(
     return {"user_id": row.user_id, "role": payload.role, "can_request": row.can_request, "can_donate": row.can_donate}
 
 
-# Exact grants explicitly seeded by migration 020. Roles without a reviewed
-# matrix are deliberately excluded until their intended policy is approved.
+# Exact grants explicitly reviewed for every registered role. The 19 keys in
+# migration 020 are administrative permissions, not end-user feature grants.
+# Requester/donor authorization continues to use the existing capability,
+# ownership, and participant checks; those roles must hold no admin grants.
+# super_admin uses the separate admin + RBAC-manager allowlists and likewise
+# must not acquire ordinary permission-map rows or self-service privileges.
 RBAC_APPROVED_PERMISSION_MATRIX = {
+    "requester": frozenset(),
+    "donor": frozenset(),
+    "super_admin": frozenset(),
     "operations_admin": frozenset({"dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"}),
     "user_admin": frozenset({"dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"}),
     "security_admin": frozenset({"dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"}),
