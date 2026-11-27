@@ -329,7 +329,7 @@ The existing FastAPI lifespan already runs periodic maintenance tasks, and rende
 6. **Partially implemented:** transient failures are logged and retried on the next interval; prolonged failure is not yet represented in a durable health surface.
 7. **Implemented:** the admin alert-list scan remains a supplemental on-demand trigger; correlation-filtered reads do not trigger it.
 
-Focused tests cover system actor attribution, requestless scanning, evidence-sensitive occurrence updates, and an empty registry result. Explicit automated coverage for advisory-lock contention/rollback and the full lifespan cancellation/retry lifecycle remains a test gap. CI success is evidence for the checked-in test suite, not proof of a deployed runtime scan.
+Focused tests cover system actor attribution, requestless scanning, evidence-sensitive occurrence updates, an empty registry result, advisory-lock contention (including rollback when another instance owns the lock), successful scan commit, and clean cancellation at the interval boundary. The test exercises the scanner loop directly; it does not yet prove the complete FastAPI lifespan starts/stops all maintenance tasks under a real ASGI server, nor does it verify durable health reporting or retry behavior after a database failure. CI success is evidence for the checked-in test suite, not proof of a deployed runtime scan.
 ## 2026-11-27 independent RBAC scanner implementation update
 
 The branch now contains an initial independent scanner implementation (not yet production-validated):
