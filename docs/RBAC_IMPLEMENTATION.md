@@ -74,8 +74,8 @@ These findings are repository/live-schema observations only. No user-role assign
 ## Scanner scope and policy boundaries (2026-11-27)
 
 - The migration explicitly seeds permission mappings for four administrative roles only. The exact scanner policy mirrors those four mappings; it does not infer empty or wildcard permissions for `requester`, `donor`, or `super_admin`.
-- The scanner's RBAC-02 comparison is currently assignment-scoped. A role with no assigned users is not independently checked for a missing or altered role-permission mapping. The live read-only snapshot found zero user-role assignments, so no assignment-scoped findings were expected from that snapshot.
-- The security-alert table's active-alert uniqueness key is `(rule_id, user_id)`. Do not place synthetic role identifiers in `user_id`; role-level integrity detection needs a deliberate alert-target schema/key design before implementation.
+- RBAC-02 remains assignment-scoped for per-user applicability/permission attribution. RBAC-03 now independently checks the four approved role policies even when no users hold those roles, using the dedicated role-scoped findings table introduced by migration 021.
+- The live read-only snapshot found zero user-role assignments. This no longer prevents RBAC-03 from detecting drift in the four reviewed role-permission mappings.
 - CI on head `2c38d2ba58cdf66751719614be7991e26cb41075` passed backend tests (including PostgreSQL integration tests), Ruff, mypy, Docker/admin-site validation, Android quality gate, Gitleaks, and Python plus Java/Kotlin CodeQL. This verifies the tested code on that commit, not deployed runtime behavior.
 
 
