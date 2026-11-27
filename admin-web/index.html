@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-JGI4kv1du1K+B/duETP24RyiCn1UgqmRNlbHlUWfDjA='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-OsYU6uapp9wf9/hJ7xmrXqFRPmHD4XBz6aotE8H0/RU='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -1125,6 +1125,10 @@ tbody tr:hover { background: #f0eee7; }
 #alerts-table .tag.status-acknowledged { background: #e9edf0; color: #465c69; }
 #alerts-table .tag.status-investigating { background: #ece9f3; color: #5c4e78; }
 #alerts-table .tag.status-resolved { background: #e9efe9; color: #48624d; }
+#scanner-health .tag.status-succeeded { background: #e9efe9; color: #48624d; }
+#scanner-health .tag.status-failed { background: #f8eae7; color: #96392f; }
+#scanner-health .tag.status-running { background: #e9edf0; color: #465c69; }
+#scanner-health .tag.status-never_run { background: var(--md-surface-container); color: var(--md-on-primary-container); }
 #alerts-table .tag.status-false_positive, #alerts-table .tag.status-unknown { background: #efeeeb; color: #66645e; }
 #alerts-table .actions { min-width: 210px; gap: 6px; }
 #alerts-table .actions button { min-height: 40px; padding: 7px 10px; font-size: 11.5px; }
@@ -2578,7 +2582,7 @@ async function loadUsers() {
       const succeeded=data.last_succeeded_at?new Date(data.last_succeeded_at).toLocaleString():"Never";
       const failed=data.last_failed_at?new Date(data.last_failed_at).toLocaleString():"Never";
       const status=String(data.status).replace(/[^a-z_]/g,"");
-      el.innerHTML='<div class="tablewrap"><table><tbody>'+
+      el.innerHTML='<table><tbody>'+
         '<tr><th scope="row">Scanner</th><td>RBAC policy integrity</td></tr>'+
         '<tr><th scope="row">Last status</th><td><span class="tag status-'+esc(status)+'">'+esc(data.status)+'</span></td></tr>'+
         '<tr><th scope="row">Last successful scan</th><td>'+esc(succeeded)+'</td></tr>'+
@@ -2586,7 +2590,7 @@ async function loadUsers() {
         '<tr><th scope="row">Findings on last success</th><td>'+esc(data.last_findings??0)+'</td></tr>'+
         '<tr><th scope="row">Consecutive failures</th><td>'+esc(data.consecutive_failures??0)+'</td></tr>'+
         '<tr><th scope="row">Last error code</th><td>'+esc(data.last_error_code||"None")+'</td></tr>'+
-        '</tbody></table></div>';
+        '</tbody></table>';
     } catch(e) {
       if(token!==pageLoadToken||activePage!=="alerts")return;
       setErrorState("scanner-health","Scanner health unavailable",safeError(e,"The scanner health record could not be retrieved."),()=>loadPage("alerts"));
