@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
+import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
-import pytest
 
 from app import db
 from app.admin_api import (
