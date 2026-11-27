@@ -84,7 +84,7 @@ The backend rollout should introduce a minimal pre-MFA identity preflight (for e
 
 ### Required before rollout
 
-- Implement a factor-management screen that requires AAL2 and a newly verified replacement before removing an existing factor; never permit removal of the last two verified factors through the normal UI.
+- The draft web console now includes AAL2-gated factor management: it requires a newly verified replacement before removal and only offers removal when more than two verified factors exist. This is still a frontend safeguard; add backend audit lifecycle events and verify that Supabase's session invalidation behavior is handled correctly before rollout.
 - Design and document a verified out-of-band recovery process for loss of every authenticator. Email/password reset is not an MFA recovery mechanism and must not bypass factor verification.
 - Enforce AAL2 in the backend for every admin endpoint, while preserving verified email, the server-side admin UUID allowlist, active-session validation, and revocation checks.
 - Audit successful enrollment, factor replacement/removal, recovery events, and denied AAL1 admin attempts without recording secrets, OTPs, or tokens.
@@ -105,6 +105,7 @@ Run this only against a dedicated non-production Supabase Auth project and a tes
 - [ ] A returning account with factors but an AAL1 session sees the factor selector and challenge; a valid code upgrades the session before the console is shown.
 - [ ] Invalid, expired, malformed, and rate-limited challenges produce safe feedback without exposing Supabase response bodies, secrets, OTPs, or tokens.
 - [ ] Refresh-token rotation near expiry updates the in-memory token pair and protected API calls continue with the refreshed access token.
+- [ ] With two verified factors, removal is unavailable; after adding and verifying a third factor, removing one of the three preserves two verified factors and forces a fresh sign-in because Supabase invalidates active sessions.
 - [ ] Cancelling during enrollment, challenge, or verification does not allow a late response to reopen the console or restore a cancelled session.
 - [ ] Sign-out clears the in-memory tokens and sends Supabase Auth sign-out for the current session.
 - [ ] Missing JWT `aal` is treated as AAL1; malformed or unsupported values fail closed in the UI and backend.
