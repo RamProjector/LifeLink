@@ -392,3 +392,8 @@ The following changes were made after the initial source/live-schema audit above
 5. **Remaining blockers:** no administrator out-of-band notification channel is implemented or verified; no RBAC administrator assignments have been provisioned; production Render runtime MFA database-role access and deployment status remain unverified; and the final branch still needs CI and code review.
 
 The data cleanup was explicitly limited to records bearing clear synthetic markers. It did not truncate tables or remove ordinary audit/session history.
+
+
+### Browser notification continuation
+
+The web Admin Console now has an opt-in browser notification control. A protected cursor-based endpoint returns only new event identifiers, rule IDs, severity, timestamp, and source; the browser notification text is generic and contains no evidence or personal data. Polling occurs every 60 seconds only while the authenticated console is open and stops on sign-out or 401/403. This improves active-console notification, but it is not background push/email and does not notify administrators after the console closes.
