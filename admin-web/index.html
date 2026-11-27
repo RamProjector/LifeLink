@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-CIBobZOGxIkTZxcgPFXI1Exmo4mDgxEcvqbt9mBw4jM='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-HLeyiN69nMrgvqbhr4bY6C4/QliG19y6GNeaCA5xzm0='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -2044,13 +2044,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
    } catch(e) { accessToken=null; message("login-message",safeError(e,"Sign-in failed. Check your credentials and try again."),true); }
    finally { $("signin").disabled=false; }
  }
- function table(items, cols) {
+ function table(items, cols, options={}) {
    if(!items?.length) {
      const emptyStates={users:["No user records on this page","There are no account records in the current result page."],sessions:["No session records on this page","There are no active or revoked sessions in the current result page."],roles:["No role records returned","The backend did not return any configured role records."],alerts:["No security alerts found","No incidents match the current queue view."],audit:["No audit records on this page","There are no audit events in the current result page."],errors:["No system errors found","No recorded errors or denied events are in the current result page."]};
      const state=emptyStates[activePage]||["No records found","The current result page contains no records."];
      return '<div class="empty" role="status" aria-live="polite"><strong>'+esc(state[0])+'</strong><span class="muted small">'+esc(state[1])+'</span></div>';
    }
-   const filterKey=items.some(x=>x.status!=null)?'status':items.some(x=>x.outcome!=null)?'outcome':null;
+   const filterKey=options.disableLocalStatusFilter?null:items.some(x=>x.status!=null)?'status':items.some(x=>x.outcome!=null)?'outcome':null;
    const values=filterKey?[...new Set(items.map(x=>String(x[filterKey]??'')).filter(Boolean))].sort():[];
    const plural=filterKey==='status'?'statuses':filterKey==='outcome'?'outcomes':filterKey+'s';
    const select=values.length?'<label class="small muted">Filter <select data-table-filter aria-label="Filter table rows" style="width:auto;padding:8px;border:1px solid var(--line);border-radius:8px;background:white"><option value="">All '+esc(plural)+'</option>'+values.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select></label>':'';
@@ -2202,7 +2202,7 @@ async function loadUsers() {
          {label:"Severity & status",render:a=>'<div class="alert-state"><span class="tag severity-'+String(a.severity||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.severity||"Unknown")+'</span><span class="tag status-'+String(a.status||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.status||"Unknown")+'</span></div>'},
          {label:"Affected account",render:a=>{const user=String(a.user_id||"—"),session=String(a.session_id||"—");return '<div class="alert-identifiers"><span class="muted small">Account</span><code title="'+esc(user)+'">'+esc(user)+'</code><span class="muted small">Session</span><code title="'+esc(session)+'">'+esc(session)+'</code></div>';}},
          {label:"Investigation actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions alert-actions"><button class="secondary" aria-label="Acknowledge alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="acknowledged"><span class="ll-icon" data-icon="check"></span>Acknowledge</button><button class="secondary" aria-label="Investigate alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="investigating"><span class="ll-icon" data-icon="search"></span>Investigate</button><button class="secondary" aria-label="Mark alert '+esc(a.rule_id||a.id||"record")+' as false positive" data-alert="'+esc(a.id)+'" data-status="false_positive">False positive</button><button aria-label="Resolve alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="resolved"><span class="ll-icon" data-icon="shieldCheck"></span>Resolve</button></div>'}
-       ]);
+       ],{disableLocalStatusFilter:true});
      }
      renderIcons(tableEl);
      wireTableTools(tableEl);
