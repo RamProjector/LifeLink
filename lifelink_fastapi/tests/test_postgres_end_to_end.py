@@ -148,9 +148,6 @@ def test_admin_requires_two_server_confirmed_totp_factors(pg_url: str, monkeypat
             "client": ("127.0.0.1", 12345),
         })
 
-        async def ignore_denial_audit(session, principal, request, **kwargs):
-            return None
-
         async with current["sessions"]() as session:
             principal = Principal(
                 subject=user_id,
