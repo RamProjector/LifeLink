@@ -644,8 +644,8 @@ def test_security_alert_status_change_audit_uses_request_correlation(monkeypatch
     assert recorded["correlation_id"] == "web:alert-close"
     assert recorded["target_id"] == "alert-1"
 
-def test_security_alert_correlation_filter_does_not_mutate_alerts(monkeypatch):
-    """Filtering must not run the RBAC scan that refreshes active alert correlations."""
+def test_security_alert_reads_do_not_trigger_rbac_scans(monkeypatch):
+    """Alert retrieval is read-only; the independent lifespan task owns detection."""
     from app.admin_api import admin_security_alerts
 
     class EmptyRows:
@@ -694,8 +694,7 @@ def test_security_alert_correlation_filter_does_not_mutate_alerts(monkeypatch):
         assert scan_calls == 0
         assert audit_filter_flags == [True]
 
-        # An explicitly empty filter is still a filtered read: it must not
-        # trigger a mutating RBAC scan before the SQL filter returns no matches.
+        # An explicitly empty filter also remains read-only.
         empty_filtered = await admin_security_alerts(
             request=request,
             session=Session(),
@@ -720,7 +719,7 @@ def test_security_alert_correlation_filter_does_not_mutate_alerts(monkeypatch):
             correlation_id=None,
             x_correlation_id="unfiltered-request-correlation",
         )
-        assert scan_calls == 1
+        assert scan_calls == 0
         assert audit_filter_flags == [True, True, False]
 
     asyncio.run(check())
