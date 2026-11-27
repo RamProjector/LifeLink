@@ -147,7 +147,7 @@ async def _expire_stale_location_shares_forever() -> None:
 
 
 async def _scan_rbac_discrepancies_forever() -> None:
-    """Run RBAC discrepancy detection independently of administrator page reads.
+    """Run RBAC discrepancy detection independently and persist scanner health.
 
     The transaction-scoped advisory lock prevents duplicate scans when multiple
     API instances are running. Findings use a system actor, never an admin identity.
@@ -171,14 +171,30 @@ async def _scan_rbac_discrepancies_forever() -> None:
                 if acquired:
                     started_at = time.monotonic()
                     await session.execute(text("SET LOCAL statement_timeout = '15000ms'"))
+                    await session.execute(text(
+                        "INSERT INTO lifelink_security_scanner_runs "
+                        "(scanner_key, status, last_started_at, last_findings, updated_at) "
+                        "VALUES ('rbac', 'running', now(), 0, now()) "
+                        "ON CONFLICT (scanner_key) DO UPDATE SET "
+                        "status = 'running', last_started_at = now(), last_finished_at = NULL, "
+                        "last_error_code = NULL, updated_at = now()"
+                    ))
                     findings = await _scan_rbac_discrepancies(
                         session, system_principal, None
                     )
+                    duration_ms = round((time.monotonic() - started_at) * 1000)
+                    await session.execute(text(
+                        "UPDATE lifelink_security_scanner_runs SET status = 'succeeded', "
+                        "last_finished_at = now(), last_succeeded_at = now(), "
+                        "last_findings = :findings, last_duration_ms = :duration_ms, "
+                        "consecutive_failures = 0, last_error_code = NULL, updated_at = now() "
+                        "WHERE scanner_key = 'rbac'"
+                    ), {"findings": max(0, int(findings)), "duration_ms": duration_ms})
                     await session.commit()
                     logger.info(
                         "RBAC discrepancy scan completed; findings=%s duration_ms=%s",
                         findings,
-                        round((time.monotonic() - started_at) * 1000),
+                        duration_ms,
                     )
                 else:
                     await session.rollback()
@@ -187,6 +203,26 @@ async def _scan_rbac_discrepancies_forever() -> None:
             raise
         except Exception:
             logger.exception("RBAC discrepancy scan failed")
+            # Persist a sanitized failure code in a fresh transaction. Never store
+            # exception text, SQL, credentials, or potentially sensitive row data.
+            try:
+                async with AsyncSessionLocal() as health_session:
+                    await health_session.execute(text(
+                        "INSERT INTO lifelink_security_scanner_runs "
+                        "(scanner_key, status, last_started_at, last_finished_at, last_failed_at, "
+                        "last_error_code, consecutive_failures, updated_at) "
+                        "VALUES ('rbac', 'failed', now(), now(), now(), 'scan_failed', 1, now()) "
+                        "ON CONFLICT (scanner_key) DO UPDATE SET status = 'failed', "
+                        "last_finished_at = now(), last_failed_at = now(), "
+                        "last_error_code = 'scan_failed', "
+                        "consecutive_failures = lifelink_security_scanner_runs.consecutive_failures + 1, "
+                        "updated_at = now()"
+                    ))
+                    await health_session.commit()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Unable to persist RBAC scanner failure status")
         await asyncio.sleep(interval)
 
 
