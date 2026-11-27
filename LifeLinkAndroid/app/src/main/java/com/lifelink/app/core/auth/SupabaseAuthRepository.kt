@@ -260,9 +260,11 @@ class SupabaseAuthRepository(
                 val body = response.body() ?: error("Supabase returned an empty MFA verification response")
                 val accessToken = body.accessToken?.takeIf { it.isNotBlank() }
                     ?: error("Supabase did not return a refreshed access token.")
+                val refreshToken = body.refreshToken?.takeIf { it.isNotBlank() }
+                    ?: error("Supabase did not return a rotated refresh token.")
                 val refreshed = AuthSession(
                     accessToken = accessToken,
-                    refreshToken = body.refreshToken?.takeIf { it.isNotBlank() } ?: session.refreshToken,
+                    refreshToken = refreshToken,
                     userId = body.user?.id?.takeIf { it.isNotBlank() } ?: session.userId,
                     email = body.user?.email ?: session.email,
                 )
