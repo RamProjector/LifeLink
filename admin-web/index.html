@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-74n4vBg21mel7x2Gb9J/SNUjT6J4M4LhAdHviVSYt0I='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-2ThPH67qnOjA4S+f9AEP6UTJF3vT7h4v3Exo3TKkr8A='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -1106,6 +1106,9 @@ tbody tr:hover { background: #f0eee7; }
 
 /* Security alert review: severity and workflow state are separate signals */
 #page-alerts { display: grid; gap: 14px; }
+.browser-notifications-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 16px; margin:14px 0; border:1px solid var(--md-outline-variant); border-radius:14px; background:var(--md-surface-container-low); }
+.browser-notifications-toolbar .actions { align-items:center; }
+@media (max-width:720px) { .browser-notifications-toolbar { align-items:flex-start; flex-direction:column; } }
 .alerts-intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .role-integrity-section { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--md-outline-variant); }
 .role-integrity-section .overview-panel-heading { margin-bottom: 14px; }
@@ -2025,6 +2028,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   <div class="actions sessions-pagination"><button id="sessions-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="sessions-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="sessions-page" class="muted small" aria-live="polite"></span></div>
  </section>
  <section id="page-alerts" aria-labelledby="page-title" class="panel hidden">
+  <div class="browser-notifications-toolbar"><div><strong>Browser security notifications</strong><p class="muted small">Optional notifications while this Admin Console is open. No alert evidence or personal data is shown in the notification.</p></div><div class="actions"><button id="browser-notifications-toggle" class="secondary" type="button">Enable browser notifications</button><span id="browser-notifications-status" class="muted small" role="status" aria-live="polite">Off</span></div></div>
   <div class="alerts-intro"><div><p class="muted small">Incidents are deduplicated. Assess severity first, then review investigation status and supporting evidence before changing an incident.</p></div><div class="severity-key" role="group" aria-label="Severity levels"><span class="tag severity-critical">Critical</span><span class="tag severity-high">High</span><span class="tag severity-medium">Medium</span><span class="tag severity-low">Low</span></div></div><p class="alerts-scope-note"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><span>Severity describes potential impact; status describes investigation progress. They are independent fields. Status actions below update investigation progress only.</span></p>
   <div class="table-toolbar alerts-toolbar"><label class="small" for="alert-status-filter">Investigation status</label><select id="alert-status-filter" aria-label="Filter security alerts by investigation status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select><label class="small" for="alerts-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="alerts-correlation-filter" type="search" maxlength="80" placeholder="Find an incident by correlation ID" autocomplete="off"></div></div>
   <div id="alerts-table" class="tablewrap" aria-live="polite"><div class="empty">Select Security alerts to load incidents.</div></div>
@@ -2053,6 +2057,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  let refreshToken = null, accessTokenExpiresAt = 0, refreshInFlight = null, mfaFactors = [], pendingMfaFactor = null, mfaMode = "", adminEmail = "", mfaFlowGeneration = 0, mfaReturnToManage = false, pendingMfaEnrollmentCompletion = false;
  const ADMIN_REDIRECT_URL = "https://lifelink-admin-console.onrender.com/";
  const pageSize = 50;
+ let securityNotificationTimer = null, securityNotificationCursor = null, securityNotificationInFlight = false;
  let auditAction = "";
  let auditCorrelation = "";
  let errorsCorrelation = "";
@@ -2089,7 +2094,49 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  function currentMfaConfig(){return {baseUrl:SUPABASE_URL,publishableKey:SUPABASE_PUBLISHABLE_KEY,accessToken};}
  function showMfaView(){ $("login-view").classList.add("hidden");$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("mfa-view").classList.remove("hidden");message("mfa-message","");}
  function clearMfaPending(){pendingMfaFactor=null;$("mfa-qr").removeAttribute("src");$("mfa-secret").textContent="";$("mfa-enroll-code").value="";$("mfa-enroll-code").disabled=true;$("mfa-enroll-verify").disabled=true;$("mfa-qr-wrap").classList.add("hidden");$("mfa-enroll-start").disabled=false;}
- async function cancelMfaAndReturn(){mfaFlowGeneration++;pendingMfaEnrollmentCompletion=false;$("mfa-audit-retry").classList.add("hidden");const config=currentMfaConfig();let remoteSignedOut=true;try{if(config.accessToken)await window.LifeLinkAdminMFA.signOut(config);}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("mfa-view").classList.add("hidden");$("login-view").classList.remove("hidden");message("login-message",remoteSignedOut?"Sign-in cancelled. No administrator console access was opened.":"Signed out locally, but Supabase server-side sign-out could not be confirmed. Close this tab and retry when online.",!remoteSignedOut);}
+ async function cancelMfaAndReturn(){stopBrowserNotifications("Off");mfaFlowGeneration++;pendingMfaEnrollmentCompletion=false;$("mfa-audit-retry").classList.add("hidden");const config=currentMfaConfig();let remoteSignedOut=true;try{if(config.accessToken)await window.LifeLinkAdminMFA.signOut(config);}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("mfa-view").classList.add("hidden");$("login-view").classList.remove("hidden");message("login-message",remoteSignedOut?"Sign-in cancelled. No administrator console access was opened.":"Signed out locally, but Supabase server-side sign-out could not be confirmed. Close this tab and retry when online.",!remoteSignedOut);}
+ function stopBrowserNotifications(statusText="Off") {
+   if(securityNotificationTimer!==null){clearInterval(securityNotificationTimer);securityNotificationTimer=null;}
+   securityNotificationCursor=null;securityNotificationInFlight=false;
+   const button=$("browser-notifications-toggle");if(button)button.textContent="Enable browser notifications";
+   const status=$("browser-notifications-status");if(status)status.textContent=statusText;
+ }
+ async function pollSecurityNotifications() {
+   if(!accessToken||!securityNotificationCursor||securityNotificationInFlight||!("Notification" in window)||Notification.permission!=="granted")return;
+   securityNotificationInFlight=true;
+   try {
+     await refreshIfNeeded();
+     const cursor=securityNotificationCursor;
+     const query="?after="+encodeURIComponent(cursor.created_at)+"&after_id="+encodeURIComponent(cursor.id)+"&limit=25";
+     const data=await api("/v1/admin/security/notifications"+query);
+     if(!data||!Array.isArray(data.items)||!data.cursor)throw new Error("Invalid security notification response");
+     securityNotificationCursor=data.cursor;
+     if(data.items.length){
+       const count=data.items.length;
+       const notice=new Notification("LifeLink security alert",{body:count+" new security event"+(count===1?" requires":"s require")+" review in the Admin Console.",tag:"lifelink-security-alerts"});
+       notice.onclick=()=>{window.focus();loadPage("alerts");notice.close();};
+     }
+     $("browser-notifications-status").textContent="Enabled while this console is open";
+   } catch(error) {
+     if(Number(error&&error.status)===401||Number(error&&error.status)===403){stopBrowserNotifications("Session ended; notifications stopped");return;}
+     $("browser-notifications-status").textContent="Connection unavailable; retrying";
+   } finally { securityNotificationInFlight=false; }
+ }
+ function enableBrowserNotifications() {
+   $("browser-notifications-toggle").addEventListener("click",async()=>{
+     if(securityNotificationTimer!==null){stopBrowserNotifications("Off");return;}
+     if(!("Notification" in window)){$("browser-notifications-status").textContent="This browser does not support notifications";return;}
+     try {
+       const permission=await Notification.requestPermission();
+       if(permission!=="granted"){$("browser-notifications-status").textContent=permission==="denied"?"Notifications blocked in browser settings":"Permission not granted";return;}
+       securityNotificationCursor={created_at:new Date(Date.now()-5000).toISOString(),id:"00000000-0000-0000-0000-000000000000"};
+       $("browser-notifications-toggle").textContent="Disable browser notifications";
+       $("browser-notifications-status").textContent="Starting…";
+       await pollSecurityNotifications();
+       securityNotificationTimer=setInterval(pollSecurityNotifications,60000);
+     } catch(error) {$("browser-notifications-status").textContent=safeError(error,"Browser notifications could not be enabled.");}
+   });
+ }
  async function enterAdminConsole(){const flow=mfaFlowGeneration,verified=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors);if(window.LifeLinkAdminMFA.assuranceLevel(accessToken)!=="aal2"||verified.length<2)throw new Error("Two verified authenticators and an AAL2 session are required before admin access.");await api("/v1/admin/me");if(flow!==mfaFlowGeneration)return;$("identity").textContent="Signed in as "+(adminEmail||"authorized administrator");$("mfa-view").classList.add("hidden");$("login-view").classList.add("hidden");$("app-view").classList.remove("hidden");$("session-tools").classList.remove("hidden");$("password").value="";clearMfaPending();await loadPage("overview");}
  function showBackupEnrollment(){mfaMode="backup";showMfaView();$("mfa-cancel").classList.remove("hidden");$("mfa-step-manage").classList.add("hidden");$("mfa-title").textContent="Add your backup authenticator.";$("mfa-intro").textContent="Your first authenticator is verified. Register a second one before entering the admin console.";$("mfa-step-challenge").classList.add("hidden");$("mfa-step-enroll").classList.remove("hidden");$("mfa-enroll-title").textContent="Register a separate backup";$("mfa-enroll-guidance").textContent="Use a different device or separately protected authenticator vault. LifeLink does not currently enable Supabase's experimental recovery-code feature. Until that feature is separately validated and enabled, losing every registered authenticator can permanently prevent sign-in. Verifying a factor also signs out your other active sessions.";$("mfa-factor-name").value="Backup authenticator";$("mfa-backup-device-wrap").classList.remove("hidden");$("mfa-backup-device").checked=false;clearMfaPending();}
  function showPrimaryEnrollment(){mfaMode="primary";mfaReturnToManage=false;showMfaView();$("mfa-cancel").classList.remove("hidden");$("mfa-step-manage").classList.add("hidden");$("mfa-title").textContent="Set up administrator MFA.";$("mfa-intro").textContent="Before the admin console opens, register two verified authenticator factors.";$("mfa-step-challenge").classList.add("hidden");$("mfa-step-enroll").classList.remove("hidden");$("mfa-enroll-title").textContent="Register your primary authenticator";$("mfa-enroll-guidance").textContent="Use an authenticator app you control. Keep the setup key private and retain access to this device.";$("mfa-factor-name").value="Primary authenticator";$("mfa-backup-device-wrap").classList.add("hidden");$("mfa-backup-device").checked=false;clearMfaPending();}
@@ -2696,6 +2743,7 @@ async function loadUsers() {
  $("audit-filter-apply").addEventListener("click",()=>{auditAction=$("audit-action-filter").value.trim().slice(0,64);auditCorrelation=$("audit-correlation-filter").value.trim().slice(0,128);offsets.audit=0;loadPage("audit");});
  $("audit-filter-clear").addEventListener("click",()=>{$("audit-action-filter").value="";$("audit-correlation-filter").value="";auditAction="";auditCorrelation="";offsets.audit=0;loadPage("audit");});
  $("audit-correlation-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("audit-filter-apply").click();});
+ enableBrowserNotifications();
  $("errors-filter-apply").addEventListener("click",()=>{errorsCorrelation=$("errors-correlation-filter").value.trim().slice(0,128);offsets.errors=0;loadPage("errors");});
  $("errors-filter-clear").addEventListener("click",()=>{$("errors-correlation-filter").value="";errorsCorrelation="";offsets.errors=0;loadPage("errors");});
  $("errors-correlation-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("errors-filter-apply").click();});
@@ -2704,7 +2752,7 @@ async function loadUsers() {
    $(kind+"-prev").addEventListener("click",()=>{offsets[kind]=Math.max(0,offsets[kind]-pageSize);loadPage(kind==="users"?"users":kind);});
    $(kind+"-next").addEventListener("click",()=>{offsets[kind]+=pageSize;loadPage(kind==="users"?"users":kind);});
  });
- $("signout").addEventListener("click",async()=>{pageLoadToken++;mfaFlowGeneration++;let remoteSignedOut=true;try{if(accessToken)await window.LifeLinkAdminMFA.signOut(currentMfaConfig());}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("mfa-view").classList.add("hidden");$("password").value="";message("login-message",remoteSignedOut?"Signed out.":"Signed out locally, but Supabase server-side sign-out could not be confirmed. Close this tab and retry when online.",!remoteSignedOut);});
+ $("signout").addEventListener("click",async()=>{stopBrowserNotifications("Off");pageLoadToken++;mfaFlowGeneration++;let remoteSignedOut=true;try{if(accessToken)await window.LifeLinkAdminMFA.signOut(currentMfaConfig());}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("mfa-view").classList.add("hidden");$("password").value="";message("login-message",remoteSignedOut?"Signed out.":"Signed out locally, but Supabase server-side sign-out could not be confirmed. Close this tab and retry when online.",!remoteSignedOut);});
 })();
 </script>
 </body></html>
