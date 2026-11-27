@@ -100,3 +100,12 @@ The current `admin_api.py` route inventory confirms that these endpoints use the
 | `PUT /v1/admin/users/{user_id}/roles` | `require_admin` plus `LIFELINK_RBAC_MANAGER_USER_IDS` and applicability checks | `roles.assign` plus manager safeguard |
 
 This is an authorization source inspection, not an endpoint penetration test. The permission column is a target mapping, not a claim that the permissions are currently enforced. Do not replace the allowlist gate until a reviewed role-to-endpoint matrix, trusted bootstrap/provisioning plan, migration/backfill strategy, and role-specific authorization tests exist. In particular, the current live registry has zero user-role assignments, so switching to RBAC-only checks now could lock out all existing administrators.
+
+
+## Role-level policy integrity detector (2026-11-27)
+
+Migration `021_role_policy_integrity_findings.sql` adds `lifelink_role_security_findings`, a role-targeted finding store with its own `(rule_id, role_key)` active-finding uniqueness key. It is intentionally separate from `lifelink_security_alerts`; role identifiers are never written into the user-scoped `user_id` field.
+
+The periodic scanner now evaluates the four explicitly approved role policies directly from `lifelink_roles` and their permission mappings, independent of `lifelink_user_roles`. It raises RBAC-03 for missing or unexpected grants, increments occurrences only when evidence changes, and automatically resolves active RBAC-03 findings when the approved mapping is restored. Roles without an approved exact policy (`requester`, `donor`, and `super_admin`) are skipped rather than treated as having an empty permission set.
+
+The new read-only admin endpoint is `GET /v1/admin/security/role-integrity` (server-side `require_admin` remains in force). The migration must be applied through the project's normal reviewed migration process before this endpoint/scanner can run against a database. No production migration was applied as part of this PR.
