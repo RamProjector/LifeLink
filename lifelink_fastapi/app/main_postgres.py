@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import os
 import logging
+import time
 from decimal import Decimal
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -168,11 +169,17 @@ async def _scan_rbac_discrepancies_forever() -> None:
                     text("SELECT pg_try_advisory_xact_lock(728194620114)")
                 )
                 if acquired:
+                    started_at = time.monotonic()
+                    await session.execute(text("SET LOCAL statement_timeout = '15000ms'"))
                     findings = await _scan_rbac_discrepancies(
                         session, system_principal, None
                     )
                     await session.commit()
-                    logger.info("RBAC discrepancy scan completed; findings=%s", findings)
+                    logger.info(
+                        "RBAC discrepancy scan completed; findings=%s duration_ms=%s",
+                        findings,
+                        round((time.monotonic() - started_at) * 1000),
+                    )
                 else:
                     await session.rollback()
                     logger.debug("RBAC discrepancy scan skipped; another instance holds the lock")
