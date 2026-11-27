@@ -3,8 +3,8 @@ from __future__ import annotations
 import os
 import re
 from datetime import datetime, timezone
-from uuid import uuid4
 from typing import Literal
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
