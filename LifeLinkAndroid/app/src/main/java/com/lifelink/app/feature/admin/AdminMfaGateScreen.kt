@@ -184,7 +184,7 @@ fun AdminMfaGateScreen(
                                 if (repository.assuranceLevel(refreshed.accessToken) != "aal2") {
                                     error = "Supabase did not confirm AAL2. Sign in again."
                                 } else if (enrolling) {
-                                    pendingAuditType = if (verifiedFactors.size >= 1) {
+                                    pendingAuditType = if (refreshedVerified.size >= 1) {
                                         "factor_replacement_verified"
                                     } else {
                                         "factor_enrollment_verified"
