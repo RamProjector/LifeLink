@@ -2155,7 +2155,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
      const response=await fetch(SUPABASE_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:$("email").value.trim(),password:$("password").value})});
      const session=await response.json();if(flow!==mfaFlowGeneration){if(session.access_token)try{await window.LifeLinkAdminMFA.signOut({...currentMfaConfig(),accessToken:session.access_token});}catch{}return;}if(!response.ok||!session.access_token||!session.refresh_token){const error=new Error("Sign-in failed");error.status=response.status;throw error;}
      accessToken=session.access_token;refreshToken=session.refresh_token;accessTokenExpiresAt=Date.now()+Math.max(0,Number(session.expires_in)||0)*1000;adminEmail=session.user?.email||"";
-     await api("/v1/admin/me");if(flow!==mfaFlowGeneration)return;
+     await api("/v1/admin/preflight");if(flow!==mfaFlowGeneration)return;
      await refreshIfNeeded();if(flow!==mfaFlowGeneration)return;mfaFactors=await window.LifeLinkAdminMFA.listFactors(currentMfaConfig());if(flow!==mfaFlowGeneration)return;
      const verified=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors),aal=window.LifeLinkAdminMFA.assuranceLevel(accessToken);
      if(verified.length===0){showPrimaryEnrollment();return;}
