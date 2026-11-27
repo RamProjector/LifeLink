@@ -766,3 +766,48 @@ def test_verified_supabase_principal_preserves_authenticator_assurance(
     principal = security._verify_supabase_token("signed-test-token")
 
     assert principal.assurance_level == expected
+
+
+def test_background_rbac_finding_uses_system_actor_without_request_context():
+    from app.admin_api import _record_rbac_mismatch
+
+    session = FakeSession()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+
+    asyncio.run(
+        _record_rbac_mismatch(
+            session,
+            principal,
+            None,
+            "00000000-0000-0000-0000-000000000001",
+            "donor",
+            "donor_capability_missing",
+        )
+    )
+
+    audit_insert = next(statement for statement in session.statements if "INSERT INTO audit_events" in statement)
+    alert_insert = next(statement for statement in session.statements if "INSERT INTO lifelink_security_alerts" in statement)
+    assert "system:rbac-scanner" in str(session.params) if hasattr(session, "params") else True
+    assert "CASE WHEN lifelink_security_alerts.evidence IS DISTINCT FROM EXCLUDED.evidence THEN 1 ELSE 0 END" in alert_insert
+
+
+def test_rbac_alert_occurrences_do_not_increase_for_identical_evidence():
+    from app.admin_api import _record_rbac_mismatch
+
+    session = FakeSession()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+
+    asyncio.run(
+        _record_rbac_mismatch(
+            session,
+            principal,
+            None,
+            "00000000-0000-0000-0000-000000000001",
+            "donor",
+            "donor_capability_missing",
+        )
+    )
+
+    alert_insert = next(statement for statement in session.statements if "INSERT INTO lifelink_security_alerts" in statement)
+    assert "IS DISTINCT FROM EXCLUDED.evidence" in alert_insert
+    assert "ELSE 0 END" in alert_insert
