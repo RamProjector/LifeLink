@@ -157,7 +157,7 @@ Do not introduce a paid provider or new external service without approval.
 
 1. Reconcile all current FastAPI routes with the existing audit coverage document.
 2. Trace Android UI actions to API routes so that the criteria's "every action" requirement is interpreted as every applicable security-relevant action, not indiscriminate logging of every screen render.
-3. Close remaining high-impact gaps, including legacy donor mutation routes and push-token credential registration/removal.
+3. Close remaining high-impact gaps, including legacy donor mutation routes. Push-token registration is now explicitly audited without recording the token; a token-removal endpoint is not currently present and should be added only if the product supports explicit device unlinking.
 4. Decide whether donor response, location reads, and other sensitive read operations require explicit access events.
 5. Keep critical mutation and audit insertion in one database transaction.
 6. Do not log tokens, message content, contact values, blood type, precise GPS coordinates, or raw request payloads.
@@ -225,7 +225,7 @@ The Android Retrofit interface at `LifeLinkAndroid/app/src/main/java/com/lifelin
 | Android feature/API group | Backend route families | Audit/security follow-up |
 |---|---|---|
 | Admin | `/v1/admin/me`, dashboard, users, user update, audit, errors | Add alert/session/role APIs to Android only if the app actually exposes those admin workflows; enforce permission on every server route regardless of client |
-| Account | profile read/update, push-token registration | Verify profile event and push-token registration/removal event; token must never be stored in audit metadata |
+| Account | profile read/update, push-token registration | Profile and push-token registration now have explicit audit paths; push-token add/update records actor/session/correlation only and never the token. No token-removal route was found. |
 | Requester | emergency request create/detail/history/cancel/fulfill, contact selected donors, contact status/report/block, manual broadcast | Retain atomic request/contact events; confirm all failed/denied operations are safely observable |
 | Donor | donor profile create/read/update, presence, availability, delete, map, visibility, inbox, response | Reconcile legacy donor routes with newer donor-profile routes; ensure response and legacy availability/presence are audited |
 | Location sharing | activate/revoke share, matched donor exact-location read, open conversation | Preserve atomic grant/revoke and exact-location disclosure audit; never include coordinates |
