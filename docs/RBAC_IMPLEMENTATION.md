@@ -77,3 +77,26 @@ These findings are repository/live-schema observations only. No user-role assign
 - The scanner's RBAC-02 comparison is currently assignment-scoped. A role with no assigned users is not independently checked for a missing or altered role-permission mapping. The live read-only snapshot found zero user-role assignments, so no assignment-scoped findings were expected from that snapshot.
 - The security-alert table's active-alert uniqueness key is `(rule_id, user_id)`. Do not place synthetic role identifiers in `user_id`; role-level integrity detection needs a deliberate alert-target schema/key design before implementation.
 - CI on head `2c38d2ba58cdf66751719614be7991e26cb41075` passed backend tests (including PostgreSQL integration tests), Ruff, mypy, Docker/admin-site validation, Android quality gate, Gitleaks, and Python plus Java/Kotlin CodeQL. This verifies the tested code on that commit, not deployed runtime behavior.
+
+
+## Admin route authorization inventory (source inspection, 2026-11-27)
+
+The current `admin_api.py` route inventory confirms that these endpoints use the shared `require_admin` dependency (the server-managed administrator allowlist plus verified active principal), not granular role-permission checks:
+
+| Route | Current authorization gate | Intended permission key |
+|---|---|---|
+| `GET /v1/admin/me` | `require_admin` | `dashboard.read` (or a dedicated admin-self permission) |
+| `GET /v1/admin/dashboard` | `require_admin` | `dashboard.read` |
+| `GET /v1/admin/users` | `require_admin` | `users.read` |
+| `PATCH /v1/admin/users/{user_id}` | `require_admin` | `users.update` |
+| `GET /v1/admin/security/alerts` | `require_admin` | `security.alerts.read` |
+| `PATCH /v1/admin/security/alerts/{alert_id}` | `require_admin` | `security.alerts.manage` |
+| `GET /v1/admin/sessions` | `require_admin` | `security.sessions.read` |
+| `POST /v1/admin/sessions/{session_id}/revoke` | `require_admin` | `security.sessions.revoke` |
+| `GET /v1/admin/audit` | `require_admin` | `audit.read` |
+| `GET /v1/admin/errors` | `require_admin` | Dedicated error-log permission should be considered; current matrix has no specific key |
+| `GET /v1/admin/roles` | `require_admin` | `roles.read` |
+| `GET /v1/admin/users/{user_id}/roles` | `require_admin` | `roles.read` |
+| `PUT /v1/admin/users/{user_id}/roles` | `require_admin` plus `LIFELINK_RBAC_MANAGER_USER_IDS` and applicability checks | `roles.assign` plus manager safeguard |
+
+This is an authorization source inspection, not an endpoint penetration test. The permission column is a target mapping, not a claim that the permissions are currently enforced. Do not replace the allowlist gate until a reviewed role-to-endpoint matrix, trusted bootstrap/provisioning plan, migration/backfill strategy, and role-specific authorization tests exist. In particular, the current live registry has zero user-role assignments, so switching to RBAC-only checks now could lock out all existing administrators.
