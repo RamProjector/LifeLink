@@ -199,7 +199,7 @@ def main() -> None:
         or "factor_type = 'totp' AND status = 'verified'" not in admin_api
         or '"security.admin_mfa.assurance_denied"' not in admin_api
         or '"security.admin_mfa.factor_count_denied"' not in admin_api
-        or '"Two verified TOTP authenticators are required"' not in admin_api
+        or '"Two verified TOTP authenticators are required for administrator access."' not in admin_api
     ):
         fail("operational admin routes must enforce AAL2 and two server-confirmed TOTP factors; only MFA audit receipts may use the AAL2 enrollment gate")
 
