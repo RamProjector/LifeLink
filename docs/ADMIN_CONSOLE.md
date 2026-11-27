@@ -96,7 +96,7 @@ The backend MFA boundary is now implemented in this branch. `/v1/admin/preflight
 - MFA lifecycle audit receipts cover verified enrollment, replacement, removal requests, recovery re-enrollment, and denied AAL1/unknown-assurance requests. Their verified factor count is queried from Supabase's server-managed inventory; the client-reported count is stored separately for discrepancy review. Receipts contain no secrets, OTPs, or tokens.
 - The two-operator recovery runbook is documented but has not yet been exercised. Test it in a non-production Supabase project and verify the Supabase Auth audit record plus the LifeLink recovery receipt.
 - Add/complete backend tests for AAL1/AAL2, malformed/missing/stale/downgraded claims, revoked sessions, and non-allowlisted accounts; run the full suite on the latest head.
-- Test primary enrollment, backup enrollment on a separate device, sign-in challenge, incorrect/expired codes, refresh rotation, factor loss, and recovery against a non-production Supabase account on both web and Android.
+- Test primary enrollment, backup enrollment on a separate device, sign-in challenge, incorrect/expired codes, refresh rotation, factor loss, and recovery against a non-production Supabase account through the web Admin Console. Android is not an administrator client.
 - Complete manual browser verification. Automated syntax, unit, and transport tests do not replace real authenticator testing.
 
 
