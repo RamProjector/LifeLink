@@ -83,6 +83,10 @@ const config = {
 
   const payload = Buffer.from(JSON.stringify({ aal: "aal2" })).toString("base64url");
   assert.equal(mfa.assuranceLevel("header." + payload + ".signature"), "aal2");
+  const legacyPayload = Buffer.from(JSON.stringify({ sub: "admin-user" })).toString("base64url");
+  assert.equal(mfa.assuranceLevel("header." + legacyPayload + ".signature"), "aal1");
+  const malformedPayload = Buffer.from(JSON.stringify({ aal: null })).toString("base64url");
+  assert.equal(mfa.assuranceLevel("header." + malformedPayload + ".signature"), "unknown");
   assert.equal(mfa.assuranceLevel("not-a-jwt"), "unknown");
   assert.equal(mfa.isTotpCode("012345"), true);
   assert.equal(mfa.isTotpCode("12345x"), false);
