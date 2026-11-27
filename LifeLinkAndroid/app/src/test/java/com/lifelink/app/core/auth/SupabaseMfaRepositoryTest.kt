@@ -1,11 +1,10 @@
 package com.lifelink.app.core.auth
 
-import com.lifelink.app.feature.admin.AdminMfaStep
-import com.lifelink.app.feature.admin.nextAdminMfaStep
-
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.gson.JsonParser
+import com.lifelink.app.feature.admin.AdminMfaStep
+import com.lifelink.app.feature.admin.nextAdminMfaStep
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -177,6 +176,7 @@ class SupabaseMfaRepositoryTest {
         assertTrue(result.isFailure)
         assertEquals(0, server.requestCount)
     }
+
     @Test
     fun adminMfaRoutingKeepsAal2AndBackupFactorRequirementsDistinct() {
         assertEquals(AdminMfaStep.ENROLL_PRIMARY, nextAdminMfaStep("aal1", 0))
@@ -185,5 +185,4 @@ class SupabaseMfaRepositoryTest {
         assertEquals(AdminMfaStep.CONFIRM_ACCESS, nextAdminMfaStep("aal2", 2))
         assertEquals(AdminMfaStep.CHALLENGE, nextAdminMfaStep("unknown", 2))
     }
-
 }
