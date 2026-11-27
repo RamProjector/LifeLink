@@ -721,3 +721,46 @@ def test_security_alert_correlation_filter_does_not_mutate_alerts(monkeypatch):
 
     asyncio.run(check())
 
+
+
+@pytest.mark.parametrize(
+    ("aal_claim", "expected"),
+    [
+        (None, "aal1"),
+        ("aal1", "aal1"),
+        ("aal2", "aal2"),
+        ("aal3", "unknown"),
+        ("", "unknown"),
+        (False, "unknown"),
+        (2, "unknown"),
+    ],
+)
+def test_verified_supabase_principal_preserves_authenticator_assurance(monkeypatch, aal_claim, expected):
+    """Preserve only recognized Supabase AAL values; absent AAL is AAL1."""
+    from app import security
+
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setattr(
+        security,
+        "_jwks_client",
+        lambda: SimpleNamespace(
+            get_signing_key_from_jwt=lambda token: SimpleNamespace(key="test-signing-key")
+        ),
+    )
+    claims = {
+        "sub": "admin-1",
+        "email": "admin@example.test",
+        "email_verified": True,
+        "session_id": "session-1",
+        "exp": 2_000_000_000,
+        "iat": 1_900_000_000,
+        "iss": "https://example.supabase.co/auth/v1",
+        "aud": "authenticated",
+    }
+    if aal_claim is not None:
+        claims["aal"] = aal_claim
+    monkeypatch.setattr(security.jwt, "decode", lambda *args, **kwargs: claims)
+
+    principal = security._verify_supabase_token("signed-test-token")
+
+    assert principal.assurance_level == expected
