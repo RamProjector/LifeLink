@@ -1867,7 +1867,20 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 #errors-table .event-summary strong { color: #8e3028; }
 #errors-table .event-trace code { max-width: 210px; }
 #errors-table details summary { cursor: pointer; color: var(--ink-soft); font-weight: 650; }
-#errors-table details pre { max-width: min(560px,70vw); max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }</style>
+#errors-table details pre { max-width: min(560px,70vw); max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }/* Admin MFA gate — compact, accessible authentication workspace */
+#mfa-view { width:min(100% - 32px, 520px); margin:48px auto; }
+#mfa-view .mfa-section { margin-top:20px; padding-top:18px; border-top:1px solid var(--line); }
+#mfa-view .mfa-section h2 { margin:0 0 8px; font-size:17px; }
+#mfa-view .mfa-help { margin:0 0 16px; color:var(--muted); font-size:13px; line-height:1.55; }
+#mfa-view .mfa-code { letter-spacing:.28em; font-variant-numeric:tabular-nums; max-width:220px; }
+#mfa-view .mfa-qr-wrap { display:grid; justify-items:start; gap:10px; margin:16px 0; }
+#mfa-view .mfa-qr { width:190px; height:190px; max-width:100%; object-fit:contain; padding:10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+#mfa-view .mfa-secret { display:block; max-width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:7px; background:var(--surface-soft); overflow-wrap:anywhere; font-size:12px; }
+#mfa-view .mfa-check { display:flex; align-items:flex-start; gap:9px; margin:14px 0; color:var(--ink-soft); font-size:12px; line-height:1.5; }
+#mfa-view .mfa-check input { flex:0 0 auto; width:16px; min-height:16px; margin:2px 0 0; }
+#mfa-view .mfa-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+#mfa-view .mfa-actions button { flex:1 1 160px; }
+</style>
 </head>
 <body>
 <header class="top"><div><div class="brand"><span class="brand-mark ll-icon" data-icon="lifelink" data-icon-size="23"></span><span>LifeLink <span>/ Admin</span></span></div><small>Restricted operations console</small></div><div id="session-tools" class="hidden"><button id="signout" class="secondary"><span class="ll-icon" data-icon="logout"></span>Sign out</button></div></header>
@@ -1880,6 +1893,34 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  <section id="recovery-view" class="hidden" aria-live="polite"><h2 id="recovery-title" style="font-size:19px;margin:22px 0 6px">Reset your password</h2><p id="recovery-help" class="muted small">Enter your account email and we will send a secure password-reset link.</p><div id="recovery-email-wrap"><label for="recovery-email">Account email</label><input id="recovery-email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" aria-describedby="recovery-email-help"><p id="recovery-email-help" class="field-help">We will send a reset link if the account is eligible.</p></div><div id="new-password-wrap" class="hidden"><label for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="8" aria-describedby="new-password-help"><p id="new-password-help" class="field-help">Use at least 8 characters and choose a password you do not use elsewhere.</p><label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8" aria-describedby="confirm-password-help"><p id="confirm-password-help" class="field-help">Enter the same password again to confirm it.</p></div><button id="recovery-submit" type="button" style="width:100%;margin-top:14px">Send reset link</button><button id="recovery-cancel" type="button" class="secondary" style="width:100%;margin-top:8px">Back to sign in</button></section>
  <div id="login-message" class="notice hidden" role="status" aria-live="polite"></div>
  <p class="foot">Your session token stays in memory for this tab and is cleared when you sign out or close it. Admin rights are verified server-side.</p>
+</main>
+<main id="mfa-view" class="login hidden" aria-labelledby="mfa-title">
+ <div class="eyebrow">Administrator verification</div>
+ <h1 id="mfa-title">Verify your authenticator.</h1>
+ <p id="mfa-intro" class="muted">Complete the additional verification step before entering the restricted console.</p>
+ <section id="mfa-step-enroll" class="mfa-section hidden" aria-labelledby="mfa-enroll-title">
+  <h2 id="mfa-enroll-title">Register an authenticator</h2>
+  <p id="mfa-enroll-guidance" class="mfa-help">Use an authenticator app on a device you control. Keep the setup secret private.</p>
+  <label for="mfa-factor-name">Authenticator name</label>
+  <input id="mfa-factor-name" type="text" maxlength="64" autocomplete="off" placeholder="e.g. Primary authenticator">
+  <label id="mfa-backup-device-wrap" class="mfa-check hidden"><input id="mfa-backup-device" type="checkbox"><span>I am setting this backup authenticator up on a separate device or in a separately protected authenticator vault.</span></label>
+  <button id="mfa-enroll-start" type="button" style="width:100%;margin-top:12px">Generate setup QR code</button>
+  <div id="mfa-qr-wrap" class="mfa-qr-wrap hidden"><img id="mfa-qr" class="mfa-qr" alt="Authenticator setup QR code"><div><strong class="small">Manual setup key</strong><code id="mfa-secret" class="mfa-secret"></code></div><p class="mfa-help">Do not share or screenshot this key. Enter the six-digit code from your authenticator app below to verify this device.</p></div>
+  <label for="mfa-enroll-code">Authenticator code</label>
+  <input id="mfa-enroll-code" class="mfa-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" disabled>
+  <div class="mfa-actions"><button id="mfa-enroll-verify" type="button" disabled>Verify authenticator</button></div>
+ </section>
+ <section id="mfa-step-challenge" class="mfa-section hidden" aria-labelledby="mfa-challenge-title">
+  <h2 id="mfa-challenge-title">Confirm it is you</h2>
+  <p class="mfa-help">Choose one of your verified authenticators and enter its current six-digit code.</p>
+  <label for="mfa-factor-select">Authenticator</label><select id="mfa-factor-select"></select>
+  <label for="mfa-challenge-code">Authenticator code</label>
+  <input id="mfa-challenge-code" class="mfa-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000">
+  <div class="mfa-actions"><button id="mfa-challenge-verify" type="button">Verify and continue</button></div>
+ </section>
+ <div id="mfa-message" class="notice hidden" role="status" aria-live="polite"></div>
+ <button id="mfa-cancel" type="button" class="secondary" style="width:100%;margin-top:16px">Cancel and return to sign in</button>
+ <p class="foot">Authenticator secrets and session tokens are kept in memory only. Register a separate backup authenticator before continuing.</p>
 </main>
 <main id="app-view" class="wrap hidden">
  <div class="headrow"><div><div class="eyebrow" id="page-eyebrow">Operations overview</div><h1 id="page-title" aria-live="polite" aria-atomic="true">Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary"><span class="ll-icon" data-icon="refresh"></span>Refresh data</button></div></div>
