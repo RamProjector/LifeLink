@@ -7,7 +7,7 @@ import pytest
 from fastapi import HTTPException
 
 from app import db
-from app.admin_api import _configured_admin_ids, _correlation_id, admin_identity_preflight, require_admin
+from app.admin_api import _configured_admin_ids, _correlation_id, admin_identity_preflight, require_admin, require_admin_identity
 from app.security import Principal
 
 
@@ -92,7 +92,7 @@ def test_admin_allowlist_grants_only_configured_subject(monkeypatch):
 
     async def check():
         principal = await require_admin(
-            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"),
             session=FakeSession([0]),
             request=_request_context(),
         )
@@ -107,7 +107,7 @@ def test_admin_rejects_revoked_session(monkeypatch):
     async def check():
         with pytest.raises(HTTPException) as error:
             await require_admin(
-                principal=Principal(subject="admin-1", email_verified=True, session_id="session-revoked"),
+                principal=Principal(subject="admin-1", email_verified=True, session_id="session-revoked", assurance_level="aal2"),
                 session=FakeSession([1, 0]),
                 request=_request_context(),
             )
@@ -130,6 +130,95 @@ def test_admin_requires_session_context(monkeypatch):
         assert "Session context" in error.value.detail
 
     asyncio.run(check())
+
+
+@pytest.mark.parametrize("assurance_level", ["aal1", "unknown", "aal3"])
+def test_admin_rejects_sessions_without_verified_aal2_and_audits(monkeypatch, assurance_level):
+    from app import admin_api
+
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    recorded = {}
+
+    async def capture_denial(session, principal, request, **kwargs):
+        recorded.update(kwargs)
+
+    monkeypatch.setattr(admin_api, "_record_denied_admin_attempt", capture_denial)
+
+    async def check():
+        with pytest.raises(HTTPException) as error:
+            await require_admin(
+                principal=Principal(
+                    subject="admin-1",
+                    email_verified=True,
+                    session_id="session-1",
+                    assurance_level=assurance_level,
+                ),
+                session=FakeSession([0]),
+                request=_request_context(),
+            )
+        assert error.value.status_code == 403
+        assert "multi-factor" in error.value.detail.lower()
+        assert recorded["rule_id"] == "IDS-06"
+        assert recorded["action"] == "security.admin_mfa.assurance_denied"
+        assert recorded["severity"] == "high"
+
+    asyncio.run(check())
+
+
+def test_admin_allows_aal2_after_identity_and_revocation_checks(monkeypatch):
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+
+    async def check():
+        principal = await require_admin(
+            principal=Principal(
+                subject="admin-1",
+                email_verified=True,
+                session_id="session-1",
+                assurance_level="aal2",
+            ),
+            session=FakeSession([0]),
+            request=_request_context(),
+        )
+        assert principal.assurance_level == "aal2"
+
+    asyncio.run(check())
+
+
+def test_identity_preflight_allows_allowlisted_aal1_without_operational_access(monkeypatch):
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+
+    async def check():
+        principal = await require_admin_identity(
+            principal=Principal(
+                subject="admin-1",
+                email_verified=True,
+                session_id="session-1",
+                assurance_level="aal1",
+            ),
+            session=FakeSession([0]),
+            request=_request_context(),
+        )
+        assert principal.subject == "admin-1"
+        assert principal.assurance_level == "aal1"
+
+    asyncio.run(check())
+
+
+def test_every_admin_route_uses_aal2_guard_except_identity_preflight():
+    from app.admin_api import router
+
+    protected = []
+    for route in router.routes:
+        if not hasattr(route, "dependant"):
+            continue
+        dependency_names = {dependency.call.__name__ for dependency in route.dependant.dependencies}
+        if route.path == "/v1/admin/preflight":
+            assert "require_admin_identity" in dependency_names
+            assert "require_admin" not in dependency_names
+        else:
+            assert "require_admin" in dependency_names, route.path
+            protected.append(route.path)
+    assert protected
 
 
 def test_correlation_id_is_bounded_and_sanitized():
