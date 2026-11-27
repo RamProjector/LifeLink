@@ -32,7 +32,9 @@
 
   async function listFactors(config) {
     const user = await authRequest({ ...config, path: "user" });
-    if (!user || !Array.isArray(user.factors)) return [];
+    if (!user || !Array.isArray(user.factors)) {
+      throw new Error("Supabase did not return a valid authenticator inventory.");
+    }
     return user.factors.filter(factor =>
       factor && factor.factor_type === "totp" &&
       typeof factor.id === "string" &&
