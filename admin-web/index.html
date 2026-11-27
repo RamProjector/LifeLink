@@ -2489,7 +2489,7 @@ async function loadUsers() {
    $(kind+"-prev").addEventListener("click",()=>{offsets[kind]=Math.max(0,offsets[kind]-pageSize);loadPage(kind==="users"?"users":kind);});
    $(kind+"-next").addEventListener("click",()=>{offsets[kind]+=pageSize;loadPage(kind==="users"?"users":kind);});
  });
- $("signout").addEventListener("click",async()=>{pageLoadToken++;try{if(accessToken)await window.LifeLinkAdminMFA.signOut(currentMfaConfig());}catch{}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];clearMfaPending();$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("mfa-view").classList.add("hidden");$("password").value="";message("login-message","Signed out.");});$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("password").value="";message("login-message","Signed out.");});
+ $("signout").addEventListener("click",async()=>{pageLoadToken++;try{if(accessToken)await window.LifeLinkAdminMFA.signOut(currentMfaConfig());}catch{}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];clearMfaPending();$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("mfa-view").classList.add("hidden");$("password").value="";message("login-message","Signed out.");});
 })();
 </script>
 </body></html>
