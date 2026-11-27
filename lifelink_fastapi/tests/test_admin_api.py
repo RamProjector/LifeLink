@@ -3,12 +3,19 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-import pytest
-from pydantic import ValidationError
 from fastapi import HTTPException
+from pydantic import ValidationError
+import pytest
 
 from app import db
-from app.admin_api import AdminMfaAuditEvent, _configured_admin_ids, _correlation_id, admin_identity_preflight, require_admin, require_admin_identity
+from app.admin_api import (
+    AdminMfaAuditEvent,
+    _configured_admin_ids,
+    _correlation_id,
+    admin_identity_preflight,
+    require_admin,
+    require_admin_identity,
+)
 from app.security import Principal
 
 
