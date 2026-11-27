@@ -479,6 +479,9 @@ def test_startup_adds_admin_audit_columns_and_indexes(monkeypatch):
     assert "ALTER TABLE lifelink_role_security_findings ENABLE ROW LEVEL SECURITY" in statements
     assert "CREATE TABLE IF NOT EXISTS lifelink_security_scanner_runs" in statements
     assert "ALTER TABLE lifelink_security_scanner_runs ENABLE ROW LEVEL SECURITY" in statements
+    assert "REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM PUBLIC" in statements
+    assert "REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM anon" in statements
+    assert "REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM authenticated" in statements
 
 
 from app.admin_api import _safe_audit_metadata
