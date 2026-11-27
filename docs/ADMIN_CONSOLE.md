@@ -135,6 +135,7 @@ Until these conditions pass review and the rollout is explicitly approved, keep 
 - GET /v1/admin/security/alerts?limit=50&offset=0 — user/session-scoped security alert queue.
 - GET /v1/admin/security/role-integrity?limit=50&offset=0&status=open — role-scoped RBAC-03 policy findings; displayed in the Security alerts page without overloading user alert identities.
 - GET /v1/admin/security/scanner — persisted RBAC scanner health and last success/failure metadata.
+- GET /v1/admin/security/notifications — cursor-based, non-sensitive event feed for opt-in browser notifications.
 - PATCH /v1/admin/security/alerts/{alert_id} — acknowledge, investigate, resolve, or mark an alert as false positive.
 - POST /v1/admin/sessions/{session_id}/revoke — revoke an observed session for subsequent admin API access.
 - GET /v1/admin/errors?limit=50&offset=0 — recorded API errors and denied admin requests.
