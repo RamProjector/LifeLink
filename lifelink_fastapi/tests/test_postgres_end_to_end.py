@@ -127,6 +127,56 @@ def run_scenario(pg_url: str, scenario):
     asyncio.run(main())
 
 
+def test_admin_requires_two_server_confirmed_totp_factors(pg_url: str, monkeypatch):
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-security-test")
+
+    async def scenario(client, current, run_sql):
+        user_id = str(uuid.uuid4())
+        request = Request({
+            "type": "http",
+            "method": "GET",
+            "path": "/v1/admin/dashboard",
+            "headers": [],
+            "query_string": b"",
+            "scheme": "http",
+            "server": ("test", 80),
+            "client": ("127.0.0.1", 12345),
+        })
+
+        async def ignore_denial_audit(session, principal, request, **kwargs):
+            return None
+
+        original = admin_api._record_denied_admin_attempt
+        admin_api._record_denied_admin_attempt = ignore_denial_audit
+        try:
+            async with current["sessions"]() as session:
+                principal = Principal(
+                    subject=user_id,
+                    email="admin-security-test@example.test",
+                    email_verified=True,
+                    session_id="admin-security-test-session",
+                    assurance_level="aal2",
+                )
+                await run_sql(
+                    "INSERT INTO auth.mfa_factors (id, user_id, factor_type, status) "
+                    f"VALUES ('{uuid.uuid4()}', '{user_id}', 'totp', 'verified')"
+                )
+                with pytest.raises(Exception) as denied:
+                    await admin_api.require_admin(request, principal, session)
+                assert getattr(denied.value, "status_code", None) == 403
+
+                await run_sql(
+                    "INSERT INTO auth.mfa_factors (id, user_id, factor_type, status) "
+                    f"VALUES ('{uuid.uuid4()}', '{user_id}', 'totp', 'verified')"
+                )
+                authorized = await admin_api.require_admin(request, principal, session)
+                assert authorized.subject == user_id
+        finally:
+            admin_api._record_denied_admin_attempt = original
+
+    run_scenario(pg_url, scenario)
+
+
 def new_user(label: str) -> str:
     return f"{label}-{uuid.uuid4().hex[:8]}"
 
