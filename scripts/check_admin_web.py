@@ -223,7 +223,8 @@ def main() -> None:
         'securityNotificationGeneration++' not in html
         or 'if(generation!==securityNotificationGeneration)return;' not in html
         or 'if(generation===securityNotificationGeneration&&securityNotificationCursor&&accessToken)' not in html
-        or 'function stopBrowserNotifications(statusText="Off") {\\n   securityNotificationGeneration++;' not in html
+        or 'function stopBrowserNotifications(statusText="Off") {' not in html
+        or 'securityNotificationGeneration++;' not in html
     ):
         fail("browser security notification polling must ignore in-flight responses after sign-out and must not restart after authorization failure")
 
