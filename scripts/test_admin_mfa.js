@@ -95,6 +95,12 @@ const config = {
     error => error.status === 429 && error.code === "over_request_rate_limit"
   );
   await assert.rejects(() => mfa.authRequest({ ...config, accessToken: null, path: "user" }));
+  await assert.rejects(() => mfa.authRequest({ ...config, path: "../logout" }));
+
+  nextResponse = { ok: true, status: 204, json: async () => ({}) };
+  await mfa.signOut(config);
+  assert.equal(calls.at(-1).options.method, "POST");
+  assert.ok(calls.at(-1).url.endsWith("/auth/v1/logout"));
 
   console.log("Admin MFA transport tests passed.");
 })().catch(error => {
