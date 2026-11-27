@@ -23,12 +23,14 @@ class FakeSession:
     def __init__(self, scalar_values=None):
         self.scalar_values = list(scalar_values or [0])
         self.statements = []
+        self.scalar_statements = []
 
     async def execute(self, statement, params=None):
         self.statements.append(str(statement))
         return None
 
     async def scalar(self, statement, params=None):
+        self.scalar_statements.append(str(statement))
         return self.scalar_values.pop(0) if self.scalar_values else 0
 
     async def commit(self):
@@ -219,6 +221,10 @@ def test_admin_rejects_aal2_with_only_one_verified_totp_factor(monkeypatch):
         assert "two verified TOTP" in error.value.detail
         assert recorded["rule_id"] == "IDS-07"
         assert recorded["action"] == "security.admin_mfa.factor_count_denied"
+        factor_query = session.scalar_statements[-1]
+        assert "FROM auth.mfa_factors" in factor_query
+        assert "factor_type = 'totp'" in factor_query
+        assert "status = 'verified'" in factor_query
 
     asyncio.run(check())
 
