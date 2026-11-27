@@ -148,6 +148,18 @@ body:has(#login-view:not(.hidden)) > #login-view.login {
   width: min(100%, 480px);
   margin: 0 auto;
 }
+body:has(#mfa-view:not(.hidden)) {
+  display: grid;
+  min-height: 100vh;
+  min-height: 100svh;
+  place-items: center;
+  padding: 24px 16px;
+}
+body:has(#mfa-view:not(.hidden)) > .top { display: none; }
+body:has(#mfa-view:not(.hidden)) > #mfa-view.login {
+  width: min(100%, 520px);
+  margin: 0 auto;
+}
 
 /* Header and page frame */
 .top {
