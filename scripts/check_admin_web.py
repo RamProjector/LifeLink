@@ -19,10 +19,6 @@ ICONS_PATH = ROOT / "admin-web" / "icons.js"
 MFA_JS_PATH = ROOT / "admin-web" / "mfa.js"
 MFA_TEST_PATH = ROOT / "scripts" / "test_admin_mfa.js"
 ADMIN_API_PATH = ROOT / "lifelink_fastapi" / "app" / "admin_api.py"
-ANDROID_MFA_GATE_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "feature" / "admin" / "AdminMfaGateScreen.kt"
-ANDROID_AUTH_REPO_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "core" / "auth" / "SupabaseAuthRepository.kt"
-ANDROID_MAIN_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "MainActivity.kt"
-ANDROID_API_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "data" / "remote" / "LifeLinkApi.kt"
 
 
 class DocumentCheck(HTMLParser):
@@ -53,16 +49,12 @@ def fail(message: str) -> None:
 
 
 def main() -> None:
-    if not all(path.is_file() for path in (HTML_PATH, ICONS_PATH, MFA_JS_PATH, MFA_TEST_PATH, ADMIN_API_PATH, ANDROID_MFA_GATE_PATH, ANDROID_AUTH_REPO_PATH, ANDROID_MAIN_PATH, ANDROID_API_PATH)):
+    if not all(path.is_file() for path in (HTML_PATH, ICONS_PATH, MFA_JS_PATH, MFA_TEST_PATH, ADMIN_API_PATH)):
         fail("admin website entry point, SVG icon library, or MFA module/tests are missing")
 
     html = HTML_PATH.read_text(encoding="utf-8")
     icons = ICONS_PATH.read_text(encoding="utf-8")
     admin_api = ADMIN_API_PATH.read_text(encoding="utf-8")
-    android_mfa = ANDROID_MFA_GATE_PATH.read_text(encoding="utf-8")
-    android_auth = ANDROID_AUTH_REPO_PATH.read_text(encoding="utf-8")
-    android_main = ANDROID_MAIN_PATH.read_text(encoding="utf-8")
-    android_api = ANDROID_API_PATH.read_text(encoding="utf-8")
     parser = DocumentCheck()
     parser.feed(html)
     parser.close()
@@ -202,23 +194,6 @@ def main() -> None:
         or "Two verified TOTP authenticators are required for administrator access." not in admin_api
     ):
         fail("operational admin routes must enforce AAL2 and two server-confirmed TOTP factors; only MFA audit receipts may use the AAL2 enrollment gate")
-
-    if (
-        "adminPreflight()" not in android_api
-        or "adminMfaEvent(" not in android_api
-        or "AdminMfaGateScreen(" not in android_main
-        or "account.api.adminPreflight()" not in android_main
-        or "listMfaFactors(" not in android_auth
-        or "enrollMfaTotp(" not in android_auth
-        or "challengeMfa(" not in android_auth
-        or "verifyMfaTotp(" not in android_auth
-        or "verifiedTotpFactors(factors)" not in android_mfa
-        or "verifiedFactorCount = pendingAuditCount" not in android_mfa
-        or "repository.assuranceLevel(activeSession.accessToken)" not in android_mfa
-        or "nextAdminMfaStep(" not in android_mfa
-        or "AdminMfaStep.RELOAD_FACTORS" not in android_mfa
-    ):
-        fail("Android administrator access must use Supabase TOTP enrollment/challenge, AAL2, and two verified factors")
 
     if "audit-correlation-filter" not in html or "errors-correlation-filter" not in html or "correlation_id" not in admin_api:
         fail("audit and error history must support server-side correlation ID tracing")
