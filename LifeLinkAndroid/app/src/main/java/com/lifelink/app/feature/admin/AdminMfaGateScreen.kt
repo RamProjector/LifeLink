@@ -37,6 +37,7 @@ import com.lifelink.app.core.auth.SupabaseMfaEnrollment
 import com.lifelink.app.core.auth.SupabaseMfaFactor
 import com.lifelink.app.data.remote.AdminMfaEventRequest
 import com.lifelink.app.data.remote.LifeLinkApi
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -91,7 +92,7 @@ fun AdminMfaGateScreen(
             }
         } catch (cancellation: CancellationException) {
             throw cancellation
-        } catch (exception: Exception) {
+        } catch (exception: IOException) {
             error = "Authenticator verification succeeded, but LifeLink could not confirm admin access. Retry."
         }
     }
@@ -107,7 +108,7 @@ fun AdminMfaGateScreen(
             )
         } catch (cancellation: CancellationException) {
             throw cancellation
-        } catch (exception: Exception) {
+        } catch (exception: IOException) {
             step = AdminMfaStep.AUDIT_PENDING
             error = "Your authenticator is verified, but LifeLink could not save its security audit receipt. Retry."
             return
