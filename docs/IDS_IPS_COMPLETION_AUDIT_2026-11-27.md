@@ -347,3 +347,11 @@ The branch now contains an initial independent scanner implementation (not yet p
 **Not yet established:** no workflow run has yet confirmed these changes pass the backend test suite; no deployed instance has demonstrated scanner execution; there is no persisted last-success/last-failure health record or administrator notification delivery. Application logs currently provide completion duration/findings and failure visibility. The scanner remains a draft implementation pending CI and runtime review.
 
 The scan uses the existing web-service lifespan, not a new paid worker or external scheduler. It reads the existing RBAC registry only and makes no role assignments or policy changes.
+
+### Detector scope limitation confirmed during implementation review
+
+The current scanner's query is rooted at active `lifelink_user_roles` rows. It therefore checks permission sets only for users who already have an active role assignment. With the live registry currently containing zero user-role assignments, the periodic scan has no user-role rows to evaluate. It does **not** independently validate the role-permission policy matrix itself, detect missing expected grants, or detect malformed role-permission mappings when no user is assigned that role. The existing hard-coded allowed-permission map is a comparison policy for assigned users, not a complete role-policy integrity check.
+
+Before claiming the criteria's role/permission-assignment detection is complete, add a separate role-level policy audit that compares every seeded role-permission mapping against an approved, versioned matrix, including intentionally unassigned permissions and expected missing grants. It must create actionable alerts without requiring a user_id, avoid treating the currently unresolved super-admin policy as a confirmed violation, and have tests for extra, missing, and intentionally absent mappings. Keep strict authorization disabled until that policy matrix and controlled assignment rollout are approved.
+
+The scanner also currently records audit events on repeated RBAC findings, even when the alert occurrence count remains unchanged. Review whether system audit records should be emitted only for newly observed or materially changed evidence so a five-minute poll does not create avoidable audit-log volume.
