@@ -169,10 +169,20 @@ def main() -> None:
     ):
         fail("sessions and security alerts must expose and filter related correlation identifiers")
 
-    required_ids = {"login-view", "app-view", "page-overview", "page-users", "page-alerts", "page-sessions", "page-audit", "page-errors", "page-analytics", "page-roles"}
+    required_ids = {"login-view", "mfa-view", "mfa-step-enroll", "mfa-step-challenge", "app-view", "page-overview", "page-users", "page-alerts", "page-sessions", "page-audit", "page-errors", "page-analytics", "page-roles"}
     missing_ids = sorted(required_ids - set(parser.ids))
     if missing_ids:
         fail("required admin page containers are missing: " + ", ".join(missing_ids))
+
+    if (
+        'id="mfa-view"' not in html
+        or "function enterAdminConsole()" not in html
+        or 'assuranceLevel(accessToken)!=="aal2"' not in html
+        or "verified.length<2" not in html
+        or "function verifyMfaChallenge()" not in html
+        or "function verifyMfaEnrollment()" not in html
+    ):
+        fail("admin console must require an AAL2 session and two verified TOTP factors before access")
 
     print(f"Admin website integrity passed: {len(parser.ids)} unique IDs, {len(set(parser.icon_names))} SVG icon types.")
 
