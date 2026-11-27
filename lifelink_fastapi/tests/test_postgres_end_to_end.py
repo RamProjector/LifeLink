@@ -1301,9 +1301,9 @@ def test_security_alert_upsert_refreshes_latest_correlation_id(pg_url, monkeypat
                 "WHERE status IN ('open', 'acknowledged', 'investigating')"
             ))
             await connection.execute(text(
-                "INSERT INTO audit_events (id, actor_id, action, timestamp) "
+                "INSERT INTO audit_events (id, actor_id, action, metadata, timestamp) "
                 "VALUES ('alert-upsert-count-row', 'alert-user', "
-                "'security.admin_access.denied', now())"
+                "'security.admin_access.denied', '{}'::json, now())"
             ))
 
         async def skip_audit(*args, **kwargs):
