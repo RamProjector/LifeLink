@@ -154,6 +154,10 @@
     return "data:image/svg+xml;utf-8," + encodeURIComponent(value);
   }
 
+  async function signOut(config) {
+    return authRequest({ ...config, path: "logout", method: "POST" });
+  }
+
   function isTotpCode(value) {
     return /^[0-9]{6}$/.test(String(value || ""));
   }
@@ -169,6 +173,7 @@
     refreshSession,
     assuranceLevel,
     qrImageSource,
+    signOut,
     isTotpCode
   });
 })();
