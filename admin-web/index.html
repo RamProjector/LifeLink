@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-2ThPH67qnOjA4S+f9AEP6UTJF3vT7h4v3Exo3TKkr8A='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-jCMEHeB0kfANf8PG3NEppqklx31u9uJzhdtIETK1kbY='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -2057,7 +2057,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  let refreshToken = null, accessTokenExpiresAt = 0, refreshInFlight = null, mfaFactors = [], pendingMfaFactor = null, mfaMode = "", adminEmail = "", mfaFlowGeneration = 0, mfaReturnToManage = false, pendingMfaEnrollmentCompletion = false;
  const ADMIN_REDIRECT_URL = "https://lifelink-admin-console.onrender.com/";
  const pageSize = 50;
- let securityNotificationTimer = null, securityNotificationCursor = null, securityNotificationInFlight = false;
+ let securityNotificationTimer = null, securityNotificationCursor = null, securityNotificationInFlight = false, securityNotificationGeneration = 0;
  let auditAction = "";
  let auditCorrelation = "";
  let errorsCorrelation = "";
@@ -2104,11 +2104,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  async function pollSecurityNotifications() {
    if(!accessToken||!securityNotificationCursor||securityNotificationInFlight||!("Notification" in window)||Notification.permission!=="granted")return;
    securityNotificationInFlight=true;
+   const generation=securityNotificationGeneration;
    try {
      await refreshIfNeeded();
      const cursor=securityNotificationCursor;
      const query="?after="+encodeURIComponent(cursor.created_at)+"&after_id="+encodeURIComponent(cursor.id)+"&limit=25";
      const data=await api("/v1/admin/security/notifications"+query);
+     if(generation!==securityNotificationGeneration)return;
      if(!data||!Array.isArray(data.items)||!data.cursor)throw new Error("Invalid security notification response");
      securityNotificationCursor=data.cursor;
      if(data.items.length){
@@ -2118,9 +2120,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
      }
      $("browser-notifications-status").textContent="Enabled while this console is open";
    } catch(error) {
+     if(generation!==securityNotificationGeneration)return;
      if(Number(error&&error.status)===401||Number(error&&error.status)===403){stopBrowserNotifications("Session ended; notifications stopped");return;}
      $("browser-notifications-status").textContent="Connection unavailable; retrying";
-   } finally { securityNotificationInFlight=false; }
+   } finally { if(generation===securityNotificationGeneration)securityNotificationInFlight=false; }
  }
  function enableBrowserNotifications() {
    $("browser-notifications-toggle").addEventListener("click",async()=>{
@@ -2129,6 +2132,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
      try {
        const permission=await Notification.requestPermission();
        if(permission!=="granted"){$("browser-notifications-status").textContent=permission==="denied"?"Notifications blocked in browser settings":"Permission not granted";return;}
+       securityNotificationGeneration++;
        securityNotificationCursor={created_at:new Date(Date.now()-5000).toISOString(),id:"00000000-0000-0000-0000-000000000000"};
        $("browser-notifications-toggle").textContent="Disable browser notifications";
        $("browser-notifications-status").textContent="Starting…";
