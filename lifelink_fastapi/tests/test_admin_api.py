@@ -596,6 +596,8 @@ def test_admin_sessions_query_exposes_and_filters_related_correlation(monkeypatc
     assert "LEFT JOIN LATERAL" in query
     assert "CAST(:correlation_id AS varchar) IS NULL" in query
     assert "ae.correlation_id = CAST(:correlation_id AS varchar)" in query
+    assert "ae.target_type = 'user_session'" in query
+    assert "ae.target_id = CAST(s.session_id AS varchar)" in query
     assert "matched.correlation_id IS NOT NULL" in query
     assert "COALESCE(matched.correlation_id, latest.correlation_id)" in query
 
