@@ -341,8 +341,6 @@ private interface SupabaseAuthApi {
         @Header("Authorization") authorization: String,
         @Body request: PasswordUpdateRequest,
     ): Response<SupabaseUser>
-
-
 }
 
 // Every field that crosses the Supabase wire is pinned with an explicit
