@@ -518,6 +518,7 @@ def test_admin_audit_metadata_is_bounded():
         ("GET", "/v1/admin/security/alerts", None),
         ("GET", "/v1/admin/security/role-integrity", None),
         ("GET", "/v1/admin/security/scanner", None),
+        ("GET", "/v1/admin/security/notifications", None),
         ("PATCH", "/v1/admin/security/alerts/00000000-0000-0000-0000-000000000001", {"status": "resolved"}),
         ("GET", "/v1/admin/errors", None),
         ("PATCH", "/v1/admin/users/another-user", {
@@ -1493,6 +1494,7 @@ def test_admin_routes_declare_the_expected_permission_matrix():
         ("PATCH", "/v1/admin/users/{user_id}"): "users.update",
         ("GET", "/v1/admin/security/role-integrity"): "audit.read",
         ("GET", "/v1/admin/security/scanner"): "security.alerts.read",
+        ("GET", "/v1/admin/security/notifications"): "security.alerts.read",
         ("GET", "/v1/admin/security/alerts"): "security.alerts.read",
         ("PATCH", "/v1/admin/security/alerts/{alert_id}"): "security.alerts.manage",
         ("GET", "/v1/admin/sessions"): "security.sessions.read",
@@ -1512,3 +1514,62 @@ def test_admin_routes_declare_the_expected_permission_matrix():
             )
             actual[route_key] = getattr(guard, "permission_key", None)
     assert actual == expected
+
+
+
+def test_admin_security_notification_feed_returns_only_safe_event_metadata(monkeypatch):
+    from datetime import datetime, timezone
+
+    from app import admin_api
+
+    event_time = datetime(2026, 11, 27, 13, 0, tzinfo=timezone.utc)
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return [{
+                "id": "00000000-0000-0000-0000-000000000001",
+                "rule_id": "IDS-03",
+                "severity": "high",
+                "created_at": event_time,
+                "source": "alert",
+            }]
+
+    class Session(FakeSession):
+        async def execute(self, statement, params=None):
+            self.statements.append(str(statement))
+            return Rows()
+
+    async def no_audit(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(admin_api, "_write_audit", no_audit)
+    session = Session()
+
+    async def check():
+        result = await admin_api.admin_security_notifications(
+            request=_request_context(),
+            after=datetime(2026, 11, 27, 12, 59, tzinfo=timezone.utc),
+            after_id="00000000-0000-0000-0000-000000000000",
+            limit=25,
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+        )
+        assert result["items"] == [{
+            "id": "00000000-0000-0000-0000-000000000001",
+            "rule_id": "IDS-03",
+            "severity": "high",
+            "created_at": event_time,
+            "source": "alert",
+        }]
+        assert result["cursor"] == {
+            "created_at": event_time, "id": "00000000-0000-0000-0000-000000000001"
+        }
+        assert "lifelink_security_alerts" in session.statements[0]
+        assert "lifelink_role_security_findings" in session.statements[0]
+        assert "evidence" not in result["items"][0]
+        assert "summary" not in result["items"][0]
+
+    asyncio.run(check())
