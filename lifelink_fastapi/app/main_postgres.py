@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import os
 import logging
+import math
 import time
 from decimal import Decimal
 from contextlib import asynccontextmanager
@@ -156,8 +157,11 @@ async def _scan_rbac_discrepancies_forever() -> None:
     from .admin_api import _scan_rbac_discrepancies
 
     try:
-        interval = max(60.0, float(os.getenv("LIFELINK_RBAC_SCAN_SECONDS", "300")))
-    except ValueError:
+        configured_interval = float(os.getenv("LIFELINK_RBAC_SCAN_SECONDS", "300"))
+        if not math.isfinite(configured_interval):
+            raise ValueError("scan interval must be finite")
+        interval = min(86400.0, max(60.0, configured_interval))
+    except (ValueError, OverflowError):
         logger.warning("LIFELINK_RBAC_SCAN_SECONDS is invalid; using 300 seconds")
         interval = 300.0
 
