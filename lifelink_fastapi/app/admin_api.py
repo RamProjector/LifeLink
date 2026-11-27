@@ -76,13 +76,11 @@ async def require_admin_identity(
     return principal
 
 
-async def require_admin(
+async def _require_admin_aal2(
     request: Request,
-    principal: Principal = Depends(get_active_postgres_principal),
-    session: AsyncSession = Depends(get_db_session),
+    principal: Principal,
+    session: AsyncSession,
 ) -> Principal:
-    """Require allowlisted identity, active session, and verified Supabase AAL2."""
-    principal = await require_admin_identity(request, principal, session)
     if principal.assurance_level != "aal2":
         await _record_denied_admin_attempt(
             session,
@@ -100,6 +98,49 @@ async def require_admin(
         )
     return principal
 
+
+async def require_admin_mfa_event(
+    request: Request,
+    principal: Principal = Depends(get_active_postgres_principal),
+    session: AsyncSession = Depends(get_db_session),
+) -> Principal:
+    """Allow AAL2 administrators to write enrollment receipts, including the first factor."""
+    principal = await require_admin_identity(request, principal, session)
+    return await _require_admin_aal2(request, principal, session)
+
+
+async def require_admin(
+    request: Request,
+    principal: Principal = Depends(get_active_postgres_principal),
+    session: AsyncSession = Depends(get_db_session),
+) -> Principal:
+    """Require allowlisted identity, active AAL2 session, and two verified TOTP factors."""
+    principal = await require_admin_identity(request, principal, session)
+    principal = await _require_admin_aal2(request, principal, session)
+    verified_totp_count = await session.scalar(
+        text(
+            "SELECT count(*) FROM auth.mfa_factors "
+            "WHERE user_id::varchar = :user_id "
+            "AND factor_type = 'totp' AND status = 'verified'"
+        ),
+        {"user_id": principal.subject},
+    ) or 0
+    if int(verified_totp_count) < 2:
+        await _record_denied_admin_attempt(
+            session,
+            principal,
+            request,
+            rule_id="IDS-07",
+            action="security.admin_mfa.factor_count_denied",
+            severity="high",
+            threshold=3,
+            summary="An administrator session attempted protected access without two verified TOTP authenticators",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Two verified TOTP authenticators are required for administrator access. Complete backup authenticator enrollment.",
+        )
+    return principal
 
 async def _record_denied_admin_attempt(
     session: AsyncSession,
@@ -340,7 +381,7 @@ async def admin_mfa_event(
     payload: AdminMfaAuditEvent,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_mfa_event),
     x_correlation_id: str | None = Header(default=None),
 ):
     """Record a bounded MFA lifecycle event after AAL2 verification.
