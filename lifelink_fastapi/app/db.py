@@ -310,3 +310,15 @@ async def create_all_tables() -> None:
         await connection.execute(text(
             "ALTER TABLE lifelink_security_scanner_runs ENABLE ROW LEVEL SECURITY"
         ))
+        await connection.execute(text(
+            "REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM PUBLIC"
+        ))
+        await connection.execute(text(
+            "DO $ BEGIN "
+            "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN "
+            "EXECUTE 'REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM anon'; "
+            "END IF; "
+            "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN "
+            "EXECUTE 'REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM authenticated'; "
+            "END IF; END $"
+        ))
