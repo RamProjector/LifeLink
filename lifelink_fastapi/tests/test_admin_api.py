@@ -795,6 +795,7 @@ def test_background_rbac_finding_uses_system_actor_without_request_context():
     )
 
     audit_insert = next(statement for statement in session.statements if "INSERT INTO audit_events" in statement)
+    assert "(id, log_id, actor_id, action, actions, description, session_id" in audit_insert
     alert_insert = next(statement for statement in session.statements if "INSERT INTO lifelink_security_alerts" in statement)
     audit_params = next(params for statement, params in session.executed if "INSERT INTO audit_events" in statement)
     assert audit_params["actor_id"] == "system:rbac-scanner"
