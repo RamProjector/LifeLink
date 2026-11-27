@@ -72,6 +72,12 @@ The following is a proposed control design only. It must be implemented as a doc
 
 This proposal does not create an API endpoint or grant an application administrator the ability to bypass MFA. Do not use it until the operator identity checks, dual approval, secret handling, and audit trail are implemented and reviewed.
 
+### Backend enforcement compatibility requirement
+
+The current web flow calls `GET /v1/admin/me` before factor discovery so a normal LifeLink account is rejected before it is asked to enroll an authenticator. When AAL2 enforcement is implemented, do not simply exempt all of `/v1/admin/me` or force this preflight to AAL2: that would either expose an AAL1 admin endpoint unnecessarily or deadlock first-time enrollment.
+
+The backend rollout should introduce a minimal pre-MFA identity preflight (for example, `GET /v1/admin/preflight`) that checks the signed JWT, verified-email policy, server-managed admin UUID allowlist, active Supabase session, and revocation state, but returns no operational data. The web client should use that endpoint before enrollment. Every actual admin data/action endpoint, including the full `/v1/admin/me` response, must require verified AAL2 in addition to the existing checks. Test both sides of this boundary explicitly.
+
 ### Required before rollout
 
 - Implement a factor-management screen that requires AAL2 and a newly verified replacement before removing an existing factor; never permit removal of the last two verified factors through the normal UI.
