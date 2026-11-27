@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 from datetime import datetime, timezone
+from typing import Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
@@ -27,7 +28,7 @@ def _configured_admin_ids() -> set[str]:
     }
 
 
-async def require_admin(
+async def require_admin_identity(
     request: Request,
     principal: Principal = Depends(get_active_postgres_principal),
     session: AsyncSession = Depends(get_db_session),
@@ -74,6 +75,75 @@ async def require_admin(
             )
     return principal
 
+
+async def _require_admin_aal2(
+    request: Request,
+    principal: Principal,
+    session: AsyncSession,
+) -> Principal:
+    if principal.assurance_level != "aal2":
+        await _record_denied_admin_attempt(
+            session,
+            principal,
+            request,
+            rule_id="IDS-06",
+            action="security.admin_mfa.assurance_denied",
+            severity="high",
+            threshold=3,
+            summary="An administrator session attempted protected access without verified MFA assurance",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator multi-factor verification is required. Complete authenticator verification and sign in again.",
+        )
+    return principal
+
+
+async def require_admin_mfa_event(
+    request: Request,
+    principal: Principal = Depends(get_active_postgres_principal),
+    session: AsyncSession = Depends(get_db_session),
+) -> Principal:
+    """Allow AAL2 administrators to write enrollment receipts, including the first factor."""
+    principal = await require_admin_identity(request, principal, session)
+    return await _require_admin_aal2(request, principal, session)
+
+
+async def require_admin(
+    request: Request,
+    principal: Principal = Depends(get_active_postgres_principal),
+    session: AsyncSession = Depends(get_db_session),
+) -> Principal:
+    """Require allowlisted identity, active AAL2 session, and two verified TOTP factors."""
+    principal = await require_admin_identity(request, principal, session)
+    principal = await _require_admin_aal2(request, principal, session)
+    verified_totp_count = await session.scalar(
+        text(
+            "SELECT count(*) FROM auth.mfa_factors "
+            "WHERE user_id::varchar = CAST(:user_id AS varchar) "
+            "AND factor_type = 'totp' AND status = 'verified'"
+        ),
+        {"user_id": principal.subject},
+    ) or 0
+    if int(verified_totp_count) < 2:
+        await _record_denied_admin_attempt(
+            session,
+            principal,
+            request,
+            rule_id="IDS-07",
+            action="security.admin_mfa.factor_count_denied",
+            severity="high",
+            threshold=3,
+            summary="An administrator session attempted protected access without two verified TOTP authenticators",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Two verified TOTP authenticators are required for administrator access. "
+                "Complete backup authenticator enrollment."
+            ),
+        )
+    return principal
 
 async def _record_denied_admin_attempt(
     session: AsyncSession,
@@ -148,6 +218,18 @@ class AdminProfileUpdate(BaseModel):
     role: str = Field(pattern="^(requester|donor)$")
     can_request: bool
     can_donate: bool
+
+
+class AdminMfaAuditEvent(BaseModel):
+    event_type: Literal[
+        "factor_enrollment_verified",
+        "backup_factor_verified",
+        "factor_replacement_verified",
+        "factor_removal_requested",
+        "recovery_reenrollment_verified",
+    ]
+    verified_factor_count: int = Field(ge=0, le=10)
+    ticket_reference: str | None = Field(default=None, min_length=3, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$")
 
 
 def _audit_action_kind(action: str) -> str:
@@ -271,6 +353,102 @@ def _correlation_id(value: str | None) -> str:
     if value and re.fullmatch(r"[A-Za-z0-9._:-]{1,80}", value):
         return value
     return str(uuid4())
+
+
+@router.get("/preflight")
+async def admin_identity_preflight(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin_identity),
+    x_correlation_id: str | None = Header(default=None),
+):
+    """Confirm allowlist/session eligibility before MFA without returning admin data.
+
+    This endpoint intentionally remains available at AAL1 for first-time MFA
+    enrollment. All operational admin endpoints, including /me, must require
+    AAL2 when backend MFA enforcement is enabled.
+    """
+    await _write_audit(
+        session, principal.subject, "admin.identity.preflight", request=request,
+        session_id=principal.session_id, session_expires_at=principal.session_expires_at,
+        target_type="admin_identity_preflight",
+        correlation_id=_correlation_id(x_correlation_id),
+        metadata={"purpose": "mfa_enrollment"},
+    )
+    await session.commit()
+    return {"authorized": True}
+
+
+@router.post("/mfa/events")
+async def admin_mfa_event(
+    payload: AdminMfaAuditEvent,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin_mfa_event),
+    x_correlation_id: str | None = Header(default=None),
+):
+    """Record an AAL2 MFA lifecycle receipt reconciled to Supabase's factor inventory.
+
+    The client-reported count is retained only for discrepancy review; it is never
+    treated as evidence. Recovery receipts still require external two-operator
+    approval and an independently reconciled incident ticket.
+    """
+    if payload.event_type == "recovery_reenrollment_verified" and not payload.ticket_reference:
+        raise HTTPException(status_code=422, detail="An approved recovery ticket reference is required")
+
+    # The caller's count is useful for detecting stale UI state, but it is never
+    # accepted as proof. Reconcile every lifecycle receipt against Supabase's
+    # server-managed factor inventory before writing an audit claim.
+    verified_totp_count = int(await session.scalar(
+        text(
+            "SELECT count(*) FROM auth.mfa_factors "
+            "WHERE user_id::varchar = CAST(:user_id AS varchar) "
+            "AND factor_type = 'totp' AND status = 'verified'"
+        ),
+        {"user_id": principal.subject},
+    ) or 0)
+    minimum_verified_factors = {
+        "factor_enrollment_verified": 1,
+        "backup_factor_verified": 2,
+        "factor_replacement_verified": 2,
+        "factor_removal_requested": 3,
+        "recovery_reenrollment_verified": 2,
+    }[payload.event_type]
+    if verified_totp_count < minimum_verified_factors:
+        raise HTTPException(
+            status_code=409,
+            detail="Supabase's verified authenticator inventory does not satisfy this MFA lifecycle action.",
+        )
+
+    action = {
+        "factor_enrollment_verified": "admin.mfa.factor_enrollment_verified",
+        "backup_factor_verified": "admin.mfa.backup_factor_verified",
+        "factor_replacement_verified": "admin.mfa.factor_replacement_verified",
+        "factor_removal_requested": "admin.mfa.factor_removal_requested",
+        "recovery_reenrollment_verified": "admin.mfa.recovery_reenrollment_verified",
+    }[payload.event_type]
+    metadata = {
+        "event_type": payload.event_type,
+        "verified_factor_count": verified_totp_count,
+        "client_reported_factor_count": payload.verified_factor_count,
+        "evidence_source": "server_confirmed_supabase_auth_factor_inventory",
+    }
+    if payload.ticket_reference:
+        metadata["ticket_reference"] = payload.ticket_reference
+    await _write_audit(
+        session,
+        principal.subject,
+        action,
+        request=request,
+        session_id=principal.session_id,
+        session_expires_at=principal.session_expires_at,
+        target_type="admin_mfa",
+        target_id=payload.event_type,
+        correlation_id=_correlation_id(x_correlation_id),
+        metadata=metadata,
+    )
+    await session.commit()
+    return {"recorded": True}
 
 
 @router.get("/me")

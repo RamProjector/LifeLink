@@ -5,9 +5,17 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app import db
-from app.admin_api import _configured_admin_ids, _correlation_id, require_admin
+from app.admin_api import (
+    AdminMfaAuditEvent,
+    _configured_admin_ids,
+    _correlation_id,
+    admin_identity_preflight,
+    require_admin,
+    require_admin_identity,
+)
 from app.security import Principal
 
 
@@ -15,12 +23,14 @@ class FakeSession:
     def __init__(self, scalar_values=None):
         self.scalar_values = list(scalar_values or [0])
         self.statements = []
+        self.scalar_statements = []
 
     async def execute(self, statement, params=None):
         self.statements.append(str(statement))
         return None
 
     async def scalar(self, statement, params=None):
+        self.scalar_statements.append(str(statement))
         return self.scalar_values.pop(0) if self.scalar_values else 0
 
     async def commit(self):
@@ -39,6 +49,23 @@ def _request_context():
     )
 
 
+
+def test_admin_identity_preflight_returns_no_operational_data_and_audits():
+    async def check():
+        session = FakeSession()
+        result = await admin_identity_preflight(
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            x_correlation_id="mfa-enrollment-check",
+        )
+        assert result == {"authorized": True}
+        assert len(session.statements) == 2
+        assert all("INSERT INTO" in statement for statement in session.statements)
+
+    asyncio.run(check())
+
+
 def test_admin_allowlist_is_server_configured_not_user_claim(monkeypatch):
     monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1, admin-2")
     assert _configured_admin_ids() == {"admin-1", "admin-2"}
@@ -46,7 +73,7 @@ def test_admin_allowlist_is_server_configured_not_user_claim(monkeypatch):
     async def check():
         with pytest.raises(HTTPException) as error:
             await require_admin(
-                principal=Principal(subject="regular-user", role="admin", email_verified=True),
+                principal=Principal(subject="regular-user", role="admin", email_verified=True, assurance_level="aal2"),
                 session=FakeSession(),
                 request=_request_context(),
             )
@@ -75,8 +102,8 @@ def test_admin_allowlist_grants_only_configured_subject(monkeypatch):
 
     async def check():
         principal = await require_admin(
-            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
-            session=FakeSession([0]),
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"),
+            session=FakeSession([0, 2]),
             request=_request_context(),
         )
         assert principal.subject == "admin-1"
@@ -90,7 +117,7 @@ def test_admin_rejects_revoked_session(monkeypatch):
     async def check():
         with pytest.raises(HTTPException) as error:
             await require_admin(
-                principal=Principal(subject="admin-1", email_verified=True, session_id="session-revoked"),
+                principal=Principal(subject="admin-1", email_verified=True, session_id="session-revoked", assurance_level="aal2"),
                 session=FakeSession([1, 0]),
                 request=_request_context(),
             )
@@ -113,6 +140,279 @@ def test_admin_requires_session_context(monkeypatch):
         assert "Session context" in error.value.detail
 
     asyncio.run(check())
+
+
+@pytest.mark.parametrize("assurance_level", ["aal1", "unknown", "aal3"])
+def test_admin_rejects_sessions_without_verified_aal2_and_audits(monkeypatch, assurance_level):
+    from app import admin_api
+
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    recorded = {}
+
+    async def capture_denial(session, principal, request, **kwargs):
+        recorded.update(kwargs)
+
+    monkeypatch.setattr(admin_api, "_record_denied_admin_attempt", capture_denial)
+
+    async def check():
+        with pytest.raises(HTTPException) as error:
+            await require_admin(
+                principal=Principal(
+                    subject="admin-1",
+                    email_verified=True,
+                    session_id="session-1",
+                    assurance_level=assurance_level,
+                ),
+                session=FakeSession([0]),
+                request=_request_context(),
+            )
+        assert error.value.status_code == 403
+        assert "multi-factor" in error.value.detail.lower()
+        assert recorded["rule_id"] == "IDS-06"
+        assert recorded["action"] == "security.admin_mfa.assurance_denied"
+        assert recorded["severity"] == "high"
+
+    asyncio.run(check())
+
+
+def test_admin_allows_aal2_after_identity_and_revocation_checks(monkeypatch):
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+
+    async def check():
+        principal = await require_admin(
+            principal=Principal(
+                subject="admin-1",
+                email_verified=True,
+                session_id="session-1",
+                assurance_level="aal2",
+            ),
+            session=FakeSession([0, 2]),
+            request=_request_context(),
+        )
+        assert principal.assurance_level == "aal2"
+
+    asyncio.run(check())
+
+
+def test_admin_rejects_aal2_with_only_one_verified_totp_factor(monkeypatch):
+    from app import admin_api
+
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    recorded = {}
+
+    async def capture_denial(session, principal, request, **kwargs):
+        recorded.update(kwargs)
+
+    monkeypatch.setattr(admin_api, "_record_denied_admin_attempt", capture_denial)
+
+    async def check():
+        session = FakeSession([0, 1])
+        with pytest.raises(HTTPException) as error:
+            await require_admin(
+                principal=Principal(
+                    subject="admin-1",
+                    email_verified=True,
+                    session_id="session-1",
+                    assurance_level="aal2",
+                ),
+                session=session,
+                request=_request_context(),
+            )
+        assert error.value.status_code == 403
+        assert "two verified totp" in error.value.detail.lower()
+        assert recorded["rule_id"] == "IDS-07"
+        assert recorded["action"] == "security.admin_mfa.factor_count_denied"
+        factor_query = session.scalar_statements[-1]
+        assert "FROM auth.mfa_factors" in factor_query
+        assert "user_id::varchar = CAST(:user_id AS varchar)" in factor_query
+        assert "factor_type = 'totp'" in factor_query
+        assert "status = 'verified'" in factor_query
+
+    asyncio.run(check())
+
+
+def test_mfa_audit_dependency_allows_first_factor_receipt_after_aal2(monkeypatch):
+    from app.admin_api import require_admin_mfa_event
+
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+
+    async def check():
+        principal = await require_admin_mfa_event(
+            principal=Principal(
+                subject="admin-1",
+                email_verified=True,
+                session_id="session-1",
+                assurance_level="aal2",
+            ),
+            session=FakeSession([0]),
+            request=_request_context(),
+        )
+        assert principal.subject == "admin-1"
+
+    asyncio.run(check())
+
+
+def test_identity_preflight_allows_allowlisted_aal1_without_operational_access(monkeypatch):
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+
+    async def check():
+        principal = await require_admin_identity(
+            principal=Principal(
+                subject="admin-1",
+                email_verified=True,
+                session_id="session-1",
+                assurance_level="aal1",
+            ),
+            session=FakeSession([0]),
+            request=_request_context(),
+        )
+        assert principal.subject == "admin-1"
+        assert principal.assurance_level == "aal1"
+
+    asyncio.run(check())
+
+
+def test_every_admin_route_uses_aal2_guard_except_identity_preflight():
+    from app.admin_api import router
+
+    protected = []
+    for route in router.routes:
+        if not hasattr(route, "dependant"):
+            continue
+        dependency_names = {dependency.call.__name__ for dependency in route.dependant.dependencies}
+        if route.path == "/v1/admin/preflight":
+            assert "require_admin_identity" in dependency_names
+            assert "require_admin" not in dependency_names
+        elif route.path == "/v1/admin/mfa/events":
+            assert "require_admin_mfa_event" in dependency_names
+            assert "require_admin" not in dependency_names
+            protected.append(route.path)
+        else:
+            assert "require_admin" in dependency_names, route.path
+            protected.append(route.path)
+    assert protected
+
+
+def test_mfa_lifecycle_audit_records_only_bounded_non_secret_metadata(monkeypatch):
+    from app import admin_api
+
+    recorded = {}
+
+    async def capture_audit(session, actor_id, action, **kwargs):
+        recorded.update(actor_id=actor_id, action=action, **kwargs)
+
+    monkeypatch.setattr(admin_api, "_write_audit", capture_audit)
+
+    async def check():
+        session = FakeSession([2])
+        result = await admin_api.admin_mfa_event(
+            payload=admin_api.AdminMfaAuditEvent(
+                event_type="recovery_reenrollment_verified",
+                verified_factor_count=2,
+                ticket_reference="SEC-2026-104",
+            ),
+            request=_request_context(),
+            session=session,
+            principal=Principal(
+                subject="admin-1",
+                email_verified=True,
+                session_id="session-1",
+                assurance_level="aal2",
+            ),
+            x_correlation_id="web:mfa-recovery",
+        )
+        assert result == {"recorded": True}
+        assert recorded["action"] == "admin.mfa.recovery_reenrollment_verified"
+        assert recorded["target_type"] == "admin_mfa"
+        assert recorded["metadata"] == {
+            "event_type": "recovery_reenrollment_verified",
+            "verified_factor_count": 2,
+            "client_reported_factor_count": 2,
+            "evidence_source": "server_confirmed_supabase_auth_factor_inventory",
+            "ticket_reference": "SEC-2026-104",
+        }
+        assert "code" not in recorded["metadata"]
+        assert "secret" not in recorded["metadata"]
+        assert "token" not in recorded["metadata"]
+        assert session.statements == []
+        assert "FROM auth.mfa_factors" in session.scalar_statements[0]
+        assert "user_id::varchar = CAST(:user_id AS varchar)" in session.scalar_statements[0]
+
+    asyncio.run(check())
+
+
+@pytest.mark.parametrize(
+    ("event_type", "client_count", "server_count", "ticket", "expected_status", "expected_detail"),
+    [
+        ("factor_enrollment_verified", 1, 0, None, 409, "Supabase's verified authenticator inventory"),
+        ("backup_factor_verified", 2, 1, None, 409, "Supabase's verified authenticator inventory"),
+        ("factor_replacement_verified", 2, 1, None, 409, "Supabase's verified authenticator inventory"),
+        ("factor_removal_requested", 3, 2, None, 409, "Supabase's verified authenticator inventory"),
+        ("recovery_reenrollment_verified", 2, 0, "SEC-2026-104", 409, "Supabase's verified authenticator inventory"),
+        ("recovery_reenrollment_verified", 2, 2, None, 422, "ticket reference"),
+    ],
+)
+def test_mfa_lifecycle_audit_rejects_unverified_inventory_or_missing_ticket(
+    event_type, client_count, server_count, ticket, expected_status, expected_detail
+):
+    from app import admin_api
+
+    async def check():
+        with pytest.raises(HTTPException) as error:
+            await admin_api.admin_mfa_event(
+                payload=admin_api.AdminMfaAuditEvent(
+                    event_type=event_type,
+                    verified_factor_count=client_count,
+                    ticket_reference=ticket,
+                ),
+                request=_request_context(),
+                session=FakeSession([server_count]),
+                principal=Principal(
+                    subject="admin-1",
+                    email_verified=True,
+                    session_id="session-1",
+                    assurance_level="aal2",
+                ),
+            )
+        assert error.value.status_code == expected_status
+        assert expected_detail.lower() in error.value.detail.lower()
+
+    asyncio.run(check())
+
+
+def test_mfa_lifecycle_audit_ignores_forged_client_factor_count():
+    from app import admin_api
+
+    async def check():
+        session = FakeSession([1])
+        with pytest.raises(HTTPException) as error:
+            await admin_api.admin_mfa_event(
+                payload=admin_api.AdminMfaAuditEvent(
+                    event_type="backup_factor_verified",
+                    verified_factor_count=10,
+                ),
+                request=_request_context(),
+                session=session,
+                principal=Principal(
+                    subject="admin-1",
+                    email_verified=True,
+                    session_id="session-1",
+                    assurance_level="aal2",
+                ),
+            )
+        assert error.value.status_code == 409
+        assert "Supabase's verified authenticator inventory" in error.value.detail
+        assert "FROM auth.mfa_factors" in session.scalar_statements[0]
+
+    asyncio.run(check())
+
+def test_mfa_recovery_ticket_reference_is_strictly_bounded():
+    with pytest.raises(ValidationError):
+        AdminMfaAuditEvent(
+            event_type="recovery_reenrollment_verified",
+            verified_factor_count=2,
+            ticket_reference="ticket with spaces and unbounded context",
+        )
 
 
 def test_correlation_id_is_bounded_and_sanitized():
@@ -349,19 +649,21 @@ def test_ordinary_admin_cannot_assign_roles_through_http(monkeypatch):
     monkeypatch.delenv("LIFELINK_RBAC_MANAGER_USER_IDS", raising=False)
 
     async def fake_session():
-        yield FakeSession([0])
+        yield FakeSession([0, 2])
 
     app.dependency_overrides[get_db_session] = fake_session
     app.dependency_overrides[get_postgres_principal] = lambda: Principal(
         subject="ordinary-admin",
         email_verified=True,
         session_id="ordinary-admin-session",
+        assurance_level="aal2",
     )
     from app.security import get_active_postgres_principal
     app.dependency_overrides[get_active_postgres_principal] = lambda: Principal(
         subject="ordinary-admin",
         email_verified=True,
         session_id="ordinary-admin-session",
+        assurance_level="aal2",
     )
 
     async def make_request():

@@ -10,7 +10,7 @@ The admin console is an additional, restricted interface for the existing FastAP
 - **User management:** the current interface manages requester/donor capabilities only. It cannot assign admin status, delete accounts, or disable authentication identities.
 - **Session registry:** verified JWT session IDs are tracked in `lifelink_user_sessions` when a signed-in user reaches the protected admin API, including denied attempts. Admins can inspect and revoke recorded sessions. Revocation is checked on subsequent admin API requests; it does not claim to revoke Supabase refresh tokens or invalidate sessions on non-admin API routes yet.
 - **Audit trail:** admin session verification, dashboard views, user-list reads, user capability changes, session inventory/revocation, audit-log reads, error-log reads, denied admin requests, and unhandled API/database errors are written to `audit_events`. The IDS/IPS audit envelope adds `session_id`, `log_id`, `actions`, `description`, `ip_address`, `timestamp`, and `device_used`, while retaining legacy columns for compatibility. Event details deliberately omit passwords, bearer tokens, request bodies, blood type, and precise locations.
-- **IDS alerting:** repeated unauthorized admin access (five or more attempts in ten minutes) creates a deduplicated high-severity IDS-03 alert. Reuse of a revoked admin session creates an IDS-05 alert immediately. Alerts can be acknowledged, investigated, resolved, or marked false positive in the admin console.
+- **IDS alerting:** repeated unauthorized admin access (five or more attempts in ten minutes) creates a deduplicated high-severity IDS-03 alert. Reuse of a revoked admin session creates an IDS-05 alert immediately. Repeated AAL1/unknown-assurance admin access creates IDS-06 alerts; repeated AAL2 access attempts with fewer than two verified TOTP factors create IDS-07 alerts. Alerts can be acknowledged, investigated, resolved, or marked false positive in the admin console.
 - **Read-only audit interface:** there are no API endpoints for editing or deleting audit events. Database administrators must also restrict direct database mutation privileges on this table. The admin security-activity view displays the new audit context alongside the existing event metadata.
 
 ## Database migration
@@ -32,15 +32,100 @@ No administrator UUID or credentials are configured by this change. Do not add t
 
 ## Web console
 
-Serve admin-web/index.html over HTTPS using the configured static host. The deployed console uses preconfigured public client settings and exposes only email/password fields. These public settings are not secrets; never include a service-role key. The API origin is fixed in the console, and the access token remains in page memory and is cleared on sign-out. Configure LIFELINK_CORS_ORIGINS on the API host with only exact trusted web origins. The API rejects wildcard entries and does not enable credentialed CORS. Do not add broad origins.
+Serve admin-web/index.html over HTTPS using the configured static host. The deployed console uses preconfigured public client settings and exposes only email/password fields. These public settings are not secrets; never include a service-role key. The API origin is fixed in the console, and access/refresh tokens remain in page memory and are cleared on sign-out. The console requests Supabase Auth sign-out; if the network request fails, local tokens are still cleared and the UI warns that server-side sign-out could not be confirmed. Configure LIFELINK_CORS_ORIGINS on the API host with only exact trusted web origins. The API rejects wildcard entries and does not enable credentialed CORS. Do not add broad origins.
+
+
+## Admin MFA rollout status
+
+The admin TOTP implementation and backend AAL2 authorization are being developed in draft PR #225. Web and Android enrollment/challenge flows are implemented in this branch, but CI, real-device, and non-production Supabase verification remain release blockers. This is **not approval to deploy or enable production enforcement**.
+
+### Current draft sign-in sequence
+
+1. The web console signs in through Supabase Auth using the publishable key.
+2. Before asking the account to enroll, it calls `GET /v1/admin/preflight`. This minimal response confirms the signed-in identity, verified-email policy, server-managed UUID allowlist, active session, and revocation state, writes an audit event, and returns only `{ authorized: true }`; it exposes no operational admin data.
+3. The console lists the account's TOTP factors. An AAL1 session with a verified factor is challenged; an account without a verified factor is prompted to enroll a primary factor.
+4. After the first factor is verified, the console requires a second factor and asks the operator to attest that it is stored separately (different device or separately protected authenticator vault).
+5. The web and Android consoles are shown only when the current JWT reports AAL2 and at least two TOTP factors are verified. Both clients call `/v1/admin/me` only after completing this gate.
+
+The backend requires AAL2 plus at least two server-confirmed verified TOTP factors for operational admin endpoints, including `/me`, dashboard, users, audit, sessions, errors, and roles. It queries Supabase's `auth.mfa_factors` for rows matching the signed-in user, `factor_type = 'totp'`, and `status = 'verified'`; a missing or inaccessible inventory fails closed. The narrowly scoped `/v1/admin/preflight` is the only AAL1 exception and returns only `{ authorized: true }` after signed-token, verified-email, UUID allowlist, active-session, and revocation checks. `POST /v1/admin/mfa/events` has a separate AAL2-only dependency so the first verified factor can be audited without granting operational access. Each lifecycle receipt now independently queries the same server-managed factor inventory and enforces the event-specific minimum (one for initial enrollment, two for backup/replacement/recovery, and three before a removal request); client-reported counts are retained only as comparison metadata. A read-only inspection of the connected LifeLink Supabase project confirmed the table, UUID `user_id`, `factor_type` and `status` enums, and SELECT access for the `postgres` role. The same check confirmed that `service_role`, `authenticated`, and `anon` do **not** have SELECT access to `auth.mfa_factors`. A follow-up privilege check found the same grant pattern for `auth.sessions`, which the existing active-session validator also queries directly. Therefore the Render API's database connection role must be verified to have the required least-privilege SELECT access to **both** Auth tables; do not assume Supabase's API `service_role` has direct SQL access. The Render connector exposes service metadata and logs but not the current environment-variable values or database username, so this runtime role remains unverified. Do not treat this draft as release-ready until CI, manual, and non-production verification pass. The Android gate currently supports enrollment and sign-in challenge; factor replacement/removal management remains in the web console.
+
+### Session and secret handling
+
+- Access and refresh tokens remain in page memory; the web console does not persist them in localStorage or sessionStorage.
+- The refresh token is rotated through Supabase Auth before protected API calls when the access token is near expiry.
+- The TOTP setup secret is displayed only during enrollment and cleared from the page after verification or sign-out. Never log, copy into tickets, or commit the QR payload, secret, OTP, access token, or refresh token.
+- Supabase documents that verifying a factor promotes the current session to AAL2 and signs out the user's other active sessions. Operators must be warned before completing enrollment.
+- LifeLink does not currently enable Supabase's experimental recovery-code feature, which requires an Auth-server opt-in and separate validation. The supported backup path remains a second TOTP factor held separately from the primary factor. Losing every verified factor can permanently prevent sign-in unless the approved operator recovery procedure is completed.
+
+### Operator-assisted recovery runbook (documented; not yet operationally tested)
+
+Supabase's privileged Admin MFA API can list and delete a user's factors. `admin.mfa.deleteFactor({ userId, id })` requires a server-side secret/service-role key and downgrades the user's sessions to AAL1 when a verified factor is deleted. Never call this API from the browser or Android app.
+
+1. Open an incident ticket and verify the requester through a pre-established independent channel. Confirm the exact Supabase Auth user UUID against the approved administrator inventory. An email/password reset or access to the account's email inbox alone is insufficient.
+2. Require a second, separately authorized operator to approve the reset. Record the ticket, reason, approvers, executing operator, target UUID, and UTC timestamps before changing factors.
+3. If the user still controls one verified factor, do **not** reset all factors. Have them sign in using that factor, add and verify a replacement, confirm that two verified factors remain, then remove only the lost factor through the normal AAL2-protected flow.
+4. If every factor is lost, the two operators may use the Supabase Admin MFA API from an approved operator environment to inspect and remove only the verified target user's factors. Keep the service-role key in the approved secret manager/operator environment; never commit it, send it to the user, or place it in the app.
+5. Supabase invalidates active sessions and the next sign-in is AAL1. The user can access only the identity-only `/v1/admin/preflight` endpoint; all operational admin endpoints remain denied. They must enroll and verify a primary factor, enroll and verify a separately stored backup factor, and obtain a fresh AAL2 session before `/v1/admin/me` or any operational endpoint succeeds.
+6. After two factors are verified, the user opens the web console's authenticator management section and submits the incident ticket reference using **Record approved recovery**. This sends `recovery_reenrollment_verified` to `POST /v1/admin/mfa/events`. **The API verifies the current factor count against Supabase's server-managed inventory and validates the ticket reference's format, but it does not query a ticketing system, verify operator identities, or enforce two-person approval.** The client-reported count is retained only for comparison. The two operators must independently reconcile the receipt against the Supabase Auth audit log and the incident record outside this endpoint. Never record factor secrets, QR payloads, OTPs, access/refresh tokens, or the service-role key.
+
+This runbook does not create an AAL1 bypass or a public recovery endpoint. It is a controlled operator procedure, not an automated recovery service. The two-operator control currently exists as a documented operational requirement, not an application-enforced approval workflow. It must be exercised in a non-production project and reviewed by two authorized operators before being declared operational.
+
+### Assurance level versus backup-factor count
+
+Supabase's `aal2` claim proves that the current session completed at least one second-factor verification; it does not prove that two separate TOTP factors are registered. The two-factor enrollment rule is a recovery/resilience policy in addition to AAL2. Operational backend authorization independently counts verified TOTP factors from `auth.mfa_factors`, and lifecycle receipts enforce their event-specific minimum against that same server-managed inventory. The client-reported count is retained only as comparison metadata and never substitutes for the server count. Both authorization and receipt checks fail closed when the inventory cannot be read.
+
+### Backend enforcement compatibility requirement
+
+Both web and Android clients call `GET /v1/admin/preflight` before factor discovery. The endpoint runs signed-JWT, verified-email, server-managed admin UUID allowlist, active-session, and revocation checks, records an audit event, and returns only `{"authorized": true}`—no operational data. Each client requests the full `GET /v1/admin/me` response only after its AAL2 and two-factor gate.
+
+The backend MFA boundary is now implemented in this branch. `/v1/admin/preflight` is the only AAL1 exception and returns identity eligibility only. `/v1/admin/mfa/events` requires allowlisted identity plus AAL2 so first-factor enrollment can be audited, but it exposes no operational data. All other admin endpoints require AAL2 and at least two server-confirmed verified TOTP factors from `auth.mfa_factors`. The test suite asserts that all registered admin routes use the correct dependency.
+
+### Required before rollout
+
+- The web and Android clients now include TOTP enrollment/challenge gates and require two verified factors before showing the console; the web factor manager requires a verified replacement before removal and preserves at least two verified factors.
+- Backend AAL2 enforcement is implemented for every admin endpoint except identity-only preflight; the MFA audit-receipt route has a narrow AAL2-only enrollment dependency. All operational routes also require at least two server-confirmed verified TOTP factors from `auth.mfa_factors`; verify database permissions and direct API denial with one factor in non-production.
+- MFA lifecycle audit receipts cover verified enrollment, replacement, removal requests, recovery re-enrollment, and denied AAL1/unknown-assurance requests. Their verified factor count is queried from Supabase's server-managed inventory; the client-reported count is stored separately for discrepancy review. Receipts contain no secrets, OTPs, or tokens.
+- The two-operator recovery runbook is documented but has not yet been exercised. Test it in a non-production Supabase project and verify the Supabase Auth audit record plus the LifeLink recovery receipt.
+- Add/complete backend tests for AAL1/AAL2, malformed/missing/stale/downgraded claims, revoked sessions, and non-allowlisted accounts; run the full suite on the latest head.
+- Test primary enrollment, backup enrollment on a separate device, sign-in challenge, incorrect/expired codes, refresh rotation, factor loss, and recovery against a non-production Supabase account on both web and Android.
+- Complete manual browser and Android-device verification. Automated syntax, unit, and transport tests do not replace real authenticator testing.
+
+
+### MFA manual verification checklist (not yet executed)
+
+Run this only against a dedicated non-production Supabase Auth project and a test administrator account. Do not use the production administrator account as the first test subject.
+
+- [ ] A non-allowlisted account is rejected by `GET /v1/admin/preflight` before factor discovery or enrollment is shown.
+- [ ] An allowlisted account with no verified factors is prompted to enroll a primary TOTP factor.
+- [ ] An incorrect enrollment code does not mark the factor verified or open the admin console.
+- [ ] Verifying the primary factor produces an AAL2 session and the UI requires a separately acknowledged backup factor on another device or separately protected vault.
+- [ ] The console remains hidden until two verified TOTP factors are returned by Supabase and the current token reports AAL2.
+- [ ] A returning account with factors but an AAL1 session sees the factor selector and challenge; a valid code upgrades the session before the console is shown.
+- [ ] Invalid, expired, malformed, and rate-limited challenges produce safe feedback without exposing Supabase response bodies, secrets, OTPs, or tokens.
+- [ ] Refresh-token rotation near expiry updates the in-memory token pair and protected API calls continue with the refreshed access token.
+- [ ] With two verified factors, removal is unavailable; after adding and verifying a third factor, removing one of the three preserves two verified factors and forces a fresh sign-in because Supabase invalidates active sessions.
+- [ ] Cancelling during enrollment, challenge, or verification does not allow a late response to reopen the console or restore a cancelled session.
+- [ ] Sign-out clears the in-memory tokens and sends Supabase Auth sign-out for the current session.
+- [ ] Missing JWT `aal` is treated as AAL1; malformed or unsupported values fail closed in the UI and backend.
+- [ ] Verify Supabase's documented behavior that factor verification signs out other active sessions, and ensure the operator understands this before completing enrollment.
+- [ ] Android: allowlisted AAL1 account reaches the native MFA gate through `/v1/admin/preflight`; ordinary users continue to the normal app without seeing admin setup.
+- [ ] Android: no-factor account can enroll primary and separately stored backup TOTP factors; the setup secret is not persisted or logged.
+- [ ] Android: returning AAL1 account can challenge a verified factor; AAL2 with two verified factors reaches `/v1/admin/me` and the native admin console.
+- [ ] Android: incorrect/expired codes, network loss, cancellation, and audit-receipt failure do not open the admin console.
+
+**Release blockers:** latest-head CI, manual web/Android verification, non-production Supabase tests, and a witnessed two-operator recovery exercise must pass. The AAL2 backend gate and audit receipt endpoints are implemented in this draft branch but are not production-approved. Do not mark this checklist complete until each item has reproducible evidence.
+
+Until these conditions pass review and the rollout is explicitly approved, keep the AAL2 backend gate out of production and leave issue #222 open.
 
 ## Android console
 
-A verified session whose user UUID is on the server-side allowlist is routed to the native admin screen after GET /v1/admin/me succeeds. Other users continue to the normal requester/donor experience. A network failure does not grant admin access.
+An allowlisted Android session first calls `/v1/admin/preflight`, then uses the native TOTP enrollment/challenge gate. The native admin screen is reached only after AAL2, two verified TOTP factors, and a successful `/v1/admin/me` response. Other users continue to the normal requester/donor experience. A network failure or failed MFA verification never grants admin access.
 
 ## API endpoints
 
-- GET /v1/admin/me — verify admin authorization.
+- GET /v1/admin/preflight — identity-only AAL1 eligibility check; returns no operational data.
+- POST /v1/admin/mfa/events — AAL2-protected, bounded MFA lifecycle audit receipt; never accepts OTPs, secrets, or tokens.
+- GET /v1/admin/me — verify admin authorization; requires AAL2.
 - GET /v1/admin/dashboard — profile, donor and request counts.
 - GET /v1/admin/users?limit=50&offset=0 — paginated profile list.
 - PATCH /v1/admin/users/{user_id} — update requester/donor capability fields; records before/after values.

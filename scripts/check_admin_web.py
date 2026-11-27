@@ -16,7 +16,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HTML_PATH = ROOT / "admin-web" / "index.html"
 ICONS_PATH = ROOT / "admin-web" / "icons.js"
+MFA_JS_PATH = ROOT / "admin-web" / "mfa.js"
+MFA_TEST_PATH = ROOT / "scripts" / "test_admin_mfa.js"
 ADMIN_API_PATH = ROOT / "lifelink_fastapi" / "app" / "admin_api.py"
+ANDROID_MFA_GATE_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "feature" / "admin" / "AdminMfaGateScreen.kt"
+ANDROID_AUTH_REPO_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "core" / "auth" / "SupabaseAuthRepository.kt"
+ANDROID_MAIN_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "MainActivity.kt"
+ANDROID_API_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "data" / "remote" / "LifeLinkApi.kt"
 
 
 class DocumentCheck(HTMLParser):
@@ -25,6 +31,7 @@ class DocumentCheck(HTMLParser):
         self.ids: list[str] = []
         self.icon_names: list[str] = []
         self.icon_script_found = False
+        self.mfa_script_found = False
         self.inline_handlers: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -36,6 +43,8 @@ class DocumentCheck(HTMLParser):
         self.inline_handlers.extend(name for name, _ in attrs if name.lower().startswith("on"))
         if tag == "script" and values.get("src") == "./icons.js":
             self.icon_script_found = True
+        if tag == "script" and values.get("src") == "./mfa.js":
+            self.mfa_script_found = True
 
 
 def fail(message: str) -> None:
@@ -44,12 +53,16 @@ def fail(message: str) -> None:
 
 
 def main() -> None:
-    if not HTML_PATH.is_file() or not ICONS_PATH.is_file() or not ADMIN_API_PATH.is_file():
-        fail("admin website entry point or SVG icon library is missing")
+    if not all(path.is_file() for path in (HTML_PATH, ICONS_PATH, MFA_JS_PATH, MFA_TEST_PATH, ADMIN_API_PATH, ANDROID_MFA_GATE_PATH, ANDROID_AUTH_REPO_PATH, ANDROID_MAIN_PATH, ANDROID_API_PATH)):
+        fail("admin website entry point, SVG icon library, or MFA module/tests are missing")
 
     html = HTML_PATH.read_text(encoding="utf-8")
     icons = ICONS_PATH.read_text(encoding="utf-8")
     admin_api = ADMIN_API_PATH.read_text(encoding="utf-8")
+    android_mfa = ANDROID_MFA_GATE_PATH.read_text(encoding="utf-8")
+    android_auth = ANDROID_AUTH_REPO_PATH.read_text(encoding="utf-8")
+    android_main = ANDROID_MAIN_PATH.read_text(encoding="utf-8")
+    android_api = ANDROID_API_PATH.read_text(encoding="utf-8")
     parser = DocumentCheck()
     parser.feed(html)
     parser.close()
@@ -91,10 +104,12 @@ def main() -> None:
 
     if (
         "body:has(#login-view:not(.hidden))" not in html
+        or "body:has(#mfa-view:not(.hidden))" not in html
         or " > .top { display: none; }" not in html
         or "width: min(100%, 480px)" not in html
+        or "width: min(100%, 520px)" not in html
     ):
-        fail("login and password recovery must use a centered authentication surface without workspace navigation")
+        fail("login, recovery, and MFA verification must use centered authentication surfaces without workspace navigation")
 
     if (
         'id="page-title" tabindex="-1"' not in html
@@ -114,6 +129,30 @@ def main() -> None:
         fail("duplicate HTML id attributes: " + ", ".join(sorted(duplicates)))
     if not parser.icon_script_found:
         fail("index.html does not load the reusable ./icons.js module")
+    if not parser.mfa_script_found:
+        fail("index.html does not load the admin MFA transport module")
+    for javascript_path in (MFA_JS_PATH, MFA_TEST_PATH):
+        result = subprocess.run(
+            ["node", "--check", str(javascript_path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode:
+            fail(f"JavaScript syntax error in {javascript_path.name}: " + result.stderr.strip())
+
+    mfa_tests = subprocess.run(
+        ["node", str(MFA_TEST_PATH)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if mfa_tests.returncode:
+        fail("admin MFA transport regression tests failed: " + mfa_tests.stderr.strip())
+    mfa_source = MFA_JS_PATH.read_text(encoding="utf-8")
+    if "localStorage" in mfa_source or "sessionStorage" in mfa_source:
+        fail("admin MFA tokens must remain in memory and never use browser storage")
+
     if "createElementNS(NS" not in icons or "currentColor" not in icons:
         fail("SVG icons must be created with the SVG DOM API and inherit currentColor")
     if "innerHTML" in icons or "eval(" in icons:
@@ -142,6 +181,45 @@ def main() -> None:
     if "audit-action-filter" not in html or "auditAction?" not in html or "audit-filter-apply" not in html:
         fail("audit history must expose its exact-action server-side filter")
 
+    if (
+        '@router.get("/preflight")' not in admin_api
+        or '"admin.identity.preflight"' not in admin_api
+        or 'return {"authorized": True}' not in admin_api
+        or 'await api("/v1/admin/preflight")' not in html
+    ):
+        fail("admin MFA preflight must audit identity eligibility and return no operational data")
+
+    if (
+        "async def require_admin_identity(" not in admin_api
+        or 'if principal.assurance_level != "aal2":' not in admin_api
+        or "principal: Principal = Depends(require_admin_identity)" not in admin_api
+        or "async def require_admin_mfa_event(" not in admin_api
+        or "principal: Principal = Depends(require_admin_mfa_event)" not in admin_api
+        or "FROM auth.mfa_factors" not in admin_api
+        or "factor_type = 'totp' AND status = 'verified'" not in admin_api
+        or '"security.admin_mfa.assurance_denied"' not in admin_api
+        or '"security.admin_mfa.factor_count_denied"' not in admin_api
+        or "Two verified TOTP authenticators are required for administrator access." not in admin_api
+    ):
+        fail("operational admin routes must enforce AAL2 and two server-confirmed TOTP factors; only MFA audit receipts may use the AAL2 enrollment gate")
+
+    if (
+        "adminPreflight()" not in android_api
+        or "adminMfaEvent(" not in android_api
+        or "AdminMfaGateScreen(" not in android_main
+        or "account.api.adminPreflight()" not in android_main
+        or "listMfaFactors(" not in android_auth
+        or "enrollMfaTotp(" not in android_auth
+        or "challengeMfa(" not in android_auth
+        or "verifyMfaTotp(" not in android_auth
+        or "verifiedTotpFactors(factors)" not in android_mfa
+        or "verifiedFactorCount = pendingAuditCount" not in android_mfa
+        or "repository.assuranceLevel(activeSession.accessToken)" not in android_mfa
+        or "nextAdminMfaStep(" not in android_mfa
+        or "AdminMfaStep.RELOAD_FACTORS" not in android_mfa
+    ):
+        fail("Android administrator access must use Supabase TOTP enrollment/challenge, AAL2, and two verified factors")
+
     if "audit-correlation-filter" not in html or "errors-correlation-filter" not in html or "correlation_id" not in admin_api:
         fail("audit and error history must support server-side correlation ID tracing")
     if '"SELECT id, log_id, actor_id, action, actions, description, session_id, ip_address, timestamp, device_used, "' not in admin_api:
@@ -165,10 +243,65 @@ def main() -> None:
     ):
         fail("sessions and security alerts must expose and filter related correlation identifiers")
 
-    required_ids = {"login-view", "app-view", "page-overview", "page-users", "page-alerts", "page-sessions", "page-audit", "page-errors", "page-analytics", "page-roles"}
+    required_ids = {"login-view", "mfa-view", "mfa-step-enroll", "mfa-step-challenge", "mfa-step-manage", "app-view", "page-overview", "page-users", "page-alerts", "page-sessions", "page-audit", "page-errors", "page-analytics", "page-roles"}
     missing_ids = sorted(required_ids - set(parser.ids))
     if missing_ids:
         fail("required admin page containers are missing: " + ", ".join(missing_ids))
+
+    if (
+        'id="mfa-view"' not in html
+        or "function enterAdminConsole()" not in html
+        or 'assuranceLevel(accessToken)!=="aal2"' not in html
+        or "verified.length<2" not in html
+        or "function verifyMfaChallenge()" not in html
+        or "function verifyMfaEnrollment()" not in html
+        or "async function removeMfaFactor" not in html
+        or "initial.length<=2" not in html
+        or "unenroll(currentMfaConfig(),factorId)" not in html
+        or 'backup=mfaMode==="backup"||mfaMode==="manage-add"' not in html
+        or "mfaReturnToManage" not in html
+        or 'id="mfa-recovery-ticket"' not in html
+        or "recordMfaRecoveryReceipt" not in html
+        or 'id="manage-mfa"' not in html
+    ):
+        fail("admin console must require AAL2 and two verified TOTP factors, with replacement-before-removal controls")
+
+    sign_in_start = html.find("async function signIn()")
+    sign_in_end = html.find("function table(items, cols", sign_in_start)
+    if sign_in_start < 0 or sign_in_end < 0:
+        fail("admin sign-in flow is missing")
+    sign_in_flow = html[sign_in_start:sign_in_end]
+    admin_check = sign_in_flow.find('await api("/v1/admin/preflight")')
+    factor_discovery = sign_in_flow.find("mfaFactors=await")
+    if admin_check < 0 or factor_discovery < 0 or admin_check > factor_discovery:
+        fail("identity-only server-side admin preflight must run before MFA enrollment")
+    enter_start = html.find("async function enterAdminConsole()")
+    enter_end = html.find("function showBackupEnrollment()", enter_start)
+    if enter_start < 0 or enter_end < 0 or 'await api("/v1/admin/me")' not in html[enter_start:enter_end]:
+        fail("full admin identity response must be requested only after the AAL2 enrollment/challenge gate")
+    if "mfaFlowGeneration" not in html or "if(flow!==mfaFlowGeneration)" not in html:
+        fail("MFA enrollment and verification must ignore stale asynchronous responses after cancellation")
+    management_start = html.find("async function showMfaManagement()")
+    management_end = html.find("function showAddMfaFactor()", management_start)
+    if management_start < 0 or management_end < 0:
+        fail("MFA factor management flow is missing")
+    management_flow = html[management_start:management_end]
+    if "const flow=mfaFlowGeneration" not in management_flow or management_flow.count("if(flow!==mfaFlowGeneration)") < 2:
+        fail("MFA factor management must ignore stale responses after cancellation")
+    sign_in_flow = html[sign_in_start:sign_in_end]
+    if "const flow=++mfaFlowGeneration" not in sign_in_flow or "if(flow!==mfaFlowGeneration)return" not in sign_in_flow:
+        fail("Admin sign-in must not restore a stale session after cancellation")
+
+    if (
+        'id="mfa-audit-retry"' not in html
+        or "pendingMfaEnrollmentCompletion = false" not in html
+        or "async function finishVerifiedMfaEnrollment(" not in html
+        or 'pendingMfaEnrollmentCompletion=true' not in html
+        or 'await api("/v1/admin/mfa/events"' not in html
+        or 'pendingMfaEnrollmentCompletion=false;retry.classList.add("hidden")' not in html
+        or 'mfa-audit-retry").addEventListener("click",()=>finishVerifiedMfaEnrollment())' not in html
+    ):
+        fail("web MFA enrollment must retry factor inventory/audit receipts and block admin entry until the receipt is saved")
 
     print(f"Admin website integrity passed: {len(parser.ids)} unique IDs, {len(set(parser.icon_names))} SVG icon types.")
 

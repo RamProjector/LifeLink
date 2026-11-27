@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-HLeyiN69nMrgvqbhr4bY6C4/QliG19y6GNeaCA5xzm0='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-zW5izBEtbDFiA7bmkfX9YleNOiMWjthydGRHsyM6M4Y='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -146,6 +146,18 @@ body:has(#login-view:not(.hidden)) {
 body:has(#login-view:not(.hidden)) > .top { display: none; }
 body:has(#login-view:not(.hidden)) > #login-view.login {
   width: min(100%, 480px);
+  margin: 0 auto;
+}
+body:has(#mfa-view:not(.hidden)) {
+  display: grid;
+  min-height: 100vh;
+  min-height: 100svh;
+  place-items: center;
+  padding: 24px 16px;
+}
+body:has(#mfa-view:not(.hidden)) > .top { display: none; }
+body:has(#mfa-view:not(.hidden)) > #mfa-view.login {
+  width: min(100%, 520px);
   margin: 0 auto;
 }
 
@@ -1881,10 +1893,31 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 #errors-table .event-summary strong { color: #8e3028; }
 #errors-table .event-trace code { max-width: 210px; }
 #errors-table details summary { cursor: pointer; color: var(--ink-soft); font-weight: 650; }
-#errors-table details pre { max-width: min(560px,70vw); max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }</style>
+#errors-table details pre { max-width: min(560px,70vw); max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }/* Admin MFA gate — compact, accessible authentication workspace */
+#mfa-view { width:min(100% - 32px, 520px); margin:48px auto; }
+#mfa-view .mfa-section { margin-top:20px; padding-top:18px; border-top:1px solid var(--line); }
+#mfa-view .mfa-section h2 { margin:0 0 8px; font-size:17px; }
+#mfa-view .mfa-help { margin:0 0 16px; color:var(--muted); font-size:13px; line-height:1.55; }
+#mfa-view .mfa-code { letter-spacing:.28em; font-variant-numeric:tabular-nums; max-width:220px; }
+#mfa-view .mfa-qr-wrap { display:grid; justify-items:start; gap:10px; margin:16px 0; }
+#mfa-view .mfa-qr { width:190px; height:190px; max-width:100%; object-fit:contain; padding:10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+#mfa-view .mfa-secret { display:block; max-width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:7px; background:var(--surface-soft); overflow-wrap:anywhere; font-size:12px; }
+#mfa-view .mfa-check { display:flex; align-items:flex-start; gap:9px; margin:14px 0; color:var(--ink-soft); font-size:12px; line-height:1.5; }
+#mfa-view .mfa-check input { flex:0 0 auto; width:16px; min-height:16px; margin:2px 0 0; }
+#mfa-view .mfa-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+#mfa-view .mfa-actions button { flex:1 1 160px; }
+#mfa-view .mfa-factor-list { display:grid; gap:0; border-top:1px solid var(--line); }
+#mfa-view .mfa-recovery-receipt { display:grid; gap:9px; margin-top:16px; padding-top:16px; border-top:1px solid var(--line); }
+#mfa-view #mfa-recovery-ticket { width:100%; }
+#mfa-view .mfa-factor-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 0; border-bottom:1px solid var(--line); }
+#mfa-view .mfa-factor-name { display:block; color:var(--ink); font-size:13px; font-weight:650; overflow-wrap:anywhere; }
+#mfa-view .mfa-factor-status { display:block; margin-top:3px; color:var(--muted); font-size:11px; }
+#mfa-view .mfa-factor-row button { flex:0 0 auto; }
+#session-tools:not(.hidden) { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+</style>
 </head>
 <body>
-<header class="top"><div><div class="brand"><span class="brand-mark ll-icon" data-icon="lifelink" data-icon-size="23"></span><span>LifeLink <span>/ Admin</span></span></div><small>Restricted operations console</small></div><div id="session-tools" class="hidden"><button id="signout" class="secondary"><span class="ll-icon" data-icon="logout"></span>Sign out</button></div></header>
+<header class="top"><div><div class="brand"><span class="brand-mark ll-icon" data-icon="lifelink" data-icon-size="23"></span><span>LifeLink <span>/ Admin</span></span></div><small>Restricted operations console</small></div><div id="session-tools" class="hidden"><button id="manage-mfa" class="secondary" type="button">Authenticators</button><button id="signout" class="secondary"><span class="ll-icon" data-icon="logout"></span>Sign out</button></div></header>
 <main id="login-view" class="login">
  <div class="eyebrow">Administrator access</div><h1>Administrator sign-in</h1><p class="muted">Sign in with your LifeLink account. Admin access is verified by the server; public registration never grants it.</p>
  <label for="email">Email</label><input id="email" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" aria-describedby="email-help" required><p id="email-help" class="field-help">Use the email address associated with your LifeLink account.</p>
@@ -1894,6 +1927,43 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  <section id="recovery-view" class="hidden" aria-live="polite"><h2 id="recovery-title" style="font-size:19px;margin:22px 0 6px">Reset your password</h2><p id="recovery-help" class="muted small">Enter your account email and we will send a secure password-reset link.</p><div id="recovery-email-wrap"><label for="recovery-email">Account email</label><input id="recovery-email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" aria-describedby="recovery-email-help"><p id="recovery-email-help" class="field-help">We will send a reset link if the account is eligible.</p></div><div id="new-password-wrap" class="hidden"><label for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="8" aria-describedby="new-password-help"><p id="new-password-help" class="field-help">Use at least 8 characters and choose a password you do not use elsewhere.</p><label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8" aria-describedby="confirm-password-help"><p id="confirm-password-help" class="field-help">Enter the same password again to confirm it.</p></div><button id="recovery-submit" type="button" style="width:100%;margin-top:14px">Send reset link</button><button id="recovery-cancel" type="button" class="secondary" style="width:100%;margin-top:8px">Back to sign in</button></section>
  <div id="login-message" class="notice hidden" role="status" aria-live="polite"></div>
  <p class="foot">Your session token stays in memory for this tab and is cleared when you sign out or close it. Admin rights are verified server-side.</p>
+</main>
+<main id="mfa-view" class="login hidden" aria-labelledby="mfa-title">
+ <div class="eyebrow">Administrator verification</div>
+ <h1 id="mfa-title">Verify your authenticator.</h1>
+ <p id="mfa-intro" class="muted">Complete the additional verification step before entering the restricted console.</p>
+ <section id="mfa-step-enroll" class="mfa-section hidden" aria-labelledby="mfa-enroll-title">
+  <h2 id="mfa-enroll-title">Register an authenticator</h2>
+  <p id="mfa-enroll-guidance" class="mfa-help">Use an authenticator app on a device you control. Keep the setup secret private.</p>
+  <label for="mfa-factor-name">Authenticator name</label>
+  <input id="mfa-factor-name" type="text" maxlength="64" autocomplete="off" placeholder="e.g. Primary authenticator">
+  <label id="mfa-backup-device-wrap" class="mfa-check hidden"><input id="mfa-backup-device" type="checkbox"><span>I am setting this backup authenticator up on a separate device or in a separately protected authenticator vault.</span></label>
+  <button id="mfa-enroll-start" type="button" style="width:100%;margin-top:12px">Generate setup QR code</button>
+  <div id="mfa-qr-wrap" class="mfa-qr-wrap hidden"><img id="mfa-qr" class="mfa-qr" alt="Authenticator setup QR code"><div><strong class="small">Manual setup key</strong><code id="mfa-secret" class="mfa-secret"></code></div><p class="mfa-help">Do not share or screenshot this key. Enter the six-digit code from your authenticator app below to verify this device.</p></div>
+  <label for="mfa-enroll-code">Authenticator code</label>
+  <input id="mfa-enroll-code" class="mfa-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" disabled>
+  <div class="mfa-actions"><button id="mfa-enroll-verify" type="button" disabled>Verify authenticator</button></div>
+ </section>
+ <section id="mfa-step-challenge" class="mfa-section hidden" aria-labelledby="mfa-challenge-title">
+  <h2 id="mfa-challenge-title">Confirm it is you</h2>
+  <p class="mfa-help">Choose one of your verified authenticators and enter its current six-digit code.</p>
+  <label for="mfa-factor-select">Authenticator</label><select id="mfa-factor-select"></select>
+  <label for="mfa-challenge-code">Authenticator code</label>
+  <input id="mfa-challenge-code" class="mfa-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000">
+  <div class="mfa-actions"><button id="mfa-challenge-verify" type="button">Verify and continue</button></div>
+ </section>
+ <section id="mfa-step-manage" class="mfa-section hidden" aria-labelledby="mfa-manage-title">
+  <h2 id="mfa-manage-title">Registered authenticators</h2>
+  <p class="mfa-help">Keep at least two verified authenticators. To replace a lost device, add and verify its replacement first; removing a verified factor signs out active sessions.</p>
+  <p id="mfa-factor-count" class="mfa-help" aria-live="polite"></p>
+  <div id="mfa-factor-list" class="mfa-factor-list" aria-live="polite"></div>
+  <div class="mfa-actions"><button id="mfa-manage-add" type="button">Add replacement authenticator</button><button id="mfa-manage-back" type="button" class="secondary">Back to admin console</button></div>
+  <div class="mfa-recovery-receipt"><label for="mfa-recovery-ticket">Approved recovery ticket</label><input id="mfa-recovery-ticket" type="text" maxlength="64" autocomplete="off" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,63}" placeholder="e.g. SEC-2026-104"><button id="mfa-recovery-record" type="button" class="secondary">Record approved recovery</button><p class="mfa-help">Use only after a two-operator recovery has been approved and both authenticators are verified. This records a client-reported receipt for operator reconciliation.</p></div>
+ </section>
+ <div id="mfa-message" class="notice hidden" role="status" aria-live="polite"></div>
+ <button id="mfa-audit-retry" type="button" class="secondary hidden" style="width:100%;margin-top:12px">Retry authenticator verification record</button>
+ <button id="mfa-cancel" type="button" class="secondary" style="width:100%;margin-top:16px">Cancel and return to sign in</button>
+ <p class="foot">Authenticator secrets and session tokens are kept in memory only. Register a separate backup authenticator before continuing.</p>
 </main>
 <main id="app-view" class="wrap hidden">
  <div class="headrow"><div><div class="eyebrow" id="page-eyebrow">Operations overview</div><h1 id="page-title" tabindex="-1" aria-live="polite" aria-atomic="true">Admin dashboard</h1><div id="identity" class="muted small"></div></div><div class="actions"><button id="refresh" class="secondary"><span class="ll-icon" data-icon="refresh"></span>Refresh data</button></div></div>
@@ -1964,12 +2034,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  </div></div><div id="app-message" class="notice hidden" role="status" aria-live="polite"></div><p class="foot">LifeLink Admin · Keep this browser session private. Sign out when finished.</p>
 </main>
 <script src="./icons.js"></script>
+<script src="./mfa.js"></script>
 <script>
 (() => {
  const SUPABASE_URL = "https://nphbhlxnujmylhubzmne.supabase.co";
  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_0BnXY2k96nRr0k0zaZvMgQ_IQYSlyQu";
  const API_BASE_URL = "https://lifelink-api-uzje.onrender.com";
  let accessToken = null, recoveryAccessToken = null, activePage = "overview", recoveryMode = false, alertStatus = "", sessionCorrelation = "", alertCorrelation = "", pageLoadToken = 0;
+ let refreshToken = null, accessTokenExpiresAt = 0, refreshInFlight = null, mfaFactors = [], pendingMfaFactor = null, mfaMode = "", adminEmail = "", mfaFlowGeneration = 0, mfaReturnToManage = false, pendingMfaEnrollmentCompletion = false;
  const ADMIN_REDIRECT_URL = "https://lifelink-admin-console.onrender.com/";
  const pageSize = 50;
  let auditAction = "";
@@ -1994,7 +2066,122 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
    return fallback;
  }
  const url = path => API_BASE_URL + path;
+ async function refreshIfNeeded() {
+   if (!refreshToken || !accessTokenExpiresAt || Date.now() < accessTokenExpiresAt - 60000) return;
+   if (!refreshInFlight) {
+     const flow=mfaFlowGeneration,token=refreshToken;
+     refreshInFlight=window.LifeLinkAdminMFA.refreshSession({baseUrl:SUPABASE_URL,publishableKey:SUPABASE_PUBLISHABLE_KEY,refreshToken:token}).then(async s=>{
+       if(flow!==mfaFlowGeneration){try{await window.LifeLinkAdminMFA.signOut({...currentMfaConfig(),accessToken:s.accessToken});}catch{}return;}
+       accessToken=s.accessToken;refreshToken=s.refreshToken;accessTokenExpiresAt=Date.now()+Math.max(0,s.expiresIn||0)*1000;
+     }).finally(()=>{refreshInFlight=null;});
+   }
+   await refreshInFlight;
+ }
+ function currentMfaConfig(){return {baseUrl:SUPABASE_URL,publishableKey:SUPABASE_PUBLISHABLE_KEY,accessToken};}
+ function showMfaView(){ $("login-view").classList.add("hidden");$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("mfa-view").classList.remove("hidden");message("mfa-message","");}
+ function clearMfaPending(){pendingMfaFactor=null;$("mfa-qr").removeAttribute("src");$("mfa-secret").textContent="";$("mfa-enroll-code").value="";$("mfa-enroll-code").disabled=true;$("mfa-enroll-verify").disabled=true;$("mfa-qr-wrap").classList.add("hidden");$("mfa-enroll-start").disabled=false;}
+ async function cancelMfaAndReturn(){mfaFlowGeneration++;pendingMfaEnrollmentCompletion=false;$("mfa-audit-retry").classList.add("hidden");const config=currentMfaConfig();let remoteSignedOut=true;try{if(config.accessToken)await window.LifeLinkAdminMFA.signOut(config);}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("mfa-view").classList.add("hidden");$("login-view").classList.remove("hidden");message("login-message",remoteSignedOut?"Sign-in cancelled. No administrator console access was opened.":"Signed out locally, but Supabase server-side sign-out could not be confirmed. Close this tab and retry when online.",!remoteSignedOut);}
+ async function enterAdminConsole(){const flow=mfaFlowGeneration,verified=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors);if(window.LifeLinkAdminMFA.assuranceLevel(accessToken)!=="aal2"||verified.length<2)throw new Error("Two verified authenticators and an AAL2 session are required before admin access.");await api("/v1/admin/me");if(flow!==mfaFlowGeneration)return;$("identity").textContent="Signed in as "+(adminEmail||"authorized administrator");$("mfa-view").classList.add("hidden");$("login-view").classList.add("hidden");$("app-view").classList.remove("hidden");$("session-tools").classList.remove("hidden");$("password").value="";clearMfaPending();await loadPage("overview");}
+ function showBackupEnrollment(){mfaMode="backup";showMfaView();$("mfa-cancel").classList.remove("hidden");$("mfa-step-manage").classList.add("hidden");$("mfa-title").textContent="Add your backup authenticator.";$("mfa-intro").textContent="Your first authenticator is verified. Register a second one before entering the admin console.";$("mfa-step-challenge").classList.add("hidden");$("mfa-step-enroll").classList.remove("hidden");$("mfa-enroll-title").textContent="Register a separate backup";$("mfa-enroll-guidance").textContent="Use a different device or separately protected authenticator vault. LifeLink does not currently enable Supabase's experimental recovery-code feature. Until that feature is separately validated and enabled, losing every registered authenticator can permanently prevent sign-in. Verifying a factor also signs out your other active sessions.";$("mfa-factor-name").value="Backup authenticator";$("mfa-backup-device-wrap").classList.remove("hidden");$("mfa-backup-device").checked=false;clearMfaPending();}
+ function showPrimaryEnrollment(){mfaMode="primary";mfaReturnToManage=false;showMfaView();$("mfa-cancel").classList.remove("hidden");$("mfa-step-manage").classList.add("hidden");$("mfa-title").textContent="Set up administrator MFA.";$("mfa-intro").textContent="Before the admin console opens, register two verified authenticator factors.";$("mfa-step-challenge").classList.add("hidden");$("mfa-step-enroll").classList.remove("hidden");$("mfa-enroll-title").textContent="Register your primary authenticator";$("mfa-enroll-guidance").textContent="Use an authenticator app you control. Keep the setup key private and retain access to this device.";$("mfa-factor-name").value="Primary authenticator";$("mfa-backup-device-wrap").classList.add("hidden");$("mfa-backup-device").checked=false;clearMfaPending();}
+ function showMfaChallenge(){mfaMode="challenge";showMfaView();$("mfa-cancel").classList.remove("hidden");$("mfa-step-manage").classList.add("hidden");$("mfa-title").textContent="Verify your authenticator.";$("mfa-intro").textContent="Your account has MFA enabled. Verify one registered authenticator to continue.";$("mfa-step-enroll").classList.add("hidden");$("mfa-step-challenge").classList.remove("hidden");const select=$("mfa-factor-select");select.replaceChildren();window.LifeLinkAdminMFA.verifiedFactors(mfaFactors).forEach(f=>{const o=document.createElement("option");o.value=f.id;o.textContent=f.friendly_name||"Authenticator";select.appendChild(o);});$("mfa-challenge-code").value="";$("mfa-challenge-verify").disabled=false;}
+ function renderMfaFactors(){
+   const list=$("mfa-factor-list"),verified=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors);list.replaceChildren();
+   $("mfa-factor-count").textContent=verified.length+" verified TOTP factor"+(verified.length===1?"":"s")+". Keep at least two active."; 
+   mfaFactors.forEach(factor=>{
+     const row=document.createElement("div");row.className="mfa-factor-row";
+     const info=document.createElement("div"),name=document.createElement("span"),status=document.createElement("span");
+     name.className="mfa-factor-name";name.textContent=factor.friendly_name||"Authenticator";
+     status.className="mfa-factor-status";status.textContent=factor.status==="verified"?"Verified":"Setup incomplete";info.append(name,status);row.appendChild(info);
+     if(factor.status==="verified"&&verified.length>2){const remove=document.createElement("button");remove.type="button";remove.className="secondary";remove.textContent="Remove";remove.addEventListener("click",()=>removeMfaFactor(factor.id,remove));row.appendChild(remove);}
+     list.appendChild(row);
+   });
+   if(verified.length<=2){const note=document.createElement("p");note.className="mfa-help";note.textContent="Removal is disabled while only two verified authenticators remain. Add and verify a replacement before removing a device.";list.appendChild(note);}
+ }
+ async function showMfaManagement(){
+   const flow=mfaFlowGeneration;
+   showMfaView();$("mfa-cancel").classList.remove("hidden");$("mfa-step-enroll").classList.add("hidden");$("mfa-step-challenge").classList.add("hidden");$("mfa-step-manage").classList.add("hidden");$("mfa-title").textContent="Loading authenticators…";
+   try{
+     await refreshIfNeeded();if(flow!==mfaFlowGeneration)return;
+     const factors=await window.LifeLinkAdminMFA.listFactors(currentMfaConfig());if(flow!==mfaFlowGeneration)return;
+     mfaFactors=factors;
+     const verified=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors);
+     if(verified.length===0){mfaReturnToManage=false;showPrimaryEnrollment();return;}
+     if(window.LifeLinkAdminMFA.assuranceLevel(accessToken)!=="aal2"){mfaReturnToManage=true;showMfaChallenge();return;}
+     if(verified.length<2){mfaReturnToManage=true;showBackupEnrollment();return;}
+     mfaMode="manage";mfaReturnToManage=true;showMfaView();$("mfa-cancel").classList.add("hidden");$("mfa-step-enroll").classList.add("hidden");$("mfa-step-challenge").classList.add("hidden");$("mfa-step-manage").classList.remove("hidden");$("mfa-title").textContent="Authenticator devices.";$("mfa-intro").textContent="Add a verified replacement before removing a lost or compromised authenticator.";renderMfaFactors();
+   }catch(e){if(flow===mfaFlowGeneration)message("mfa-message",safeError(e,"Could not load your authenticator devices."),true);}
+ }
+ function showAddMfaFactor(){mfaMode="manage-add";mfaReturnToManage=true;showMfaView();$("mfa-cancel").classList.remove("hidden");$("mfa-step-manage").classList.add("hidden");$("mfa-step-challenge").classList.add("hidden");$("mfa-step-enroll").classList.remove("hidden");$("mfa-title").textContent="Add a replacement authenticator.";$("mfa-intro").textContent="Verify the new factor before removing any existing authenticator.";$("mfa-enroll-title").textContent="Register replacement device";$("mfa-enroll-guidance").textContent="Use a separate device or separately protected authenticator vault. Verifying a factor signs out your other active sessions.";$("mfa-factor-name").value="Replacement authenticator";$("mfa-backup-device-wrap").classList.remove("hidden");$("mfa-backup-device").checked=false;clearMfaPending();}
+ async function backToAdminConsole(){
+   if(window.LifeLinkAdminMFA.assuranceLevel(accessToken)!=="aal2"){mfaReturnToManage=false;showMfaChallenge();return;}
+   if(window.LifeLinkAdminMFA.verifiedFactors(mfaFactors).length<2){mfaReturnToManage=true;showBackupEnrollment();return;}
+   mfaReturnToManage=false;$("mfa-view").classList.add("hidden");$("app-view").classList.remove("hidden");$("session-tools").classList.remove("hidden");
+ }
+ async function recordMfaRecoveryReceipt(){
+    const ticket=$("mfa-recovery-ticket").value.trim(),count=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors).length,button=$("mfa-recovery-record");
+    if(!/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/.test(ticket)){message("mfa-message","Enter the approved recovery ticket reference.",true);return;}
+    if(count<2){message("mfa-message","Verify two authenticators before recording recovery.",true);return;}
+    button.disabled=true;
+    try{
+      await api("/v1/admin/mfa/events",{method:"POST",body:JSON.stringify({event_type:"recovery_reenrollment_verified",verified_factor_count:count,ticket_reference:ticket})});
+      message("mfa-message","Recovery receipt recorded. Reconcile the ticket with the two-operator incident record and Supabase Auth audit log.");
+      $("mfa-recovery-ticket").value="";
+    }catch(e){message("mfa-message",safeError(e,"The recovery receipt could not be recorded."),true);}
+    finally{button.disabled=false;}
+  }
+ async function removeMfaFactor(factorId,button){
+   const initial=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors);
+   if(window.LifeLinkAdminMFA.assuranceLevel(accessToken)!=="aal2"){mfaReturnToManage=true;showMfaChallenge();return;}if(initial.length<=2){message("mfa-message","Add and verify a replacement before removing a factor.",true);return;}
+   const target=mfaFactors.find(f=>f.id===factorId),targetName=target?.friendly_name||"this authenticator";if(!window.confirm("Remove "+targetName+"? Supabase will sign out active sessions. At least two verified factors must remain."))return;
+   const flow=mfaFlowGeneration;button.disabled=true;message("mfa-message","Removing authenticator…");
+   try{await refreshIfNeeded();if(flow!==mfaFlowGeneration)return;const current=await window.LifeLinkAdminMFA.listFactors(currentMfaConfig());if(flow!==mfaFlowGeneration)return;const verified=window.LifeLinkAdminMFA.verifiedFactors(current);if(verified.length<=2||!verified.some(f=>f.id===factorId))throw new Error("The factor list changed. Refresh and try again.");await api("/v1/admin/mfa/events",{method:"POST",body:JSON.stringify({event_type:"factor_removal_requested",verified_factor_count:verified.length})});if(flow!==mfaFlowGeneration)return;await window.LifeLinkAdminMFA.unenroll(currentMfaConfig(),factorId);if(flow!==mfaFlowGeneration)return;mfaFlowGeneration++;accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("mfa-view").classList.add("hidden");$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");message("login-message","Authenticator removed. Supabase has signed out active sessions. Sign in again using one of the remaining verified authenticators.");
+   }catch(e){if(flow!==mfaFlowGeneration)return;let remoteSignedOut=true;try{if(accessToken)await window.LifeLinkAdminMFA.signOut(currentMfaConfig());}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("mfa-view").classList.add("hidden");$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");message("login-message",remoteSignedOut?"Factor removal could not be confirmed. You have been signed out; sign in again and verify the registered authenticators.":"Factor removal could not be confirmed. Local tokens were cleared, but server-side sign-out was not confirmed; close this tab and retry when online.",true);}
+ }
+ async function startMfaEnrollment(){const flow=mfaFlowGeneration,name=$("mfa-factor-name").value.trim(),backup=mfaMode==="backup"||mfaMode==="manage-add",verified=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors);if(!name||name.length>64){message("mfa-message","Enter a name for this authenticator.",true);return;}if(backup&&(verified.length<1||!$("mfa-backup-device").checked)){message("mfa-message","Verify your first authenticator and confirm that this backup is stored separately.",true);return;}if(mfaFactors.some(f=>String(f.friendly_name||"").trim().toLowerCase()===name.toLowerCase())){message("mfa-message","Choose a different name for each authenticator.",true);return;}$("mfa-enroll-start").disabled=true;message("mfa-message","Generating a private authenticator setup…");try{await refreshIfNeeded();if(flow!==mfaFlowGeneration)return;const enrollmentToken=accessToken,enrolled=await window.LifeLinkAdminMFA.enrollTotp(currentMfaConfig(),name);if(flow!==mfaFlowGeneration){try{await window.LifeLinkAdminMFA.unenroll({...currentMfaConfig(),accessToken:enrollmentToken},enrolled.id);}catch{}return;}pendingMfaFactor=enrolled;const qr=window.LifeLinkAdminMFA.qrImageSource(pendingMfaFactor.qrCode);if(qr){$("mfa-qr").src=qr;$("mfa-qr").classList.remove("hidden");}else{$("mfa-qr").classList.add("hidden");}$("mfa-secret").textContent=pendingMfaFactor.secret;$("mfa-qr-wrap").classList.remove("hidden");$("mfa-enroll-code").disabled=false;$("mfa-enroll-verify").disabled=false;message("mfa-message","Scan the QR code or enter the setup key, then verify a current six-digit code.");}catch(e){if(flow!==mfaFlowGeneration)return;$("mfa-enroll-start").disabled=false;message("mfa-message",safeError(e,"Could not start authenticator setup. Please retry."),true);}}
+ async function finishVerifiedMfaEnrollment(flow=mfaFlowGeneration){
+   if(!pendingMfaEnrollmentCompletion)return;
+   const retry=$("mfa-audit-retry");retry.disabled=true;
+   try{
+     await refreshIfNeeded();if(flow!==mfaFlowGeneration)return;
+     mfaFactors=await window.LifeLinkAdminMFA.listFactors(currentMfaConfig());if(flow!==mfaFlowGeneration)return;
+     if(window.LifeLinkAdminMFA.assuranceLevel(accessToken)!=="aal2")throw new Error("Supabase did not issue the expected AAL2 session. Sign in again.");
+     const verifiedCount=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors).length;
+     if(verifiedCount<1)throw new Error("Supabase has not returned a verified authenticator yet. Retry the inventory check.");
+     const lifecycleType=mfaMode==="backup"?"backup_factor_verified":mfaMode==="manage-add"?"factor_replacement_verified":"factor_enrollment_verified";
+     await api("/v1/admin/mfa/events",{method:"POST",body:JSON.stringify({event_type:lifecycleType,verified_factor_count:verifiedCount})});
+     if(flow!==mfaFlowGeneration)return;
+     pendingMfaEnrollmentCompletion=false;retry.classList.add("hidden");retry.disabled=false;
+     if(verifiedCount<2)showBackupEnrollment();else if(mfaReturnToManage)await showMfaManagement();else await enterAdminConsole();
+   }catch(e){
+     if(flow!==mfaFlowGeneration)return;
+     retry.classList.remove("hidden");
+     message("mfa-message",safeError(e,"Authenticator verification succeeded, but its inventory or security receipt could not be confirmed. Retry before continuing."),true);
+   }finally{if(flow===mfaFlowGeneration)retry.disabled=false;}
+ }
+ async function verifyMfaEnrollment(){
+   const flow=mfaFlowGeneration;if(!pendingMfaFactor)return;
+   const code=$("mfa-enroll-code").value.trim();
+   if(!window.LifeLinkAdminMFA.isTotpCode(code)){message("mfa-message","Enter the six-digit code from your authenticator.",true);return;}
+   $("mfa-enroll-verify").disabled=true;message("mfa-message","Verifying this authenticator…");
+   try{
+     await refreshIfNeeded();if(flow!==mfaFlowGeneration)return;
+     const factorId=pendingMfaFactor.id,cid=await window.LifeLinkAdminMFA.challenge(currentMfaConfig(),factorId);
+     if(flow!==mfaFlowGeneration)return;
+     const verified=await window.LifeLinkAdminMFA.verify(currentMfaConfig(),factorId,cid,code);
+     if(flow!==mfaFlowGeneration){try{await window.LifeLinkAdminMFA.signOut({...currentMfaConfig(),accessToken:verified.accessToken});}catch{}return;}
+     accessToken=verified.accessToken;refreshToken=verified.refreshToken;accessTokenExpiresAt=Date.now()+Math.max(0,verified.expiresIn||0)*1000;
+     clearMfaPending();pendingMfaEnrollmentCompletion=true;
+     await finishVerifiedMfaEnrollment(flow);
+   }catch(e){
+     if(flow!==mfaFlowGeneration)return;
+     $("mfa-enroll-verify").disabled=false;
+     message("mfa-message",safeError(e,"The authenticator could not be verified. Check the code and try again."),true);
+   }
+ }
+ async function verifyMfaChallenge(){const flow=mfaFlowGeneration,fid=$("mfa-factor-select").value,code=$("mfa-challenge-code").value.trim();if(!fid){message("mfa-message","No verified authenticator is available. Contact the LifeLink system owner; do not bypass MFA through email or password reset.",true);return;}if(!window.LifeLinkAdminMFA.isTotpCode(code)){message("mfa-message","Enter the six-digit code from your authenticator.",true);return;}$("mfa-challenge-verify").disabled=true;message("mfa-message","Verifying your authenticator…");try{await refreshIfNeeded();if(flow!==mfaFlowGeneration)return;const cid=await window.LifeLinkAdminMFA.challenge(currentMfaConfig(),fid);if(flow!==mfaFlowGeneration)return;const s=await window.LifeLinkAdminMFA.verify(currentMfaConfig(),fid,cid,code);if(flow!==mfaFlowGeneration){try{await window.LifeLinkAdminMFA.signOut({...currentMfaConfig(),accessToken:s.accessToken});}catch{}return;}accessToken=s.accessToken;refreshToken=s.refreshToken;accessTokenExpiresAt=Date.now()+Math.max(0,s.expiresIn||0)*1000;mfaFactors=await window.LifeLinkAdminMFA.listFactors(currentMfaConfig());if(flow!==mfaFlowGeneration)return;if(window.LifeLinkAdminMFA.assuranceLevel(accessToken)!=="aal2")throw new Error("Supabase did not issue the expected AAL2 session. Sign in again.");if(window.LifeLinkAdminMFA.verifiedFactors(mfaFactors).length<2)showBackupEnrollment();else if(mfaReturnToManage)await showMfaManagement();else await enterAdminConsole();}catch(e){if(flow!==mfaFlowGeneration)return;$("mfa-challenge-verify").disabled=false;message("mfa-message",safeError(e,"The authenticator code was not accepted. Try the current code again."),true);}}
  async function api(path, options={}) {
+   await refreshIfNeeded();
    const response = await fetch(url(path), { ...options, headers: { "Authorization":"Bearer "+accessToken, "Content-Type":"application/json", "X-Correlation-ID": crypto.randomUUID(), ...(options.headers||{}) }});
    const body = await response.text(); let data={}; try { data=body?JSON.parse(body):{}; } catch {}
    if (!response.ok) { const error=new Error("Admin API request failed"); error.status=response.status; throw error; }
@@ -2042,21 +2229,23 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
    finally{$("recovery-submit").disabled=false;}
  }
  async function signIn() {
-   const supabase=SUPABASE_URL, key=SUPABASE_PUBLISHABLE_KEY;
-   if (!$("email").value.trim() || !$("password").value) { message("login-message","Enter your email and password.",true); return; }
-   $("signin").disabled=true; message("login-message","Signing in…");
+   const flow=++mfaFlowGeneration;
+   if(!$("email").value.trim()||!$("password").value){message("login-message","Enter your email and password.",true);return;}
+   $("signin").disabled=true;message("login-message","Signing in…");
    try {
-     const response=await fetch(supabase+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":key,"Content-Type":"application/json"},body:JSON.stringify({email:$("email").value.trim(),password:$("password").value})});
-     const session=await response.json();
-     if(!response.ok || !session.access_token) { const error=new Error("Sign-in failed"); error.status=response.status; throw error; }
-     accessToken=session.access_token;
-     await api("/v1/admin/me");
-     $("identity").textContent="Signed in as "+(session.user?.email||"authorized administrator");
-     $("login-view").classList.add("hidden"); $("app-view").classList.remove("hidden"); $("session-tools").classList.remove("hidden");
-     $("password").value=""; message("login-message","");
-     await loadPage("overview");
-   } catch(e) { accessToken=null; message("login-message",safeError(e,"Sign-in failed. Check your credentials and try again."),true); }
-   finally { $("signin").disabled=false; }
+     const response=await fetch(SUPABASE_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:$("email").value.trim(),password:$("password").value})});
+     const session=await response.json();if(flow!==mfaFlowGeneration){if(session.access_token)try{await window.LifeLinkAdminMFA.signOut({...currentMfaConfig(),accessToken:session.access_token});}catch{}return;}if(!response.ok||!session.access_token||!session.refresh_token){const error=new Error("Sign-in failed");error.status=response.status;throw error;}
+     accessToken=session.access_token;refreshToken=session.refresh_token;accessTokenExpiresAt=Date.now()+Math.max(0,Number(session.expires_in)||0)*1000;adminEmail=session.user?.email||"";
+     await api("/v1/admin/preflight");if(flow!==mfaFlowGeneration)return;
+     await refreshIfNeeded();if(flow!==mfaFlowGeneration)return;mfaFactors=await window.LifeLinkAdminMFA.listFactors(currentMfaConfig());if(flow!==mfaFlowGeneration)return;
+     const verified=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors),aal=window.LifeLinkAdminMFA.assuranceLevel(accessToken);
+     if(verified.length===0){showPrimaryEnrollment();return;}
+     if(aal==="aal1"){showMfaChallenge();return;}
+     if(aal!=="aal2")throw new Error("The authentication assurance claim is missing or invalid. Access is blocked.");
+     if(verified.length<2){showBackupEnrollment();return;}
+     await enterAdminConsole();
+   } catch(e) {if(flow!==mfaFlowGeneration)return;try{if(accessToken)await window.LifeLinkAdminMFA.signOut(currentMfaConfig());}catch{}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];$("mfa-view").classList.add("hidden");$("login-view").classList.remove("hidden");message("login-message",safeError(e,"Sign-in failed. Check your credentials and try again."),true);}
+   finally{if(flow===mfaFlowGeneration)$("signin").disabled=false;}
  }
  function table(items, cols, options={}) {
    if(!items?.length) {
@@ -2412,6 +2601,17 @@ async function loadUsers() {
     }
   }
   $("signin").addEventListener("click",signIn);
+ $("mfa-enroll-start").addEventListener("click",startMfaEnrollment);
+ $("mfa-enroll-verify").addEventListener("click",verifyMfaEnrollment);
+ $("mfa-audit-retry").addEventListener("click",()=>finishVerifiedMfaEnrollment());
+ $("mfa-challenge-verify").addEventListener("click",verifyMfaChallenge);
+ $("mfa-cancel").addEventListener("click",cancelMfaAndReturn);
+ $("manage-mfa").addEventListener("click",showMfaManagement);
+ $("mfa-manage-add").addEventListener("click",showAddMfaFactor);
+ $("mfa-recovery-record").addEventListener("click",recordMfaRecoveryReceipt);
+ $("mfa-manage-back").addEventListener("click",backToAdminConsole);
+ $("mfa-enroll-code").addEventListener("keydown",e=>{if(e.key==="Enter")verifyMfaEnrollment();});
+ $("mfa-challenge-code").addEventListener("keydown",e=>{if(e.key==="Enter")verifyMfaChallenge();});
  $("forgot-password").addEventListener("click",e=>{e.preventDefault();$("recovery-email").value=$("email").value.trim();showRecovery("request");});
  $("recovery-submit").addEventListener("click",()=>recoveryMode==="update"?updateRecoveredPassword():requestPasswordReset());
  $("recovery-cancel").addEventListener("click",()=>{recoveryAccessToken=null;$("new-password").value="";$("confirm-password").value="";$("recovery-view").classList.add("hidden");message("login-message","");});
@@ -2439,7 +2639,7 @@ async function loadUsers() {
    $(kind+"-prev").addEventListener("click",()=>{offsets[kind]=Math.max(0,offsets[kind]-pageSize);loadPage(kind==="users"?"users":kind);});
    $(kind+"-next").addEventListener("click",()=>{offsets[kind]+=pageSize;loadPage(kind==="users"?"users":kind);});
  });
- $("signout").addEventListener("click",()=>{pageLoadToken++;accessToken=null;$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("password").value="";message("login-message","Signed out.");});
+ $("signout").addEventListener("click",async()=>{pageLoadToken++;mfaFlowGeneration++;let remoteSignedOut=true;try{if(accessToken)await window.LifeLinkAdminMFA.signOut(currentMfaConfig());}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("mfa-view").classList.add("hidden");$("password").value="";message("login-message",remoteSignedOut?"Signed out.":"Signed out locally, but Supabase server-side sign-out could not be confirmed. Close this tab and retry when online.",!remoteSignedOut);});
 })();
 </script>
 </body></html>

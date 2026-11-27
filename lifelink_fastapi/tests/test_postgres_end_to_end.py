@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from starlette.requests import Request
 
 pgserver = pytest.importorskip("pgserver")
@@ -58,6 +58,14 @@ def run_scenario(pg_url: str, scenario):
                     id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
                     not_after TIMESTAMPTZ
+                )
+            """))
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS auth.mfa_factors (
+                    id UUID PRIMARY KEY,
+                    user_id UUID NOT NULL,
+                    factor_type TEXT NOT NULL,
+                    status TEXT NOT NULL
                 )
             """))
             await conn.execute(text("""
@@ -117,6 +125,52 @@ def run_scenario(pg_url: str, scenario):
             await engine.dispose()
 
     asyncio.run(main())
+
+
+def test_admin_requires_two_server_confirmed_totp_factors(pg_url: str, monkeypatch):
+    async def ignore_denial_audit(session, principal, request, **kwargs):
+        return None
+
+    monkeypatch.setattr(admin_api, "_record_denied_admin_attempt", ignore_denial_audit)
+
+    async def scenario(client, current, run_sql):
+        user_id = str(uuid.uuid4())
+        monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", user_id)
+        request = Request({
+            "type": "http",
+            "method": "GET",
+            "path": "/v1/admin/dashboard",
+            "headers": [],
+            "query_string": b"",
+            "scheme": "http",
+            "server": ("test", 80),
+            "client": ("127.0.0.1", 12345),
+        })
+
+        async with current["sessions"]() as session:
+            principal = Principal(
+                subject=user_id,
+                email="admin-security-test@example.test",
+                email_verified=True,
+                session_id="admin-security-test-session",
+                assurance_level="aal2",
+            )
+            await run_sql(
+                "INSERT INTO auth.mfa_factors (id, user_id, factor_type, status) "
+                f"VALUES ('{uuid.uuid4()}', '{user_id}', 'totp', 'verified')"
+            )
+            with pytest.raises(HTTPException) as denied:
+                await admin_api.require_admin(request, principal, session)
+            assert denied.value.status_code == 403
+
+            await run_sql(
+                "INSERT INTO auth.mfa_factors (id, user_id, factor_type, status) "
+                f"VALUES ('{uuid.uuid4()}', '{user_id}', 'totp', 'verified')"
+            )
+            authorized = await admin_api.require_admin(request, principal, session)
+            assert authorized.subject == user_id
+
+    run_scenario(pg_url, scenario)
 
 
 def new_user(label: str) -> str:
