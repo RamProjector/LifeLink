@@ -313,12 +313,11 @@ async def create_all_tables() -> None:
         await connection.execute(text(
             "REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM PUBLIC"
         ))
-        await connection.execute(text(
-            "DO $ BEGIN "
-            "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN "
-            "EXECUTE 'REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM anon'; "
-            "END IF; "
-            "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN "
-            "EXECUTE 'REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM authenticated'; "
-            "END IF; END $"
-        ))
+        if await connection.scalar(text("SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon')")):
+            await connection.execute(text(
+                "REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM anon"
+            ))
+        if await connection.scalar(text("SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated')")):
+            await connection.execute(text(
+                "REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM authenticated"
+            ))
