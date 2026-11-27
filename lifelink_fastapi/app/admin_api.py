@@ -145,6 +145,70 @@ async def require_admin(
         )
     return principal
 
+
+def require_admin_permission(permission_key: str):
+    """Build an endpoint guard with a safe, explicitly staged RBAC rollout.
+
+    The default observe mode preserves the existing allowlist + MFA boundary while
+    deployments provision role assignments. Enforce mode requires an active
+    administrative role assignment carrying the exact permission key.
+    """
+    if not re.fullmatch(r"[a-z][a-z0-9_.]{1,99}", permission_key):
+        raise ValueError("Invalid administrator permission key")
+
+    async def dependency(
+        request: Request,
+        principal: Principal = Depends(require_admin),
+        session: AsyncSession = Depends(get_db_session),
+    ) -> Principal:
+        mode = os.getenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "observe").strip().lower()
+        if mode not in {"observe", "enforce"}:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Administrator authorization mode is misconfigured",
+            )
+        if mode == "observe":
+            return principal
+
+        granted = await session.scalar(
+            text(
+                "SELECT EXISTS ("
+                "SELECT 1 FROM lifelink_user_roles ur "
+                "JOIN lifelink_roles r ON r.id = ur.role_id "
+                "JOIN lifelink_role_permissions rp ON rp.role_id = r.id "
+                "JOIN lifelink_permissions p ON p.id = rp.permission_id "
+                "WHERE ur.user_id = CAST(:user_id AS uuid) "
+                "AND r.role_key IN ('operations_admin', 'user_admin', 'security_admin', 'auditor', 'super_admin') "
+                "AND p.permission_key = :permission_key "
+                "AND (ur.expires_at IS NULL OR ur.expires_at > now())"
+                ")"
+            ),
+            {"user_id": principal.subject, "permission_key": permission_key},
+        )
+        if not granted:
+            await _record_denied_admin_attempt(
+                session,
+                principal,
+                request,
+                rule_id="IDS-08",
+                action="security.admin_permission.denied",
+                severity="medium",
+                threshold=3,
+                summary="An administrator attempted an operation without its required RBAC permission",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your administrator role does not grant this permission",
+            )
+        return principal
+
+    # Keep the established route-inventory contract: each operational route still
+    # exposes an admin authorization dependency, now with a permission-specific guard.
+    dependency.__name__ = "require_admin"
+    dependency.__qualname__ = "require_admin"
+    return dependency
+
+
 async def _record_denied_admin_attempt(
     session: AsyncSession,
     principal: Principal,
@@ -455,7 +519,7 @@ async def admin_mfa_event(
 async def admin_me(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_permission("dashboard.read")),
     x_correlation_id: str | None = Header(default=None),
 ):
     await _write_audit(
@@ -470,7 +534,7 @@ async def admin_me(
 async def admin_dashboard(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_permission("dashboard.read")),
     x_correlation_id: str | None = Header(default=None),
 ):
     correlation_id = _correlation_id(x_correlation_id)
@@ -493,7 +557,7 @@ async def admin_dashboard(
 async def admin_list_users(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_permission("users.read")),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     x_correlation_id: str | None = Header(default=None),
@@ -531,7 +595,7 @@ async def admin_update_user(
     payload: AdminProfileUpdate,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_permission("users.update")),
     x_correlation_id: str | None = Header(default=None),
 ):
     if user_id == principal.subject:
@@ -689,7 +753,7 @@ async def _scan_rbac_role_policy_integrity(
 async def admin_role_integrity_findings(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_permission("audit.read")),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     finding_status: str | None = Query(default="open", alias="status", pattern="^(open|acknowledged|investigating|resolved|false_positive)$"),
@@ -727,7 +791,7 @@ async def admin_role_integrity_findings(
 async def admin_security_alerts(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_permission("security.alerts.read")),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     alert_status: str | None = Query(default=None, alias="status", pattern="^(open|acknowledged|investigating|resolved|false_positive)$"),
@@ -775,7 +839,7 @@ async def admin_update_security_alert(
     payload: AdminAlertUpdate,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_permission("security.alerts.manage")),
     x_correlation_id: str | None = Header(default=None),
 ):
     if payload.status in {"acknowledged", "investigating"}:
@@ -815,7 +879,7 @@ async def admin_update_security_alert(
 async def admin_list_sessions(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_permission("security.sessions.read")),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     correlation_id: str | None = Query(default=None, max_length=80),
@@ -870,7 +934,7 @@ async def admin_revoke_session(
     session_id: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_permission("security.sessions.revoke")),
     x_correlation_id: str | None = Header(default=None),
 ):
     if principal.session_id and session_id == principal.session_id:
@@ -902,7 +966,7 @@ async def admin_revoke_session(
 async def admin_audit_logs(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_permission("audit.read")),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     action: str | None = Query(default=None, max_length=64),
@@ -937,7 +1001,7 @@ async def admin_audit_logs(
 async def admin_errors(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_permission("audit.read")),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     correlation_id: str | None = Query(default=None, max_length=128),
@@ -1036,7 +1100,7 @@ class AdminUserRolesUpdate(BaseModel):
 async def admin_list_roles(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_permission("roles.read")),
 ):
     result = await session.execute(
         text(
@@ -1063,7 +1127,7 @@ async def admin_get_user_roles(
     user_id: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_permission("roles.read")),
 ):
     result = await session.execute(
         text(
