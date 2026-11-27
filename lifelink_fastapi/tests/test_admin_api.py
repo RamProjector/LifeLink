@@ -174,6 +174,9 @@ def test_startup_adds_admin_audit_columns_and_indexes(monkeypatch):
     assert "ix_lifelink_user_sessions_user_seen" in statements
     assert "CREATE TABLE IF NOT EXISTS lifelink_security_alerts" in statements
     assert "ux_lifelink_security_alerts_open_rule_user" in statements
+    assert "CREATE TABLE IF NOT EXISTS lifelink_role_security_findings" in statements
+    assert "ux_lifelink_role_security_findings_open_rule_role" in statements
+    assert "ALTER TABLE lifelink_role_security_findings ENABLE ROW LEVEL SECURITY" in statements
 
 
 from app.admin_api import _safe_audit_metadata
