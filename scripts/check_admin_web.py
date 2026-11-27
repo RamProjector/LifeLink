@@ -19,6 +19,8 @@ ICONS_PATH = ROOT / "admin-web" / "icons.js"
 MFA_JS_PATH = ROOT / "admin-web" / "mfa.js"
 MFA_TEST_PATH = ROOT / "scripts" / "test_admin_mfa.js"
 ADMIN_API_PATH = ROOT / "lifelink_fastapi" / "app" / "admin_api.py"
+ANDROID_MAIN_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "MainActivity.kt"
+ANDROID_API_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "data" / "remote" / "LifeLinkApi.kt"
 
 
 class DocumentCheck(HTMLParser):
@@ -49,12 +51,14 @@ def fail(message: str) -> None:
 
 
 def main() -> None:
-    if not all(path.is_file() for path in (HTML_PATH, ICONS_PATH, MFA_JS_PATH, MFA_TEST_PATH, ADMIN_API_PATH)):
+    if not all(path.is_file() for path in (HTML_PATH, ICONS_PATH, MFA_JS_PATH, MFA_TEST_PATH, ADMIN_API_PATH, ANDROID_MAIN_PATH, ANDROID_API_PATH)):
         fail("admin website entry point, SVG icon library, or MFA module/tests are missing")
 
     html = HTML_PATH.read_text(encoding="utf-8")
     icons = ICONS_PATH.read_text(encoding="utf-8")
     admin_api = ADMIN_API_PATH.read_text(encoding="utf-8")
+    android_main = ANDROID_MAIN_PATH.read_text(encoding="utf-8")
+    android_api = ANDROID_API_PATH.read_text(encoding="utf-8")
     parser = DocumentCheck()
     parser.feed(html)
     parser.close()
@@ -144,6 +148,15 @@ def main() -> None:
     mfa_source = MFA_JS_PATH.read_text(encoding="utf-8")
     if "localStorage" in mfa_source or "sessionStorage" in mfa_source:
         fail("admin MFA tokens must remain in memory and never use browser storage")
+
+    if (
+        "AdminConsoleScreen" in android_main
+        or "AdminMfaGateScreen" in android_main
+        or "/v1/admin/" in android_api
+        or "adminPreflight" in android_api
+        or "adminMfaEvent" in android_api
+    ):
+        fail("Android app must not expose administrator screens, MFA gates, or administrator API contracts")
 
     if "createElementNS(NS" not in icons or "currentColor" not in icons:
         fail("SVG icons must be created with the SVG DOM API and inherit currentColor")
