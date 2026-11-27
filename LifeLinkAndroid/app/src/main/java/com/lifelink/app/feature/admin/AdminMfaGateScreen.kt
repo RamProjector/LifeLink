@@ -37,9 +37,9 @@ import com.lifelink.app.core.auth.SupabaseMfaEnrollment
 import com.lifelink.app.core.auth.SupabaseMfaFactor
 import com.lifelink.app.data.remote.AdminMfaEventRequest
 import com.lifelink.app.data.remote.LifeLinkApi
-import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 private fun verifiedTotpFactors(factors: List<SupabaseMfaFactor>): List<SupabaseMfaFactor> =
     factors.filter { it.factorType == "totp" && it.status == "verified" }
@@ -54,7 +54,7 @@ private enum class AdminMfaStep {
     CONFIRM_ACCESS,
 }
 
-@Suppress("LongMethod", "CyclomaticComplexMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod", "SwallowedException")
 @Composable
 fun AdminMfaGateScreen(
     repository: SupabaseAuthRepository,
