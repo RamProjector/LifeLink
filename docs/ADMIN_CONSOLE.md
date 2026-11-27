@@ -37,6 +37,8 @@ Operational admin endpoints now declare route-specific permission dependencies. 
 
 The Security alerts page also shows the last persisted RBAC scanner status, last successful/failed timestamps, last successful finding count, consecutive failures, and a sanitized error code. The protected endpoint is `GET /v1/admin/security/scanner`. A stale or missing successful timestamp must not be presented as a healthy current scan.
 
+Administrators may explicitly enable browser notifications from the Security alerts page. The protected `GET /v1/admin/security/notifications` feed returns only new alert identifiers, rule IDs, severity, timestamp, and source; it never sends evidence or personal details to the browser notification. Polling runs once per minute only while the authenticated Admin Console is open, stops on sign-out/session denial, and is opt-in through the browser permission prompt. It is not a background push service and cannot notify an administrator after the console is closed.
+
 ## Web console
 
 Serve admin-web/index.html over HTTPS using the configured static host. The deployed console uses preconfigured public client settings and exposes only email/password fields. These public settings are not secrets; never include a service-role key. The API origin is fixed in the console, and access/refresh tokens remain in page memory and are cleared on sign-out. The console requests Supabase Auth sign-out; if the network request fails, local tokens are still cleared and the UI warns that server-side sign-out could not be confirmed. Configure LIFELINK_CORS_ORIGINS on the API host with only exact trusted web origins. The API rejects wildcard entries and does not enable credentialed CORS. Do not add broad origins.
