@@ -317,19 +317,19 @@ flowchart TD
 
 ### Independent scan implementation constraints confirmed by source inspection
 
-The existing RBAC discrepancy scanner accepts an administrator principal and request context because it attributes audit events and alert evidence to the caller. It must not be invoked unchanged from a background task: doing so would either fabricate an administrator actor or fail to provide trustworthy request metadata.
+The scanner has since been adapted for background use: `_scan_rbac_discrepancies` accepts an optional request context, and requestless findings are attributed to the dedicated non-human actor `system:rbac-scanner`. The periodic task is started by the FastAPI lifespan and uses the same backend database; it does not impersonate an administrator or fabricate an HTTP session.
 
-The existing FastAPI lifespan already runs bounded periodic maintenance tasks, and render.yaml currently declares a single web service rather than a separate worker. A no-new-service implementation can therefore be evaluated against the existing lifespan, but it must meet all of these conditions before being called independent monitoring:
+The existing FastAPI lifespan already runs periodic maintenance tasks, and render.yaml declares one web service rather than a separate worker. Current implementation status against the independent-monitoring constraints:
 
-1. Give automated findings a dedicated non-human actor such as system:rbac-scanner; never impersonate the administrator who last viewed the alert page.
-2. Use a PostgreSQL transaction-scoped advisory lock so only one instance performs a scan at a time when the web service scales horizontally.
-3. Bound scan work and query scope; preserve the existing expiry filter and add explicit batching if registry size warrants it.
-4. Keep alert upserts deduplicated and avoid counting each polling pass as a new occurrence when the underlying mismatch has not changed. Occurrence semantics should represent distinct observations/events, not merely timer ticks.
-5. Record scan start, completion, duration, result count, and failure in an observable health/operations surface without leaking identity evidence.
-6. Catch transient failures and retry on the next interval, but expose prolonged failure rather than silently treating the detector as healthy.
-7. Keep the admin alert-list scan only as a manual/on-demand supplemental check.
+1. **Implemented:** automated findings use `system:rbac-scanner`; requestless events have no fabricated administrator session or request correlation.
+2. **Implemented:** a PostgreSQL transaction-scoped advisory lock prevents concurrent scans across API instances.
+3. **Partially implemented:** the scan preserves the active-assignment expiry filter and applies a 15-second transaction-local statement timeout. It does not yet use explicit pagination/batching; add that if registry growth makes a full scan too expensive.
+4. **Implemented:** active alerts are upserted, and occurrence counts increase only when finding evidence changes.
+5. **Outstanding:** scan duration/result count and failures are written to application logs, but there is no persisted last-success/last-failure health record or administrator-visible monitor health.
+6. **Partially implemented:** transient failures are logged and retried on the next interval; prolonged failure is not yet represented in a durable health surface.
+7. **Implemented:** the admin alert-list scan remains a supplemental on-demand trigger; correlation-filtered reads do not trigger it.
 
-Required tests before implementation acceptance: system actor attribution; no administrator identity in system-generated events; advisory-lock contention skips the second scanner; lock release on rollback; repeated unchanged findings do not inflate occurrence counts; changed/new findings update alerts; empty registry is a successful scan; database failure is visible and does not crash the API; cancellation stops the loop cleanly.
+Focused tests cover system actor attribution, requestless scanning, evidence-sensitive occurrence updates, and an empty registry result. Explicit automated coverage for advisory-lock contention/rollback and the full lifespan cancellation/retry lifecycle remains a test gap. CI success is evidence for the checked-in test suite, not proof of a deployed runtime scan.
 ## 2026-11-27 independent RBAC scanner implementation update
 
 The branch now contains an initial independent scanner implementation (not yet production-validated):
