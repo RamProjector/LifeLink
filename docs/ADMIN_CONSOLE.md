@@ -57,6 +57,21 @@ The two-factor count and AAL check currently exist in the **web client only**. A
 - Supabase documents that verifying a factor promotes the current session to AAL2 and signs out the user's other active sessions. Operators must be warned before completing enrollment.
 - Supabase does not provide standard TOTP recovery codes. The backup factor must be held separately from the primary factor. Losing every verified factor can permanently prevent sign-in.
 
+### Proposed out-of-band recovery procedure (not yet operational)
+
+Supabase's Admin MFA API supports listing and deleting a user's factors. The JavaScript Admin API uses `supabase.auth.admin.mfa.listFactors({ userId })` and `supabase.auth.admin.mfa.deleteFactor({ userId, id })`; deleting a verified factor logs the user out of active sessions. These are privileged operator operations, not browser features.
+
+The following is a proposed control design only. It must be implemented as a documented, access-controlled operator runbook and tested before it is treated as an available recovery service:
+
+1. Verify the requester's identity through a pre-established independent channel and confirm the exact Supabase user UUID. A password-reset email or access to the account's email inbox alone is not sufficient.
+2. Require a second authorized operator to approve a full-factor reset. Record the incident/ticket, reason, approvers, operator, target UUID, and timestamp.
+3. Use a trusted operator environment to call the Supabase Admin MFA API. Keep the service-role key in an approved secret manager or operator environment variable; never put it in this repository, a browser, Android app, or user-facing API response.
+4. List and inspect the target user's factors. If one verified backup remains accessible, instruct the user to sign in with it, enroll and verify a replacement, and only then remove the lost factor.
+5. If every factor is lost, delete only the factors belonging to the independently verified user under the approved two-operator procedure. Supabase will invalidate active sessions when verified factors are deleted. The user must then sign in again and enroll and verify a new primary and separate backup factor before the admin console becomes available.
+6. Reconcile the operation in the incident record and an auditable operator log. Never record factor secrets, QR payloads, OTPs, access/refresh tokens, or the service-role key.
+
+This proposal does not create an API endpoint or grant an application administrator the ability to bypass MFA. Do not use it until the operator identity checks, dual approval, secret handling, and audit trail are implemented and reviewed.
+
 ### Required before rollout
 
 - Implement a factor-management screen that requires AAL2 and a newly verified replacement before removing an existing factor; never permit removal of the last two verified factors through the normal UI.
