@@ -687,6 +687,21 @@ def test_security_alert_correlation_filter_does_not_mutate_alerts(monkeypatch):
         assert filtered["items"] == []
         assert scan_calls == 0
 
+        # An explicitly empty filter is still a filtered read: it must not
+        # trigger a mutating RBAC scan before the SQL filter returns no matches.
+        empty_filtered = await admin_security_alerts(
+            request=request,
+            session=Session(),
+            principal=principal,
+            limit=50,
+            offset=0,
+            alert_status=None,
+            correlation_id="",
+            x_correlation_id="empty-filter-request-correlation",
+        )
+        assert empty_filtered["items"] == []
+        assert scan_calls == 0
+
         await admin_security_alerts(
             request=request,
             session=Session(),
