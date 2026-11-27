@@ -1300,12 +1300,13 @@ def test_admin_permission_guard_defaults_to_legacy_compatible_observe_mode(monke
     session = FakeSession([0, 2])
 
     async def check():
+        request = _request_context()
+        principal = Principal(
+            subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+        )
+        await admin_api.require_admin(request=request, principal=principal, session=session)
         principal = await require_admin_permission("users.read")(
-            request=_request_context(),
-            principal=Principal(
-                subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
-            ),
-            session=session,
+            request=request, principal=principal, session=session
         )
         assert principal.subject == "admin-1"
 
@@ -1315,19 +1316,21 @@ def test_admin_permission_guard_defaults_to_legacy_compatible_observe_mode(monke
 
 
 def test_admin_permission_guard_enforces_exact_active_role_permission(monkeypatch):
-    from app.admin_api import require_admin_permission
+    from app import admin_api
 
+    require_admin_permission = admin_api.require_admin_permission
     monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "enforce")
     monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
     session = FakeSession([0, 2, 1])
 
     async def check():
+        request = _request_context()
+        principal = Principal(
+            subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+        )
+        await admin_api.require_admin(request=request, principal=principal, session=session)
         principal = await require_admin_permission("users.read")(
-            request=_request_context(),
-            principal=Principal(
-                subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
-            ),
-            session=session,
+            request=request, principal=principal, session=session
         )
         assert principal.subject == "admin-1"
 
@@ -1354,13 +1357,14 @@ def test_admin_permission_guard_denies_missing_permission_and_records_ids08(monk
     session = FakeSession([0, 2, 0])
 
     async def check():
+        request = _request_context()
+        principal = Principal(
+            subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+        )
+        await admin_api.require_admin(request=request, principal=principal, session=session)
         with pytest.raises(HTTPException) as error:
             await admin_api.require_admin_permission("security.sessions.revoke")(
-                request=_request_context(),
-                principal=Principal(
-                    subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
-                ),
-                session=session,
+                request=request, principal=principal, session=session
             )
         assert error.value.status_code == 403
         assert "does not grant" in error.value.detail
@@ -1378,13 +1382,15 @@ def test_admin_permission_guard_fails_closed_on_invalid_mode(monkeypatch):
     monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
 
     async def check():
+        request = _request_context()
+        principal = Principal(
+            subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+        )
+        session = FakeSession([0, 2])
+        await admin_api.require_admin(request=request, principal=principal, session=session)
         with pytest.raises(HTTPException) as error:
             await require_admin_permission("audit.read")(
-                request=_request_context(),
-                principal=Principal(
-                    subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
-                ),
-                session=FakeSession([0, 2]),
+                request=request, principal=principal, session=session
             )
         assert error.value.status_code == 503
 
