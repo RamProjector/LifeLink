@@ -39,6 +39,9 @@ import com.lifelink.app.data.remote.AdminMfaEventRequest
 import com.lifelink.app.data.remote.LifeLinkApi
 import kotlinx.coroutines.launch
 
+private fun verifiedTotpFactors(factors: List<SupabaseMfaFactor>): List<SupabaseMfaFactor> =
+    factors.filter { it.factorType == "totp" && it.status == "verified" }
+
 private enum class AdminMfaStep {
     LOADING,
     ENROLL_PRIMARY,
@@ -70,7 +73,7 @@ fun AdminMfaGateScreen(
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    val verifiedFactors = factors.filter { it.factorType == "totp" && it.status == "verified" }
+    val verifiedFactors = verifiedTotpFactors(factors)
 
     suspend fun confirmAdminAccess() {
         val response = api.adminMe()
@@ -110,16 +113,17 @@ fun AdminMfaGateScreen(
         repository.listMfaFactors(activeSession)
             .onSuccess { listed ->
                 factors = listed.filter { it.factorType == "totp" && (it.status == "verified" || it.status == "unverified") }
+                val initialVerifiedFactors = verifiedTotpFactors(factors)
                 when {
-                    repository.assuranceLevel(activeSession.accessToken) == "aal2" && verifiedFactors.size >= 2 ->
+                    repository.assuranceLevel(activeSession.accessToken) == "aal2" && initialVerifiedFactors.size >= 2 ->
                         confirmAdminAccess()
-                    verifiedFactors.isEmpty() -> {
+                    initialVerifiedFactors.isEmpty() -> {
                         step = AdminMfaStep.ENROLL_PRIMARY
                         factorName = "Primary authenticator"
                     }
                     else -> {
                         step = AdminMfaStep.CHALLENGE
-                        selectedFactorId = verifiedFactors.first().id
+                        selectedFactorId = initialVerifiedFactors.first().id
                     }
                 }
             }
@@ -172,9 +176,11 @@ fun AdminMfaGateScreen(
                         enrollment = null
                         repository.listMfaFactors(refreshed)
                             .onSuccess { listed ->
-                                factors = listed.filter {
+                                val refreshedFactors = listed.filter {
                                     it.factorType == "totp" && (it.status == "verified" || it.status == "unverified")
                                 }
+                                factors = refreshedFactors
+                                val refreshedVerified = verifiedTotpFactors(refreshedFactors)
                                 if (repository.assuranceLevel(refreshed.accessToken) != "aal2") {
                                     error = "Supabase did not confirm AAL2. Sign in again."
                                 } else if (enrolling) {
@@ -183,10 +189,10 @@ fun AdminMfaGateScreen(
                                     } else {
                                         "factor_enrollment_verified"
                                     }
-                                    pendingAuditCount = verifiedFactors.size
+                                    pendingAuditCount = refreshedVerified.size
                                     step = AdminMfaStep.AUDIT_PENDING
                                     recordPendingAudit()
-                                } else if (verifiedFactors.size < 2) {
+                                } else if (refreshedVerified.size < 2) {
                                     step = AdminMfaStep.ENROLL_BACKUP
                                     factorName = "Backup authenticator"
                                 } else {
