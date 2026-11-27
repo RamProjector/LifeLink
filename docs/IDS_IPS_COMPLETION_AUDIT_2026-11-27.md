@@ -332,3 +332,18 @@ The existing FastAPI lifespan already runs bounded periodic maintenance tasks, a
 7. Keep the admin alert-list scan only as a manual/on-demand supplemental check.
 
 Required tests before implementation acceptance: system actor attribution; no administrator identity in system-generated events; advisory-lock contention skips the second scanner; lock release on rollback; repeated unchanged findings do not inflate occurrence counts; changed/new findings update alerts; empty registry is a successful scan; database failure is visible and does not crash the API; cancellation stops the loop cleanly.
+## 2026-11-27 independent RBAC scanner implementation update
+
+The branch now contains an initial independent scanner implementation (not yet production-validated):
+
+- The FastAPI lifespan starts an RBAC discrepancy scan task alongside the existing maintenance tasks.
+- The task runs immediately, then waits for a configurable interval (LIFELINK_RBAC_SCAN_SECONDS, default 300 seconds, minimum 60 seconds).
+- A PostgreSQL transaction-scoped advisory lock prevents concurrent scans across multiple API instances.
+- Automated findings use the explicit non-human actor system:rbac-scanner, with no fabricated administrator session or HTTP request context.
+- The scan query has a 15-second transaction-local statement timeout. Failures are logged and retried on the next interval; cancellation propagates for clean shutdown.
+- The existing alert upsert now increments occurrences only when the finding evidence changes, rather than on every unchanged polling pass.
+- Focused tests were added for requestless scan execution, system actor attribution, and evidence-sensitive occurrence updates.
+
+**Not yet established:** no workflow run has yet confirmed these changes pass the backend test suite; no deployed instance has demonstrated scanner execution; there is no persisted last-success/last-failure health record or administrator notification delivery. Application logs currently provide completion duration/findings and failure visibility. The scanner remains a draft implementation pending CI and runtime review.
+
+The scan uses the existing web-service lifespan, not a new paid worker or external scheduler. It reads the existing RBAC registry only and makes no role assignments or policy changes.
