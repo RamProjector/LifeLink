@@ -7,7 +7,7 @@ import pytest
 from fastapi import HTTPException
 
 from app import db
-from app.admin_api import _configured_admin_ids, _correlation_id, require_admin
+from app.admin_api import _configured_admin_ids, _correlation_id, admin_identity_preflight, require_admin
 from app.security import Principal
 
 
@@ -37,6 +37,23 @@ def _request_context():
         client=None,
         headers={},
     )
+
+
+
+def test_admin_identity_preflight_returns_no_operational_data_and_audits():
+    async def check():
+        session = FakeSession()
+        result = await admin_identity_preflight(
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            x_correlation_id="mfa-enrollment-check",
+        )
+        assert result == {"authorized": True}
+        assert len(session.statements) == 2
+        assert all("INSERT INTO" in statement for statement in session.statements)
+
+    asyncio.run(check())
 
 
 def test_admin_allowlist_is_server_configured_not_user_claim(monkeypatch):
