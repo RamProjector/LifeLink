@@ -20,7 +20,7 @@ Existing components include:
 - A role/permission registry, least-privilege seed mappings, role-applicability checks, assignment-scoped RBAC-01/RBAC-02 checks, and role-scoped RBAC-03 policy integrity findings.
 - Admin UI/API surfaces for viewing alerts, sessions, audit records, users, and role assignments.
 
-The largest gaps are not missing tables. They are incomplete permission enforcement, remaining role-policy gaps for three unconfigured roles, no verified end-to-end administrator alert delivery, incomplete identity/role registry reconciliation, and lack of a complete evidence-backed acceptance run across Android and web actions.
+The largest remaining gaps are rollout and evidence: live administrator-role assignments are still absent; production runtime scanner/MFA verification is outstanding; background administrator notification delivery is not implemented; audit coverage and Android/web screen-to-route tracing still need evidence; and manual end-to-end acceptance has not been completed.
 
 ## Criteria-to-implementation matrix
 
@@ -259,7 +259,7 @@ This fallback is a migration bridge, not the target security posture. It must ha
 
 Migration 020 seeds 19 permission definitions but its visible role-permission seed statements only populate mappings for `operations_admin`, `user_admin`, `security_admin`, and `auditor`. It does not seed mappings for `super_admin`, and it does not map `roles.assign` to a role. The live database count of 19 mappings is consistent with the four least-privilege role groups, not proof that every permission has an intended grant.
 
-Before enabling per-route checks, add a reviewed permission matrix for all seven roles, explicitly decide which permission keys are intentionally unassigned, and seed the super-administrator/manager policy without making role assignment self-service. Do not infer that the super-admin role should automatically receive every permission merely from its display name.
+The seven-role policy review is now implemented in the branch: requester, donor, and super_admin have explicit zero grants from the administrative permission namespace; four administrative roles retain exact least-privilege matrices. Before enforcement, provision approved user-role assignments out of band and validate the matrices in non-production. Do not infer wildcard super-admin grants.
 
 ### Independent detector deployment finding
 
@@ -404,13 +404,13 @@ The scanner now has two distinct RBAC checks:
 - **RBAC-02 (assignment-scoped):** checks active user-role assignments for role applicability and, for the four roles with explicitly seeded mappings, missing expected grants and unexpected extra grants. This preserves per-user attribution for assignment findings.
 - **RBAC-03 (role-scoped):** reads the role registry directly and compares the permission mappings for `operations_admin`, `user_admin`, `security_admin`, and `auditor` against the exact approved matrix, even when no users are assigned to those roles. It stores findings in `lifelink_role_security_findings`, keyed by `(rule_id, role_key)`, never in the user-scoped alert `user_id` field. Evidence-sensitive occurrence updates prevent unchanged scans from inflating counts, and active findings are resolved when the mapping is restored.
 
-The policy remains deliberately incomplete for `requester`, `donor`, and `super_admin`: migration 020 does not seed their exact permission mappings, so neither RBAC-02 nor RBAC-03 invents an empty or wildcard policy for them. This leaves an explicit policy-approval gap, not an assumed violation. The role-scoped endpoint `GET /v1/admin/security/role-integrity` and the Admin Console Security alerts page expose RBAC-03 findings to existing allowlisted administrators.
+The role-policy coverage gap described in this earlier implementation note was closed in the 2026-11-28 addendum above. RBAC-02 and RBAC-03 now explicitly expect zero administrative grants for `requester`, `donor`, and `super_admin`; unexpected mappings are findings. Requester/donor product permissions remain governed by the existing application capability and ownership model. The role-scoped endpoint `GET /v1/admin/security/role-integrity` and the Admin Console Security alerts page expose RBAC-03 findings.
 
 Migration 021 defines the role-finding table, partial unique index, status index, and RLS setting. The FastAPI startup schema routine now creates the same structure idempotently, matching the existing backend-managed schema pattern. No production database write, migration application, or deployment was performed. The admin web check verifies the new page integration; backend tests cover role drift, policy restoration, unconfigured roles, and non-admin denial.
 
 RBAC-02 still writes a per-user audit event when an assigned user's permissions differ; repeated unchanged evidence does not inflate the alert occurrence count, but audit-volume behavior remains a candidate for further review. RBAC-03 currently records its finding in the role-scoped table and does not emit a per-poll audit event.
 
-Scanner health persistence and route-level permission guards have now been added in the continuation branch. The safe default remains `observe` because there are zero live user-role assignments. Administrator push/email delivery remains unimplemented; role-level monitoring still covers only the four explicitly approved policies until the remaining role policies are reviewed and approved.
+Scanner health persistence and route-level permission guards are implemented in this branch. The safe default remains `observe` because there are zero live user-role assignments. Administrator push/email delivery remains unimplemented; foreground browser notifications are the only implemented notification channel.
 
 ### FCM administrator-notification design gate
 
@@ -420,7 +420,7 @@ Do not simply call `send_push_safely` from the RBAC scanner. A safe implementati
 
 ## Scanner policy coverage boundary (2026-11-27)
 
-Migration 020 seeds permission mappings only for `operations_admin`, `user_admin`, `security_admin`, and `auditor`. RBAC-02 compares these four policies for active user-role assignments. RBAC-03 now independently compares the four role definitions and their permission mappings even when no users hold those roles. It deliberately does not infer a permission policy for `requester`, `donor`, or `super_admin` because migration 020 does not seed mappings for them.
+Migration 020 seeds permission mappings only for the four administrative roles with non-empty matrices. The 2026-11-28 implementation addendum defines explicit empty administrative-permission matrices for `requester`, `donor`, and `super_admin`; RBAC-02 and RBAC-03 now detect unexpected grants to those roles as well.
 
 Migration 021 creates a separate role-targeted findings table with an active uniqueness key of `(rule_id, role_key)`. Role identifiers are never placed in the user-scoped `lifelink_security_alerts.user_id` field. The live read-only snapshot found zero user-role assignments; RBAC-03 is designed to detect role-mapping drift despite that empty assignment table.
 
@@ -429,7 +429,7 @@ CI validation on implementation head `dcb3fbec7828fee37741d5cde65f221078d14ee9` 
 
 ## Role-level RBAC detector update (2026-11-27)
 
-The scanner now checks approved role-permission mappings independently of user assignments. Migration `021_role_policy_integrity_findings.sql` creates a dedicated role-scoped finding table, avoiding synthetic role IDs in `lifelink_security_alerts.user_id`. Rule RBAC-03 checks the four exact policies seeded by migration 020, deduplicates active findings by `(rule_id, role_key)`, changes occurrence count only when evidence changes, and resolves active findings when the mapping returns to policy. `GET /v1/admin/security/role-integrity` exposes these findings to existing allowlisted administrators.
+The scanner now checks all seven explicit role policies independently of user assignments. Migration `021_role_policy_integrity_findings.sql` creates a dedicated role-scoped finding table, avoiding synthetic role IDs in `lifelink_security_alerts.user_id`. Rule RBAC-03 deduplicates active findings by `(rule_id, role_key)`, changes occurrence count only when evidence changes, and resolves active findings when the mapping returns to policy. `GET /v1/admin/security/role-integrity` exposes these findings to existing allowlisted administrators.
 
 No policy is inferred for requester, donor, or super_admin. This detector is only as comprehensive as the explicitly reviewed policy matrix. Migration 021 has been committed to the PR, and the API startup schema routine now provisions the same table/index/RLS structure idempotently for normal deployments. No production writes or deployment occurred.
 
