@@ -2025,7 +2025,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  const url = path => API_BASE_URL + path;
  async function refreshIfNeeded() {
    if (!refreshToken || !accessTokenExpiresAt || Date.now() < accessTokenExpiresAt - 60000) return;
-   if (!refreshInFlight) refreshInFlight=window.LifeLinkAdminMFA.refreshSession({baseUrl:SUPABASE_URL,publishableKey:SUPABASE_PUBLISHABLE_KEY,refreshToken}).then(s=>{accessToken=s.accessToken;refreshToken=s.refreshToken;accessTokenExpiresAt=Date.now()+Math.max(0,s.expiresIn||0)*1000;}).finally(()=>{refreshInFlight=null;});
+   if (!refreshInFlight) {
+     const flow=mfaFlowGeneration,token=refreshToken;
+     refreshInFlight=window.LifeLinkAdminMFA.refreshSession({baseUrl:SUPABASE_URL,publishableKey:SUPABASE_PUBLISHABLE_KEY,refreshToken:token}).then(async s=>{
+       if(flow!==mfaFlowGeneration){try{await window.LifeLinkAdminMFA.signOut({...currentMfaConfig(),accessToken:s.accessToken});}catch{}return;}
+       accessToken=s.accessToken;refreshToken=s.refreshToken;accessTokenExpiresAt=Date.now()+Math.max(0,s.expiresIn||0)*1000;
+     }).finally(()=>{refreshInFlight=null;});
+   }
    await refreshInFlight;
  }
  function currentMfaConfig(){return {baseUrl:SUPABASE_URL,publishableKey:SUPABASE_PUBLISHABLE_KEY,accessToken};}
@@ -2088,6 +2094,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
    finally{$("recovery-submit").disabled=false;}
  }
  async function signIn() {
+   mfaFlowGeneration++;
    if(!$("email").value.trim()||!$("password").value){message("login-message","Enter your email and password.",true);return;}
    $("signin").disabled=true;message("login-message","Signing in…");
    try {
