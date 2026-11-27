@@ -443,7 +443,7 @@ async def admin_security_alerts(
 ):
     # A correlation-filtered read must not create a new RBAC occurrence first:
     # doing so would replace the stored alert correlation ID before the filter runs.
-    if not correlation_id:
+    if correlation_id is None:
         await _scan_rbac_discrepancies(session, principal, request)
     result = await session.execute(
         text(
