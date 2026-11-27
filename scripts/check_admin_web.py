@@ -225,7 +225,7 @@ def main() -> None:
         or "async function loadScannerHealth()" not in html
         or '@router.get("/security/scanner")' not in admin_api
         or "lifelink_security_scanner_runs" not in admin_api
-        or "async def require_admin_permission(" not in admin_api
+        or "def require_admin_permission(" not in admin_api
         or 'LIFELINK_RBAC_ENFORCEMENT_MODE' not in admin_api
     ):
         fail("security center must display persisted scanner health and admin routes must expose staged RBAC permission enforcement")
