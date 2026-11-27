@@ -37,6 +37,7 @@ import com.lifelink.app.core.auth.SupabaseMfaEnrollment
 import com.lifelink.app.core.auth.SupabaseMfaFactor
 import com.lifelink.app.data.remote.AdminMfaEventRequest
 import com.lifelink.app.data.remote.LifeLinkApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private fun verifiedTotpFactors(factors: List<SupabaseMfaFactor>): List<SupabaseMfaFactor> =
@@ -49,6 +50,7 @@ private enum class AdminMfaStep {
     VERIFY_ENROLLMENT,
     CHALLENGE,
     AUDIT_PENDING,
+    CONFIRM_ACCESS,
 }
 
 @Suppress("LongMethod", "CyclomaticComplexMethod")
@@ -77,23 +79,39 @@ fun AdminMfaGateScreen(
     val verifiedFactors = verifiedTotpFactors(factors)
 
     suspend fun confirmAdminAccess() {
-        val response = api.adminMe()
-        if (response.isSuccessful && response.body()?.isAdmin == true) {
-            onVerified()
-        } else {
-            error = "Authenticator verification succeeded, but administrator access could not be confirmed. " +
-                "Sign out and contact the system owner if this continues."
+        step = AdminMfaStep.CONFIRM_ACCESS
+        try {
+            val response = api.adminMe()
+            if (response.isSuccessful && response.body()?.isAdmin == true) {
+                error = null
+                onVerified()
+            } else {
+                error = "Authenticator verification succeeded, but administrator access could not be confirmed. " +
+                    "Retry or contact the system owner if this continues."
+            }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (exception: Exception) {
+            error = "Authenticator verification succeeded, but LifeLink could not confirm admin access. Retry."
         }
     }
 
     suspend fun recordPendingAudit() {
         val eventType = pendingAuditType ?: return
-        val response = api.adminMfaEvent(
-            AdminMfaEventRequest(
-                eventType = eventType,
-                verifiedFactorCount = pendingAuditCount,
-            ),
-        )
+        val response = try {
+            api.adminMfaEvent(
+                AdminMfaEventRequest(
+                    eventType = eventType,
+                    verifiedFactorCount = pendingAuditCount,
+                ),
+            )
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (exception: Exception) {
+            step = AdminMfaStep.AUDIT_PENDING
+            error = "Your authenticator is verified, but LifeLink could not save its security audit receipt. Retry."
+            return
+        }
         if (!response.isSuccessful) {
             step = AdminMfaStep.AUDIT_PENDING
             error = "Your authenticator is verified, but LifeLink could not save its security audit receipt. Retry before continuing."
@@ -322,6 +340,26 @@ fun AdminMfaGateScreen(
                             )
                             Button(onClick = ::verifyCode, enabled = !busy && selectedFactorId.isNotBlank() && code.length == 6) {
                                 Text("Verify and continue")
+                            }
+                        }
+                    }
+                }
+                AdminMfaStep.CONFIRM_ACCESS -> {
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Confirming administrator access", style = MaterialTheme.typography.titleMedium)
+                            Text("Your authenticator is verified. LifeLink is checking the server-side administrator session.")
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        busy = true
+                                        confirmAdminAccess()
+                                        busy = false
+                                    }
+                                },
+                                enabled = !busy,
+                            ) {
+                                Text("Retry access check")
                             }
                         }
                     }
