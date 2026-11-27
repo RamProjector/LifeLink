@@ -849,19 +849,15 @@ def test_rbac_scanner_runs_without_http_request_context():
     assert "FROM lifelink_user_roles ur" in session.statements[0]
 
 def test_rbac_permission_policy_detects_missing_and_unexpected_grants():
-    # This matrix mirrors only the four explicit role mappings in migration 020.
-    approved = {
-        "operations_admin": {"dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"},
-        "user_admin": {"dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"},
-        "security_admin": {"dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"},
-        "auditor": {"dashboard.read", "audit.read", "reports.read"},
-    }
-    actual = {"dashboard.read", "users.read", "unexpected.permission"}
-    expected = approved["operations_admin"]
-    assert sorted(expected - actual) == ["operations.read", "reports.read", "requests.read"]
-    assert sorted(actual - expected) == ["unexpected.permission"]
-    # These roles are intentionally not assigned an assumed empty or wildcard policy.
-    assert "requester" not in approved
-    assert "donor" not in approved
-    assert "super_admin" not in approved
+    from app.admin_api import _rbac_permission_mismatch
 
+    actual = {"dashboard.read", "users.read", "unexpected.permission"}
+    assert _rbac_permission_mismatch("operations_admin", actual) == (
+        ["operations.read", "reports.read", "requests.read"],
+        ["unexpected.permission"],
+    )
+    assert _rbac_permission_mismatch("auditor", {"dashboard.read", "audit.read", "reports.read"}) == ([], [])
+    # These roles are intentionally not assigned an assumed empty or wildcard policy.
+    assert _rbac_permission_mismatch("requester", set()) is None
+    assert _rbac_permission_mismatch("donor", set()) is None
+    assert _rbac_permission_mismatch("super_admin", set()) is None
