@@ -380,6 +380,23 @@ async def admin_update_user(
     return {"user_id": row.user_id, "role": payload.role, "can_request": row.can_request, "can_donate": row.can_donate}
 
 
+# Exact grants explicitly seeded by migration 020. Roles without a reviewed
+# matrix are deliberately excluded until their intended policy is approved.
+RBAC_APPROVED_PERMISSION_MATRIX = {
+    "operations_admin": frozenset({"dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"}),
+    "user_admin": frozenset({"dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"}),
+    "security_admin": frozenset({"dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"}),
+    "auditor": frozenset({"dashboard.read", "audit.read", "reports.read"}),
+}
+
+
+def _rbac_permission_mismatch(role_key: str, actual_permissions: set[str]) -> tuple[list[str], list[str]] | None:
+    expected = RBAC_APPROVED_PERMISSION_MATRIX.get(role_key)
+    if expected is None:
+        return None
+    return sorted(expected - actual_permissions), sorted(actual_permissions - expected)
+
+
 async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, request: Request | None) -> int:
     """Detect inapplicable roles and permission grants outside the approved role policy."""
     result = await session.execute(text(
@@ -395,15 +412,6 @@ async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, 
         "WHERE ur.expires_at IS NULL OR ur.expires_at > now() "
         "GROUP BY ur.user_id, r.role_key, p.can_request, p.can_donate"
     ))
-    # Exact policy is defined only for the four roles seeded with mappings in
-    # migration 020. requester, donor, and super_admin are intentionally
-    # unconfigured here; do not infer empty or all-powerful grants for them.
-    approved_permission_matrix = {
-        "operations_admin": {"dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"},
-        "user_admin": {"dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"},
-        "security_admin": {"dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"},
-        "auditor": {"dashboard.read", "audit.read", "reports.read"},
-    }
     count = 0
     correlation_id = _correlation_id(request.headers.get("x-correlation-id")) if request else None
     for row in result.mappings().all():
@@ -413,11 +421,9 @@ async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, 
         if reason:
             await _record_rbac_mismatch(session, principal, request, user_id, role_key, reason, correlation_id)
             count += 1
-        expected_permissions = approved_permission_matrix.get(role_key)
-        if expected_permissions is not None:
-            actual_permissions = set(row["permissions"] or [])
-            missing = sorted(expected_permissions - actual_permissions)
-            unexpected = sorted(actual_permissions - expected_permissions)
+        permission_mismatch = _rbac_permission_mismatch(role_key, set(row["permissions"] or []))
+        if permission_mismatch is not None:
+            missing, unexpected = permission_mismatch
             if missing or unexpected:
                 await _write_audit(session, principal.subject, "security.rbac.permission_mismatch", request=request,
                     session_id=principal.session_id, outcome="denied", target_type="user", target_id=user_id,
