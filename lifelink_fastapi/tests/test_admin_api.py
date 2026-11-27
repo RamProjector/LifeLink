@@ -477,6 +477,8 @@ def test_startup_adds_admin_audit_columns_and_indexes(monkeypatch):
     assert "CREATE TABLE IF NOT EXISTS lifelink_role_security_findings" in statements
     assert "ux_lifelink_role_security_findings_open_rule_role" in statements
     assert "ALTER TABLE lifelink_role_security_findings ENABLE ROW LEVEL SECURITY" in statements
+    assert "CREATE TABLE IF NOT EXISTS lifelink_security_scanner_runs" in statements
+    assert "ALTER TABLE lifelink_security_scanner_runs ENABLE ROW LEVEL SECURITY" in statements
 
 
 from app.admin_api import _safe_audit_metadata
@@ -1384,5 +1386,83 @@ def test_admin_permission_guard_fails_closed_on_invalid_mode(monkeypatch):
                 session=FakeSession([0, 2]),
             )
         assert error.value.status_code == 503
+
+    asyncio.run(check())
+
+
+
+def test_admin_scanner_health_returns_persisted_status_without_error_details(monkeypatch):
+    from app import admin_api
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def first(self):
+            return {
+                "scanner_key": "rbac",
+                "status": "failed",
+                "last_findings": 3,
+                "consecutive_failures": 2,
+                "last_error_code": "scan_failed",
+            }
+
+    class Session(FakeSession):
+        async def execute(self, statement, params=None):
+            self.statements.append(str(statement))
+            return Rows()
+
+    async def no_audit(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(admin_api, "_write_audit", no_audit)
+    session = Session()
+
+    async def check():
+        result = await admin_api.admin_security_scanner_health(
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+        )
+        assert result["status"] == "failed"
+        assert result["last_findings"] == 3
+        assert result["consecutive_failures"] == 2
+        assert result["last_error_code"] == "scan_failed"
+        assert "exception" not in result
+        assert "SELECT scanner_key, status" in session.statements[0]
+
+    asyncio.run(check())
+
+
+def test_admin_scanner_health_reports_never_run_when_no_status_exists(monkeypatch):
+    from app import admin_api
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def first(self):
+            return None
+
+    class Session(FakeSession):
+        async def execute(self, statement, params=None):
+            self.statements.append(str(statement))
+            return Rows()
+
+    async def no_audit(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(admin_api, "_write_audit", no_audit)
+
+    async def check():
+        result = await admin_api.admin_security_scanner_health(
+            request=_request_context(),
+            session=Session(),
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+        )
+        assert result == {
+            "scanner_key": "rbac", "status": "never_run", "last_findings": 0,
+            "consecutive_failures": 0, "last_error_code": None,
+        }
 
     asyncio.run(check())
