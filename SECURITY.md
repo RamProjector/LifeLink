@@ -11,6 +11,13 @@ LifeLink is a coordination platform. Treat account identifiers, contact details,
 - Public application tables have Row Level Security enabled. Some backend-only tables intentionally have no client policies; their `anon` and `authenticated` table grants must remain absent. Recheck actual grants and policies after schema changes rather than adding broad policies to silence advisor notices.
 - Keep database access least-privileged, use HTTPS, maintain backups and retention, and review audit and security alerts regularly.
 
+
+## Administrator MFA rollout status
+
+Admin TOTP enrollment and sign-in challenge are being developed in draft PR #225, and verified JWT assurance-claim capture is in draft PR #224. Neither draft is merged or deployed. The current backend admin authorization still relies on verified Supabase JWTs, verified-email checks where available, the server-managed UUID allowlist, active-session checks, and revocation; **it does not yet require AAL2 on every admin endpoint**. A browser-side AAL2 check is not a substitute for backend enforcement. Do not describe the production admin API as MFA-enforced until the backend gate and recovery procedure are implemented, tested, reviewed, and explicitly rolled out.
+
+The planned web flow requires two verified TOTP factors, with the backup stored separately. Supabase does not provide standard TOTP recovery codes; losing every verified factor can permanently prevent sign-in unless a separately approved operator recovery procedure exists. Never add a service-role key, TOTP secret, OTP, or access/refresh token to browser or Android code, source control, or logs.
+
 ## Android session storage
 
 - Persisted Supabase access and refresh tokens are encrypted with AES-256-GCM. The encryption key is generated and retained by Android Keystore; preferences contain ciphertext and the per-encryption IV only.
