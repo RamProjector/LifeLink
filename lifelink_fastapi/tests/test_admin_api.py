@@ -1474,28 +1474,28 @@ def test_admin_routes_declare_the_expected_permission_matrix():
     from app.admin_api import router
 
     expected = {
-        "/v1/admin/me": "dashboard.read",
-        "/v1/admin/dashboard": "dashboard.read",
-        "/v1/admin/users": "users.read",
-        "/v1/admin/users/{user_id}": "users.update",
-        "/v1/admin/security/role-integrity": "audit.read",
-        "/v1/admin/security/scanner": "security.alerts.read",
-        "/v1/admin/security/alerts": "security.alerts.read",
-        "/v1/admin/security/alerts/{alert_id}": "security.alerts.manage",
-        "/v1/admin/sessions": "security.sessions.read",
-        "/v1/admin/sessions/{session_id}/revoke": "security.sessions.revoke",
-        "/v1/admin/audit": "audit.read",
-        "/v1/admin/errors": "audit.read",
-        "/v1/admin/roles": "roles.read",
-        "/v1/admin/users/{user_id}/roles": "roles.read",
+        ("GET", "/v1/admin/me"): "dashboard.read",
+        ("GET", "/v1/admin/dashboard"): "dashboard.read",
+        ("GET", "/v1/admin/users"): "users.read",
+        ("PATCH", "/v1/admin/users/{user_id}"): "users.update",
+        ("GET", "/v1/admin/security/role-integrity"): "audit.read",
+        ("GET", "/v1/admin/security/scanner"): "security.alerts.read",
+        ("GET", "/v1/admin/security/alerts"): "security.alerts.read",
+        ("PATCH", "/v1/admin/security/alerts/{alert_id}"): "security.alerts.manage",
+        ("GET", "/v1/admin/sessions"): "security.sessions.read",
+        ("POST", "/v1/admin/sessions/{session_id}/revoke"): "security.sessions.revoke",
+        ("GET", "/v1/admin/audit"): "audit.read",
+        ("GET", "/v1/admin/errors"): "audit.read",
+        ("GET", "/v1/admin/roles"): "roles.read",
+        ("GET", "/v1/admin/users/{user_id}/roles"): "roles.read",
     }
     actual = {}
     for route in router.routes:
-        if route.path not in expected:
-            continue
-        guard = next(
-            dependency.call for dependency in route.dependant.dependencies
-            if dependency.call.__name__ == "require_admin"
-        )
-        actual[route.path] = getattr(guard, "permission_key", None)
+        route_keys = {(method, route.path) for method in getattr(route, "methods", set())}
+        for route_key in route_keys.intersection(expected):
+            guard = next(
+                dependency.call for dependency in route.dependant.dependencies
+                if dependency.call.__name__ == "require_admin"
+            )
+            actual[route_key] = getattr(guard, "permission_key", None)
     assert actual == expected
