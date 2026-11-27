@@ -94,6 +94,26 @@ def main() -> None:
     if 'name="referrer" content="no-referrer"' not in html or 'name="robots" content="noindex,nofollow"' not in html:
         fail("admin console must prevent referrer leakage and search indexing")
 
+    if (
+        "body:has(#login-view:not(.hidden))" not in html
+        or " > .top { display: none; }" not in html
+        or "width: min(100%, 480px)" not in html
+    ):
+        fail("login and password recovery must use a centered authentication surface without workspace navigation")
+
+    if (
+        'id="page-title" tabindex="-1"' not in html
+        or 'if(previousPage!==page){$("page-title").focus({preventScroll:true});window.scrollTo(0,0);}' not in html
+    ):
+        fail("admin section navigation must restore the page start and focus its heading")
+
+    if (
+        "function table(items, cols, options={})" not in html
+        or "options.disableLocalStatusFilter?null:" not in html
+        or "],{disableLocalStatusFilter:true});" not in html
+    ):
+        fail("security alerts must not duplicate their server-side status filter with a page-local filter")
+
     duplicates = [key for key, count in Counter(parser.ids).items() if count > 1]
     if duplicates:
         fail("duplicate HTML id attributes: " + ", ".join(sorted(duplicates)))
