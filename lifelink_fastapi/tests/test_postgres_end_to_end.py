@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi import Depends
+from starlette.requests import Request
 
 pgserver = pytest.importorskip("pgserver")
 
@@ -24,7 +25,7 @@ import httpx
 from sqlalchemy import event, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app import db_models, main_postgres
+from app import admin_api, db_models, main_postgres
 from app.db import get_db_session
 from app.main_postgres import app
 from app.security import Principal, get_postgres_principal
@@ -1109,3 +1110,247 @@ def test_startup_upgrade_adds_requester_location_source_to_existing_schema(pg_ur
 
     asyncio.run(scenario())
 
+
+
+
+def test_admin_session_correlation_filter_matches_revocation_target(pg_url, monkeypatch):
+    """A revocation correlation must return the revoked target session, not its actor."""
+
+    async def scenario(client, current, run_sql):
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        engine = create_async_engine(pg_url)
+        async with engine.begin() as connection:
+            # The admin audit columns are additive startup migrations and are
+            # intentionally installed here to exercise the production query.
+            await connection.execute(text(
+                "ALTER TABLE audit_events "
+                "ADD COLUMN IF NOT EXISTS session_id VARCHAR(128), "
+                "ADD COLUMN IF NOT EXISTS timestamp TIMESTAMPTZ NOT NULL DEFAULT now(), "
+                "ADD COLUMN IF NOT EXISTS target_type VARCHAR(64), "
+                "ADD COLUMN IF NOT EXISTS target_id VARCHAR(128), "
+                "ADD COLUMN IF NOT EXISTS correlation_id VARCHAR(80)"
+            ))
+            await connection.execute(text(
+                "INSERT INTO lifelink_user_sessions "
+                "(session_id, user_id, device_used, status) VALUES "
+                "('admin-session-pg-test', 'admin-user', 'test', 'active'), "
+                "('revoked-session-pg-test', 'target-user', 'test', 'revoked')"
+            ))
+            await connection.execute(text(
+                "INSERT INTO audit_events "
+                "(id, actor_id, action, metadata, created_at, session_id, timestamp, "
+                "target_type, target_id, correlation_id) "
+                "VALUES (:id, 'admin-user', 'admin.session.revoke', '{}'::json, now(), "
+                "'admin-session-pg-test', now(), 'user_session', "
+                "'revoked-session-pg-test', 'revoke-correlation-pg-test')"
+            ), {"id": "audit-revoke-correlation-pg-test"})
+
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+
+        async def skip_list_audit(*args, **kwargs):
+            return None
+
+        monkeypatch.setattr(admin_api, "_write_audit", skip_list_audit)
+        request = Request({
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": "/v1/admin/sessions",
+            "raw_path": b"/v1/admin/sessions",
+            "query_string": b"correlation_id=revoke-correlation-pg-test",
+            "headers": [],
+            "client": ("127.0.0.1", 12345),
+            "server": ("testserver", 80),
+        })
+        async with sessions() as db_session:
+            response = await admin_api.admin_list_sessions(
+                request=request,
+                session=db_session,
+                principal=Principal(
+                    subject="admin-user",
+                    email="admin@example.com",
+                    session_id="admin-session-pg-test",
+                ),
+                limit=50,
+                offset=0,
+                correlation_id="revoke-correlation-pg-test",
+                x_correlation_id="list-correlation-pg-test",
+            )
+
+        assert [item["session_id"] for item in response["items"]] == [
+            "revoked-session-pg-test"
+        ]
+        assert response["items"][0]["last_correlation_id"] == (
+            "revoke-correlation-pg-test"
+        )
+        await engine.dispose()
+
+    run_scenario(pg_url, scenario)
+
+
+
+def test_admin_security_alert_correlation_filter_matches_persisted_alert(pg_url, monkeypatch):
+    """The alert filter must find the persisted alert by its stored correlation ID."""
+
+    async def scenario(client, current, run_sql):
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        engine = create_async_engine(pg_url)
+        async with engine.begin() as connection:
+            await connection.execute(text(
+                "CREATE TABLE lifelink_security_alerts ("
+                "id UUID PRIMARY KEY DEFAULT gen_random_uuid(), "
+                "rule_id VARCHAR(64) NOT NULL, severity VARCHAR(16) NOT NULL, "
+                "status VARCHAR(20) NOT NULL, user_id VARCHAR(128) NOT NULL, "
+                "session_id VARCHAR(128), summary TEXT NOT NULL, "
+                "evidence JSONB NOT NULL DEFAULT '{}'::jsonb, "
+                "occurrences INTEGER NOT NULL DEFAULT 1, "
+                "created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+                "last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+                "acknowledged_at TIMESTAMPTZ, acknowledged_by VARCHAR(128), "
+                "resolved_at TIMESTAMPTZ, resolved_by VARCHAR(128), "
+                "correlation_id VARCHAR(80))"
+            ))
+            await connection.execute(text(
+                "INSERT INTO lifelink_security_alerts "
+                "(rule_id, severity, status, user_id, session_id, summary, evidence, correlation_id) "
+                "VALUES ('AUTH-TEST', 'high', 'open', 'target-user', "
+                "'target-session-pg-test', 'Test alert', '{}'::jsonb, "
+                "'alert-correlation-pg-test')"
+            ))
+
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+
+        async def skip_alert_audit(*args, **kwargs):
+            return None
+
+        async def skip_rbac_scan(*args, **kwargs):
+            return None
+
+        monkeypatch.setattr(admin_api, "_write_audit", skip_alert_audit)
+        monkeypatch.setattr(admin_api, "_scan_rbac_discrepancies", skip_rbac_scan)
+        request = Request({
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": "/v1/admin/security/alerts",
+            "raw_path": b"/v1/admin/security/alerts",
+            "query_string": b"correlation_id=alert-correlation-pg-test",
+            "headers": [],
+            "client": ("127.0.0.1", 12345),
+            "server": ("testserver", 80),
+        })
+        async with sessions() as db_session:
+            response = await admin_api.admin_security_alerts(
+                request=request,
+                session=db_session,
+                principal=Principal(
+                    subject="admin-user",
+                    email="admin@example.com",
+                    session_id="admin-session-pg-test",
+                ),
+                limit=50,
+                offset=0,
+                alert_status=None,
+                correlation_id="alert-correlation-pg-test",
+                x_correlation_id="list-alerts-correlation-pg-test",
+            )
+
+        assert len(response["items"]) == 1
+        assert response["items"][0]["rule_id"] == "AUTH-TEST"
+        assert response["items"][0]["correlation_id"] == (
+            "alert-correlation-pg-test"
+        )
+        await engine.dispose()
+
+    run_scenario(pg_url, scenario)
+
+
+
+def test_security_alert_upsert_refreshes_latest_correlation_id(pg_url, monkeypatch):
+    """A repeated finding must expose the correlation ID of its latest occurrence."""
+
+    async def scenario(client, current, run_sql):
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        engine = create_async_engine(pg_url)
+        async with engine.begin() as connection:
+            await connection.execute(text(
+                "ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS timestamp TIMESTAMPTZ"
+            ))
+            await connection.execute(text(
+                "CREATE TABLE lifelink_security_alerts ("
+                "id UUID PRIMARY KEY DEFAULT gen_random_uuid(), "
+                "rule_id VARCHAR(64) NOT NULL, severity VARCHAR(16) NOT NULL, "
+                "status VARCHAR(20) NOT NULL, user_id VARCHAR(128) NOT NULL, "
+                "session_id VARCHAR(128), summary TEXT NOT NULL, "
+                "evidence JSONB NOT NULL DEFAULT '{}'::jsonb, "
+                "occurrences INTEGER NOT NULL DEFAULT 1, "
+                "created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+                "last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+                "acknowledged_at TIMESTAMPTZ, acknowledged_by VARCHAR(128), "
+                "resolved_at TIMESTAMPTZ, resolved_by VARCHAR(128), "
+                "correlation_id VARCHAR(80))"
+            ))
+            await connection.execute(text(
+                "CREATE UNIQUE INDEX ux_test_security_alert_active "
+                "ON lifelink_security_alerts (rule_id, user_id) "
+                "WHERE status IN ('open', 'acknowledged', 'investigating')"
+            ))
+            await connection.execute(text(
+                "INSERT INTO audit_events (id, actor_id, action, metadata, timestamp) "
+                "VALUES ('alert-upsert-count-row', 'alert-user', "
+                "'security.admin_access.denied', '{}'::json, now())"
+            ))
+
+        async def skip_audit(*args, **kwargs):
+            return None
+
+        monkeypatch.setattr(admin_api, "_write_audit", skip_audit)
+        sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        principal = Principal(
+            subject="alert-user",
+            email="alert-user@example.com",
+            session_id="alert-session-pg-test",
+        )
+
+        for correlation in ("alert-first-correlation", "alert-latest-correlation"):
+            request = Request({
+                "type": "http",
+                "http_version": "1.1",
+                "method": "GET",
+                "scheme": "http",
+                "path": "/v1/admin/test",
+                "raw_path": b"/v1/admin/test",
+                "query_string": b"",
+                "headers": [(b"x-correlation-id", correlation.encode())],
+                "client": ("127.0.0.1", 12345),
+                "server": ("testserver", 80),
+            })
+            async with sessions() as db_session:
+                await admin_api._record_denied_admin_attempt(
+                    db_session,
+                    principal,
+                    request,
+                    rule_id="IDS-TEST",
+                    action="security.admin_access.denied",
+                    severity="high",
+                    threshold=1,
+                    summary="Repeated test finding",
+                )
+
+        async with sessions() as db_session:
+            result = await db_session.execute(text(
+                "SELECT occurrences, correlation_id FROM lifelink_security_alerts "
+                "WHERE rule_id = 'IDS-TEST' AND user_id = 'alert-user'"
+            ))
+            row = result.mappings().one()
+            assert row["occurrences"] == 2
+            assert row["correlation_id"] == "alert-latest-correlation"
+
+        await engine.dispose()
+
+    run_scenario(pg_url, scenario)

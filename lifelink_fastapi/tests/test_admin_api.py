@@ -451,8 +451,11 @@ def test_admin_audit_query_explicitly_types_nullable_action_filter():
     assert "correlation_id = CAST(:correlation_id AS varchar)" in audit_query
 
 
-@pytest.mark.parametrize("alert_status", [None, "open"])
-def test_security_alert_query_explicitly_types_nullable_status_filter(monkeypatch, alert_status):
+@pytest.mark.parametrize(
+    ("alert_status", "correlation_id"),
+    [(None, None), ("open", "web:alert-123")],
+)
+def test_security_alert_query_explicitly_types_nullable_filters(monkeypatch, alert_status, correlation_id):
     from app import admin_api
 
     class EmptyRows:
@@ -468,6 +471,7 @@ def test_security_alert_query_explicitly_types_nullable_status_filter(monkeypatc
             self.statements.append(sql)
             if "FROM lifelink_security_alerts" in sql:
                 assert params["status"] == alert_status
+                assert params["correlation_id"] == correlation_id
                 return EmptyRows()
             return None
 
@@ -489,6 +493,8 @@ def test_security_alert_query_explicitly_types_nullable_status_filter(monkeypatc
             limit=50,
             offset=0,
             alert_status=alert_status,
+            correlation_id=correlation_id,
+            x_correlation_id="web:alerts-list",
         )
         assert response["items"] == []
 
@@ -496,6 +502,8 @@ def test_security_alert_query_explicitly_types_nullable_status_filter(monkeypatc
     alert_query = next(statement for statement in session.statements if "FROM lifelink_security_alerts" in statement)
     assert "CAST(:status AS varchar) IS NULL" in alert_query
     assert "status = CAST(:status AS varchar)" in alert_query
+    assert "CAST(:correlation_id AS varchar) IS NULL" in alert_query
+    assert "correlation_id = CAST(:correlation_id AS varchar)" in alert_query
 
 
 @pytest.mark.parametrize("correlation_id", [None, "web:error-123"])
@@ -542,3 +550,174 @@ def test_admin_errors_query_explicitly_types_nullable_correlation_filter(monkeyp
     )
     assert "CAST(:correlation_id AS varchar) IS NULL" in error_query
     assert "correlation_id = CAST(:correlation_id AS varchar)" in error_query
+
+
+@pytest.mark.parametrize("correlation_id", [None, "web:session-123"])
+def test_admin_sessions_query_exposes_and_filters_related_correlation(monkeypatch, correlation_id):
+    from app import admin_api
+
+    class EmptyRows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class SessionQuerySession(FakeSession):
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            self.statements.append(sql)
+            if "FROM lifelink_user_sessions s" in sql:
+                assert params["correlation_id"] == correlation_id
+                return EmptyRows()
+            return None
+
+    async def no_audit(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(admin_api, "_write_audit", no_audit)
+    session = SessionQuerySession()
+
+    async def check():
+        response = await admin_api.admin_list_sessions(
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            limit=50,
+            offset=0,
+            correlation_id=correlation_id,
+            x_correlation_id="web:sessions-list",
+        )
+        assert response["items"] == []
+
+    asyncio.run(check())
+    query = next(statement for statement in session.statements if "FROM lifelink_user_sessions s" in statement)
+    assert "COALESCE(matched.correlation_id, latest.correlation_id) AS last_correlation_id" in query
+    assert "LEFT JOIN LATERAL" in query
+    assert "CAST(:correlation_id AS varchar) IS NULL" in query
+    assert "ae.correlation_id = CAST(:correlation_id AS varchar)" in query
+    assert "ae.target_type = 'user_session'" in query
+    assert "ae.target_id = CAST(s.session_id AS varchar)" in query
+    assert "matched.correlation_id IS NOT NULL" in query
+    assert "COALESCE(matched.correlation_id, latest.correlation_id)" in query
+
+
+def test_security_alert_status_change_audit_uses_request_correlation(monkeypatch):
+    from app import admin_api
+
+    class UpdatedRow:
+        def mappings(self):
+            return self
+
+        def first(self):
+            return {"id": "alert-1", "rule_id": "IDS-03", "status": "resolved"}
+
+    class AlertUpdateSession(FakeSession):
+        async def execute(self, statement, params=None):
+            self.statements.append(str(statement))
+            return UpdatedRow()
+
+    recorded = {}
+
+    async def capture_audit(*args, **kwargs):
+        recorded.update(kwargs)
+
+    monkeypatch.setattr(admin_api, "_write_audit", capture_audit)
+    session = AlertUpdateSession()
+
+    async def check():
+        response = await admin_api.admin_update_security_alert(
+            alert_id="alert-1",
+            payload=admin_api.AdminAlertUpdate(status="resolved"),
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            x_correlation_id="web:alert-close",
+        )
+        assert response == {"id": "alert-1", "rule_id": "IDS-03", "status": "resolved"}
+
+    asyncio.run(check())
+    assert recorded["correlation_id"] == "web:alert-close"
+    assert recorded["target_id"] == "alert-1"
+
+def test_security_alert_correlation_filter_does_not_mutate_alerts(monkeypatch):
+    """Filtering must not run the RBAC scan that refreshes active alert correlations."""
+    from app.admin_api import admin_security_alerts
+
+    class EmptyRows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class Session:
+        async def execute(self, statement, params=None):
+            return EmptyRows()
+
+        async def commit(self):
+            return None
+
+    scan_calls = 0
+
+    async def scan(session, principal, request):
+        nonlocal scan_calls
+        scan_calls += 1
+        return 0
+
+    audit_filter_flags = []
+
+    async def write_audit(*args, **kwargs):
+        audit_filter_flags.append(kwargs["metadata"]["correlation_filtered"])
+
+    monkeypatch.setattr("app.admin_api._scan_rbac_discrepancies", scan)
+    monkeypatch.setattr("app.admin_api._write_audit", write_audit)
+
+    async def check():
+        request = _request_context()
+        principal = Principal(subject="admin-1", session_id="admin-session")
+        filtered = await admin_security_alerts(
+            request=request,
+            session=Session(),
+            principal=principal,
+            limit=50,
+            offset=0,
+            alert_status=None,
+            correlation_id="previous-alert-correlation",
+            x_correlation_id="filter-request-correlation",
+        )
+        assert filtered["items"] == []
+        assert scan_calls == 0
+        assert audit_filter_flags == [True]
+
+        # An explicitly empty filter is still a filtered read: it must not
+        # trigger a mutating RBAC scan before the SQL filter returns no matches.
+        empty_filtered = await admin_security_alerts(
+            request=request,
+            session=Session(),
+            principal=principal,
+            limit=50,
+            offset=0,
+            alert_status=None,
+            correlation_id="",
+            x_correlation_id="empty-filter-request-correlation",
+        )
+        assert empty_filtered["items"] == []
+        assert scan_calls == 0
+        assert audit_filter_flags == [True, True]
+
+        await admin_security_alerts(
+            request=request,
+            session=Session(),
+            principal=principal,
+            limit=50,
+            offset=0,
+            alert_status=None,
+            correlation_id=None,
+            x_correlation_id="unfiltered-request-correlation",
+        )
+        assert scan_calls == 1
+        assert audit_filter_flags == [True, True, False]
+
+    asyncio.run(check())
+

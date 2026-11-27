@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-bkWfE/zDDbLmE0NUhP7xnp0piaFFjbTgXU8K/EfJlfE='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-pOD1FAsVjGWyeQuAnTf1LrTDf7ifaXTCIqqX6Cnto/4='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -93,7 +93,7 @@ a.link:hover { text-decoration: underline; }
   outline: 2px solid var(--focus-ring) !important;
   outline-offset: 3px;
 }
-input, select, #alert-status-filter {
+input, select, #alert-status-filter, #sessions-correlation-filter, #alerts-correlation-filter {
   width: 100%;
   min-height: 38px;
   padding: 8px 11px;
@@ -102,7 +102,7 @@ input, select, #alert-status-filter {
   background: var(--surface);
   color: var(--ink);
 }
-input:focus, select:focus, #alert-status-filter:focus {
+input:focus, select:focus, #alert-status-filter:focus, #sessions-correlation-filter:focus, #alerts-correlation-filter:focus {
   border-color: #a77d39;
   outline: 3px solid rgba(181,138,67,.22);
 }
@@ -880,7 +880,7 @@ tbody tr:last-child td { border-bottom: 0; }
   .table-actions { width: 100%; justify-content: space-between; }
   .table-count { width: auto; }
   #page-alerts .table-toolbar { align-items: stretch; flex-wrap: wrap; }
-  #alert-status-filter { width: 100%; }
+  #alert-status-filter, #sessions-correlation-filter, #alerts-correlation-filter { width: 100%; min-width: 0; }
   #alerts-table .actions { min-width: 0; }
   #alerts-table .actions button { flex: 1 1 42%; }
 }
@@ -972,7 +972,7 @@ button.secondary {
 }
 button.secondary:hover { border-color: var(--md-primary); background: rgba(52,58,52,.07); }
 button:focus-visible { outline: 2px solid var(--focus-ring) !important; outline-offset: 2px; }
-input, select, #alert-status-filter {
+input, select, #alert-status-filter, #sessions-correlation-filter, #alerts-correlation-filter {
   min-height: 40px;
   border-color: var(--md-outline);
   border-radius: var(--md-shape-small);
@@ -980,7 +980,7 @@ input, select, #alert-status-filter {
   font-size: 13px;
 }
 input:hover, select:hover { border-color: var(--ink-soft); }
-input:focus, select:focus, #alert-status-filter:focus {
+input:focus, select:focus, #alert-status-filter:focus, #sessions-correlation-filter:focus, #alerts-correlation-filter:focus {
   border-color: var(--md-primary);
   outline: 2px solid var(--focus-ring);
 }
@@ -1144,7 +1144,7 @@ tbody tr:hover { background: #f0eee7; }
   #page-alerts .severity-key { justify-content: flex-start; }
   #page-alerts .alerts-toolbar { align-items: stretch; }
   #page-alerts .alerts-toolbar label { margin: 0; }
-  #page-alerts #alert-status-filter { width: 100%; min-width: 0; }
+  #page-alerts #alert-status-filter, #page-alerts #alerts-correlation-filter { width: 100%; min-width: 0; }
   #page-alerts .alerts-toolbar > span { flex-basis: 100%; }
   #alerts-table td:last-child .actions { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
@@ -1390,12 +1390,13 @@ th { font-size: 11px; line-height: 1.4; }
  <section id="page-sessions" aria-labelledby="page-title" class="panel hidden">
   <div class="sessions-heading"><div><p class="muted small">Review protected API sessions, device context, activity, and expiry. Revocation blocks subsequent protected requests.</p></div><span class="snapshot-kind">Access control</span></div>
   <div class="sessions-guidance"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><span class="small">Only revoke a session when you have verified the account and session context. Revocation cannot be undone from this screen.</span></div>
+  <div class="table-toolbar sessions-toolbar"><label class="small" for="sessions-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="sessions-correlation-filter" type="search" maxlength="80" placeholder="Filter related session activity" autocomplete="off"></div></div>
   <div id="sessions-table" class="tablewrap" aria-live="polite"><div class="empty">Select Sessions to load records.</div></div>
   <div class="actions sessions-pagination"><button id="sessions-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="sessions-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="sessions-page" class="muted small" aria-live="polite"></span></div>
  </section>
  <section id="page-alerts" aria-labelledby="page-title" class="panel hidden">
   <div class="alerts-intro"><div><p class="muted small">Incidents are deduplicated. Assess severity first, then review investigation status and supporting evidence before changing an incident.</p></div><div class="severity-key" role="group" aria-label="Severity levels"><span class="tag severity-critical">Critical</span><span class="tag severity-high">High</span><span class="tag severity-medium">Medium</span><span class="tag severity-low">Low</span></div></div><p class="alerts-scope-note"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><span>Severity describes potential impact; status describes investigation progress. They are independent fields. Status actions below update investigation progress only.</span></p>
-  <div class="table-toolbar alerts-toolbar"><label class="small" for="alert-status-filter">Investigation status</label><select id="alert-status-filter" aria-label="Filter security alerts by investigation status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select></div>
+  <div class="table-toolbar alerts-toolbar"><label class="small" for="alert-status-filter">Investigation status</label><select id="alert-status-filter" aria-label="Filter security alerts by investigation status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select><label class="small" for="alerts-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="alerts-correlation-filter" type="search" maxlength="80" placeholder="Find an incident by correlation ID" autocomplete="off"></div></div>
   <div id="alerts-table" class="tablewrap" aria-live="polite"><div class="empty">Select Security alerts to load incidents.</div></div>
   <div class="actions alerts-pagination"><button id="alerts-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="alerts-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="alerts-page" class="muted small" aria-live="polite"></span></div>
  </section>
@@ -1415,7 +1416,7 @@ th { font-size: 11px; line-height: 1.4; }
  const SUPABASE_URL = "https://nphbhlxnujmylhubzmne.supabase.co";
  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_0BnXY2k96nRr0k0zaZvMgQ_IQYSlyQu";
  const API_BASE_URL = "https://lifelink-api-uzje.onrender.com";
- let accessToken = null, recoveryAccessToken = null, activePage = "overview", recoveryMode = false, alertStatus = "", pageLoadToken = 0;
+ let accessToken = null, recoveryAccessToken = null, activePage = "overview", recoveryMode = false, alertStatus = "", sessionCorrelation = "", alertCorrelation = "", pageLoadToken = 0;
  const ADMIN_REDIRECT_URL = "https://lifelink-admin-console.onrender.com/";
  const pageSize = 50;
  let auditAction = "";
@@ -1605,7 +1606,7 @@ async function loadUsers() {
     const token=pageLoadToken,offset=offsets.sessions,tableEl=$("sessions-table");
     setLoadingState("sessions-table","Loading sessions","Retrieving active and revoked session records…");
     try {
-      const data=await api("/v1/admin/sessions?limit="+pageSize+"&offset="+offset);
+      const data=await api("/v1/admin/sessions?limit="+pageSize+"&offset="+offset+(sessionCorrelation?"&correlation_id="+encodeURIComponent(sessionCorrelation):""));
       if(token!==pageLoadToken||activePage!=="sessions")return;
       if(!data||!Array.isArray(data.items))throw new Error("Unexpected sessions response");
       $("sessions-prev").disabled=offset===0;
@@ -1614,6 +1615,7 @@ async function loadUsers() {
       tableEl.innerHTML=table(data.items,[
         {label:"Account",render:s=>'<div class="session-identity"><strong>Account ID</strong><code title="'+esc(s.user_id)+'">'+esc(String(s.user_id||"—"))+'</code></div>'},
         {label:"Session context",render:s=>'<div class="session-context"><strong>'+esc(s.device_used||"Unknown device")+'</strong><code title="'+esc(s.session_id)+'">'+esc(String(s.session_id||"—"))+'</code><span class="muted small">'+esc(s.ip_address||"IP unavailable")+'</span></div>'},
+        {label:"Last correlation",render:s=>'<code title="'+esc(s.last_correlation_id||"")+'">'+esc(s.last_correlation_id||"Not recorded")+'</code>'},
         {label:"Activity",render:s=>'<div class="session-timeline"><strong>Last seen</strong><span>'+esc(s.last_seen_at?new Date(s.last_seen_at).toLocaleString():"Not recorded")+'</span><span class="muted small">Created '+esc(s.created_at?new Date(s.created_at).toLocaleString():"date unavailable")+'</span></div>'},
         {label:"Status and expiry",render:s=>'<div class="session-lifecycle"><span class="tag '+(s.status==="active"?"success":"fail")+'" aria-label="'+(s.status==="active"?"Active session":"Revoked or inactive session")+'">'+esc(s.status==="active"?"Active":s.status||"Inactive")+'</span><span class="muted small">Expires '+esc(s.expires_at?new Date(s.expires_at).toLocaleString():"not supplied")+'</span>'+(s.revoked_at?'<span class="muted small">Revoked '+esc(new Date(s.revoked_at).toLocaleString())+' · by '+esc(s.revoked_by||"Unavailable")+'</span>':'')+'</div>'},
         {label:"Action",render:s=>s.status==="active"?'<button class="secondary" data-revoke="'+esc(s.session_id)+'"><span class="ll-icon" data-icon="shieldAlert"></span>Revoke</button>':'—'}
@@ -1621,7 +1623,7 @@ async function loadUsers() {
       renderIcons(tableEl);wireTableTools(tableEl);
       tableEl.querySelectorAll("button[data-revoke]").forEach(btn=>btn.addEventListener("click",async()=>{
         const sessionRecord=data.items.find(item=>item.session_id===btn.dataset.revoke);if(!sessionRecord)return;
-         const sessionContext=[sessionRecord.device_used||"Unknown device",sessionRecord.ip_address||"IP unavailable","Session ID: "+sessionRecord.session_id,"Account ID: "+sessionRecord.user_id].join("\n");
+         const sessionContext=[sessionRecord.device_used||"Unknown device",sessionRecord.ip_address||"IP unavailable","Session ID: "+sessionRecord.session_id,"Account ID: "+sessionRecord.user_id,"Last correlation ID: "+(sessionRecord.last_correlation_id||"Not recorded")].join("\n");
          if(!confirm("Review session revocation\n\n"+sessionContext+"\n\nRevocation blocks subsequent protected API requests for this session. This cannot be undone from this screen.\n\nRevoke this session?"))return;
         btn.disabled=true;
         try{
@@ -1646,7 +1648,7 @@ async function loadUsers() {
    tableEl.setAttribute("aria-live","polite");
    tableEl.innerHTML='<div class="empty"><strong>Loading security alerts</strong><span class="muted small">Retrieving the latest incident records…</span></div>';
    try {
-     const query="/v1/admin/security/alerts?limit="+pageSize+"&offset="+offset+(alertStatus?"&status="+encodeURIComponent(alertStatus):"");
+     const query="/v1/admin/security/alerts?limit="+pageSize+"&offset="+offset+(alertStatus?"&status="+encodeURIComponent(alertStatus):"")+(alertCorrelation?"&correlation_id="+encodeURIComponent(alertCorrelation):"");
      const data=await api(query);
      if(token!==pageLoadToken||activePage!=="alerts")return;
       if(!data || !Array.isArray(data.items)) throw new Error("Unexpected security alert response");
@@ -1654,13 +1656,14 @@ async function loadUsers() {
      $("alerts-next").disabled=data.items.length<pageSize;
      $("alerts-page").textContent=data.items.length===0?"No alerts on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
      if(data.items.length===0){
-       tableEl.innerHTML='<div class="empty"><strong>No security alerts found</strong><span class="muted small">'+(alertStatus?"No incidents match this status filter.":"No recorded incidents are currently in the alert queue.")+'</span></div>';
+       tableEl.innerHTML='<div class="empty"><strong>No security alerts found</strong><span class="muted small">'+(alertStatus||alertCorrelation?"No incidents match the selected filters.":"No recorded incidents are currently in the alert queue.")+'</span></div>';
      } else {
        tableEl.innerHTML=table(data.items,[
          {label:"Rule",render:a=>'<strong>'+esc(a.rule_id||"Unknown rule")+'</strong>'},
          {label:"Severity",render:a=>'<span class="tag severity-'+String(a.severity||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.severity||"Unknown")+'</span>'},
          {label:"Status",render:a=>'<span class="tag status-'+String(a.status||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.status||"Unknown")+'</span>'},
          {label:"Account / session",render:a=>{const user=String(a.user_id||"—"),session=String(a.session_id||"—");return '<div class="alert-identifiers"><span class="muted small">Account</span><code title="'+esc(user)+'">'+esc(user)+'</code><span class="muted small">Session</span><code title="'+esc(session)+'">'+esc(session)+'</code></div>';}},
+         {label:"Correlation ID",render:a=>'<code title="'+esc(a.correlation_id||"")+'">'+esc(a.correlation_id||"Not recorded")+'</code>'},
          {label:"Incident summary",render:a=>'<div class="alert-incident"><strong>'+esc(a.summary||"No summary provided")+'</strong><span class="muted small">'+esc(a.occurrences??"—")+' recorded occurrences</span></div>'},
          {label:"Last observed",render:a=>'<span class="alert-last-seen">'+esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")+'</span>'},
          {label:"Evidence / history",render:a=>'<details class="cell-detail"><summary>View evidence &amp; history</summary><p class="small">Created: '+esc(a.created_at?new Date(a.created_at).toLocaleString():"—")+'</p><p class="small">Acknowledged: '+esc(a.acknowledged_at?new Date(a.acknowledged_at).toLocaleString():"—")+' · By '+esc(a.acknowledged_by||"—")+'</p><p class="small">Resolved: '+esc(a.resolved_at?new Date(a.resolved_at).toLocaleString():"—")+' · By '+esc(a.resolved_by||"—")+'</p><p class="small">Correlation: <code>'+esc(a.correlation_id||"—")+'</code></p><pre>'+esc(JSON.stringify(a.evidence||{},null,2))+'</pre></details>'},
@@ -1864,6 +1867,8 @@ async function loadUsers() {
  $("nav-collapse").addEventListener("change",e=>{e.currentTarget.setAttribute("aria-expanded",String(e.currentTarget.checked));e.currentTarget.setAttribute("aria-label",e.currentTarget.checked?"Collapse navigation labels":"Expand navigation labels");});
  $("refresh").addEventListener("click",()=>loadPage(activePage));
  $("alert-status-filter").addEventListener("change",e=>{alertStatus=e.target.value;offsets.alerts=0;loadPage("alerts");});
+ $("sessions-correlation-filter").addEventListener("change",e=>{sessionCorrelation=e.target.value.trim();offsets.sessions=0;loadPage("sessions");});
+ $("alerts-correlation-filter").addEventListener("change",e=>{alertCorrelation=e.target.value.trim();offsets.alerts=0;loadPage("alerts");});
  $("audit-filter-apply").addEventListener("click",()=>{auditAction=$("audit-action-filter").value.trim().slice(0,64);auditCorrelation=$("audit-correlation-filter").value.trim().slice(0,128);offsets.audit=0;loadPage("audit");});
  $("audit-filter-clear").addEventListener("click",()=>{$("audit-action-filter").value="";$("audit-correlation-filter").value="";auditAction="";auditCorrelation="";offsets.audit=0;loadPage("audit");});
  $("audit-correlation-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("audit-filter-apply").click();});
