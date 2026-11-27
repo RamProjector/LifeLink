@@ -89,7 +89,7 @@ Confirmed narrow rules:
 - IDS-04: missing administrator session context.
 - IDS-05: reuse of a revoked administrator session.
 
-The security-alert API is read-only; detection is performed by an independent periodic RBAC scan started from the FastAPI lifespan (default 300 seconds, configurable with a 60-second minimum). A PostgreSQL transaction-scoped advisory lock prevents overlapping scans across API instances; each scan transaction has a 15-second statement timeout. Failures are logged and retried at the next interval. The background task is code- and CI-validated, but execution in a deployed instance has not been demonstrated; host sleep/restarts can interrupt it, and no durable scanner-health record exists.
+The security-alert API is read-only; detection is performed by an independent periodic RBAC scan started from the FastAPI lifespan (default 300 seconds, configurable with a 60-second minimum). A PostgreSQL transaction-scoped advisory lock prevents overlapping scans across API instances; each scan transaction has a 15-second statement timeout. The continuation implementation now persists scanner success/failure metadata and exposes it through a protected Admin Console endpoint. Execution in a deployed instance remains unverified; host sleep/restarts can interrupt the in-process task.
 
 The alert table supports open, acknowledged, investigating, resolved, and false-positive states. The API can update alert state and deduplicate active incidents.
 
@@ -107,14 +107,12 @@ The read-only live database inspection returned:
 | Permissions | 19 |
 | Role-permission mappings | 19 |
 | User-role assignments | 0 |
-| Security alerts | 8 |
-| Observed sessions | 24 |
+| Security alerts | 0 |
+| Observed sessions | 23 |
 
 The zero user-role assignment count is significant: the registry currently has no assigned users, even though the legacy server-side administrator allowlist and existing profile capabilities continue to govern application access.
 
-The current admin API still uses the server-side admin allowlist through `require_admin` for its routes. The new permission keys are defined and mapped, but the existing admin endpoints have not all been migrated to per-permission authorization checks. Role-assignment changes are separately protected by the RBAC-manager allowlist and applicability checks.
-
-Consequently, the registry is currently a policy foundation and management surface, not yet the universal enforcement authority for all administrative routes.
+Operational admin routes now declare permission-specific guards while retaining the existing allowlist, active-session, AAL2, and two-verified-TOTP identity gate. `LIFELINK_RBAC_ENFORCEMENT_MODE` defaults to `observe`, preserving access while the live registry has zero user-role assignments; `enforce` checks the exact active permission grant and denies missing grants. Role assignment remains separately protected by the RBAC-manager allowlist and applicability checks. The permission registry is not yet the universal effective authorization source until real administrator assignments are provisioned and enforcement is explicitly enabled.
 
 ## Highest-priority updates
 
@@ -225,7 +223,7 @@ The Android Retrofit interface at `LifeLinkAndroid/app/src/main/java/com/lifelin
 
 | Android feature/API group | Backend route families | Audit/security follow-up |
 |---|---|---|
-| Admin | `/v1/admin/me`, dashboard, users, user update, audit, errors | Add alert/session/role APIs to Android only if the app actually exposes those admin workflows; enforce permission on every server route regardless of client |
+| Admin (web-only) | `/v1/admin/me`, dashboard, users, user update, audit, errors, alerts, sessions, roles, scanner health | Android no longer exposes administrator screens or admin API contracts; enforce permissions on every server route regardless of client |
 | Account | profile read/update, push-token registration | Profile and push-token registration now have explicit audit paths; push-token add/update records actor/session/correlation only and never the token. No token-removal route was found. |
 | Requester | emergency request create/detail/history/cancel/fulfill, contact selected donors, contact status/report/block, manual broadcast | Retain atomic request/contact events; confirm all failed/denied operations are safely observable |
 | Donor | donor profile create/read/update, presence, availability, delete, map, visibility, inbox, response | Reconcile legacy donor routes with newer donor-profile routes; ensure response and legacy availability/presence are audited |
@@ -342,7 +340,7 @@ The branch now contains an initial independent scanner implementation (not yet p
 - The existing alert upsert now increments occurrences only when the finding evidence changes, rather than on every unchanged polling pass.
 - Focused tests were added for requestless scan execution, system actor attribution, and evidence-sensitive occurrence updates.
 
-**Validation update (2026-11-27):** the latest PR-head workflow runs report success for backend tests (including PostgreSQL integration tests), Ruff, mypy, Docker/admin-site validation, Android quality gate, secret scanning, and both CodeQL language analyses. This verifies the checked-in code against those CI jobs, not a deployed instance. There is still no persisted last-success/last-failure health record or administrator notification delivery; application logs currently provide scan completion duration/findings and failure visibility. Runtime execution remains unverified.
+**Validation update (2026-11-27):** earlier PR-head workflow runs passed backend tests (including PostgreSQL integration tests), Ruff, mypy, Docker/admin-site validation, Android quality gate, secret scanning, and both CodeQL language analyses. Those runs verify only the earlier checked-in code. The current continuation branch adds RBAC guards, scanner health persistence, a web Admin Console health panel, and removes Android admin support; it still requires fresh CI on its final head. Runtime scanner execution and production deployment remain unverified.
 
 The scan uses the existing web-service lifespan, not a new paid worker or external scheduler. It reads the existing RBAC registry only and makes no role assignments or policy changes.
 
@@ -359,7 +357,7 @@ Migration 021 defines the role-finding table, partial unique index, status index
 
 RBAC-02 still writes a per-user audit event when an assigned user's permissions differ; repeated unchanged evidence does not inflate the alert occurrence count, but audit-volume behavior remains a candidate for further review. RBAC-03 currently records its finding in the role-scoped table and does not emit a per-poll audit event.
 
-The scanner still has no durable last-success/last-failure health record, and administrator push/email delivery is not implemented. Role-level monitoring only covers the four explicitly approved policies until the remaining role policies are reviewed and approved. Granular permission enforcement across admin routes also remains outstanding; the server-managed administrator allowlist is unchanged.
+Scanner health persistence and route-level permission guards have now been added in the continuation branch. The safe default remains `observe` because there are zero live user-role assignments. Administrator push/email delivery remains unimplemented; role-level monitoring still covers only the four explicitly approved policies until the remaining role policies are reviewed and approved.
 
 ### FCM administrator-notification design gate
 
@@ -381,3 +379,16 @@ CI validation on implementation head `dcb3fbec7828fee37741d5cde65f221078d14ee9` 
 The scanner now checks approved role-permission mappings independently of user assignments. Migration `021_role_policy_integrity_findings.sql` creates a dedicated role-scoped finding table, avoiding synthetic role IDs in `lifelink_security_alerts.user_id`. Rule RBAC-03 checks the four exact policies seeded by migration 020, deduplicates active findings by `(rule_id, role_key)`, changes occurrence count only when evidence changes, and resolves active findings when the mapping returns to policy. `GET /v1/admin/security/role-integrity` exposes these findings to existing allowlisted administrators.
 
 No policy is inferred for requester, donor, or super_admin. This detector is only as comprehensive as the explicitly reviewed policy matrix. Migration 021 has been committed to the PR, and the API startup schema routine now provisions the same table/index/RLS structure idempotently for normal deployments. No production writes or deployment occurred.
+
+
+## Continuation implementation and data-cleanup addendum (2026-11-27)
+
+The following changes were made after the initial source/live-schema audit above:
+
+1. **Granular authorization:** operational admin routes now declare route-specific permission dependencies. The existing allowlist, active-session, AAL2, and two verified TOTP checks remain mandatory. The default `LIFELINK_RBAC_ENFORCEMENT_MODE=observe` preserves current access; `enforce` checks active non-expired role assignments and exact permission keys. No real admin assignments were created, so enforcement must not be switched on yet.
+2. **Scanner health:** added `lifelink_security_scanner_runs`, migration `022_security_scanner_health.sql`, idempotent startup creation, persisted success/failure metadata, protected `GET /v1/admin/security/scanner`, and a web Security alerts panel.
+3. **Android admin removal:** removed native Admin Console and MFA gate screens, admin Retrofit endpoints/DTOs, admin-only TOTP repository functions, and related Android tests. The Admin Console is web-only; Android remains requester/donor.
+4. **Example-data cleanup:** read-only inspection identified 8 `DEMO:` security alerts, 40 audit events with explicit demo/example/fixture metadata, and 5 synthetic session rows with fixture-era device labels/timestamps. Those 53 rows were deleted from the connected LifeLink database. Verification confirmed 0 remaining matching demo alerts, 0 matching audit events, and 0 matching synthetic device sessions. The remaining tables contained 371 audit events, 23 observed sessions, 0 security alerts, 7 role definitions, 19 permissions, 19 role-permission mappings, and 0 user-role assignments at verification time. No user profiles, donors, emergency requests, matches, conversations, messages, role definitions, permissions, or role-permission mappings were deleted.
+5. **Remaining blockers:** no administrator out-of-band notification channel is implemented or verified; no RBAC administrator assignments have been provisioned; production Render runtime MFA database-role access and deployment status remain unverified; and the final branch still needs CI and code review.
+
+The data cleanup was explicitly limited to records bearing clear synthetic markers. It did not truncate tables or remove ordinary audit/session history.
