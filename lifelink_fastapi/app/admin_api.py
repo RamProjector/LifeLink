@@ -138,7 +138,10 @@ async def require_admin(
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Two verified TOTP authenticators are required for administrator access. Complete backup authenticator enrollment.",
+            detail=(
+                "Two verified TOTP authenticators are required for administrator access. "
+                "Complete backup authenticator enrollment."
+            ),
         )
     return principal
 
