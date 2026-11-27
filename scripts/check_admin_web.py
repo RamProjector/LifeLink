@@ -174,7 +174,7 @@ def main() -> None:
     ):
         fail("sessions and security alerts must expose and filter related correlation identifiers")
 
-    required_ids = {"login-view", "mfa-view", "mfa-step-enroll", "mfa-step-challenge", "app-view", "page-overview", "page-users", "page-alerts", "page-sessions", "page-audit", "page-errors", "page-analytics", "page-roles"}
+    required_ids = {"login-view", "mfa-view", "mfa-step-enroll", "mfa-step-challenge", "mfa-step-manage", "app-view", "page-overview", "page-users", "page-alerts", "page-sessions", "page-audit", "page-errors", "page-analytics", "page-roles"}
     missing_ids = sorted(required_ids - set(parser.ids))
     if missing_ids:
         fail("required admin page containers are missing: " + ", ".join(missing_ids))
@@ -186,8 +186,12 @@ def main() -> None:
         or "verified.length<2" not in html
         or "function verifyMfaChallenge()" not in html
         or "function verifyMfaEnrollment()" not in html
+        or "async function removeMfaFactor" not in html
+        or "initial.length<=2" not in html
+        or "unenroll(currentMfaConfig(),factorId)" not in html
+        or 'id="manage-mfa"' not in html
     ):
-        fail("admin console must require an AAL2 session and two verified TOTP factors before access")
+        fail("admin console must require AAL2 and two verified TOTP factors, with replacement-before-removal controls")
 
     sign_in_start = html.find("async function signIn()")
     sign_in_end = html.find("function table(items, cols)", sign_in_start)
