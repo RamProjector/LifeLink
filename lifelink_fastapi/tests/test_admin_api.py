@@ -270,6 +270,7 @@ def test_mfa_lifecycle_audit_records_only_bounded_non_secret_metadata(monkeypatc
     ("event_type", "factor_count", "ticket", "expected_detail"),
     [
         ("factor_enrollment_verified", 0, None, "At least one"),
+        ("backup_factor_verified", 1, None, "Two verified"),
         ("factor_replacement_verified", 1, None, "Two verified"),
         ("factor_removal_requested", 2, None, "preserve at least two"),
         ("recovery_reenrollment_verified", 2, None, "ticket reference"),
