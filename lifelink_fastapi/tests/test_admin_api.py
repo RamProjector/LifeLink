@@ -1573,3 +1573,24 @@ def test_admin_security_notification_feed_returns_only_safe_event_metadata(monke
         assert "summary" not in result["items"][0]
 
     asyncio.run(check())
+
+
+
+def test_admin_security_notification_feed_rejects_timezone_naive_cursor():
+    from datetime import datetime
+
+    from app import admin_api
+
+    async def check():
+        with pytest.raises(HTTPException) as error:
+            await admin_api.admin_security_notifications(
+                request=_request_context(),
+                after=datetime(2026, 11, 27, 13, 0),
+                after_id="00000000-0000-0000-0000-000000000000",
+                limit=25,
+                session=FakeSession(),
+                principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            )
+        assert error.value.status_code == 422
+
+    asyncio.run(check())
