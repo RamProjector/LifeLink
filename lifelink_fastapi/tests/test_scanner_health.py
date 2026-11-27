@@ -106,3 +106,42 @@ def test_rbac_scanner_does_not_record_a_second_instance_lock_skip(monkeypatch):
     assert session.rolled_back is True
     assert session.committed is False
     assert all("lifelink_security_scanner_runs" not in statement for statement in session.statements)
+
+
+@pytest.mark.parametrize("configured_interval", ["nan", "inf", "-inf", "1e9999"])
+def test_rbac_scanner_uses_safe_default_for_non_finite_intervals(monkeypatch, configured_interval):
+    session = ScannerSession()
+    monkeypatch.setattr(db, "AsyncSessionLocal", lambda: session)
+
+    async def no_findings(*_args):
+        return 0
+
+    async def capture_interval(seconds: float) -> None:
+        assert seconds == 300.0
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(admin_api, "_scan_rbac_discrepancies", no_findings)
+    monkeypatch.setattr(main_postgres.asyncio, "sleep", capture_interval)
+    monkeypatch.setenv("LIFELINK_RBAC_SCAN_SECONDS", configured_interval)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(main_postgres._scan_rbac_discrepancies_forever())
+
+
+def test_rbac_scanner_caps_extreme_interval(monkeypatch):
+    session = ScannerSession()
+    monkeypatch.setattr(db, "AsyncSessionLocal", lambda: session)
+
+    async def no_findings(*_args):
+        return 0
+
+    async def capture_interval(seconds: float) -> None:
+        assert seconds == 86400.0
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(admin_api, "_scan_rbac_discrepancies", no_findings)
+    monkeypatch.setattr(main_postgres.asyncio, "sleep", capture_interval)
+    monkeypatch.setenv("LIFELINK_RBAC_SCAN_SECONDS", "999999")
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(main_postgres._scan_rbac_discrepancies_forever())
