@@ -1414,6 +1414,7 @@ def test_admin_scanner_health_returns_persisted_status_without_error_details(mon
                 "scanner_key": "rbac",
                 "status": "failed",
                 "last_findings": 3,
+                "last_duration_ms": 121,
                 "consecutive_failures": 2,
                 "last_error_code": "scan_failed",
             }
@@ -1437,6 +1438,8 @@ def test_admin_scanner_health_returns_persisted_status_without_error_details(mon
         )
         assert result["status"] == "failed"
         assert result["last_findings"] == 3
+        assert result["last_duration_ms"] == 121
+        assert result["scan_interval_seconds"] == 300
         assert result["consecutive_failures"] == 2
         assert result["last_error_code"] == "scan_failed"
         assert "exception" not in result
@@ -1473,7 +1476,7 @@ def test_admin_scanner_health_reports_never_run_when_no_status_exists(monkeypatc
         )
         assert result == {
             "scanner_key": "rbac", "status": "never_run", "last_findings": 0,
-            "consecutive_failures": 0, "last_error_code": None,
+            "consecutive_failures": 0, "last_error_code": None, "scan_interval_seconds": 300,
         }
 
     asyncio.run(check())
