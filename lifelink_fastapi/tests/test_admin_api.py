@@ -313,7 +313,7 @@ def test_mfa_lifecycle_audit_rejects_incomplete_or_unsafe_events(
 
 
 def test_mfa_recovery_ticket_reference_is_strictly_bounded():
-        with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError):
         AdminMfaAuditEvent(
             event_type="recovery_reenrollment_verified",
             verified_factor_count=2,
