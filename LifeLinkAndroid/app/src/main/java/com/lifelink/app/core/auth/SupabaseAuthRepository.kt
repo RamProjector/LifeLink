@@ -232,7 +232,7 @@ class SupabaseAuthRepository(
                     publishableKey,
                     "Bearer ${session.accessToken}",
                     factorId,
-                    EmptyMfaRequest(),
+                    emptyMap(),
                 ) ?: error("Supabase URL is not configured")
                 if (!response.isSuccessful) error(readableAuthError(response.errorBody()?.string().orEmpty(), response.code()))
                 response.body()?.id?.takeIf { it.isNotBlank() }
@@ -455,7 +455,7 @@ private interface SupabaseAuthApi {
         @Header("apikey") publishableKey: String,
         @Header("Authorization") authorization: String,
         @Path("factorId") factorId: String,
-        @Body request: EmptyMfaRequest,
+        @Body request: Map<String, String>,
     ): Response<SupabaseMfaChallenge>
 
     @POST("auth/v1/factors/{factorId}/verify")
@@ -523,8 +523,6 @@ data class SupabaseTotpSetup(
 )
 
 data class SupabaseMfaChallenge(@SerializedName("id") val id: String)
-
-data class EmptyMfaRequest(val unused: String? = null)
 
 data class SupabaseMfaVerifyRequest(
     @SerializedName("factor_id") val factorId: String,
