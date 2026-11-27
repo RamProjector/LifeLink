@@ -578,15 +578,27 @@ async def get_profile(
 @app.put("/v1/push-token", status_code=204)
 async def register_push_token(
     payload: PushTokenIn,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(get_active_postgres_principal),
+    x_correlation_id: str | None = Header(default=None),
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
     row = await session.get(LifeLinkProfile, principal.subject)
     if row is None:
         raise HTTPException(status_code=404, detail="Profile not found")
+    action = "api.updated.push_token" if row.fcm_token else "api.added.push_token"
     row.fcm_token = payload.token
+    await _write_audit(
+        session,
+        principal.subject,
+        action,
+        request=request,
+        session_id=principal.session_id,
+        correlation_id=_correlation_id(x_correlation_id),
+        metadata={"description": "Push notification token registered"},
+    )
     await session.commit()
 
 
