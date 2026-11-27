@@ -2068,6 +2068,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
    if(verified.length<=2){const note=document.createElement("p");note.className="mfa-help";note.textContent="Removal is disabled while only two verified authenticators remain. Add and verify a replacement before removing a device.";list.appendChild(note);}
  }
  async function showMfaManagement(){
+   showMfaView();$("mfa-cancel").classList.remove("hidden");$("mfa-step-enroll").classList.add("hidden");$("mfa-step-challenge").classList.add("hidden");$("mfa-step-manage").classList.add("hidden");$("mfa-title").textContent="Loading authenticators…";
    try{
      await refreshIfNeeded();
      mfaFactors=await window.LifeLinkAdminMFA.listFactors(currentMfaConfig());
@@ -2084,7 +2085,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  async function removeMfaFactor(factorId,button){
    const initial=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors);
    if(window.LifeLinkAdminMFA.assuranceLevel(accessToken)!=="aal2"){mfaReturnToManage=true;showMfaChallenge();return;}if(initial.length<=2){message("mfa-message","Add and verify a replacement before removing a factor.",true);return;}
-   if(!window.confirm("Remove this authenticator? Supabase will sign out active sessions. At least two verified factors must remain."))return;
+   const target=mfaFactors.find(f=>f.id===factorId),targetName=target?.friendly_name||"this authenticator";if(!window.confirm("Remove "+targetName+"? Supabase will sign out active sessions. At least two verified factors must remain."))return;
    const flow=mfaFlowGeneration;button.disabled=true;message("mfa-message","Removing authenticator…");
    try{await refreshIfNeeded();if(flow!==mfaFlowGeneration)return;const current=await window.LifeLinkAdminMFA.listFactors(currentMfaConfig()),verified=window.LifeLinkAdminMFA.verifiedFactors(current);if(verified.length<=2||!verified.some(f=>f.id===factorId))throw new Error("The factor list changed. Refresh and try again.");await window.LifeLinkAdminMFA.unenroll(currentMfaConfig(),factorId);if(flow!==mfaFlowGeneration)return;mfaFlowGeneration++;accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("mfa-view").classList.add("hidden");$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");message("login-message","Authenticator removed. Supabase has signed out active sessions. Sign in again using one of the remaining verified authenticators.");
    }catch(e){button.disabled=false;message("mfa-message",safeError(e,"The authenticator could not be removed. Try again after verifying your session."),true);}
@@ -2547,7 +2548,7 @@ async function loadUsers() {
    $(kind+"-prev").addEventListener("click",()=>{offsets[kind]=Math.max(0,offsets[kind]-pageSize);loadPage(kind==="users"?"users":kind);});
    $(kind+"-next").addEventListener("click",()=>{offsets[kind]+=pageSize;loadPage(kind==="users"?"users":kind);});
  });
- $("signout").addEventListener("click",async()=>{pageLoadToken++;mfaFlowGeneration++;let remoteSignedOut=true;try{if(accessToken)await window.LifeLinkAdminMFA.signOut(currentMfaConfig());}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];clearMfaPending();$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("mfa-view").classList.add("hidden");$("password").value="";message("login-message",remoteSignedOut?"Signed out.":"Signed out locally, but Supabase server-side sign-out could not be confirmed. Close this tab and retry when online.",!remoteSignedOut);});
+ $("signout").addEventListener("click",async()=>{pageLoadToken++;mfaFlowGeneration++;let remoteSignedOut=true;try{if(accessToken)await window.LifeLinkAdminMFA.signOut(currentMfaConfig());}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("mfa-view").classList.add("hidden");$("password").value="";message("login-message",remoteSignedOut?"Signed out.":"Signed out locally, but Supabase server-side sign-out could not be confirmed. Close this tab and retry when online.",!remoteSignedOut);});
 })();
 </script>
 </body></html>
