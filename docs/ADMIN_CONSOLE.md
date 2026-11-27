@@ -46,7 +46,7 @@ Serve admin-web/index.html over HTTPS using the configured static host. The depl
 
 ## Admin MFA rollout status
 
-The admin TOTP implementation and backend AAL2 authorization are being developed in draft PR #225. Web and Android enrollment/challenge flows are implemented in this branch, but CI, real-device, and non-production Supabase verification remain release blockers. This is **not approval to deploy or enable production enforcement**.
+The web-only admin TOTP flow and backend AAL2 authorization are part of the existing LifeLink security implementation. Consolidated IDS/IPS continuation work is tracked in PR #227. Android administrator screens, admin API contracts, and admin-only MFA repository methods are removed; Android remains requester/donor only. CI and non-production Supabase/MFA verification remain release gates. This is **not approval to deploy or enable production RBAC enforcement**.
 
 ### Current draft sign-in sequence
 
@@ -91,8 +91,8 @@ The backend MFA boundary is now implemented in this branch. `/v1/admin/preflight
 
 ### Required before rollout
 
-- The web and Android clients now include TOTP enrollment/challenge gates and require two verified factors before showing the console; the web factor manager requires a verified replacement before removal and preserves at least two verified factors.
-- Backend AAL2 enforcement is implemented for every admin endpoint except identity-only preflight; the MFA audit-receipt route has a narrow AAL2-only enrollment dependency. All operational routes also require at least two server-confirmed verified TOTP factors from `auth.mfa_factors`; verify database permissions and direct API denial with one factor in non-production.
+- The web Admin Console includes TOTP enrollment/challenge gates and requires two verified factors before showing the console; the web factor manager requires a verified replacement before removal and preserves at least two verified factors. Android contains no administrator console, administrator MFA gate, or admin-only TOTP repository.
+- Backend AAL2 enforcement is implemented for every operational admin endpoint except identity-only preflight; the MFA audit-receipt route has a narrow AAL2-only enrollment dependency. All operational routes also require at least two server-confirmed verified TOTP factors from `auth.mfa_factors`. Route-specific RBAC permission dependencies are now declared, but enforcement remains staged in `observe` mode until approved assignments exist. Verify database permissions and direct API denial with one factor and with missing/expired RBAC grants in non-production.
 - MFA lifecycle audit receipts cover verified enrollment, replacement, removal requests, recovery re-enrollment, and denied AAL1/unknown-assurance requests. Their verified factor count is queried from Supabase's server-managed inventory; the client-reported count is stored separately for discrepancy review. Receipts contain no secrets, OTPs, or tokens.
 - The two-operator recovery runbook is documented but has not yet been exercised. Test it in a non-production Supabase project and verify the Supabase Auth audit record plus the LifeLink recovery receipt.
 - Add/complete backend tests for AAL1/AAL2, malformed/missing/stale/downgraded claims, revoked sessions, and non-allowlisted accounts; run the full suite on the latest head.
@@ -120,7 +120,7 @@ Run this only against a dedicated non-production Supabase Auth project and a tes
 
 **Release blockers:** latest-head CI, manual web verification, non-production Supabase tests, and a witnessed two-operator recovery exercise must pass. The AAL2 backend gate and audit receipt endpoints are implemented in this draft branch but are not production-approved. Do not mark this checklist complete until each item has reproducible evidence.
 
-Until these conditions pass review and the rollout is explicitly approved, keep the AAL2 backend gate out of production and leave issue #222 open.
+Until these conditions pass review and rollout is explicitly approved, do not enable `LIFELINK_RBAC_ENFORCEMENT_MODE=enforce` or deploy the continuation changes. Keep the existing server-managed admin allowlist and MFA boundary intact.
 
 ## API endpoints
 
@@ -170,10 +170,10 @@ The first IDS/IPS implementation slice adds the required seven-field audit envel
 This is an audit foundation, not a complete IDS/IPS. Role/permission assignment, cross-platform operation coverage, session revocation enforcement, detection rules, alert workflows, and the full Security Center remain subsequent implementation work. Do not treat a missing session claim or unavailable peer IP as verified identity evidence.
 
 
-The current session registry records administrator sessions observed by the admin API. It is not yet a complete inventory of all requester/donor Android and web sessions. Extending session observation and revocation enforcement to every authenticated application endpoint is required before treating the registry as a whole-platform session manager.
+The current session registry records application sessions observed by protected API routes. It is not yet a complete inventory of all requester/donor Android and web sessions. Extending session observation and revocation enforcement to every authenticated application endpoint is required before treating the registry as a whole-platform session manager.
 
 
-The first active IDS rules are IDS-03 (repeated denied admin access), IDS-04 (missing session context), and IDS-05 (revoked session reuse). Thresholds are currently deterministic and intentionally narrow; they require tuning against real application traffic before wider automated blocking is enabled. Other planned detection categories are not yet implemented.
+The currently implemented narrow IDS rules include IDS-03 (repeated denied admin access), IDS-04 (missing session context), IDS-05 (revoked session reuse), and staged permission-denial monitoring. RBAC-02 checks active user-role assignment applicability and reviewed permission matrices; RBAC-03 independently checks the four explicitly approved admin role policies. The periodic scanner persists success/failure health and exposes it to the web Security alerts page. Thresholds remain intentionally narrow and require tuning against real traffic before wider automated blocking is enabled.
 
 ## Admin Console navigation and table usability
 
@@ -207,7 +207,7 @@ Admin web actions and data loading map authentication, authorization, missing-re
 
 ## IDS/IPS completion status — 2026-11-27
 
-The existing IDS/IPS implementation includes audit fields, personal audit history, observed-session registry, alert lifecycle, IDS-03/04/05, RBAC-01/02, and an independent periodic scanner. RBAC-03 now checks the four explicitly seeded administrative role-permission policies independently of user assignments and exposes findings in the Security alerts page through a separate role-scoped endpoint/table. The API startup schema routine provisions the same table/index/RLS structure idempotently; migration 021 remains available for separately managed schema rollouts. It is not yet a complete IDS/IPS release: admin API routes still use the legacy administrator allowlist rather than enforcing each seeded permission, and actual administrator notification delivery has not been verified. The connected database currently has 0 user-role assignments in the RBAC registry, so do not remove or replace the existing bootstrap allowlist until a safe, approved migration and provisioning path exists.
+The existing IDS/IPS implementation includes audit fields, personal audit history, observed-session registry, alert lifecycle, IDS-03/04/05, RBAC-01/02/03, and an independent periodic scanner with persisted health. Operational Admin API routes declare route-specific RBAC permission guards while preserving the existing allowlist, active-session, AAL2, and two-verified-TOTP checks. Enforcement defaults to `observe`; `enforce` must not be enabled while the connected database has zero user-role assignments. The Security alerts page supports opt-in browser notifications while the authenticated web console is open. This is not background push/email delivery and does not notify after the console closes. The current live database has no user-role assignments, so do not remove or replace the existing bootstrap allowlist until approved administrator assignments and a safe provisioning path exist.
 
 Session inventory is an observed-application-session registry, not a claim that every Supabase Auth session is automatically listed. Session revocation is an application-side denial control; do not describe it as revoking Supabase refresh tokens unless a separate Auth revocation operation is implemented and tested.
 
