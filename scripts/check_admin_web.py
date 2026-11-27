@@ -226,7 +226,7 @@ def main() -> None:
         fail("admin console must require AAL2 and two verified TOTP factors, with replacement-before-removal controls")
 
     sign_in_start = html.find("async function signIn()")
-    sign_in_end = html.find("function table(items, cols)", sign_in_start)
+    sign_in_end = html.find("function table(items, cols", sign_in_start)
     if sign_in_start < 0 or sign_in_end < 0:
         fail("admin sign-in flow is missing")
     sign_in_flow = html[sign_in_start:sign_in_end]
