@@ -27,6 +27,7 @@ class DocumentCheck(HTMLParser):
         self.ids: list[str] = []
         self.icon_names: list[str] = []
         self.icon_script_found = False
+        self.mfa_script_found = False
         self.inline_handlers: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -38,6 +39,8 @@ class DocumentCheck(HTMLParser):
         self.inline_handlers.extend(name for name, _ in attrs if name.lower().startswith("on"))
         if tag == "script" and values.get("src") == "./icons.js":
             self.icon_script_found = True
+        if tag == "script" and values.get("src") == "./mfa.js":
+            self.mfa_script_found = True
 
 
 def fail(message: str) -> None:
@@ -96,6 +99,8 @@ def main() -> None:
         fail("duplicate HTML id attributes: " + ", ".join(sorted(duplicates)))
     if not parser.icon_script_found:
         fail("index.html does not load the reusable ./icons.js module")
+    if not parser.mfa_script_found:
+        fail("index.html does not load the admin MFA transport module")
     for javascript_path in (MFA_JS_PATH, MFA_TEST_PATH):
         result = subprocess.run(
             ["node", "--check", str(javascript_path)],
@@ -183,6 +188,16 @@ def main() -> None:
         or "function verifyMfaEnrollment()" not in html
     ):
         fail("admin console must require an AAL2 session and two verified TOTP factors before access")
+
+    sign_in_start = html.find("async function signIn()")
+    sign_in_end = html.find("function table(items, cols)", sign_in_start)
+    if sign_in_start < 0 or sign_in_end < 0:
+        fail("admin sign-in flow is missing")
+    sign_in_flow = html[sign_in_start:sign_in_end]
+    admin_check = sign_in_flow.find('await api("/v1/admin/me")')
+    factor_discovery = sign_in_flow.find("mfaFactors=await")
+    if admin_check < 0 or factor_discovery < 0 or admin_check > factor_discovery:
+        fail("server-side admin allowlist verification must run before MFA enrollment")
 
     print(f"Admin website integrity passed: {len(parser.ids)} unique IDs, {len(set(parser.icon_names))} SVG icon types.")
 
