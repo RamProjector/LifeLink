@@ -404,7 +404,7 @@ async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, 
         "super_admin": {"dashboard.read", "users.read", "users.update", "users.suspend", "requests.read", "requests.update", "operations.read", "communications.metadata.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke", "roles.read", "roles.assign", "permissions.manage", "reports.read", "settings.read", "settings.update"},
     }
     count = 0
-    correlation_id = _correlation_id(request.headers.get("x-correlation-id"))
+    correlation_id = _correlation_id(request.headers.get("x-correlation-id")) if request else None
     for row in result.mappings().all():
         user_id, role_key = row["user_id"], row["role_key"]
         profile = {"can_request": row["can_request"], "can_donate": row["can_donate"], "has_donor_profile": row["has_donor_profile"]}
