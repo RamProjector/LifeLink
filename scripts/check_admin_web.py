@@ -19,6 +19,10 @@ ICONS_PATH = ROOT / "admin-web" / "icons.js"
 MFA_JS_PATH = ROOT / "admin-web" / "mfa.js"
 MFA_TEST_PATH = ROOT / "scripts" / "test_admin_mfa.js"
 ADMIN_API_PATH = ROOT / "lifelink_fastapi" / "app" / "admin_api.py"
+ANDROID_MFA_GATE_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "feature" / "admin" / "AdminMfaGateScreen.kt"
+ANDROID_AUTH_REPO_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "core" / "auth" / "SupabaseAuthRepository.kt"
+ANDROID_MAIN_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "MainActivity.kt"
+ANDROID_API_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "data" / "remote" / "LifeLinkApi.kt"
 
 
 class DocumentCheck(HTMLParser):
@@ -49,12 +53,16 @@ def fail(message: str) -> None:
 
 
 def main() -> None:
-    if not HTML_PATH.is_file() or not ICONS_PATH.is_file() or not MFA_JS_PATH.is_file() or not MFA_TEST_PATH.is_file() or not ADMIN_API_PATH.is_file():
+    if not all(path.is_file() for path in (HTML_PATH, ICONS_PATH, MFA_JS_PATH, MFA_TEST_PATH, ADMIN_API_PATH, ANDROID_MFA_GATE_PATH, ANDROID_AUTH_REPO_PATH, ANDROID_MAIN_PATH, ANDROID_API_PATH)):
         fail("admin website entry point, SVG icon library, or MFA module/tests are missing")
 
     html = HTML_PATH.read_text(encoding="utf-8")
     icons = ICONS_PATH.read_text(encoding="utf-8")
     admin_api = ADMIN_API_PATH.read_text(encoding="utf-8")
+    android_mfa = ANDROID_MFA_GATE_PATH.read_text(encoding="utf-8")
+    android_auth = ANDROID_AUTH_REPO_PATH.read_text(encoding="utf-8")
+    android_main = ANDROID_MAIN_PATH.read_text(encoding="utf-8")
+    android_api = ANDROID_API_PATH.read_text(encoding="utf-8")
     parser = DocumentCheck()
     parser.feed(html)
     parser.close()
@@ -180,6 +188,30 @@ def main() -> None:
         or 'await api("/v1/admin/preflight")' not in html
     ):
         fail("admin MFA preflight must audit identity eligibility and return no operational data")
+
+    if (
+        "async def require_admin_identity(" not in admin_api
+        or 'if principal.assurance_level != "aal2":' not in admin_api
+        or "principal: Principal = Depends(require_admin_identity)" not in admin_api
+        or '@router.post("/mfa/events")' not in admin_api
+        or '"security.admin_mfa.assurance_denied"' not in admin_api
+    ):
+        fail("all operational admin endpoints must enforce AAL2 while identity preflight remains AAL1-only")
+
+    if (
+        "adminPreflight()" not in android_api
+        or "adminMfaEvent(" not in android_api
+        or "AdminMfaGateScreen(" not in android_main
+        or "account.api.adminPreflight()" not in android_main
+        or "listMfaFactors(" not in android_auth
+        or "enrollMfaTotp(" not in android_auth
+        or "challengeMfa(" not in android_auth
+        or "verifyMfaTotp(" not in android_auth
+        or "verifiedTotpFactors(factors)" not in android_mfa
+        or "verifiedFactorCount = pendingAuditCount" not in android_mfa
+        or "repository.assuranceLevel(refreshed.accessToken) != \"aal2\"" not in android_mfa
+    ):
+        fail("Android administrator access must use Supabase TOTP enrollment/challenge, AAL2, and two verified factors")
 
     if "audit-correlation-filter" not in html or "errors-correlation-filter" not in html or "correlation_id" not in admin_api:
         fail("audit and error history must support server-side correlation ID tracing")
