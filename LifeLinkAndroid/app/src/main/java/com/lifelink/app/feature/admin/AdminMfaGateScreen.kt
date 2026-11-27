@@ -81,7 +81,8 @@ fun AdminMfaGateScreen(
         if (response.isSuccessful && response.body()?.isAdmin == true) {
             onVerified()
         } else {
-            error = "Authenticator verification succeeded, but administrator access could not be confirmed. Sign out and contact the system owner if this continues."
+            error = "Authenticator verification succeeded, but administrator access could not be confirmed. " +
+                "Sign out and contact the system owner if this continues."
         }
     }
 
@@ -230,12 +231,17 @@ fun AdminMfaGateScreen(
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text(
-                                if (step == AdminMfaStep.ENROLL_PRIMARY) "Set up your primary authenticator" else "Add your backup authenticator",
+                                if (step == AdminMfaStep.ENROLL_PRIMARY) {
+                                    "Set up your primary authenticator"
+                                } else {
+                                    "Add your backup authenticator"
+                                },
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                             )
                             Text(
-                                "Use a TOTP authenticator such as Google Authenticator, 1Password, or another compatible app. Keep the backup separately from your primary device.",
+                                "Use a TOTP authenticator such as Google Authenticator, 1Password, or another " +
+                                    "compatible app. Keep the backup separately from your primary device.",
                                 style = MaterialTheme.typography.bodySmall,
                             )
                             OutlinedTextField(
@@ -265,7 +271,10 @@ fun AdminMfaGateScreen(
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text("Add this authenticator", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("Enter this setup key manually in your authenticator app. It is shown only during setup; do not send it to anyone.")
+                            Text(
+                                "Enter this setup key manually in your authenticator app. It is shown only during " +
+                                    "setup; do not send it to anyone.",
+                            )
                             Text(
                                 enrollment?.totp?.secret.orEmpty(),
                                 style = MaterialTheme.typography.bodyLarge,
@@ -286,7 +295,11 @@ fun AdminMfaGateScreen(
                 AdminMfaStep.CHALLENGE -> {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("Verify your authenticator", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Verify your authenticator",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
                             Text("Choose one of your registered authenticators and enter its current code.")
                             verifiedFactors.forEach { factor ->
                                 OutlinedButton(
@@ -316,13 +329,20 @@ fun AdminMfaGateScreen(
                 AdminMfaStep.AUDIT_PENDING -> {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("Save security audit receipt", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Save security audit receipt",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
                             Text("The authenticator was verified. Retry the audit receipt before continuing.")
                             Button(onClick = {
                                 scope.launch {
                                     busy = true
                                     runCatching { recordPendingAudit() }
-                                        .onFailure { error = "The audit receipt could not be saved. Retry when the connection is available." }
+                                        .onFailure {
+                                            error = "The audit receipt could not be saved. " +
+                                                "Retry when the connection is available."
+                                        }
                                     busy = false
                                 }
                             }, enabled = !busy) { Text("Retry audit receipt") }
