@@ -1162,6 +1162,9 @@ def test_rbac_scanner_runs_without_http_request_context():
                     {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
                     {"role_key": "security_admin", "permissions": ["dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"]},
                     {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
+                    {"role_key": "requester", "permissions": []},
+                    {"role_key": "donor", "permissions": []},
+                    {"role_key": "super_admin", "permissions": []},
                 ])
             return Rows([])
 
@@ -1247,6 +1250,9 @@ def test_role_policy_integrity_detects_missing_approved_role_definition():
             return [
                 {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"]},
                 {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
+                {"role_key": "requester", "permissions": []},
+                {"role_key": "donor", "permissions": []},
+                {"role_key": "super_admin", "permissions": []},
                 {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
             ]
 
