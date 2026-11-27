@@ -35,7 +35,7 @@ The largest gaps are not missing tables. They are incomplete permission enforcem
 | Seven required log fields | `session_id`, `log_id`, `actions`, `description`, `ip_address`, `timestamp`, `device_used` exist in the audit envelope | Implemented in schema | Validate populated/non-null behavior where applicable, safe device/IP attribution, and display/export |
 | Every applicable action logged | Authenticated API middleware plus explicit transaction-bound events for sensitive operations | Partial | Route-by-route and client-to-route verification; close legacy/uncovered operations |
 | Individual logs per user | `GET /v1/audit/me` filters by verified token subject | Implemented in API | Verify UI access and cross-account isolation with multiple real test users |
-| Detect inappropriate role/permission assignments | Write-time applicability validation, periodic RBAC-02 assignment checks, and RBAC-03 role-level policy checks for four reviewed admin roles | Partial | Approve policies for requester, donor, and super_admin; reconcile legacy role sources; verify alert notification delivery |
+| Detect inappropriate role/permission assignments | Write-time applicability validation, periodic RBAC-02 assignment checks, and RBAC-03 role-level policy checks for all seven registered roles; four administrative matrices plus explicit zero-admin-grant policies for requester, donor, and super_admin | Partial | Reconcile legacy role sources and live assignments; verify alert notification delivery |
 | Warn and notify administrator | Alert records and admin alert queue/lifecycle exist | Partial | Prove an actual administrator notification channel, delivery/retry state, unread indication, and end-to-end delivery |
 
 ## Existing repository implementation
@@ -139,7 +139,7 @@ Operational admin routes now declare permission-specific guards while retaining 
 1. Define how the legacy admin allowlist and profile capability fields map to the RBAC registry.
 2. Provision initial assignments through an explicitly approved, audited, out-of-band process.
 3. Detect missing, expired, unexpected, and conflicting assignments.
-4. The periodic FastAPI-lifespan scanner now checks active user-role assignments and the four explicitly mapped administrative role policies. RBAC-03 role-level policy integrity detection works even when no users are assigned and stores findings in a dedicated role-target table. Persisted scanner-health visibility is also implemented in migration 022, the startup schema routine, a protected Admin API endpoint, and the web Security alerts panel. Deployed runtime operation and full lifespan start/stop behavior remain to be verified.
+4. The periodic FastAPI-lifespan scanner checks active user-role assignments and all seven explicit role policies. Four administrative roles have exact least-privilege permission matrices; requester, donor, and super_admin explicitly have no grants from the administrative permission namespace. Requester/donor application authorization remains governed by existing capability, ownership, and participant checks; super_admin uses the separate dual allowlist. RBAC-03 works even when no users are assigned and stores findings in a dedicated role-target table. Persisted scanner-health visibility is implemented in migration 022, startup schema setup, a protected Admin API endpoint, and the web Security alerts panel. Deployed runtime operation and full lifespan start/stop behavior remain to be verified.
 5. Keep invalid assignments blocked at write time and detected if introduced through an out-of-band path.
 
 ### P0 — Prove administrator notifications
@@ -328,6 +328,59 @@ The existing FastAPI lifespan already runs periodic maintenance tasks, and rende
 7. **Implemented:** alert-list GET requests are read-only and never trigger RBAC scans; the lifespan task owns periodic detection.
 
 Focused tests cover system actor attribution, requestless scanning, evidence-sensitive occurrence updates, an empty registry result, advisory-lock contention (including rollback when another instance owns the lock), successful scan commit, and clean cancellation at the interval boundary. The test exercises the scanner loop directly; it does not yet prove the complete FastAPI lifespan starts/stops all maintenance tasks under a real ASGI server, nor does it verify durable health reporting or retry behavior after a database failure. CI success is evidence for the checked-in test suite, not proof of a deployed runtime scan.
+## Seven-role administrative permission policy closure (2026-11-28)
+
+A source and criteria review found that the scanner's prior wording treated requester, donor, and super_admin as unconfigured. That left a blind spot: an administrative permission could be attached to one of those roles without RBAC-03 treating it as a discrepancy.
+
+The implementation now records an explicit policy for all seven registered roles:
+
+| Role | Administrative permission policy | Application authorization boundary |
+|---|---|---|
+| requester | No grants from the administrative permission namespace | Existing requester capability, ownership, and request lifecycle checks |
+| donor | No grants from the administrative permission namespace | Existing donor capability/profile, ownership, and participant checks |
+| operations_admin | Exact least-privilege operations matrix | Web Admin API permission guards |
+| user_admin | Exact least-privilege user-management matrix | Web Admin API permission guards |
+| security_admin | Exact least-privilege security/audit matrix | Web Admin API permission guards |
+| auditor | Exact read-only audit/report matrix | Web Admin API permission guards |
+| super_admin | No ordinary permission-map grants | Operational routes require both the ordinary admin allowlist and separate RBAC-manager allowlist; role assignment retains its own manager gate |
+
+This does not invent application permissions for requester/donor, does not grant super_admin wildcard access, and does not change live role assignments. RBAC-02 now detects unexpected administrative permission mappings on any of the three zero-grant roles when a user holds that role. RBAC-03 detects the same drift at the role-definition level even with zero user assignments. Tests cover exact empty policies and unexpected-grant detection.
+
+## IDS/IPS processing flow
+
+The diagram below reflects the current code path. It distinguishes request-time controls from the periodic RBAC detector and makes the notification boundary explicit.
+
+```mermaid
+flowchart TD
+    A[Android requester/donor or Web Admin request] --> B[FastAPI API boundary]
+    B --> C[Verify Supabase JWT and active Auth session]
+    C --> D[Register/check application session]
+    D --> E{Admin route?}
+    E -- Yes --> F[Admin allowlist, AAL2, verified TOTP factors]
+    F --> G[RBAC observe/enforce permission guard]
+    E -- No --> H[Application capability, ownership, participant checks]
+    G --> I[Execute authorized handler]
+    H --> I
+    I --> J[Transaction-bound audit event for critical writes]
+    I --> K[Privacy-safe API activity audit fallback]
+    C --> L[Denied/invalid access observation]
+    L --> M[IDS rules and security alert upsert]
+    N[FastAPI lifespan RBAC scanner] --> O[Advisory lock and bounded DB scan]
+    O --> P[RBAC-01 assignment applicability]
+    O --> Q[RBAC-02 per-assignment permission drift]
+    O --> R[RBAC-03 seven-role policy integrity]
+    P --> S[Deduplicated security findings/alerts]
+    Q --> S
+    R --> T[Role-scoped security findings]
+    S --> U[Protected Admin Console alert queue]
+    T --> U
+    U --> V[Opt-in foreground browser notification]
+    U --> W[Administrator reviews, acknowledges, investigates, resolves]
+    V -. not background delivery .-> W
+```
+
+**Current limitations:** scanner execution is in-process with the FastAPI lifespan; background push/email and durable per-recipient delivery receipts are not implemented; request-to-screen manual tracing and deployed runtime verification remain open.
+
 ## 2026-11-27 independent RBAC scanner implementation update
 
 The branch now contains an initial independent scanner implementation (not yet production-validated):
