@@ -452,7 +452,7 @@ async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, 
 async def _scan_rbac_role_policy_integrity(
     session: AsyncSession, principal: Principal, request: Request | None
 ) -> int:
-    """Check seeded role policies independently of whether users hold those roles."""
+    """Check approved role policies independently of assignments and detect missing role rows."""
     result = await session.execute(text(
         "SELECT r.role_key, "
         "COALESCE(array_agg(DISTINCT p.permission_key) FILTER (WHERE p.permission_key IS NOT NULL), ARRAY[]::varchar[]) AS permissions "
@@ -461,20 +461,28 @@ async def _scan_rbac_role_policy_integrity(
         "LEFT JOIN lifelink_permissions p ON p.id = rp.permission_id "
         "GROUP BY r.role_key ORDER BY r.role_key"
     ))
+    actual_by_role = {
+        row["role_key"]: set(row["permissions"] or [])
+        for row in result.mappings().all()
+    }
     correlation_id = _correlation_id(request.headers.get("x-correlation-id")) if request else None
     count = 0
-    for row in result.mappings().all():
-        role_key = row["role_key"]
-        mismatch = _rbac_permission_mismatch(role_key, set(row["permissions"] or []))
-        if mismatch is None:
-            continue  # No approved policy exists; do not infer one.
-        missing, unexpected = mismatch
+    for role_key, expected in RBAC_APPROVED_PERMISSION_MATRIX.items():
+        role_missing = role_key not in actual_by_role
+        if role_missing:
+            missing, unexpected = sorted(expected), []
+        else:
+            mismatch = _rbac_permission_mismatch(role_key, actual_by_role[role_key])
+            if mismatch is None:
+                continue
+            missing, unexpected = mismatch
         evidence = {
             "role_key": role_key,
+            "role_definition_missing": role_missing,
             "missing_permission_keys": missing,
             "unexpected_permission_keys": unexpected,
         }
-        if missing or unexpected:
+        if role_missing or missing or unexpected:
             await session.execute(text(
                 "INSERT INTO lifelink_role_security_findings "
                 "(rule_id, role_key, severity, status, summary, evidence, occurrences, correlation_id) "
@@ -498,7 +506,6 @@ async def _scan_rbac_role_policy_integrity(
                 "AND status IN ('open', 'acknowledged', 'investigating')"
             ), {"role_key": role_key})
     return count
-
 
 @router.get("/security/role-integrity")
 async def admin_role_integrity_findings(
