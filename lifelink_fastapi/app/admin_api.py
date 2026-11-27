@@ -180,11 +180,16 @@ def require_admin_permission(permission_key: str):
                 "JOIN lifelink_permissions p ON p.id = rp.permission_id "
                 "WHERE ur.user_id = CAST(:user_id AS uuid) "
                 "AND r.role_key IN ('operations_admin', 'user_admin', 'security_admin', 'auditor', 'super_admin') "
-                "AND p.permission_key = :permission_key "
+                "AND ((r.role_key = 'super_admin' AND :is_rbac_manager) "
+                "OR (r.role_key <> 'super_admin' AND p.permission_key = :permission_key)) "
                 "AND (ur.expires_at IS NULL OR ur.expires_at > now())"
                 ")"
             ),
-            {"user_id": principal.subject, "permission_key": permission_key},
+            {
+                "user_id": principal.subject,
+                "permission_key": permission_key,
+                "is_rbac_manager": principal.subject in _configured_rbac_manager_ids(),
+            },
         )
         if not granted:
             await _record_denied_admin_attempt(
