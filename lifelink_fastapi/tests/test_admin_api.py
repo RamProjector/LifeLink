@@ -24,6 +24,7 @@ class FakeSession:
         self.scalar_values = list(scalar_values or [0])
         self.statements = []
         self.scalar_statements = []
+        self.scalar_parameters = []
 
     async def execute(self, statement, params=None):
         self.statements.append(str(statement))
@@ -31,6 +32,7 @@ class FakeSession:
 
     async def scalar(self, statement, params=None):
         self.scalar_statements.append(str(statement))
+        self.scalar_parameters.append(params or {})
         return self.scalar_values.pop(0) if self.scalar_values else 0
 
     async def commit(self):
@@ -1598,3 +1600,61 @@ def test_admin_security_notification_feed_rejects_timezone_naive_cursor():
         assert error.value.status_code == 422
 
     asyncio.run(check())
+
+
+def test_super_admin_permission_requires_separate_rbac_manager_allowlist(monkeypatch):
+    from app import admin_api
+
+    monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "enforce")
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    monkeypatch.setenv("LIFELINK_RBAC_MANAGER_USER_IDS", "admin-1")
+    session = FakeSession([0, 2, 1])
+
+    async def check():
+        request = _request_context()
+        principal = Principal(
+            subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+        )
+        await admin_api.require_admin(request=request, principal=principal, session=session)
+        principal = await admin_api.require_admin_permission("settings.update")(
+            request=request, principal=principal, session=session
+        )
+        assert principal.subject == "admin-1"
+
+    asyncio.run(check())
+    query = session.scalar_statements[-1]
+    params = session.scalar_parameters[-1]
+    assert "r.role_key = 'super_admin' AND :is_rbac_manager" in query
+    assert "p.permission_key = :permission_key" in query
+    assert params["is_rbac_manager"] is True
+
+
+def test_super_admin_permission_is_not_granted_without_rbac_manager_allowlist(monkeypatch):
+    from app import admin_api
+
+    monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "enforce")
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    monkeypatch.delenv("LIFELINK_RBAC_MANAGER_USER_IDS", raising=False)
+    session = FakeSession([0, 2, 0])
+    recorded = {}
+
+    async def capture_denial(session, principal, request, **kwargs):
+        recorded.update(kwargs)
+
+    monkeypatch.setattr(admin_api, "_record_denied_admin_attempt", capture_denial)
+
+    async def check():
+        request = _request_context()
+        principal = Principal(
+            subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+        )
+        await admin_api.require_admin(request=request, principal=principal, session=session)
+        with pytest.raises(HTTPException) as error:
+            await admin_api.require_admin_permission("settings.update")(
+                request=request, principal=principal, session=session
+            )
+        assert error.value.status_code == 403
+
+    asyncio.run(check())
+    assert session.scalar_parameters[-1]["is_rbac_manager"] is False
+    assert recorded["rule_id"] == "IDS-08"
