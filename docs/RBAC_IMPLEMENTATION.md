@@ -58,3 +58,14 @@ Requester and donor remain independently assignable, so one account may legitima
 6. Verify assignment, removal, unknown-role rejection, and audit records in a non-production environment first.
 
 No live database changes are performed by adding this migration to the repository.
+
+
+## 2026-11-27 completion audit clarification
+
+A read-only inspection of the connected LifeLink database found 7 role definitions, 19 permissions, 19 role-permission mappings, and **0 user-role assignments**. Existing access therefore still depends on the legacy server-managed administrator allowlist and application capability policies; the registry is not yet the universal source of effective authorization.
+
+The RBAC discrepancy scan currently runs when the normal, unfiltered `GET /v1/admin/security/alerts` request is made. Correlation-filtered reads intentionally skip the scan so they do not overwrite alert correlation evidence. This is demand-driven detection, not a scheduled or independently running monitor. Add an independent, bounded trigger before claiming continuous IDS coverage.
+
+The audit did not verify delivery of RBAC/IDS alerts through push, email, or another notification channel. Persisting an alert row and displaying it in the Admin Console are not proof that an administrator was notified. Do not claim notification delivery until the channel, retry state, and end-to-end receipt are tested.
+
+These findings are repository/live-schema observations only. No user-role assignments, production grants, policies, migrations, or deployment settings were changed.
