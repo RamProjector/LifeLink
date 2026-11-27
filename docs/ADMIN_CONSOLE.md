@@ -95,7 +95,7 @@ The backend MFA boundary is now implemented in this branch. `/v1/admin/preflight
 - The two-operator recovery runbook is documented but has not yet been exercised. Test it in a non-production Supabase project and verify the Supabase Auth audit record plus the LifeLink recovery receipt.
 - Add/complete backend tests for AAL1/AAL2, malformed/missing/stale/downgraded claims, revoked sessions, and non-allowlisted accounts; run the full suite on the latest head.
 - Test primary enrollment, backup enrollment on a separate device, sign-in challenge, incorrect/expired codes, refresh rotation, factor loss, and recovery against a non-production Supabase account on both web and Android.
-- Complete manual browser and Android-device verification. Automated syntax, unit, and transport tests do not replace real authenticator testing.
+- Complete manual browser verification. Automated syntax, unit, and transport tests do not replace real authenticator testing.
 
 
 ### MFA manual verification checklist (not yet executed)
@@ -115,18 +115,10 @@ Run this only against a dedicated non-production Supabase Auth project and a tes
 - [ ] Sign-out clears the in-memory tokens and sends Supabase Auth sign-out for the current session.
 - [ ] Missing JWT `aal` is treated as AAL1; malformed or unsupported values fail closed in the UI and backend.
 - [ ] Verify Supabase's documented behavior that factor verification signs out other active sessions, and ensure the operator understands this before completing enrollment.
-- [ ] Android: allowlisted AAL1 account reaches the native MFA gate through `/v1/admin/preflight`; ordinary users continue to the normal app without seeing admin setup.
-- [ ] Android: no-factor account can enroll primary and separately stored backup TOTP factors; the setup secret is not persisted or logged.
-- [ ] Android: returning AAL1 account can challenge a verified factor; AAL2 with two verified factors reaches `/v1/admin/me` and the native admin console.
-- [ ] Android: incorrect/expired codes, network loss, cancellation, and audit-receipt failure do not open the admin console.
 
-**Release blockers:** latest-head CI, manual web/Android verification, non-production Supabase tests, and a witnessed two-operator recovery exercise must pass. The AAL2 backend gate and audit receipt endpoints are implemented in this draft branch but are not production-approved. Do not mark this checklist complete until each item has reproducible evidence.
+**Release blockers:** latest-head CI, manual web verification, non-production Supabase tests, and a witnessed two-operator recovery exercise must pass. The AAL2 backend gate and audit receipt endpoints are implemented in this draft branch but are not production-approved. Do not mark this checklist complete until each item has reproducible evidence.
 
 Until these conditions pass review and the rollout is explicitly approved, keep the AAL2 backend gate out of production and leave issue #222 open.
-
-## Android console
-
-An allowlisted Android session first calls `/v1/admin/preflight`, then uses the native TOTP enrollment/challenge gate. The native admin screen is reached only after AAL2, two verified TOTP factors, and a successful `/v1/admin/me` response. Other users continue to the normal requester/donor experience. A network failure or failed MFA verification never grants admin access.
 
 ## API endpoints
 
@@ -140,6 +132,7 @@ An allowlisted Android session first calls `/v1/admin/preflight`, then uses the 
 - GET /v1/admin/sessions?limit=50&offset=0 — observed administrator sessions.
 - GET /v1/admin/security/alerts?limit=50&offset=0 — user/session-scoped security alert queue.
 - GET /v1/admin/security/role-integrity?limit=50&offset=0&status=open — role-scoped RBAC-03 policy findings; displayed in the Security alerts page without overloading user alert identities.
+- GET /v1/admin/security/scanner — persisted RBAC scanner health and last success/failure metadata.
 - PATCH /v1/admin/security/alerts/{alert_id} — acknowledge, investigate, resolve, or mark an alert as false positive.
 - POST /v1/admin/sessions/{session_id}/revoke — revoke an observed session for subsequent admin API access.
 - GET /v1/admin/errors?limit=50&offset=0 — recorded API errors and denied admin requests.
