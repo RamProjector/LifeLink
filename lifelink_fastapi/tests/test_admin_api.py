@@ -303,7 +303,7 @@ def test_mfa_lifecycle_audit_records_only_bounded_non_secret_metadata(monkeypatc
     monkeypatch.setattr(admin_api, "_write_audit", capture_audit)
 
     async def check():
-        session = FakeSession()
+        session = FakeSession([2])
         result = await admin_api.admin_mfa_event(
             payload=admin_api.AdminMfaAuditEvent(
                 event_type="recovery_reenrollment_verified",
@@ -326,29 +326,32 @@ def test_mfa_lifecycle_audit_records_only_bounded_non_secret_metadata(monkeypatc
         assert recorded["metadata"] == {
             "event_type": "recovery_reenrollment_verified",
             "verified_factor_count": 2,
-            "evidence_source": "client_reported_after_supabase_auth_confirmation",
+            "client_reported_factor_count": 2,
+            "evidence_source": "server_confirmed_supabase_auth_factor_inventory",
             "ticket_reference": "SEC-2026-104",
         }
         assert "code" not in recorded["metadata"]
         assert "secret" not in recorded["metadata"]
         assert "token" not in recorded["metadata"]
         assert session.statements == []
+        assert "FROM auth.mfa_factors" in session.scalar_statements[0]
 
     asyncio.run(check())
 
 
 @pytest.mark.parametrize(
-    ("event_type", "factor_count", "ticket", "expected_detail"),
+    ("event_type", "client_count", "server_count", "ticket", "expected_status", "expected_detail"),
     [
-        ("factor_enrollment_verified", 0, None, "At least one"),
-        ("backup_factor_verified", 1, None, "Two verified"),
-        ("factor_replacement_verified", 1, None, "Two verified"),
-        ("factor_removal_requested", 2, None, "preserve at least two"),
-        ("recovery_reenrollment_verified", 2, None, "ticket reference"),
+        ("factor_enrollment_verified", 1, 0, None, 409, "Supabase's verified authenticator inventory"),
+        ("backup_factor_verified", 2, 1, None, 409, "Supabase's verified authenticator inventory"),
+        ("factor_replacement_verified", 2, 1, None, 409, "Supabase's verified authenticator inventory"),
+        ("factor_removal_requested", 3, 2, None, 409, "Supabase's verified authenticator inventory"),
+        ("recovery_reenrollment_verified", 2, 0, "SEC-2026-104", 409, "Supabase's verified authenticator inventory"),
+        ("recovery_reenrollment_verified", 2, 2, None, 422, "ticket reference"),
     ],
 )
-def test_mfa_lifecycle_audit_rejects_incomplete_or_unsafe_events(
-    event_type, factor_count, ticket, expected_detail
+def test_mfa_lifecycle_audit_rejects_unverified_inventory_or_missing_ticket(
+    event_type, client_count, server_count, ticket, expected_status, expected_detail
 ):
     from app import admin_api
 
@@ -357,11 +360,11 @@ def test_mfa_lifecycle_audit_rejects_incomplete_or_unsafe_events(
             await admin_api.admin_mfa_event(
                 payload=admin_api.AdminMfaAuditEvent(
                     event_type=event_type,
-                    verified_factor_count=factor_count,
+                    verified_factor_count=client_count,
                     ticket_reference=ticket,
                 ),
                 request=_request_context(),
-                session=FakeSession(),
+                session=FakeSession([server_count]),
                 principal=Principal(
                     subject="admin-1",
                     email_verified=True,
@@ -369,11 +372,37 @@ def test_mfa_lifecycle_audit_rejects_incomplete_or_unsafe_events(
                     assurance_level="aal2",
                 ),
             )
-        assert error.value.status_code == 422
+        assert error.value.status_code == expected_status
         assert expected_detail.lower() in error.value.detail.lower()
 
     asyncio.run(check())
 
+
+def test_mfa_lifecycle_audit_ignores_forged_client_factor_count():
+    from app import admin_api
+
+    async def check():
+        session = FakeSession([1])
+        with pytest.raises(HTTPException) as error:
+            await admin_api.admin_mfa_event(
+                payload=admin_api.AdminMfaAuditEvent(
+                    event_type="backup_factor_verified",
+                    verified_factor_count=10,
+                ),
+                request=_request_context(),
+                session=session,
+                principal=Principal(
+                    subject="admin-1",
+                    email_verified=True,
+                    session_id="session-1",
+                    assurance_level="aal2",
+                ),
+            )
+        assert error.value.status_code == 409
+        assert "Supabase's verified authenticator inventory" in error.value.detail
+        assert "FROM auth.mfa_factors" in session.scalar_statements[0]
+
+    asyncio.run(check())
 
 def test_mfa_recovery_ticket_reference_is_strictly_bounded():
     with pytest.raises(ValidationError):
