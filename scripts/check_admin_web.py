@@ -209,7 +209,9 @@ def main() -> None:
         or "verifyMfaTotp(" not in android_auth
         or "verifiedTotpFactors(factors)" not in android_mfa
         or "verifiedFactorCount = pendingAuditCount" not in android_mfa
-        or "repository.assuranceLevel(refreshed.accessToken) != \"aal2\"" not in android_mfa
+        or "repository.assuranceLevel(activeSession.accessToken)" not in android_mfa
+        or "nextAdminMfaStep(" not in android_mfa
+        or "AdminMfaStep.RELOAD_FACTORS" not in android_mfa
     ):
         fail("Android administrator access must use Supabase TOTP enrollment/challenge, AAL2, and two verified factors")
 
