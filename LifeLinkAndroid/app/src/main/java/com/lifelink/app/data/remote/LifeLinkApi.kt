@@ -18,6 +18,12 @@ import java.util.Locale
 import java.util.TimeZone
 
 interface LifeLinkApi {
+    @GET("v1/admin/preflight")
+    suspend fun adminPreflight(): Response<AdminPreflightResponse>
+
+    @POST("v1/admin/mfa/events")
+    suspend fun adminMfaEvent(@Body request: AdminMfaEventRequest): Response<Unit>
+
     @GET("v1/admin/me")
     suspend fun adminMe(): Response<AdminMeResponse>
 
@@ -633,6 +639,14 @@ data class ConversationModerationResponse(
     @SerializedName("conversation_id") val conversationId: String,
     val action: String,
     val accepted: Boolean = true,
+)
+
+data class AdminPreflightResponse(@SerializedName("authorized") val authorized: Boolean)
+
+data class AdminMfaEventRequest(
+    @SerializedName("event_type") val eventType: String,
+    @SerializedName("verified_factor_count") val verifiedFactorCount: Int,
+    @SerializedName("ticket_reference") val ticketReference: String? = null,
 )
 
 data class AdminMeResponse(@SerializedName("is_admin") val isAdmin: Boolean, val subject: String)
