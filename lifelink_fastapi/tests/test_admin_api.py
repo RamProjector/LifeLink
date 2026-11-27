@@ -822,3 +822,27 @@ def test_rbac_alert_occurrences_do_not_increase_for_identical_evidence():
     alert_insert = next(statement for statement in session.statements if "INSERT INTO lifelink_security_alerts" in statement)
     assert "IS DISTINCT FROM EXCLUDED.evidence" in alert_insert
     assert "ELSE 0 END" in alert_insert
+
+
+def test_rbac_scanner_runs_without_http_request_context():
+    from app.admin_api import _scan_rbac_discrepancies
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class ScanSession(FakeSession):
+        async def execute(self, statement, params=None):
+            self.statements.append(str(statement))
+            return Rows()
+
+    session = ScanSession()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+
+    findings = asyncio.run(_scan_rbac_discrepancies(session, principal, None))
+
+    assert findings == 0
+    assert "FROM lifelink_user_roles ur" in session.statements[0]
