@@ -2069,16 +2069,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
    if(verified.length<=2){const note=document.createElement("p");note.className="mfa-help";note.textContent="Removal is disabled while only two verified authenticators remain. Add and verify a replacement before removing a device.";list.appendChild(note);}
  }
  async function showMfaManagement(){
+   const flow=mfaFlowGeneration;
    showMfaView();$("mfa-cancel").classList.remove("hidden");$("mfa-step-enroll").classList.add("hidden");$("mfa-step-challenge").classList.add("hidden");$("mfa-step-manage").classList.add("hidden");$("mfa-title").textContent="Loading authenticators…";
    try{
-     await refreshIfNeeded();
-     mfaFactors=await window.LifeLinkAdminMFA.listFactors(currentMfaConfig());
+     await refreshIfNeeded();if(flow!==mfaFlowGeneration)return;
+     const factors=await window.LifeLinkAdminMFA.listFactors(currentMfaConfig());if(flow!==mfaFlowGeneration)return;
+     mfaFactors=factors;
      const verified=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors);
      if(verified.length===0){mfaReturnToManage=false;showPrimaryEnrollment();return;}
      if(window.LifeLinkAdminMFA.assuranceLevel(accessToken)!=="aal2"){mfaReturnToManage=true;showMfaChallenge();return;}
      if(verified.length<2){mfaReturnToManage=true;showBackupEnrollment();return;}
      mfaMode="manage";mfaReturnToManage=true;showMfaView();$("mfa-cancel").classList.add("hidden");$("mfa-step-enroll").classList.add("hidden");$("mfa-step-challenge").classList.add("hidden");$("mfa-step-manage").classList.remove("hidden");$("mfa-title").textContent="Authenticator devices.";$("mfa-intro").textContent="Add a verified replacement before removing a lost or compromised authenticator.";renderMfaFactors();
-   }catch(e){message("mfa-message",safeError(e,"Could not load your authenticator devices."),true);}
+   }catch(e){if(flow===mfaFlowGeneration)message("mfa-message",safeError(e,"Could not load your authenticator devices."),true);}
  }
  function showAddMfaFactor(){mfaMode="manage-add";mfaReturnToManage=true;showMfaView();$("mfa-cancel").classList.remove("hidden");$("mfa-step-manage").classList.add("hidden");$("mfa-step-challenge").classList.add("hidden");$("mfa-step-enroll").classList.remove("hidden");$("mfa-title").textContent="Add a replacement authenticator.";$("mfa-intro").textContent="Verify the new factor before removing any existing authenticator.";$("mfa-enroll-title").textContent="Register replacement device";$("mfa-enroll-guidance").textContent="Use a separate device or separately protected authenticator vault. Verifying a factor signs out your other active sessions.";$("mfa-factor-name").value="Replacement authenticator";$("mfa-backup-device-wrap").classList.remove("hidden");$("mfa-backup-device").checked=false;clearMfaPending();}
  async function backToAdminConsole(){
@@ -2145,23 +2147,23 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
    finally{$("recovery-submit").disabled=false;}
  }
  async function signIn() {
-   mfaFlowGeneration++;
+   const flow=++mfaFlowGeneration;
    if(!$("email").value.trim()||!$("password").value){message("login-message","Enter your email and password.",true);return;}
    $("signin").disabled=true;message("login-message","Signing in…");
    try {
      const response=await fetch(SUPABASE_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:$("email").value.trim(),password:$("password").value})});
-     const session=await response.json();if(!response.ok||!session.access_token||!session.refresh_token){const error=new Error("Sign-in failed");error.status=response.status;throw error;}
+     const session=await response.json();if(flow!==mfaFlowGeneration){if(session.access_token)try{await window.LifeLinkAdminMFA.signOut({...currentMfaConfig(),accessToken:session.access_token});}catch{}return;}if(!response.ok||!session.access_token||!session.refresh_token){const error=new Error("Sign-in failed");error.status=response.status;throw error;}
      accessToken=session.access_token;refreshToken=session.refresh_token;accessTokenExpiresAt=Date.now()+Math.max(0,Number(session.expires_in)||0)*1000;adminEmail=session.user?.email||"";
-     await api("/v1/admin/me");
-     await refreshIfNeeded();mfaFactors=await window.LifeLinkAdminMFA.listFactors(currentMfaConfig());
+     await api("/v1/admin/me");if(flow!==mfaFlowGeneration)return;
+     await refreshIfNeeded();if(flow!==mfaFlowGeneration)return;mfaFactors=await window.LifeLinkAdminMFA.listFactors(currentMfaConfig());if(flow!==mfaFlowGeneration)return;
      const verified=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors),aal=window.LifeLinkAdminMFA.assuranceLevel(accessToken);
      if(verified.length===0){showPrimaryEnrollment();return;}
      if(aal==="aal1"){showMfaChallenge();return;}
      if(aal!=="aal2")throw new Error("The authentication assurance claim is missing or invalid. Access is blocked.");
      if(verified.length<2){showBackupEnrollment();return;}
      await enterAdminConsole();
-   } catch(e) {try{if(accessToken)await window.LifeLinkAdminMFA.signOut(currentMfaConfig());}catch{}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];$("mfa-view").classList.add("hidden");$("login-view").classList.remove("hidden");message("login-message",safeError(e,"Sign-in failed. Check your credentials and try again."),true);}
-   finally{$("signin").disabled=false;}
+   } catch(e) {if(flow!==mfaFlowGeneration)return;try{if(accessToken)await window.LifeLinkAdminMFA.signOut(currentMfaConfig());}catch{}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];$("mfa-view").classList.add("hidden");$("login-view").classList.remove("hidden");message("login-message",safeError(e,"Sign-in failed. Check your credentials and try again."),true);}
+   finally{if(flow===mfaFlowGeneration)$("signin").disabled=false;}
  }
  function table(items, cols) {
    if(!items?.length) {
