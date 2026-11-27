@@ -371,3 +371,10 @@ Migration 020 seeds permission mappings only for `operations_admin`, `user_admin
 This remains assignment-scoped detection: if no user is assigned to a role, a changed or missing role-permission mapping for that role is not currently detected. The existing alert table's active uniqueness key is `(rule_id, user_id)`; synthetic role IDs must not be placed in `user_id`. A separate role-target key/schema and an approved policy for all seven roles are prerequisites for safe role-level monitoring. The live read-only snapshot found zero user-role assignments.
 
 CI validation on implementation commit `2c38d2ba58cdf66751719614be7991e26cb41075` passed backend tests (including PostgreSQL integration tests), Ruff, mypy, Docker/admin-site validation, Android quality gate, Gitleaks, and Python plus Java/Kotlin CodeQL. The follow-up documentation commits do not establish deployed runtime behavior; their own CI runs remain the merge gate.
+
+
+## Role-level RBAC detector update (2026-11-27)
+
+The scanner now checks approved role-permission mappings independently of user assignments. Migration `021_role_policy_integrity_findings.sql` creates a dedicated role-scoped finding table, avoiding synthetic role IDs in `lifelink_security_alerts.user_id`. Rule RBAC-03 checks the four exact policies seeded by migration 020, deduplicates active findings by `(rule_id, role_key)`, changes occurrence count only when evidence changes, and resolves active findings when the mapping returns to policy. `GET /v1/admin/security/role-integrity` exposes these findings to existing allowlisted administrators.
+
+No policy is inferred for requester, donor, or super_admin. This detector is only as comprehensive as the explicitly reviewed policy matrix. Migration 021 has been committed to the PR but has not been applied to production; the new scanner path requires it. No production writes or deployment occurred.
