@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-h20bF/uBbIt+zkveXSxPmGPBLMGR3efkcLEGehnTUr0='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-DTaZ4uZbaTczPAuCLjQr5OupJGeteZKE5EVFYbGSACc='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -2108,6 +2108,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
    const generation=securityNotificationGeneration;
    try {
      await refreshIfNeeded();
+     if(generation!==securityNotificationGeneration||!accessToken||!securityNotificationCursor)return;
      const cursor=securityNotificationCursor;
      const query="?after="+encodeURIComponent(cursor.created_at)+"&after_id="+encodeURIComponent(cursor.id)+"&limit=25";
      const data=await api("/v1/admin/security/notifications"+query);
@@ -2130,8 +2131,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
    $("browser-notifications-toggle").addEventListener("click",async()=>{
      if(securityNotificationTimer!==null){stopBrowserNotifications("Off");return;}
      if(!("Notification" in window)){$("browser-notifications-status").textContent="This browser does not support notifications";return;}
+     const permissionGeneration=securityNotificationGeneration;
      try {
        const permission=await Notification.requestPermission();
+       if(permissionGeneration!==securityNotificationGeneration||!accessToken)return;
        if(permission!=="granted"){$("browser-notifications-status").textContent=permission==="denied"?"Notifications blocked in browser settings":"Permission not granted";return;}
        securityNotificationGeneration++;
        const generation=securityNotificationGeneration;
