@@ -549,10 +549,8 @@ async def admin_security_alerts(
     correlation_id: str | None = Query(default=None, max_length=80),
     x_correlation_id: str | None = Header(default=None),
 ):
-    # A correlation-filtered read must not create a new RBAC occurrence first:
-    # doing so would replace the stored alert correlation ID before the filter runs.
-    if correlation_id is None:
-        await _scan_rbac_discrepancies(session, principal, request)
+    # Detection runs in the independent lifespan scanner. Keep this GET read-only:
+    # alert retrieval must not trigger policy scans or mutate finding state.
     result = await session.execute(
         text(
             "SELECT id, rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, "
