@@ -221,6 +221,100 @@ def test_every_admin_route_uses_aal2_guard_except_identity_preflight():
     assert protected
 
 
+def test_mfa_lifecycle_audit_records_only_bounded_non_secret_metadata(monkeypatch):
+    from app import admin_api
+
+    recorded = {}
+
+    async def capture_audit(session, actor_id, action, **kwargs):
+        recorded.update(actor_id=actor_id, action=action, **kwargs)
+
+    monkeypatch.setattr(admin_api, "_write_audit", capture_audit)
+
+    async def check():
+        session = FakeSession()
+        result = await admin_api.admin_mfa_event(
+            payload=admin_api.AdminMfaAuditEvent(
+                event_type="recovery_reenrollment_verified",
+                verified_factor_count=2,
+                ticket_reference="SEC-2026-104",
+            ),
+            request=_request_context(),
+            session=session,
+            principal=Principal(
+                subject="admin-1",
+                email_verified=True,
+                session_id="session-1",
+                assurance_level="aal2",
+            ),
+            x_correlation_id="web:mfa-recovery",
+        )
+        assert result == {"recorded": True}
+        assert recorded["action"] == "admin.mfa.recovery_reenrollment_verified"
+        assert recorded["target_type"] == "admin_mfa"
+        assert recorded["metadata"] == {
+            "event_type": "recovery_reenrollment_verified",
+            "verified_factor_count": 2,
+            "evidence_source": "client_reported_after_supabase_auth_confirmation",
+            "ticket_reference": "SEC-2026-104",
+        }
+        assert "code" not in recorded["metadata"]
+        assert "secret" not in recorded["metadata"]
+        assert "token" not in recorded["metadata"]
+        assert session.statements == []
+
+    asyncio.run(check())
+
+
+@pytest.mark.parametrize(
+    ("event_type", "factor_count", "ticket", "expected_detail"),
+    [
+        ("factor_enrollment_verified", 0, None, "At least one"),
+        ("factor_replacement_verified", 1, None, "Two verified"),
+        ("factor_removal_requested", 2, None, "preserve at least two"),
+        ("recovery_reenrollment_verified", 2, None, "ticket reference"),
+    ],
+)
+def test_mfa_lifecycle_audit_rejects_incomplete_or_unsafe_events(
+    event_type, factor_count, ticket, expected_detail
+):
+    from app import admin_api
+
+    async def check():
+        with pytest.raises(HTTPException) as error:
+            await admin_api.admin_mfa_event(
+                payload=admin_api.AdminMfaAuditEvent(
+                    event_type=event_type,
+                    verified_factor_count=factor_count,
+                    ticket_reference=ticket,
+                ),
+                request=_request_context(),
+                session=FakeSession(),
+                principal=Principal(
+                    subject="admin-1",
+                    email_verified=True,
+                    session_id="session-1",
+                    assurance_level="aal2",
+                ),
+            )
+        assert error.value.status_code == 422
+        assert expected_detail.lower() in error.value.detail.lower()
+
+    asyncio.run(check())
+
+
+def test_mfa_recovery_ticket_reference_is_strictly_bounded():
+    from app.admin_api import AdminMfaAuditEvent
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        AdminMfaAuditEvent(
+            event_type="recovery_reenrollment_verified",
+            verified_factor_count=2,
+            ticket_reference="ticket with spaces and unbounded context",
+        )
+
+
 def test_correlation_id_is_bounded_and_sanitized():
     assert _correlation_id("web:request-1") == "web:request-1"
     generated = _correlation_id("bad\nforged")
