@@ -21,7 +21,7 @@
 | Route / operation | Risk / data sensitivity | Explicit success audit found | Recommended treatment |
 |---|---|---:|---|
 | `PUT /v1/profile` | Account role/capability/profile changes | Added in this PR | Record create/update and changed field names only; no email or display-name values |
-| `PUT /v1/push-token` | Push endpoint credential registration | No | Record registration/removal outcome; never record token |
+| `PUT /v1/push-token` | Push endpoint credential registration | Added in this PR | Record add/update outcome with actor, session, and correlation; never record token; no token-removal endpoint is currently present |
 | `POST /v1/emergency-requests` | Creates sensitive emergency/location request | Added in this PR | Atomically record request ID, outcome, matching mode, and match count; never copy coordinates or medical details into metadata |
 | `POST .../contact` | Initiates contact with selected donors | Yes | Retain; verify failed/denied attempts are also observable |
 | `PATCH .../contacts/{donor_id}` | Changes contact lifecycle/status | Added in this PR | Atomically record actor, request/donor references, and previous/new status only |

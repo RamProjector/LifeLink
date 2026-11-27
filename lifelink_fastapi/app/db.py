@@ -256,3 +256,33 @@ async def create_all_tables() -> None:
             "CREATE INDEX IF NOT EXISTS ix_lifelink_security_alerts_status_created "
             "ON lifelink_security_alerts (status, created_at DESC)"
         ))
+        # Role-scoped RBAC-03 findings remain separate from user-scoped alerts.
+        # Keep startup schema creation aligned with migration 021 for idempotent deploys.
+        await connection.execute(text(
+            "CREATE TABLE IF NOT EXISTS lifelink_role_security_findings ("
+            "id UUID PRIMARY KEY DEFAULT gen_random_uuid(), "
+            "rule_id VARCHAR(64) NOT NULL, "
+            "role_key VARCHAR(64) NOT NULL, "
+            "severity VARCHAR(16) NOT NULL CHECK (severity IN ('critical', 'high', 'medium', 'low')), "
+            "status VARCHAR(20) NOT NULL DEFAULT 'open' CHECK "
+            "(status IN ('open', 'acknowledged', 'investigating', 'resolved', 'false_positive')), "
+            "summary TEXT NOT NULL, "
+            "evidence JSONB NOT NULL DEFAULT '{}'::jsonb, "
+            "occurrences INTEGER NOT NULL DEFAULT 1 CHECK (occurrences >= 1), "
+            "created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+            "last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+            "resolved_at TIMESTAMPTZ, "
+            "correlation_id VARCHAR(80))"
+        ))
+        await connection.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_lifelink_role_security_findings_open_rule_role "
+            "ON lifelink_role_security_findings (rule_id, role_key) "
+            "WHERE status IN ('open', 'acknowledged', 'investigating')"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_lifelink_role_security_findings_status_created "
+            "ON lifelink_role_security_findings (status, created_at DESC)"
+        ))
+        await connection.execute(text(
+            "ALTER TABLE lifelink_role_security_findings ENABLE ROW LEVEL SECURITY"
+        ))

@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import os
 import logging
+import time
 from decimal import Decimal
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -96,6 +97,7 @@ async def lifespan(_: FastAPI):
         asyncio.create_task(_expire_stale_location_shares_forever()),
         asyncio.create_task(_expire_stale_donor_presence_forever()),
         asyncio.create_task(_expire_timed_out_requests_forever()),
+        asyncio.create_task(_scan_rbac_discrepancies_forever()),
     ]
     try:
         yield
@@ -141,6 +143,50 @@ async def _expire_stale_location_shares_forever() -> None:
             raise
         except Exception:  # pragma: no cover - defensive; never kill the loop
             logger.exception("Location-share sweep failed")
+        await asyncio.sleep(interval)
+
+
+async def _scan_rbac_discrepancies_forever() -> None:
+    """Run RBAC discrepancy detection independently of administrator page reads.
+
+    The transaction-scoped advisory lock prevents duplicate scans when multiple
+    API instances are running. Findings use a system actor, never an admin identity.
+    """
+    from .db import AsyncSessionLocal
+    from .admin_api import _scan_rbac_discrepancies
+
+    try:
+        interval = max(60.0, float(os.getenv("LIFELINK_RBAC_SCAN_SECONDS", "300")))
+    except ValueError:
+        logger.warning("LIFELINK_RBAC_SCAN_SECONDS is invalid; using 300 seconds")
+        interval = 300.0
+
+    system_principal = Principal(subject="system:rbac-scanner", email_verified=True)
+    while True:
+        try:
+            async with AsyncSessionLocal() as session:
+                acquired = await session.scalar(
+                    text("SELECT pg_try_advisory_xact_lock(728194620114)")
+                )
+                if acquired:
+                    started_at = time.monotonic()
+                    await session.execute(text("SET LOCAL statement_timeout = '15000ms'"))
+                    findings = await _scan_rbac_discrepancies(
+                        session, system_principal, None
+                    )
+                    await session.commit()
+                    logger.info(
+                        "RBAC discrepancy scan completed; findings=%s duration_ms=%s",
+                        findings,
+                        round((time.monotonic() - started_at) * 1000),
+                    )
+                else:
+                    await session.rollback()
+                    logger.debug("RBAC discrepancy scan skipped; another instance holds the lock")
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("RBAC discrepancy scan failed")
         await asyncio.sleep(interval)
 
 
@@ -532,15 +578,27 @@ async def get_profile(
 @app.put("/v1/push-token", status_code=204)
 async def register_push_token(
     payload: PushTokenIn,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(get_active_postgres_principal),
+    x_correlation_id: str | None = Header(default=None),
 ):
     if principal.subject == "development-user":
         raise HTTPException(status_code=401, detail="An authenticated user is required")
     row = await session.get(LifeLinkProfile, principal.subject)
     if row is None:
         raise HTTPException(status_code=404, detail="Profile not found")
+    action = "api.updated.push_token" if row.fcm_token else "api.added.push_token"
     row.fcm_token = payload.token
+    await _write_audit(
+        session,
+        principal.subject,
+        action,
+        request=request,
+        session_id=principal.session_id,
+        correlation_id=_correlation_id(x_correlation_id),
+        metadata={"description": "Push notification token registered"},
+    )
     await session.commit()
 
 
