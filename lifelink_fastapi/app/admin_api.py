@@ -179,6 +179,7 @@ class AdminProfileUpdate(BaseModel):
 class AdminMfaAuditEvent(BaseModel):
     event_type: Literal[
         "factor_enrollment_verified",
+        "backup_factor_verified",
         "factor_replacement_verified",
         "factor_removal_requested",
         "recovery_reenrollment_verified",
@@ -350,7 +351,7 @@ async def admin_mfa_event(
     """
     if payload.event_type == "factor_enrollment_verified" and payload.verified_factor_count < 1:
         raise HTTPException(status_code=422, detail="At least one verified authenticator is required")
-    if payload.event_type in {"factor_replacement_verified", "recovery_reenrollment_verified"} and payload.verified_factor_count < 2:
+    if payload.event_type in {"backup_factor_verified", "factor_replacement_verified", "recovery_reenrollment_verified"} and payload.verified_factor_count < 2:
         raise HTTPException(status_code=422, detail="Two verified authenticators are required")
     if payload.event_type == "factor_removal_requested" and payload.verified_factor_count < 3:
         raise HTTPException(status_code=422, detail="A removal request must preserve at least two verified authenticators")
@@ -359,6 +360,7 @@ async def admin_mfa_event(
 
     action = {
         "factor_enrollment_verified": "admin.mfa.factor_enrollment_verified",
+        "backup_factor_verified": "admin.mfa.backup_factor_verified",
         "factor_replacement_verified": "admin.mfa.factor_replacement_verified",
         "factor_removal_requested": "admin.mfa.factor_removal_requested",
         "recovery_reenrollment_verified": "admin.mfa.recovery_reenrollment_verified",
