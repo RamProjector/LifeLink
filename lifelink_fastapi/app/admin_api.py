@@ -393,14 +393,32 @@ async def admin_mfa_event(
     only the event it just completed through Supabase Auth. Recovery receipts
     require an independently approved operator ticket and two verified factors.
     """
-    if payload.event_type == "factor_enrollment_verified" and payload.verified_factor_count < 1:
-        raise HTTPException(status_code=422, detail="At least one verified authenticator is required")
-    if payload.event_type in {"backup_factor_verified", "factor_replacement_verified", "recovery_reenrollment_verified"} and payload.verified_factor_count < 2:
-        raise HTTPException(status_code=422, detail="Two verified authenticators are required")
-    if payload.event_type == "factor_removal_requested" and payload.verified_factor_count < 3:
-        raise HTTPException(status_code=422, detail="A removal request must preserve at least two verified authenticators")
     if payload.event_type == "recovery_reenrollment_verified" and not payload.ticket_reference:
         raise HTTPException(status_code=422, detail="An approved recovery ticket reference is required")
+
+    # The caller's count is useful for detecting stale UI state, but it is never
+    # accepted as proof. Reconcile every lifecycle receipt against Supabase's
+    # server-managed factor inventory before writing an audit claim.
+    verified_totp_count = int(await session.scalar(
+        text(
+            "SELECT count(*) FROM auth.mfa_factors "
+            "WHERE user_id::varchar = :user_id "
+            "AND factor_type = 'totp' AND status = 'verified'"
+        ),
+        {"user_id": principal.subject},
+    ) or 0)
+    minimum_verified_factors = {
+        "factor_enrollment_verified": 1,
+        "backup_factor_verified": 2,
+        "factor_replacement_verified": 2,
+        "factor_removal_requested": 3,
+        "recovery_reenrollment_verified": 2,
+    }[payload.event_type]
+    if verified_totp_count < minimum_verified_factors:
+        raise HTTPException(
+            status_code=409,
+            detail="Supabase's verified authenticator inventory does not satisfy this MFA lifecycle action.",
+        )
 
     action = {
         "factor_enrollment_verified": "admin.mfa.factor_enrollment_verified",
@@ -411,8 +429,9 @@ async def admin_mfa_event(
     }[payload.event_type]
     metadata = {
         "event_type": payload.event_type,
-        "verified_factor_count": payload.verified_factor_count,
-        "evidence_source": "client_reported_after_supabase_auth_confirmation",
+        "verified_factor_count": verified_totp_count,
+        "client_reported_factor_count": payload.verified_factor_count,
+        "evidence_source": "server_confirmed_supabase_auth_factor_inventory",
     }
     if payload.ticket_reference:
         metadata["ticket_reference"] = payload.ticket_reference
