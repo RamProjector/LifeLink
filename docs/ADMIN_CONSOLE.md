@@ -34,6 +34,41 @@ No administrator UUID or credentials are configured by this change. Do not add t
 
 Serve admin-web/index.html over HTTPS using the configured static host. The deployed console uses preconfigured public client settings and exposes only email/password fields. These public settings are not secrets; never include a service-role key. The API origin is fixed in the console, and the access token remains in page memory and is cleared on sign-out. Configure LIFELINK_CORS_ORIGINS on the API host with only exact trusted web origins. The API rejects wildcard entries and does not enable credentialed CORS. Do not add broad origins.
 
+
+## Admin MFA rollout status
+
+The admin TOTP implementation is being developed in draft PR #225. The following describes the intended and currently implemented web-console flow; it is **not approval to deploy or enable AAL2 enforcement**.
+
+### Current draft sign-in sequence
+
+1. The web console signs in through Supabase Auth using the publishable key.
+2. Before asking the account to enroll, it calls `GET /v1/admin/me`. The API's existing verified-token, verified-email, server-managed UUID allowlist, session-context, and revocation checks remain authoritative for this precheck.
+3. The console lists the account's TOTP factors. An AAL1 session with a verified factor is challenged; an account without a verified factor is prompted to enroll a primary factor.
+4. After the first factor is verified, the console requires a second factor and asks the operator to attest that it is stored separately (different device or separately protected authenticator vault).
+5. The web console is shown only when the current JWT reports AAL2 and at least two TOTP factors are verified. The API's existing `/v1/admin/me` authorization check is still performed before rendering the console.
+
+The two-factor count and AAL check currently exist in the **web client only**. A browser-side check is not a security boundary for direct API calls. The backend does not yet require AAL2 on every admin endpoint. Do not treat this draft UI as complete MFA protection or deploy it as an MFA rollout.
+
+### Session and secret handling
+
+- Access and refresh tokens remain in page memory; the web console does not persist them in localStorage or sessionStorage.
+- The refresh token is rotated through Supabase Auth before protected API calls when the access token is near expiry.
+- The TOTP setup secret is displayed only during enrollment and cleared from the page after verification or sign-out. Never log, copy into tickets, or commit the QR payload, secret, OTP, access token, or refresh token.
+- Supabase documents that verifying a factor promotes the current session to AAL2 and signs out the user's other active sessions. Operators must be warned before completing enrollment.
+- Supabase does not provide standard TOTP recovery codes. The backup factor must be held separately from the primary factor. Losing every verified factor can permanently prevent sign-in.
+
+### Required before rollout
+
+- Implement a factor-management screen that requires AAL2 and a newly verified replacement before removing an existing factor; never permit removal of the last two verified factors through the normal UI.
+- Design and document a verified out-of-band recovery process for loss of every authenticator. Email/password reset is not an MFA recovery mechanism and must not bypass factor verification.
+- Enforce AAL2 in the backend for every admin endpoint, while preserving verified email, the server-side admin UUID allowlist, active-session validation, and revocation checks.
+- Audit successful enrollment, factor replacement/removal, recovery events, and denied AAL1 admin attempts without recording secrets, OTPs, or tokens.
+- Add backend tests for AAL1/AAL2, malformed/missing/stale/downgraded claims, revoked sessions, and non-allowlisted accounts.
+- Test primary enrollment, backup enrollment on a separate device, sign-in challenge, incorrect/expired codes, refresh rotation, factor loss, and recovery against a non-production Supabase account.
+- Complete manual browser verification at desktop and mobile widths. Automated syntax and transport tests do not replace real authenticator testing.
+
+Until these conditions pass review and the rollout is explicitly approved, keep the AAL2 backend gate out of production and leave issue #222 open.
+
 ## Android console
 
 A verified session whose user UUID is on the server-side allowlist is routed to the native admin screen after GET /v1/admin/me succeeds. Other users continue to the normal requester/donor experience. A network failure does not grant admin access.
