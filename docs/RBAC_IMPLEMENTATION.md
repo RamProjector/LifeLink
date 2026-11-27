@@ -64,7 +64,7 @@ No live database changes are performed by adding this migration to the repositor
 
 A read-only inspection of the connected LifeLink database found 7 role definitions, 19 permissions, 19 role-permission mappings, and **0 user-role assignments**. Existing access therefore still depends on the legacy server-managed administrator allowlist and application capability policies; the registry is not yet the universal source of effective authorization.
 
-The RBAC discrepancy scan now runs as a bounded FastAPI lifespan task at a configurable interval (default 300 seconds, minimum 60 seconds), independently of administrator alert-page reads. A PostgreSQL transaction-scoped advisory lock prevents overlapping scans across API instances, and each scan transaction has a 15-second statement timeout. Errors are logged and retried on the next interval. This is periodic in-process monitoring, not an external always-on service: host sleep/restarts can interrupt it, and no durable last-success/last-failure health record is currently persisted.
+The RBAC discrepancy scan runs as a bounded FastAPI lifespan task at a configurable interval (default 300 seconds, minimum 60 seconds), independently of administrator alert-page reads. A PostgreSQL transaction-scoped advisory lock prevents overlapping scans across API instances, and each scan transaction has a 15-second statement timeout. The scanner now persists last start/completion/success/failure timestamps, finding count, duration, consecutive failures, and a sanitized error code in `lifelink_security_scanner_runs`. `GET /v1/admin/security/scanner` exposes this record to the web Admin Console. This remains in-process monitoring, not an external always-on service: host sleep/restarts can interrupt it, so the last successful timestamp is the freshness signal.
 
 The audit did not verify delivery of RBAC/IDS alerts through push, email, or another notification channel. Persisting an alert row and displaying it in the Admin Console are not proof that an administrator was notified. Do not claim notification delivery until a supported web-admin delivery channel, recipient resolution, retry state, and end-to-end receipt are tested.
 
@@ -79,27 +79,26 @@ These findings are repository/live-schema observations only. No user-role assign
 - CI on head `2c38d2ba58cdf66751719614be7991e26cb41075` passed backend tests (including PostgreSQL integration tests), Ruff, mypy, Docker/admin-site validation, Android quality gate, Gitleaks, and Python plus Java/Kotlin CodeQL. This verifies the tested code on that commit, not deployed runtime behavior.
 
 
-## Admin route authorization inventory (source inspection, 2026-11-27)
+## Admin route authorization inventory (implementation update, 2026-11-27)
 
-The current `admin_api.py` route inventory confirms that these endpoints use the shared `require_admin` dependency (the server-managed administrator allowlist plus verified active principal), not granular role-permission checks:
+Operational admin routes now use permission-specific dependency guards. The guards always retain the existing server-managed allowlist, verified identity, active-session, AAL2, and two-verified-TOTP checks. Enforcement is staged by `LIFELINK_RBAC_ENFORCEMENT_MODE`: default `observe` preserves current access while the live registry has zero user-role assignments; `enforce` checks the exact active, non-expired permission grant and denies missing grants. Invalid mode values fail closed with HTTP 503.
 
-| Route | Current authorization gate | Intended permission key |
-|---|---|---|
-| `GET /v1/admin/me` | `require_admin` | `dashboard.read` (or a dedicated admin-self permission) |
-| `GET /v1/admin/dashboard` | `require_admin` | `dashboard.read` |
-| `GET /v1/admin/users` | `require_admin` | `users.read` |
-| `PATCH /v1/admin/users/{user_id}` | `require_admin` | `users.update` |
-| `GET /v1/admin/security/alerts` | `require_admin` | `security.alerts.read` |
-| `PATCH /v1/admin/security/alerts/{alert_id}` | `require_admin` | `security.alerts.manage` |
-| `GET /v1/admin/sessions` | `require_admin` | `security.sessions.read` |
-| `POST /v1/admin/sessions/{session_id}/revoke` | `require_admin` | `security.sessions.revoke` |
-| `GET /v1/admin/audit` | `require_admin` | `audit.read` |
-| `GET /v1/admin/errors` | `require_admin` | Dedicated error-log permission should be considered; current matrix has no specific key |
-| `GET /v1/admin/roles` | `require_admin` | `roles.read` |
-| `GET /v1/admin/users/{user_id}/roles` | `require_admin` | `roles.read` |
-| `PUT /v1/admin/users/{user_id}/roles` | `require_admin` plus `LIFELINK_RBAC_MANAGER_USER_IDS` and applicability checks | `roles.assign` plus manager safeguard |
+| Route | Permission in enforce mode |
+|---|---|
+| `GET /v1/admin/me`, dashboard | `dashboard.read` |
+| `GET /v1/admin/users` | `users.read` |
+| `PATCH /v1/admin/users/{user_id}` | `users.update` |
+| `GET /v1/admin/security/role-integrity`, audit, errors | `audit.read` |
+| `GET /v1/admin/security/alerts`, scanner health | `security.alerts.read` |
+| `PATCH /v1/admin/security/alerts/{alert_id}` | `security.alerts.manage` |
+| `GET /v1/admin/sessions` | `security.sessions.read` |
+| `POST /v1/admin/sessions/{session_id}/revoke` | `security.sessions.revoke` |
+| `GET /v1/admin/roles`, user-role reads | `roles.read` |
+| `PUT /v1/admin/users/{user_id}/roles` | Separate `LIFELINK_RBAC_MANAGER_USER_IDS` allowlist and applicability checks |
 
-This is an authorization source inspection, not an endpoint penetration test. The permission column is a target mapping, not a claim that the permissions are currently enforced. Do not replace the allowlist gate until a reviewed role-to-endpoint matrix, trusted bootstrap/provisioning plan, migration/backfill strategy, and role-specific authorization tests exist. In particular, the current live registry has zero user-role assignments, so switching to RBAC-only checks now could lock out all existing administrators.
+Do not change the backend mode to `enforce` until all current administrators have approved role assignments and the exact role-to-route matrix has passed non-production verification. The current seed has no dedicated manager-role grant for `roles.assign`, so the separate RBAC-manager safeguard remains authoritative for role assignment.
+
+This is an implementation and unit-test update, not a claim of production deployment or live permission enforcement. No user-role assignments or production grants were added.
 
 
 ## Role-level policy integrity detector (2026-11-27)
@@ -109,3 +108,14 @@ Migration `021_role_policy_integrity_findings.sql` adds `lifelink_role_security_
 The periodic scanner now evaluates the four explicitly approved role policies directly from `lifelink_roles` and their permission mappings, independent of `lifelink_user_roles`. It raises RBAC-03 for missing role definitions, missing grants, or unexpected grants; increments occurrences only when evidence changes; and automatically resolves active RBAC-03 findings when the approved mapping is restored. Roles without an approved exact policy (`requester`, `donor`, and `super_admin`) are skipped rather than treated as having an empty permission set.
 
 The new read-only admin endpoint is `GET /v1/admin/security/role-integrity` (server-side `require_admin` remains in force). The API startup schema routine now creates the role-finding table, indexes, and RLS setting idempotently, matching migration 021. The SQL migration remains available for separately managed schema rollouts. No production migration or deployment was performed as part of this PR.
+
+
+## Continuation implementation update (2026-11-27)
+
+- Added route-specific RBAC permission dependencies and four focused tests for observe compatibility, exact active permission grants, denied permissions, and invalid mode configuration.
+- Added migration `022_security_scanner_health.sql`, idempotent API startup schema creation, scanner success/failure persistence, and the protected `GET /v1/admin/security/scanner` endpoint.
+- Added a Security alerts page panel showing persisted scanner status, last success/failure, last finding count, consecutive failures, and sanitized error code.
+- Android administrator screens, the native MFA gate, admin Retrofit endpoints/DTOs, and the Android-only TOTP client methods/tests were removed. The admin console is web-only; the Android app remains requester/donor only.
+- No admin RBAC assignments were provisioned and `LIFELINK_RBAC_ENFORCEMENT_MODE` remains in its safe default `observe` mode. Do not enable enforcement until a reviewed out-of-band provisioning plan has assigned real administrator UUIDs.
+- A live LifeLink database cleanup removed only explicitly marked demo security alerts, audit rows with demo/example/fixture metadata, and five synthetic session rows. Remaining operational audit/session records and the RBAC role/permission registry were preserved.
+- Administrator alert delivery through a background push/email channel is still not implemented or verified. The Android app no longer contains admin support, and no web push subscription/delivery channel currently exists. The existing Admin Console alert queue remains available, but it must not be described as out-of-band notification delivery.
