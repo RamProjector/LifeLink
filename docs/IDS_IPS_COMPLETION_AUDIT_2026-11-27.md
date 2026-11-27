@@ -164,7 +164,7 @@ Do not introduce a paid provider or new external service without approval.
 
 ### P1 — Session and device/IP quality
 
-1. Define "device_used": sanitized user-agent/device class rather than a raw or client-asserted device identity.
+1. **Implemented (2026-11-28):** audit/session `device_used` now stores a coarse OS/device class (Android, iOS, Windows, macOS, Linux, or Unknown) rather than the raw user-agent string or browser/model version. The label is descriptive telemetry only and is not used for authentication.
 2. Define trusted-proxy configuration before using forwarded IP headers. The current server peer address can be the proxy address.
 3. Define retention and cleanup for audit/session data.
 4. Verify sign-out, refresh, expired Auth session, administrator revocation, and cross-client behavior.
@@ -175,7 +175,7 @@ Do not introduce a paid provider or new external service without approval.
 1. Show users with legacy capabilities, effective RBAC roles, permissions, and assignment expiry together.
 2. Show each user's own audit history and session history under access controls.
 3. Show alert severity, rule, correlation, occurrence count, first/last seen, status, and notification delivery state.
-4. Add the requested IDS/IPS flowchart and role/permission matrix.
+4. **Implemented in this audit:** add the IDS/IPS processing flowchart and seven-role administrative permission matrix; keep these synchronized with actual code.
 5. Prepare a criteria-based manual test record with screenshots/log IDs and expected/actual outcomes.
 
 ## Route and operation inventory to finish
