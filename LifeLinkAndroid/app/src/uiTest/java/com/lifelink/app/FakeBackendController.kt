@@ -47,6 +47,7 @@ object FakeBackendController {
                 val method = request.method.orEmpty()
                 return when {
                     path == "/health" -> json(200, """{"status":"ok","mode":"ui-test-fake-backend"}""")
+                    path == "/v1/admin/preflight" -> json(403, """{"detail":"Administrator access is required"}""")
                     path == "/v1/admin/me" -> json(200, """{"is_admin":false,"subject":"demo-user"}""")
                     path == "/v1/profile" && method == "GET" -> json(200, profileJson())
                     path == "/v1/profile" && method == "PUT" -> updateProfile(request)
