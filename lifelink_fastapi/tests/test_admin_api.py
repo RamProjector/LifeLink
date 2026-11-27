@@ -861,3 +861,69 @@ def test_rbac_permission_policy_detects_missing_and_unexpected_grants():
     assert _rbac_permission_mismatch("requester", set()) is None
     assert _rbac_permission_mismatch("donor", set()) is None
     assert _rbac_permission_mismatch("super_admin", set()) is None
+
+
+def test_role_policy_integrity_scans_seeded_roles_without_user_assignments():
+    from app.admin_api import _scan_rbac_role_policy_integrity
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return [
+                {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read"]},
+                {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
+                {"role_key": "super_admin", "permissions": []},
+            ]
+
+    class Session:
+        def __init__(self):
+            self.statements = []
+
+        async def execute(self, statement, params=None):
+            self.statements.append((str(statement), params or {}))
+            return Rows()
+
+    session = Session()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+    findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
+
+    assert findings == 1
+    assert "FROM lifelink_roles r" in session.statements[0][0]
+    assert "lifelink_user_roles" not in session.statements[0][0]
+    insert_sql, params = session.statements[1]
+    assert "INSERT INTO lifelink_role_security_findings" in insert_sql
+    assert "ON CONFLICT (rule_id, role_key)" in insert_sql
+    assert params["role_key"] == "operations_admin"
+    assert '"missing_permission_keys": ["operations.read", "reports.read", "requests.read"]' in params["evidence"]
+    assert session.statements[2][1]["role_key"] == "auditor"
+    assert "UPDATE lifelink_role_security_findings" in session.statements[2][0]
+
+
+def test_role_policy_integrity_does_not_infer_unconfigured_role_policy():
+    from app.admin_api import _scan_rbac_role_policy_integrity
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return [{"role_key": "requester", "permissions": []},
+                    {"role_key": "donor", "permissions": []},
+                    {"role_key": "super_admin", "permissions": ["unreviewed.permission"]}]
+
+    class Session:
+        def __init__(self):
+            self.statements = []
+
+        async def execute(self, statement, params=None):
+            self.statements.append((str(statement), params or {}))
+            return Rows()
+
+    session = Session()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+    findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
+
+    assert findings == 0
+    assert len(session.statements) == 1
