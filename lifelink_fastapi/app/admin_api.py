@@ -787,6 +787,31 @@ async def admin_role_integrity_findings(
     }
 
 
+@router.get("/security/scanner")
+async def admin_security_scanner_health(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin_permission("security.alerts.read")),
+):
+    """Return persisted RBAC scanner health without exposing exception details."""
+    result = await session.execute(text(
+        "SELECT scanner_key, status, last_started_at, last_finished_at, last_succeeded_at, "
+        "last_failed_at, last_findings, last_duration_ms, consecutive_failures, "
+        "last_error_code, updated_at "
+        "FROM lifelink_security_scanner_runs WHERE scanner_key = 'rbac'"
+    ))
+    row = result.mappings().first()
+    await _write_audit(
+        session, principal.subject, "admin.security.scanner.read", request=request,
+        session_id=principal.session_id, target_type="security_scanner", target_id="rbac",
+    )
+    await session.commit()
+    if row is None:
+        return {"scanner_key": "rbac", "status": "never_run", "last_findings": 0,
+                "consecutive_failures": 0, "last_error_code": None}
+    return dict(row)
+
+
 @router.get("/security/alerts")
 async def admin_security_alerts(
     request: Request,
