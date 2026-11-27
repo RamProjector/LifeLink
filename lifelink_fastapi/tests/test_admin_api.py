@@ -832,16 +832,27 @@ def test_rbac_scanner_runs_without_http_request_context():
     from app.admin_api import _scan_rbac_discrepancies
 
     class Rows:
+        def __init__(self, rows):
+            self.rows = rows
+
         def mappings(self):
             return self
 
         def all(self):
-            return []
+            return self.rows
 
     class ScanSession(FakeSession):
         async def execute(self, statement, params=None):
-            self.statements.append(str(statement))
-            return Rows()
+            sql = str(statement)
+            self.statements.append(sql)
+            if "FROM lifelink_roles r" in sql:
+                return Rows([
+                    {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"]},
+                    {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
+                    {"role_key": "security_admin", "permissions": ["dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"]},
+                    {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
+                ])
+            return Rows([])
 
     session = ScanSession()
     principal = Principal(subject="system:rbac-scanner", email_verified=True)
