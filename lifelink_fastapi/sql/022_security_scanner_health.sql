@@ -21,5 +21,6 @@ CREATE INDEX IF NOT EXISTS ix_lifelink_security_scanner_runs_status
     ON lifelink_security_scanner_runs (status, updated_at DESC);
 
 ALTER TABLE lifelink_security_scanner_runs ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM PUBLIC, anon, authenticated;
 
 COMMIT;
