@@ -493,7 +493,6 @@ data class AuthCallback(val kind: AuthCallbackKind, val email: String?, val acce
 
 data class PasswordUpdateRequest(@SerializedName("password") val password: String)
 
-
 data class SupabaseMfaUser(@SerializedName("factors") val factors: List<SupabaseMfaFactor>?)
 
 data class SupabaseMfaFactor(
