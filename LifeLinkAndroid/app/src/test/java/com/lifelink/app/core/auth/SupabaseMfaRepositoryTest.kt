@@ -141,6 +141,28 @@ class SupabaseMfaRepositoryTest {
         assertEquals("unknown", repository.assuranceLevel("not-a-jwt"))
     }
 
+
+    @Test
+    fun missingRotatedRefreshTokenDoesNotPersistAnAal2Session() = runBlocking {
+        val payload = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString("""{"aal":"aal2"}""".toByteArray())
+        server.enqueue(
+            MockResponse().setBody(
+                """{"access_token":"header.$payload.signature","user":{"id":"user-1","email":"admin@example.test"}}""",
+            ),
+        )
+
+        val result = repository.verifyMfaTotp(
+            AuthSession("old-access", "old-refresh", "user-1", "admin@example.test"),
+            "factor-1",
+            "challenge-1",
+            "123456",
+        )
+
+        assertTrue(result.isFailure)
+        assertEquals(null, sessionStore.session.value)
+    }
+
     @Test
     fun invalidTotpCodeDoesNotMakeANetworkRequest() = runBlocking {
         val result = repository.verifyMfaTotp(
