@@ -67,8 +67,8 @@ class SupabaseMfaRepositoryTest {
     fun enrollmentSendsTotpTypeAndFriendlyName() = runBlocking {
         server.enqueue(
             MockResponse().setBody(
-                """{"id":"factor-1","friendly_name":"Primary","totp":{"secret":"TESTSECRET","uri":"otpauth://totp/LifeLink","qr_code":"data:image/svg+xml;base64,""" +
-                    """PHN2Zz4="}}""",
+                """{"id":"factor-1","friendly_name":"Primary","totp":{"secret":"TESTSECRET","uri":"otpauth://totp/LifeLink",""" +
+                    """"qr_code":"data:image/svg+xml;base64,PHN2Zz4="}}""",
             ),
         )
 
