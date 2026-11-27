@@ -395,13 +395,14 @@ async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, 
         "WHERE ur.expires_at IS NULL OR ur.expires_at > now() "
         "GROUP BY ur.user_id, r.role_key, p.can_request, p.can_donate"
     ))
-    allowed_permissions = {
-        "requester": set(), "donor": set(),
+    # Exact policy is defined only for the four roles seeded with mappings in
+    # migration 020. requester, donor, and super_admin are intentionally
+    # unconfigured here; do not infer empty or all-powerful grants for them.
+    approved_permission_matrix = {
         "operations_admin": {"dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"},
         "user_admin": {"dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"},
         "security_admin": {"dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"},
         "auditor": {"dashboard.read", "audit.read", "reports.read"},
-        "super_admin": {"dashboard.read", "users.read", "users.update", "users.suspend", "requests.read", "requests.update", "operations.read", "communications.metadata.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke", "roles.read", "roles.assign", "permissions.manage", "reports.read", "settings.read", "settings.update"},
     }
     count = 0
     correlation_id = _correlation_id(request.headers.get("x-correlation-id")) if request else None
@@ -412,25 +413,32 @@ async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, 
         if reason:
             await _record_rbac_mismatch(session, principal, request, user_id, role_key, reason, correlation_id)
             count += 1
-        unexpected = sorted(set(row["permissions"] or []) - allowed_permissions.get(role_key, set()))
-        if unexpected:
-            await _write_audit(session, principal.subject, "security.rbac.permission_mismatch", request=request,
-                session_id=principal.session_id, outcome="denied", target_type="user", target_id=user_id,
-                correlation_id=correlation_id,
-                metadata={"role_key": role_key, "unexpected_permission_keys": unexpected, "rule_id": "RBAC-02"})
-            await session.execute(text(
-                "INSERT INTO lifelink_security_alerts (rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, correlation_id) "
-                "VALUES ('RBAC-02', 'high', 'open', :user_id, :session_id, 'Role contains permissions outside approved policy', CAST(:evidence AS jsonb), 1, :correlation_id) "
-                "ON CONFLICT (rule_id, user_id) WHERE status IN ('open', 'acknowledged', 'investigating') "
-                "DO UPDATE SET last_seen_at = now(), "
-                "occurrences = lifelink_security_alerts.occurrences + CASE "
-                "WHEN lifelink_security_alerts.evidence IS DISTINCT FROM EXCLUDED.evidence THEN 1 ELSE 0 END, "
-                "evidence = EXCLUDED.evidence, "
-                "correlation_id = COALESCE(EXCLUDED.correlation_id, lifelink_security_alerts.correlation_id)"
-            ), {"user_id": user_id, "session_id": principal.session_id,
-                "evidence": __import__("json").dumps({"role_key": role_key, "unexpected_permission_keys": unexpected}),
-                "correlation_id": correlation_id})
-            count += 1
+        expected_permissions = approved_permission_matrix.get(role_key)
+        if expected_permissions is not None:
+            actual_permissions = set(row["permissions"] or [])
+            missing = sorted(expected_permissions - actual_permissions)
+            unexpected = sorted(actual_permissions - expected_permissions)
+            if missing or unexpected:
+                await _write_audit(session, principal.subject, "security.rbac.permission_mismatch", request=request,
+                    session_id=principal.session_id, outcome="denied", target_type="user", target_id=user_id,
+                    correlation_id=correlation_id,
+                    metadata={"role_key": role_key, "missing_permission_keys": missing,
+                              "unexpected_permission_keys": unexpected, "rule_id": "RBAC-02"})
+                await session.execute(text(
+                    "INSERT INTO lifelink_security_alerts (rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, correlation_id) "
+                    "VALUES ('RBAC-02', 'high', 'open', :user_id, :session_id, 'Role permission mapping differs from approved policy', CAST(:evidence AS jsonb), 1, :correlation_id) "
+                    "ON CONFLICT (rule_id, user_id) WHERE status IN ('open', 'acknowledged', 'investigating') "
+                    "DO UPDATE SET last_seen_at = now(), "
+                    "occurrences = lifelink_security_alerts.occurrences + CASE "
+                    "WHEN lifelink_security_alerts.evidence IS DISTINCT FROM EXCLUDED.evidence THEN 1 ELSE 0 END, "
+                    "evidence = EXCLUDED.evidence, "
+                    "correlation_id = COALESCE(EXCLUDED.correlation_id, lifelink_security_alerts.correlation_id)"
+                ), {"user_id": user_id, "session_id": principal.session_id,
+                    "evidence": __import__("json").dumps({
+                        "role_key": role_key, "missing_permission_keys": missing,
+                        "unexpected_permission_keys": unexpected,
+                    }), "correlation_id": correlation_id})
+                count += 1
     return count
 
 @router.get("/security/alerts")
