@@ -89,7 +89,7 @@ Confirmed narrow rules:
 - IDS-04: missing administrator session context.
 - IDS-05: reuse of a revoked administrator session.
 
-The security-alert API retains a request-triggered supplemental scan on normal unfiltered alert-list reads. In addition, this branch starts an independent periodic RBAC scan from the FastAPI lifespan (default 300 seconds, configurable with a 60-second minimum). A PostgreSQL transaction-scoped advisory lock prevents overlapping scans across API instances; each scan transaction has a 15-second statement timeout. Failures are logged and retried at the next interval. The background task is code- and CI-validated, but execution in a deployed instance has not been demonstrated; host sleep/restarts can interrupt it, and no durable scanner-health record exists.
+The security-alert API is read-only; detection is performed by an independent periodic RBAC scan started from the FastAPI lifespan (default 300 seconds, configurable with a 60-second minimum). A PostgreSQL transaction-scoped advisory lock prevents overlapping scans across API instances; each scan transaction has a 15-second statement timeout. Failures are logged and retried at the next interval. The background task is code- and CI-validated, but execution in a deployed instance has not been demonstrated; host sleep/restarts can interrupt it, and no durable scanner-health record exists.
 
 The alert table supports open, acknowledged, investigating, resolved, and false-positive states. The API can update alert state and deduplicate active incidents.
 
@@ -309,12 +309,11 @@ flowchart TD
     L --> M[(Security alert lifecycle)]
     M --> N[Admin Console alert queue]
     M -. required: verified delivery .-> O[Administrator notification channel]
-    P -. required: independent scheduled trigger .-> L
-    Q[Admin opens unfiltered alert list] --> L
+    P[FastAPI lifespan periodic scanner] --> L
     O -. delivery result / retry state required .-> M
 ```
 
-**Flowchart interpretation:** Authentication, application-session checks, the server-side admin allowlist, audit persistence, alert storage/lifecycle, an alert-list supplemental scan, and a periodic lifespan scanner exist in the reviewed branch. The diagram's server-side authorization box represents current authorization controls, not universal per-permission enforcement: most admin routes still use the legacy allowlist. Deployed runtime evidence, persistent scanner-health reporting, and verified administrator notification delivery remain incomplete.
+**Flowchart interpretation:** Authentication, application-session checks, the server-side admin allowlist, audit persistence, alert storage/lifecycle, and the independent periodic scanner scan, and a periodic lifespan scanner exist in the reviewed branch. The diagram's server-side authorization box represents current authorization controls, not universal per-permission enforcement: most admin routes still use the legacy allowlist. Deployed runtime evidence, persistent scanner-health reporting, and verified administrator notification delivery remain incomplete.
 
 ### Independent scan implementation constraints confirmed by source inspection
 
@@ -328,7 +327,7 @@ The existing FastAPI lifespan already runs periodic maintenance tasks, and rende
 4. **Implemented:** active alerts are upserted, and occurrence counts increase only when finding evidence changes.
 5. **Outstanding:** scan duration/result count and failures are written to application logs, but there is no persisted last-success/last-failure health record or administrator-visible monitor health.
 6. **Partially implemented:** transient failures are logged and retried on the next interval; prolonged failure is not yet represented in a durable health surface.
-7. **Implemented:** the admin alert-list scan remains a supplemental on-demand trigger; correlation-filtered reads do not trigger it.
+7. **Implemented:** alert-list GET requests are read-only and never trigger RBAC scans; the lifespan task owns periodic detection.
 
 Focused tests cover system actor attribution, requestless scanning, evidence-sensitive occurrence updates, an empty registry result, advisory-lock contention (including rollback when another instance owns the lock), successful scan commit, and clean cancellation at the interval boundary. The test exercises the scanner loop directly; it does not yet prove the complete FastAPI lifespan starts/stops all maintenance tasks under a real ASGI server, nor does it verify durable health reporting or retry behavior after a database failure. CI success is evidence for the checked-in test suite, not proof of a deployed runtime scan.
 ## 2026-11-27 independent RBAC scanner implementation update
