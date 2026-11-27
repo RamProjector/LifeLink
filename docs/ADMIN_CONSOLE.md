@@ -78,9 +78,9 @@ Supabase's `aal2` claim proves that the current session completed at least one s
 
 ### Backend enforcement compatibility requirement
 
-The current web flow calls `GET /v1/admin/me` before factor discovery so a normal LifeLink account is rejected before it is asked to enroll an authenticator. When AAL2 enforcement is implemented, do not simply exempt all of `/v1/admin/me` or force this preflight to AAL2: that would either expose an AAL1 admin endpoint unnecessarily or deadlock first-time enrollment.
+The web flow now calls `GET /v1/admin/preflight` before factor discovery. This new backend endpoint runs the existing signed-JWT, verified-email, server-managed admin UUID allowlist, active-session, and revocation checks, records an audit event, and returns only `{"authorized": true}`—no operational data. The full `GET /v1/admin/me` response is requested only after the browser has completed its AAL2 and two-verified-factor gate.
 
-The backend rollout should introduce a minimal pre-MFA identity preflight (for example, `GET /v1/admin/preflight`) that checks the signed JWT, verified-email policy, server-managed admin UUID allowlist, active Supabase session, and revocation state, but returns no operational data. The web client should use that endpoint before enrollment. Every actual admin data/action endpoint, including the full `/v1/admin/me` response, must require verified AAL2 in addition to the existing checks. Test both sides of this boundary explicitly.
+When backend AAL2 enforcement is implemented, keep `/v1/admin/preflight` as the narrowly scoped AAL1 enrollment gate. Every actual admin data/action endpoint, including the full `/v1/admin/me` response, must require verified AAL2 in addition to the existing checks. Test both sides of this boundary explicitly.
 
 ### Required before rollout
 
