@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-pOD1FAsVjGWyeQuAnTf1LrTDf7ifaXTCIqqX6Cnto/4='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-MEwVMZ98LtWl4haNfVCMn9oZ3F98yXKwwr5Z4dCDXl8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -1328,7 +1328,546 @@ th { font-size: 11px; line-height: 1.4; }
   font-size: 11px;
 }
 
-</style>
+
+/* Material 3 application-shell refinement */
+:root {
+  --ink: #20251f;
+  --ink-soft: #414940;
+  --muted: #626b61;
+  --line: #e2e6df;
+  --line-strong: #cbd2c9;
+  --paper: #f7f8f5;
+  --surface: #ffffff;
+  --surface-soft: #eff2ed;
+  --surface-raised: #ffffff;
+  --action: #34483b;
+  --action-hover: #26392e;
+  --accent: #94703b;
+  --focus-ring: #526f5b;
+  --accent-soft: #e9eee7;
+  --sage: #718675;
+  --danger: #b43e36;
+  --success: #477354;
+  --shadow-sm: 0 1px 2px rgba(28, 39, 30, .045);
+  --shadow-md: 0 12px 32px rgba(28, 39, 30, .12);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+}
+body { background: var(--paper); color: var(--ink); }
+.top {
+  min-height: 60px;
+  padding-inline: 24px;
+  border-bottom: 1px solid #39463c;
+  background: #202a23;
+}
+.brand { gap: 11px; font-size: 15px; letter-spacing: -.25px; }
+.brand-mark { width: 34px; height: 34px; border-radius: 9px; }
+.top small { margin-left: 45px; font-size: 11px; }
+.top button.secondary { min-height: 36px; border-radius: 999px; padding-inline: 14px; }
+#app-view.wrap {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto auto;
+  align-content: start;
+  width: 100%;
+  max-width: none;
+  min-height: calc(100vh - 60px);
+  margin: 0;
+  padding: 0;
+}
+#app-view > .headrow {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 25px 32px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.headrow h1 { font-size: clamp(23px, 2vw, 28px); letter-spacing: -.7px; }
+.headrow .eyebrow { color: #657165; font-size: 10px; letter-spacing: 1.1px; }
+#identity { color: var(--muted); font-size: 12px; }
+.console-layout { display: contents; }
+.sidebar {
+  grid-column: 1;
+  grid-row: 1 / span 4;
+  position: sticky;
+  top: 60px;
+  align-self: stretch;
+  width: 100%;
+  height: calc(100vh - 60px);
+  min-height: calc(100vh - 60px);
+  overflow-y: auto;
+  padding: 20px 12px;
+  border: 0;
+  border-right: 1px solid #dce2da;
+  border-radius: 0;
+  background: #edf1eb;
+}
+.nav-toggle {
+  justify-content: flex-start;
+  min-height: 40px;
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border: 1px solid #d8e0d6;
+  border-radius: 8px;
+  background: #f8faf7;
+  color: #34483b;
+}
+.nav-toggle:hover { background: #e3eae1; }
+.nav-toggle span { display: inline; }
+.sidebar .nav-group {
+  display: block;
+  padding: 16px 12px 7px;
+  color: #6b766b;
+  font-size: 10px;
+  letter-spacing: .9px;
+}
+.sidebar .tabs { gap: 4px; }
+.sidebar .tab {
+  justify-content: flex-start;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: #3d493f;
+  font-size: 13px;
+  font-weight: 560;
+}
+.sidebar .tab > span:not(.ll-icon) { display: inline; }
+.sidebar .tab .ll-icon { color: #647467; }
+.sidebar .tab:hover { background: #e1e9df; color: #24372b; }
+.sidebar .tab.active {
+  border: 0;
+  background: #d8e5d6;
+  color: #243b2b;
+  font-weight: 700;
+}
+.sidebar .tab.active .ll-icon { color: #31553b; }
+.console-layout:has(#nav-collapse:not(:checked)) .sidebar .nav-group,
+.console-layout:has(#nav-collapse:not(:checked)) .sidebar .tab > span:not(.ll-icon),
+.console-layout:has(#nav-collapse:not(:checked)) .sidebar .nav-toggle span { display: none; }
+.console-layout:has(#nav-collapse:not(:checked)) .sidebar .nav-toggle { justify-content: center; padding-inline: 8px; }
+.console-layout:has(#nav-collapse:not(:checked)) .sidebar .tab { justify-content: center; padding-inline: 8px; }
+#app-view:has(#nav-collapse:not(:checked)) { grid-template-columns: 76px minmax(0, 1fr); }
+.content-area {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  padding: 24px 32px 30px;
+}
+.content-area > section.panel {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.content-area > section.panel > .panel,
+.content-area > #page-overview > .panel {
+  margin-top: 24px;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.content-area .panel h2 { margin: 0 0 8px; font-size: 16px; letter-spacing: -.2px; }
+.content-area .panel p { color: var(--muted); }
+.content-area .grid { gap: 12px; }
+.content-area .stat {
+  min-height: 108px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: none;
+}
+.content-area .stat small { color: var(--muted); font-size: 12px; }
+.content-area .stat strong { margin-top: 12px; font-size: 28px; letter-spacing: -.7px; }
+.content-area .stat .stat-icon { width: 30px; height: 30px; border-radius: 8px; background: var(--surface-soft); color: var(--action); }
+.tablewrap {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: none;
+}
+table { border-collapse: separate; border-spacing: 0; }
+thead th { background: #f2f5f1; color: #475348; font-weight: 700; }
+tbody tr:hover { background: #f5f8f4; }
+input, select { border-radius: 8px; border-color: var(--line-strong); }
+button { min-height: 40px; border-radius: 8px; font-weight: 650; }
+button.secondary { background: var(--surface); border-color: var(--line-strong); color: var(--ink-soft); }
+button.secondary:hover { background: var(--surface-soft); border-color: #aab7a9; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.notice, .sessions-guidance, .errors-guidance, .roles-guidance, .users-guide {
+  border-radius: 8px;
+  box-shadow: none;
+}
+#app-view > #app-message, #app-view > .foot {
+  grid-column: 2;
+  margin-inline: 32px;
+}
+#app-view > #app-message { grid-row: 3; }
+#app-view > .foot { grid-row: 4; margin-top: 14px; margin-bottom: 22px; }
+@media (max-width: 900px) {
+  #app-view.wrap { grid-template-columns: 208px minmax(0, 1fr); }
+  #app-view:has(#nav-collapse:not(:checked)) { grid-template-columns: 68px minmax(0, 1fr); }
+  #app-view > .headrow { padding: 22px 22px 16px; }
+  .content-area { padding: 20px 22px 26px; }
+  #app-view > #app-message, #app-view > .foot { margin-inline: 22px; }
+  .sidebar { padding-inline: 9px; }
+}
+@media (max-width: 680px) {
+  #app-view.wrap { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: auto auto 1fr auto auto; }
+  #app-view > .headrow { grid-column: 1; grid-row: 1; padding: 18px 16px 14px; }
+  .sidebar {
+    grid-column: 1;
+    grid-row: 2;
+    position: static;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    padding: 8px 12px;
+    border-right: 0;
+    border-bottom: 1px solid #dce2da;
+  }
+  .nav-toggle { display: none; }
+  .sidebar .nav-group { display: none !important; }
+  .sidebar .tabs {
+    display: flex;
+    gap: 5px;
+    overflow-x: auto;
+    padding: 2px 0 5px;
+    scrollbar-width: thin;
+  }
+  .sidebar .tab, .sidebar .tab > span:not(.ll-icon) {
+    display: inline-flex !important;
+  }
+  .sidebar .tab {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 40px;
+    justify-content: flex-start;
+    padding: 8px 11px;
+    white-space: nowrap;
+  }
+  .content-area { grid-column: 1; grid-row: 3; padding: 18px 16px 22px; }
+  #app-view > #app-message, #app-view > .foot { grid-column: 1; margin-inline: 16px; }
+  #app-view > #app-message { grid-row: 4; }
+  #app-view > .foot { grid-row: 5; }
+  .content-area .grid, #page-overview .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .top { padding-inline: 16px; }
+}
+@media (max-width: 420px) {
+  .content-area .grid, #page-overview .grid { grid-template-columns: minmax(0,1fr); }
+  .headrow h1 { font-size: 22px; }
+}
+
+
+/* User management — information-first table treatment */
+#page-users .users-intro {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:20px;
+  margin:0 0 14px;
+}
+#page-users .users-intro p { max-width:760px; margin:0; line-height:1.55; }
+#page-users .users-legend {
+  display:flex;
+  flex:0 0 auto;
+  align-items:center;
+  gap:7px;
+  padding-top:2px;
+}
+#page-users .users-legend .tag { border-radius:999px; padding:5px 10px; font-size:11px; }
+#page-users .users-guide {
+  display:flex;
+  align-items:flex-start;
+  gap:11px;
+  margin:0 0 18px;
+  padding:11px 0;
+  border:0;
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  border-radius:0;
+  background:transparent;
+  color:var(--ink-soft);
+}
+#page-users .users-guide > .ll-icon {
+  flex:0 0 30px;
+  width:30px;
+  height:30px;
+  display:grid;
+  place-items:center;
+  border-radius:8px;
+  background:var(--accent-soft);
+  color:var(--action);
+}
+#page-users .users-guide strong { display:block; margin:1px 0 3px; font-size:12px; }
+#page-users .users-guide div { font-size:12px; line-height:1.5; }
+#page-users #users-table .table-toolbar {
+  display:grid;
+  grid-template-columns:minmax(220px,1fr) auto auto;
+  align-items:center;
+  gap:12px;
+  margin:0;
+  padding:0 0 12px;
+}
+#page-users #users-table .search-wrap { max-width:520px; }
+#page-users #users-table [data-table-search] { min-height:42px; background:var(--surface); }
+#page-users #users-table .table-count { font-variant-numeric:tabular-nums; }
+#page-users #users-table .table-export { min-height:36px; }
+#page-users #users-table table { min-width:900px; }
+#page-users #users-table th { padding:12px 14px; }
+#page-users #users-table td { padding:13px 14px; vertical-align:middle; }
+#page-users #users-table td:first-child { min-width:230px; }
+#page-users #users-table td:first-child strong { display:block; margin-bottom:3px; font-size:13px; color:var(--ink); }
+#page-users #users-table td:first-child .muted { display:block; margin-bottom:4px; font-size:12px; }
+#page-users #users-table td:first-child code { display:inline-block; max-width:220px; color:#747d73; font-size:10px; }
+#page-users #users-table td:nth-child(3) .tag { margin:2px 3px 2px 0; border-radius:999px; padding:4px 8px; font-size:10px; }
+#page-users #users-table td:nth-child(4) { min-width:150px; color:var(--muted); font-size:12px; }
+#page-users #users-table td:last-child { min-width:235px; }
+#page-users #users-table td:last-child .actions {
+  display:grid;
+  grid-template-columns:1fr;
+  gap:6px;
+  min-width:0;
+}
+#page-users #users-table td:last-child button {
+  width:100%;
+  min-height:34px;
+  justify-content:flex-start;
+  padding:7px 10px;
+  border-radius:7px;
+  font-size:11px;
+  text-align:left;
+}
+#page-users .users-pagination {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-top:14px;
+  padding-top:12px;
+  border-top:1px solid var(--line);
+}
+#page-users .users-pagination #users-page {
+  margin-left:auto;
+  font-size:12px;
+  font-variant-numeric:tabular-nums;
+}
+#page-users .users-pagination button { min-height:36px; }
+@media(max-width:900px) {
+  #page-users #users-table .table-toolbar { grid-template-columns:minmax(0,1fr) auto; }
+  #page-users #users-table .table-count { grid-column:1 / -1; }
+  #page-users .users-intro { flex-wrap:wrap; }
+}
+@media(max-width:680px) {
+  #page-users .users-intro { gap:10px; }
+  #page-users .users-legend { padding:0; }
+  #page-users #users-table .table-toolbar { grid-template-columns:minmax(0,1fr); }
+  #page-users #users-table .table-count { grid-column:auto; }
+  #page-users #users-table .table-actions { justify-content:space-between; }
+  #page-users .users-pagination { flex-wrap:wrap; }
+  #page-users .users-pagination #users-page { width:100%; margin:3px 0 0; }
+}
+
+
+/* Security alerts — incident-first information hierarchy */
+#page-alerts .alerts-intro { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:12px; }
+#page-alerts .alerts-intro p { max-width:760px; margin:0; line-height:1.55; }
+#page-alerts .severity-key { display:flex; flex-wrap:wrap; gap:6px; }
+#page-alerts .severity-key .tag { border-radius:999px; padding:5px 9px; }
+#page-alerts .alerts-scope-note {
+  display:flex; align-items:flex-start; gap:10px; margin:0 0 16px; padding:10px 0;
+  border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+  color:var(--muted); font-size:12px; line-height:1.5;
+}
+#page-alerts .alerts-scope-note .ll-icon { flex:0 0 auto; color:var(--action); }
+#page-alerts .alerts-toolbar { justify-content:flex-start; gap:12px; margin:0 0 12px; padding:0; }
+#page-alerts .alerts-toolbar label { color:var(--ink-soft); font-size:12px; font-weight:650; }
+#page-alerts .alerts-toolbar select { min-width:190px; min-height:40px; }
+#page-alerts #alerts-table table { min-width:900px; }
+#page-alerts #alerts-table th { padding:12px 14px; }
+#page-alerts #alerts-table td { padding:14px; vertical-align:top; }
+#page-alerts #alerts-table td:first-child { min-width:310px; max-width:430px; }
+#page-alerts #alerts-table td:nth-child(2) { min-width:130px; }
+#page-alerts #alerts-table td:nth-child(3) { min-width:170px; }
+#page-alerts #alerts-table td:last-child { min-width:210px; }
+#page-alerts .alert-incident { display:grid; gap:6px; }
+#page-alerts .alert-incident > strong { color:var(--ink); font-size:12px; letter-spacing:.2px; }
+#page-alerts .alert-incident > span:not(.muted) { color:var(--ink-soft); font-size:13px; line-height:1.45; }
+#page-alerts .alert-incident .muted { font-size:11px; line-height:1.45; }
+#page-alerts .alert-state { display:flex; flex-direction:column; align-items:flex-start; gap:7px; }
+#page-alerts .alert-state .tag { border-radius:999px; padding:5px 9px; }
+#page-alerts .alert-identifiers { display:grid; gap:4px; }
+#page-alerts .alert-identifiers code { max-width:190px; overflow-wrap:anywhere; font-size:10px; }
+#page-alerts .alert-evidence { margin-top:3px; }
+#page-alerts .alert-evidence summary { color:var(--action); font-size:11px; font-weight:700; }
+#page-alerts .alert-evidence-grid { display:grid; grid-template-columns:100px minmax(0,1fr); gap:6px 10px; margin:10px 0; font-size:11px; }
+#page-alerts .alert-evidence-grid > span:nth-child(odd) { color:var(--muted); }
+#page-alerts .alert-evidence-grid code { overflow-wrap:anywhere; }
+#page-alerts .alert-evidence pre { max-width:420px; max-height:220px; overflow:auto; padding:10px; border:1px solid var(--line); border-radius:6px; background:#f5f7f4; font-size:10px; }
+#page-alerts .alert-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; min-width:0; }
+#page-alerts .alert-actions button { min-height:34px; justify-content:center; padding:6px 8px; font-size:10px; white-space:normal; }
+#page-alerts .alerts-pagination { display:flex; align-items:center; gap:8px; margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
+#page-alerts .alerts-pagination span { margin-left:auto; font-size:12px; font-variant-numeric:tabular-nums; }
+@media(max-width:900px) {
+  #page-alerts .alerts-intro { flex-wrap:wrap; }
+}
+@media(max-width:680px) {
+  #page-alerts .severity-key { width:100%; }
+  #page-alerts .alerts-toolbar { align-items:flex-start; flex-direction:column; }
+  #page-alerts .alerts-toolbar select { width:100%; }
+  #page-alerts .alerts-pagination { flex-wrap:wrap; }
+  #page-alerts .alerts-pagination span { width:100%; margin:3px 0 0; }
+}
+
+
+/* Session review — operational timeline and lifecycle hierarchy */
+#page-sessions .sessions-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:12px; }
+#page-sessions .sessions-heading p { max-width:760px; margin:0; line-height:1.55; }
+#page-sessions .sessions-heading .snapshot-kind { flex:0 0 auto; }
+#page-sessions .sessions-guidance {
+  display:flex; align-items:flex-start; gap:10px; margin:0 0 16px; padding:10px 0;
+  border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+  border-radius:0; background:transparent; color:var(--muted); font-size:12px; line-height:1.5;
+}
+#page-sessions .sessions-guidance .ll-icon {
+  flex:0 0 30px; width:30px; height:30px; display:grid; place-items:center;
+  border-radius:8px; background:var(--accent-soft); color:var(--action);
+}
+#page-sessions #sessions-table table { min-width:940px; }
+#page-sessions #sessions-table th { padding:12px 14px; }
+#page-sessions #sessions-table td { padding:14px; vertical-align:middle; }
+#page-sessions #sessions-table td:first-child { min-width:150px; }
+#page-sessions #sessions-table td:nth-child(2) { min-width:190px; }
+#page-sessions #sessions-table td:nth-child(3) { min-width:190px; }
+#page-sessions #sessions-table td:nth-child(4) { min-width:190px; }
+#page-sessions #sessions-table td:last-child { min-width:105px; }
+#page-sessions .session-identity, #page-sessions .session-context,
+#page-sessions .session-timeline, #page-sessions .session-lifecycle {
+  display:grid; align-content:start; gap:5px;
+}
+#page-sessions .session-identity strong,
+#page-sessions .session-context strong,
+#page-sessions .session-timeline strong { color:var(--ink); font-size:12px; }
+#page-sessions .session-identity code,
+#page-sessions .session-context code { max-width:210px; overflow-wrap:anywhere; font-size:10px; }
+#page-sessions .session-context .muted,
+#page-sessions .session-timeline .muted,
+#page-sessions .session-lifecycle .muted { color:var(--muted); font-size:11px; line-height:1.45; }
+#page-sessions .session-lifecycle .tag { width:max-content; border-radius:999px; padding:5px 9px; }
+#page-sessions #sessions-table td:last-child button { min-height:36px; border-radius:7px; font-size:11px; }
+#page-sessions .sessions-pagination {
+  display:flex; align-items:center; gap:8px; margin-top:14px; padding-top:12px;
+  border-top:1px solid var(--line);
+}
+#page-sessions .sessions-pagination span { margin-left:auto; font-size:12px; font-variant-numeric:tabular-nums; }
+@media(max-width:900px) {
+  #page-sessions .sessions-heading { flex-wrap:wrap; }
+}
+@media(max-width:680px) {
+  #page-sessions .sessions-pagination { flex-wrap:wrap; }
+  #page-sessions .sessions-pagination span { width:100%; margin:3px 0 0; }
+}
+
+
+/* Overview — editorial hierarchy for operational summary */
+#page-overview .overview-metrics {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  margin:0 0 26px;
+}
+#page-overview .stat {
+  position:relative;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-content:space-between;
+  gap:9px 12px;
+  min-height:122px;
+  padding:17px 18px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--surface);
+}
+#page-overview .stat small { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:11px; font-weight:650; letter-spacing:.1px; }
+#page-overview .stat .stat-icon { width:28px; height:28px; display:grid; place-items:center; border-radius:8px; background:var(--surface-soft); color:var(--action); }
+#page-overview .stat strong { grid-column:1; margin:0; color:var(--ink); font-size:30px; line-height:1.1; font-weight:730; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
+#page-overview .stat .stat-meta { grid-column:1 / -1; color:var(--muted); font-size:11px; }
+#page-overview .stat-security { background:#f1f5ef; border-color:#dce6d9; }
+#page-overview .stat-security .stat-status { color:#31583a; font-size:22px; letter-spacing:-.5px; }
+#page-overview .overview-snapshot {
+  margin:0;
+  padding:22px 0 20px;
+  border:0;
+  border-top:1px solid var(--line);
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+}
+#page-overview .overview-panel-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+#page-overview .overview-panel-heading h2 { margin:0 0 5px; font-size:17px; letter-spacing:-.3px; }
+#page-overview .overview-panel-heading p { max-width:740px; margin:0; font-size:12px; line-height:1.55; }
+#page-overview .snapshot-kind { flex:0 0 auto; border-radius:999px; padding:5px 10px; background:var(--surface-soft); color:var(--ink-soft); font-size:10px; font-weight:700; }
+#page-overview #overview-chart { min-height:140px; margin:18px 0 8px; padding:4px 0; }
+#page-overview .overview-footnote { display:flex; align-items:center; gap:8px; padding-top:10px; border-top:1px solid var(--line); }
+#page-overview .overview-footnote .ll-icon { color:var(--muted); }
+#page-overview .overview-trace { margin:7px 0 0; font-size:10px; }
+#page-overview .overview-controls {
+  display:grid;
+  grid-template-columns:minmax(180px,.65fr) repeat(2,minmax(0,1fr));
+  align-items:start;
+  gap:14px;
+  margin:4px 0 0;
+  padding:20px 0 0;
+  border:0;
+  border-top:1px solid var(--line);
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+}
+#page-overview .overview-controls h2 { margin:3px 0 0; font-size:14px; }
+#page-overview .control-note { display:flex; align-items:flex-start; gap:10px; min-width:0; padding:0; border:0; background:transparent; }
+#page-overview .control-note > .ll-icon { flex:0 0 28px; width:28px; height:28px; display:grid; place-items:center; border-radius:8px; background:var(--accent-soft); color:var(--action); }
+#page-overview .control-note strong { display:block; margin:1px 0 4px; color:var(--ink); font-size:12px; }
+#page-overview .control-note p { margin:0; font-size:11px; line-height:1.5; }
+@media(max-width:900px) {
+  #page-overview .overview-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #page-overview .overview-controls { grid-template-columns:1fr 1fr; }
+  #page-overview .overview-controls h2 { grid-column:1 / -1; }
+}
+@media(max-width:620px) {
+  #page-overview .overview-metrics { grid-template-columns:1fr 1fr; }
+  #page-overview .overview-panel-heading { flex-wrap:wrap; }
+  #page-overview .overview-controls { grid-template-columns:1fr; gap:13px; }
+  #page-overview .overview-controls h2 { grid-column:auto; }
+}
+@media(max-width:420px) {
+  #page-overview .overview-metrics { grid-template-columns:1fr; }
+}
+
+
+/* Distinct audit and error review layouts */
+#audit-table table { min-width: 980px; }
+#errors-table table { min-width: 820px; }
+#errors-table th:first-child, #errors-table td:first-child { min-width: 125px; }
+#errors-table td:nth-child(2) { min-width: 220px; }
+#errors-table td:nth-child(3) { min-width: 190px; }
+#errors-table td:nth-child(4) { min-width: 150px; }
+#errors-table .event-summary strong { color: #8e3028; }
+#errors-table .event-trace code { max-width: 210px; }
+#errors-table details summary { cursor: pointer; color: var(--ink-soft); font-weight: 650; }
+#errors-table details pre { max-width: min(560px,70vw); max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }</style>
 </head>
 <body>
 <header class="top"><div><div class="brand"><span class="brand-mark ll-icon" data-icon="lifelink" data-icon-size="23"></span><span>LifeLink <span>/ Admin</span></span></div><small>Restricted operations console</small></div><div id="session-tools" class="hidden"><button id="signout" class="secondary"><span class="ll-icon" data-icon="logout"></span>Sign out</button></div></header>
@@ -1371,8 +1910,8 @@ th { font-size: 11px; line-height: 1.4; }
   <div class="panel analytics-actions-panel"><div class="analytics-section-heading"><div><h2>Most frequent actions</h2><p class="muted small">Top action names in the same sample, ranked by count.</p></div></div><div id="analytics-actions"><div class="empty">Loading action summary…</div></div></div>
  </section>
  <section id="page-roles" aria-labelledby="page-title" class="panel hidden">
-  <div class="roles-heading"><div><p class="muted small">Review the roles and permissions configured by the backend. This page is read-only; it does not create roles or change assignments.</p></div><span class="snapshot-kind">Read only</span></div>
-  <div class="roles-guidance"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><div><strong>One privileged console role: Admin.</strong> Administrative access is verified by the server. Requester and Donor are app capabilities, not additional administrator roles, and cannot grant access to this console.</div></div>
+  <div class="roles-heading"><div><p class="muted small">Review role definitions and their permission mappings. This catalog is read-only; it does not show user assignments or change access.</p></div><span class="snapshot-kind">Definitions only</span></div>
+  <div class="roles-guidance"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><div><strong>Role definitions do not grant Admin console access.</strong> The catalog includes app-level and administrative permission templates, but it does not show which accounts hold them. Protected console access is independently checked against the server-managed Admin allowlist; elevated role assignment is separately restricted.</div></div>
   <div id="roles-table" class="tablewrap" aria-live="polite"><div class="empty">Select Role registry to load configured roles and permissions.</div></div>
  </section>
  <section id="page-users" aria-labelledby="page-title" class="panel hidden"><div class="users-intro"><div><p class="muted small">Review account identity, profile role, and app access. Requester and Donor capabilities are managed here; administrator access is verified separately by the server and cannot be granted from this screen.</p></div><div class="users-legend" aria-label="Capability status legend"><span class="tag success">Enabled</span><span class="tag">Disabled</span></div></div><div class="users-guide"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><div><strong>Capability changes are audited.</strong> The profile role is separate from the Requester and Donor capability switches. Search and CSV export apply to the records on the current page.</div></div><div id="users-table" class="tablewrap"><div class="empty">Loading users…</div></div><div class="actions users-pagination"><button id="users-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="users-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="users-page" class="muted small" aria-live="polite"></span></div></section>
@@ -1659,15 +2198,10 @@ async function loadUsers() {
        tableEl.innerHTML='<div class="empty"><strong>No security alerts found</strong><span class="muted small">'+(alertStatus||alertCorrelation?"No incidents match the selected filters.":"No recorded incidents are currently in the alert queue.")+'</span></div>';
      } else {
        tableEl.innerHTML=table(data.items,[
-         {label:"Rule",render:a=>'<strong>'+esc(a.rule_id||"Unknown rule")+'</strong>'},
-         {label:"Severity",render:a=>'<span class="tag severity-'+String(a.severity||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.severity||"Unknown")+'</span>'},
-         {label:"Status",render:a=>'<span class="tag status-'+String(a.status||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.status||"Unknown")+'</span>'},
-         {label:"Account / session",render:a=>{const user=String(a.user_id||"—"),session=String(a.session_id||"—");return '<div class="alert-identifiers"><span class="muted small">Account</span><code title="'+esc(user)+'">'+esc(user)+'</code><span class="muted small">Session</span><code title="'+esc(session)+'">'+esc(session)+'</code></div>';}},
-         {label:"Correlation ID",render:a=>'<code title="'+esc(a.correlation_id||"")+'">'+esc(a.correlation_id||"Not recorded")+'</code>'},
-         {label:"Incident summary",render:a=>'<div class="alert-incident"><strong>'+esc(a.summary||"No summary provided")+'</strong><span class="muted small">'+esc(a.occurrences??"—")+' recorded occurrences</span></div>'},
-         {label:"Last observed",render:a=>'<span class="alert-last-seen">'+esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")+'</span>'},
-         {label:"Evidence / history",render:a=>'<details class="cell-detail"><summary>View evidence &amp; history</summary><p class="small">Created: '+esc(a.created_at?new Date(a.created_at).toLocaleString():"—")+'</p><p class="small">Acknowledged: '+esc(a.acknowledged_at?new Date(a.acknowledged_at).toLocaleString():"—")+' · By '+esc(a.acknowledged_by||"—")+'</p><p class="small">Resolved: '+esc(a.resolved_at?new Date(a.resolved_at).toLocaleString():"—")+' · By '+esc(a.resolved_by||"—")+'</p><p class="small">Correlation: <code>'+esc(a.correlation_id||"—")+'</code></p><pre>'+esc(JSON.stringify(a.evidence||{},null,2))+'</pre></details>'},
-         {label:"Actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions"><button class="secondary" aria-label="Acknowledge alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="acknowledged"><span class="ll-icon" data-icon="check"></span>Acknowledge</button><button class="secondary" aria-label="Investigate alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="investigating"><span class="ll-icon" data-icon="search"></span>Investigate</button><button class="secondary" aria-label="Mark alert '+esc(a.rule_id||a.id||"record")+' as false positive" data-alert="'+esc(a.id)+'" data-status="false_positive">False positive</button><button aria-label="Resolve alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="resolved"><span class="ll-icon" data-icon="shieldCheck"></span>Resolve</button></div>'}
+         {label:"Incident",render:a=>'<div class="alert-incident"><strong>'+esc(a.rule_id||"Unknown rule")+'</strong><span>'+esc(a.summary||"No summary provided")+'</span><span class="muted small">'+esc(a.occurrences??"—")+' recorded occurrences · Last observed '+esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():"—")+'</span><details class="cell-detail alert-evidence"><summary>Evidence &amp; history</summary><div class="alert-evidence-grid"><span>Created</span><span>'+esc(a.created_at?new Date(a.created_at).toLocaleString():"—")+'</span><span>Acknowledged</span><span>'+esc(a.acknowledged_at?new Date(a.acknowledged_at).toLocaleString():"—")+' · '+esc(a.acknowledged_by||"—")+'</span><span>Resolved</span><span>'+esc(a.resolved_at?new Date(a.resolved_at).toLocaleString():"—")+' · '+esc(a.resolved_by||"—")+'</span><span>Correlation</span><code>'+esc(a.correlation_id||"—")+'</code></div><pre>'+esc(JSON.stringify(a.evidence||{},null,2))+'</pre></details></div>'},
+         {label:"Severity & status",render:a=>'<div class="alert-state"><span class="tag severity-'+String(a.severity||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.severity||"Unknown")+'</span><span class="tag status-'+String(a.status||"unknown").toLowerCase().replace(/[^a-z0-9_-]/g,"")+'">'+esc(a.status||"Unknown")+'</span></div>'},
+         {label:"Affected account",render:a=>{const user=String(a.user_id||"—"),session=String(a.session_id||"—");return '<div class="alert-identifiers"><span class="muted small">Account</span><code title="'+esc(user)+'">'+esc(user)+'</code><span class="muted small">Session</span><code title="'+esc(session)+'">'+esc(session)+'</code></div>';}},
+         {label:"Investigation actions",render:a=>a.status==="resolved"||a.status==="false_positive"?"Closed":'<div class="actions alert-actions"><button class="secondary" aria-label="Acknowledge alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="acknowledged"><span class="ll-icon" data-icon="check"></span>Acknowledge</button><button class="secondary" aria-label="Investigate alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="investigating"><span class="ll-icon" data-icon="search"></span>Investigate</button><button class="secondary" aria-label="Mark alert '+esc(a.rule_id||a.id||"record")+' as false positive" data-alert="'+esc(a.id)+'" data-status="false_positive">False positive</button><button aria-label="Resolve alert '+esc(a.rule_id||a.id||"record")+'" data-alert="'+esc(a.id)+'" data-status="resolved"><span class="ll-icon" data-icon="shieldCheck"></span>Resolve</button></div>'}
        ]);
      }
      renderIcons(tableEl);
@@ -1714,14 +2248,22 @@ async function loadUsers() {
      if(data.items.length===0){
        tableEl.innerHTML='<div class="empty"><strong>No '+(kind==="audit"?"audit records":"system errors")+' found</strong><span class="muted small">'+(correlation?"No records match this correlation ID.":kind==="errors"?"No recorded errors or denied events are currently available.":"There are no audit events on this page.")+'</span></div>';
      } else {
-       tableEl.innerHTML=table(data.items,[
+       const auditColumns=[
          {label:"Recorded",render:e=>{const outcome=String(e.outcome||"").toLowerCase();const outcomeClass=["error","denied","failed","failure"].includes(outcome)?"fail":["success","allowed","ok"].includes(outcome)?"success":"neutral";return '<div class="event-recorded"><strong>'+esc(e.timestamp||e.created_at?new Date(e.created_at||e.timestamp).toLocaleString():"—")+'</strong><span class="tag '+outcomeClass+'">'+esc(e.outcome||"Outcome unavailable")+'</span></div>';}},
          {label:"Event",render:e=>'<div class="event-summary"><strong>'+esc(e.action||"event")+'</strong><span class="muted small">'+esc(e.description||e.actions||"No additional description")+'</span><span class="muted small">'+esc(e.actions||"OTHER")+'</span></div>'},
          {label:"Trace",render:e=>'<div class="event-trace"><span class="muted small">Correlation</span><code title="'+esc(e.correlation_id)+'">'+esc(String(e.correlation_id||"—"))+'</code><span class="muted small">Session</span><code title="'+esc(e.session_id)+'">'+esc(String(e.session_id||"Unavailable"))+'</code></div>'},
          {label:"Actor and source",render:e=>'<div class="event-source"><code title="'+esc(e.actor_id)+'">'+esc(String(e.actor_id||"system"))+'</code><span class="muted small">'+esc(e.device_used||"Unknown device")+'</span><span class="muted small">'+esc(e.ip_address||"IP unavailable")+'</span></div>'},
          {label:"Target",render:e=>'<div class="event-target"><strong>'+esc(e.target_type||"—")+'</strong><code title="'+esc(e.target_id)+'">'+esc(String(e.target_id||"—"))+'</code></div>'},
          {label:"Details",render:e=>'<details class="cell-detail"><summary>View metadata</summary><pre>'+esc(JSON.stringify(e.metadata||{},null,2))+'</pre></details>'}
-       ]);
+       ];
+       const errorColumns=[
+         {label:"Outcome",render:e=>{const outcome=String(e.outcome||"error").toLowerCase();const outcomeClass=["error","denied","failed","failure"].includes(outcome)?"fail":"neutral";return '<div class="event-recorded"><span class="tag '+outcomeClass+'">'+esc(e.outcome||"Error event")+'</span><strong>'+esc(e.timestamp||e.created_at?new Date(e.created_at||e.timestamp).toLocaleString():"Time unavailable")+'</strong></div>';}},
+         {label:"Diagnostic event",render:e=>'<div class="event-summary"><strong>'+esc(e.action||"Unclassified error")+'</strong><span class="muted small">'+esc(e.description||e.actions||"No diagnostic description was recorded")+'</span><span class="muted small">'+esc(e.actions||"Event category unavailable")+'</span></div>'},
+         {label:"Origin and target",render:e=>'<div class="event-source"><strong>'+esc(e.target_type||"Source unavailable")+'</strong><code title="'+esc(e.target_id)+'">'+esc(String(e.target_id||"No target recorded"))+'</code><span class="muted small">Actor: '+esc(e.actor_id||"system")+'</span><span class="muted small">'+esc(e.device_used||"Device unavailable")+' · '+esc(e.ip_address||"IP unavailable")+'</span></div>'},
+         {label:"Correlation",render:e=>'<div class="event-trace"><code title="'+esc(e.correlation_id)+'">'+esc(String(e.correlation_id||"Not supplied"))+'</code><span class="muted small">Session</span><code title="'+esc(e.session_id)+'">'+esc(String(e.session_id||"Unavailable"))+'</code></div>'},
+         {label:"Evidence",render:e=>'<details class="cell-detail"><summary>Inspect diagnostic metadata</summary><pre>'+esc(JSON.stringify(e.metadata||{},null,2))+'</pre></details>'}
+       ];
+       tableEl.innerHTML=table(data.items,kind==="audit"?auditColumns:errorColumns);
        renderIcons(tableEl);
        wireTableTools(tableEl);
      }
@@ -1781,7 +2323,7 @@ async function loadUsers() {
  }
  function renderAnalyticsBars(items) {
    const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-(6-i));return d;});
-   const counts=days.map(day=>items.filter(e=>{const t=new Date(e.created_at||e.timestamp);return !Number.isNaN(t.valueOf())&&t.toDateString()===day.toDateString();}).length);
+   const counts=days.map(day=>items.filter(e=>{const t=new Date(e?.created_at||e?.timestamp);return !Number.isNaN(t.valueOf())&&t.toDateString()===day.toDateString();}).length);
    const max=Math.max(1,...counts), width=680, height=220, left=42, bottom=34, top=14, plotH=height-top-bottom, barW=48, gap=34;
    const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
    svg.setAttribute("viewBox","0 0 "+width+" "+height);svg.setAttribute("role","img");svg.setAttribute("aria-label","Audit event counts per day for the latest 100 events");svg.style.width="100%";svg.style.maxHeight="260px";
@@ -1800,14 +2342,15 @@ async function loadUsers() {
       if(token!==pageLoadToken||activePage!=="analytics")return;
       if(!data||!Array.isArray(data.items))throw new Error("Unexpected analytics response");
       const items=data.items;
-      const byAction={};items.forEach(e=>{const k=e.action||"unknown";byAction[k]=(byAction[k]||0)+1;});
-      const validDates=items.map(e=>new Date(e.created_at||e.timestamp)).filter(d=>!Number.isNaN(d.valueOf()));
+      // Map avoids special object-property keys in action names (for example "__proto__").
+      const byAction=new Map();items.forEach(e=>{const k=String(e?.action||"unknown");byAction.set(k,(byAction.get(k)||0)+1);});
+      const validDates=items.map(e=>new Date(e?.created_at||e?.timestamp)).filter(d=>!Number.isNaN(d.valueOf()));
       const days=new Set(validDates.map(d=>d.toDateString()));
       const dateRange=validDates.length?new Date(Math.min(...validDates.map(d=>d.valueOf()))).toLocaleDateString()+ " – "+new Date(Math.max(...validDates.map(d=>d.valueOf()))).toLocaleDateString():"No timestamps available";
-      $("analytics-summary").innerHTML='<div class="stat"><small>Events returned</small><strong>'+items.length+'</strong><span class="stat-meta">Records in this response</span></div><div class="stat"><small>Distinct actions</small><strong>'+Object.keys(byAction).length+'</strong><span class="stat-meta">Action names in sample</span></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong><span class="stat-meta">Distinct local calendar days</span></div><div class="stat"><small>Sample window</small><strong class="analytics-range-value">'+esc(dateRange)+'</strong><span class="stat-meta">Earliest to latest returned event</span></div>';
+      $("analytics-summary").innerHTML='<div class="stat"><small>Events returned</small><strong>'+items.length+'</strong><span class="stat-meta">Records in this response</span></div><div class="stat"><small>Distinct actions</small><strong>'+byAction.size+'</strong><span class="stat-meta">Action names in sample</span></div><div class="stat"><small>Days represented</small><strong>'+days.size+'</strong><span class="stat-meta">Distinct local calendar days</span></div><div class="stat"><small>Sample window</small><strong class="analytics-range-value">'+esc(dateRange)+'</strong><span class="stat-meta">Earliest to latest returned event</span></div>';
       $("analytics-generated").textContent="Retrieved "+new Date().toLocaleString()+" (browser local time) · Newest-first audit page · Maximum 100 records";
       renderAnalyticsBars(items);
-      const top=Object.entries(byAction).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,8);
+      const top=Array.from(byAction.entries()).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,8);
       $("analytics-actions").innerHTML=top.length?'<div class="tablewrap analytics-actions-table"><table><thead><tr><th>Action</th><th>Events</th></tr></thead><tbody>'+top.map(([k,v])=>'<tr><td><code>'+esc(k)+'</code></td><td><strong>'+v.toLocaleString()+'</strong></td></tr>').join("")+'</tbody></table></div>':'<div class="empty"><strong>No audit events in this sample</strong><span class="muted small">There are no returned records to summarize right now.</span></div>';
     } catch(e) {
       if(token!==pageLoadToken||activePage!=="analytics")return;
