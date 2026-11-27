@@ -206,6 +206,7 @@ def require_admin_permission(permission_key: str):
     # exposes an admin authorization dependency, now with a permission-specific guard.
     dependency.__name__ = "require_admin"
     dependency.__qualname__ = "require_admin"
+    setattr(dependency, "permission_key", permission_key)
     return dependency
 
 
