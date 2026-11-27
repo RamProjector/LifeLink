@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-OsYU6uapp9wf9/hJ7xmrXqFRPmHD4XBz6aotE8H0/RU='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-74n4vBg21mel7x2Gb9J/SNUjT6J4M4LhAdHviVSYt0I='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -1128,6 +1128,7 @@ tbody tr:hover { background: #f0eee7; }
 #scanner-health .tag.status-succeeded { background: #e9efe9; color: #48624d; }
 #scanner-health .tag.status-failed { background: #f8eae7; color: #96392f; }
 #scanner-health .tag.status-running { background: #e9edf0; color: #465c69; }
+#scanner-health .tag.status-stale { background: #f8eae7; color: #96392f; }
 #scanner-health .tag.status-never_run { background: var(--md-surface-container); color: var(--md-on-primary-container); }
 #alerts-table .tag.status-false_positive, #alerts-table .tag.status-unknown { background: #efeeeb; color: #66645e; }
 #alerts-table .actions { min-width: 210px; gap: 6px; }
@@ -2579,14 +2580,20 @@ async function loadUsers() {
       const data=await api("/v1/admin/security/scanner");
       if(token!==pageLoadToken||activePage!=="alerts")return;
       if(!data||data.scanner_key!=="rbac"||typeof data.status!=="string")throw new Error("Unexpected scanner health response");
-      const succeeded=data.last_succeeded_at?new Date(data.last_succeeded_at).toLocaleString():"Never";
+      const succeededAt=data.last_succeeded_at?Date.parse(data.last_succeeded_at):NaN;
+      const succeeded=Number.isFinite(succeededAt)?new Date(succeededAt).toLocaleString():"Never";
       const failed=data.last_failed_at?new Date(data.last_failed_at).toLocaleString():"Never";
-      const status=String(data.status).replace(/[^a-z_]/g,"");
+      const intervalSeconds=Math.max(60,Number(data.scan_interval_seconds)||300);
+      const isStale=data.status==="succeeded"&&Number.isFinite(succeededAt)&&(Date.now()-succeededAt)>intervalSeconds*2000;
+      const displayStatus=isStale?"stale":data.status;
+      const status=String(displayStatus).replace(/[^a-z_]/g,"");
       el.innerHTML='<table><tbody>'+
         '<tr><th scope="row">Scanner</th><td>RBAC policy integrity</td></tr>'+
-        '<tr><th scope="row">Last status</th><td><span class="tag status-'+esc(status)+'">'+esc(data.status)+'</span></td></tr>'+
+        '<tr><th scope="row">Last status</th><td><span class="tag status-'+esc(status)+'">'+esc(displayStatus)+'</span></td></tr>'+
         '<tr><th scope="row">Last successful scan</th><td>'+esc(succeeded)+'</td></tr>'+
         '<tr><th scope="row">Last failed scan</th><td>'+esc(failed)+'</td></tr>'+
+        '<tr><th scope="row">Expected scan interval</th><td>'+esc(intervalSeconds)+' seconds</td></tr>'+
+        '<tr><th scope="row">Last successful duration</th><td>'+esc(data.last_duration_ms??"Not recorded")+' ms</td></tr>'+
         '<tr><th scope="row">Findings on last success</th><td>'+esc(data.last_findings??0)+'</td></tr>'+
         '<tr><th scope="row">Consecutive failures</th><td>'+esc(data.consecutive_failures??0)+'</td></tr>'+
         '<tr><th scope="row">Last error code</th><td>'+esc(data.last_error_code||"None")+'</td></tr>'+
