@@ -639,3 +639,65 @@ def test_security_alert_status_change_audit_uses_request_correlation(monkeypatch
     asyncio.run(check())
     assert recorded["correlation_id"] == "web:alert-close"
     assert recorded["target_id"] == "alert-1"
+
+def test_security_alert_correlation_filter_does_not_mutate_alerts(monkeypatch):
+    """Filtering must not run the RBAC scan that refreshes active alert correlations."""
+    from app.admin_api import admin_security_alerts
+
+    class EmptyRows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class Session:
+        async def execute(self, statement, params=None):
+            return EmptyRows()
+
+        async def commit(self):
+            return None
+
+    scan_calls = 0
+
+    async def scan(session, principal, request):
+        nonlocal scan_calls
+        scan_calls += 1
+        return 0
+
+    async def write_audit(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("app.admin_api._scan_rbac_discrepancies", scan)
+    monkeypatch.setattr("app.admin_api._write_audit", write_audit)
+
+    async def check():
+        request = _request_context()
+        principal = Principal(subject="admin-1", session_id="admin-session")
+        filtered = await admin_security_alerts(
+            request=request,
+            session=Session(),
+            principal=principal,
+            limit=50,
+            offset=0,
+            alert_status=None,
+            correlation_id="previous-alert-correlation",
+            x_correlation_id="filter-request-correlation",
+        )
+        assert filtered["items"] == []
+        assert scan_calls == 0
+
+        await admin_security_alerts(
+            request=request,
+            session=Session(),
+            principal=principal,
+            limit=50,
+            offset=0,
+            alert_status=None,
+            correlation_id=None,
+            x_correlation_id="unfiltered-request-correlation",
+        )
+        assert scan_calls == 1
+
+    asyncio.run(check())
+
