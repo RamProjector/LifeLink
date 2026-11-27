@@ -128,8 +128,6 @@ def run_scenario(pg_url: str, scenario):
 
 
 def test_admin_requires_two_server_confirmed_totp_factors(pg_url: str, monkeypatch):
-    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-security-test")
-
     async def ignore_denial_audit(session, principal, request, **kwargs):
         return None
 
@@ -137,6 +135,7 @@ def test_admin_requires_two_server_confirmed_totp_factors(pg_url: str, monkeypat
 
     async def scenario(client, current, run_sql):
         user_id = str(uuid.uuid4())
+        monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", user_id)
         request = Request({
             "type": "http",
             "method": "GET",
