@@ -1226,13 +1226,13 @@ def test_role_policy_integrity_scans_seeded_roles_without_user_assignments():
     assert findings == 1
     assert "FROM lifelink_roles r" in session.statements[0][0]
     assert "lifelink_user_roles" not in session.statements[0][0]
-    insert_sql, params = session.statements[1]
+    insert_sql, params = session.statements[4]
     assert "INSERT INTO lifelink_role_security_findings" in insert_sql
     assert "ON CONFLICT (rule_id, role_key)" in insert_sql
     assert params["role_key"] == "operations_admin"
     assert '"missing_permission_keys": ["operations.read", "reports.read", "requests.read"]' in params["evidence"]
-    assert session.statements[2][1]["role_key"] == "user_admin"
-    assert "UPDATE lifelink_role_security_findings" in session.statements[2][0]
+    assert session.statements[5][1]["role_key"] == "user_admin"
+    assert "UPDATE lifelink_role_security_findings" in session.statements[5][0]
 
 
 def test_role_policy_integrity_detects_missing_approved_role_definition():
@@ -1263,7 +1263,7 @@ def test_role_policy_integrity_detects_missing_approved_role_definition():
     findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
 
     assert findings == 1
-    insert_sql, params = session.statements[3]
+    insert_sql, params = session.statements[6]
     assert "INSERT INTO lifelink_role_security_findings" in insert_sql
     assert params["role_key"] == "security_admin"
     assert '"role_definition_missing": true' in params["evidence"]
