@@ -135,6 +135,20 @@ label {
 }
 .notice.error { border-color: #edc9c3; background: #fbefed; color: #8e3028; }
 
+/* Authentication is a separate surface: no authenticated workspace chrome. */
+body:has(#login-view:not(.hidden)) {
+  display: grid;
+  min-height: 100vh;
+  min-height: 100svh;
+  place-items: center;
+  padding: 24px 16px;
+}
+body:has(#login-view:not(.hidden)) > .top { display: none; }
+body:has(#login-view:not(.hidden)) > #login-view.login {
+  width: min(100%, 480px);
+  margin: 0 auto;
+}
+
 /* Header and page frame */
 .top {
   display: flex;
