@@ -273,6 +273,30 @@ def _correlation_id(value: str | None) -> str:
     return str(uuid4())
 
 
+@router.get("/preflight")
+async def admin_identity_preflight(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin),
+    x_correlation_id: str | None = Header(default=None),
+):
+    """Confirm allowlist/session eligibility before MFA without returning admin data.
+
+    This endpoint intentionally remains available at AAL1 for first-time MFA
+    enrollment. All operational admin endpoints, including /me, must require
+    AAL2 when backend MFA enforcement is enabled.
+    """
+    await _write_audit(
+        session, principal.subject, "admin.identity.preflight", request=request,
+        session_id=principal.session_id, session_expires_at=principal.session_expires_at,
+        target_type="admin_identity_preflight",
+        correlation_id=_correlation_id(x_correlation_id),
+        metadata={"purpose": "mfa_enrollment"},
+    )
+    await session.commit()
+    return {"authorized": True}
+
+
 @router.get("/me")
 async def admin_me(
     request: Request,
