@@ -904,6 +904,40 @@ def test_role_policy_integrity_scans_seeded_roles_without_user_assignments():
     assert "UPDATE lifelink_role_security_findings" in session.statements[2][0]
 
 
+def test_role_policy_integrity_detects_missing_approved_role_definition():
+    from app.admin_api import _scan_rbac_role_policy_integrity
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            # security_admin is deliberately absent from the registry result.
+            return [
+                {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"]},
+                {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
+                {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
+            ]
+
+    class Session:
+        def __init__(self):
+            self.statements = []
+
+        async def execute(self, statement, params=None):
+            self.statements.append((str(statement), params or {}))
+            return Rows()
+
+    session = Session()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+    findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
+
+    assert findings == 1
+    insert_sql, params = session.statements[1]
+    assert "INSERT INTO lifelink_role_security_findings" in insert_sql
+    assert params["role_key"] == "security_admin"
+    assert '"role_definition_missing": true' in params["evidence"]
+
+
 def test_role_policy_integrity_does_not_infer_unconfigured_role_policy():
     from app.admin_api import _scan_rbac_role_policy_integrity
 
