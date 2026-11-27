@@ -3,7 +3,7 @@
 **Review date:** 2026-11-27  
 **Base:** `main` at the time of review  
 **Purpose:** Compare the existing LifeLink implementation with the project IDS/IPS criteria and define the smallest safe completion sequence.  
-**Scope:** FastAPI PostgreSQL backend, SQL migrations, RBAC/security documentation, and read-only Supabase schema/data inspection. Android client source was inventoried, but a complete Android action-to-endpoint trace has not yet been completed.  
+**Scope:** FastAPI PostgreSQL backend, SQL migrations, RBAC/security documentation, and read-only Supabase schema/data inspection. Android Retrofit feature-to-endpoint groups were inventoried; this is not a complete screen-by-screen UI action trace or manual workflow validation.  
 **Safety:** No production data, grants, policies, Auth settings, migrations, or deployments were changed.
 
 ## Executive finding
@@ -35,7 +35,7 @@ The largest gaps are not missing tables. They are incomplete permission enforcem
 | Seven required log fields | `session_id`, `log_id`, `actions`, `description`, `ip_address`, `timestamp`, `device_used` exist in the audit envelope | Implemented in schema | Validate populated/non-null behavior where applicable, safe device/IP attribution, and display/export |
 | Every applicable action logged | Authenticated API middleware plus explicit transaction-bound events for sensitive operations | Partial | Route-by-route and client-to-route verification; close legacy/uncovered operations |
 | Individual logs per user | `GET /v1/audit/me` filters by verified token subject | Implemented in API | Verify UI access and cross-account isolation with multiple real test users |
-| Detect inappropriate role/permission assignments | RBAC applicability validation and RBAC-01/RBAC-02 alerts | Partial | Continuous/independent detection, role-source reconciliation, and notification delivery |
+| Detect inappropriate role/permission assignments | Write-time applicability validation plus a periodic independent RBAC scanner for active assignments and the four explicitly mapped admin roles | Partial | Role-level policy integrity checks without assigned users, role-source reconciliation, and notification delivery |
 | Warn and notify administrator | Alert records and admin alert queue/lifecycle exist | Partial | Prove an actual administrator notification channel, delivery/retry state, unread indication, and end-to-end delivery |
 
 ## Existing repository implementation
@@ -88,7 +88,7 @@ Confirmed narrow rules:
 - IDS-04: missing administrator session context.
 - IDS-05: reuse of a revoked administrator session.
 
-The security-alert API also calls the RBAC discrepancy scanner when a normal unfiltered alert-list request is made. A correlation-filtered request intentionally skips that supplemental scan to preserve correlation-based filtering. In addition, this branch now starts a periodic RBAC scan from the FastAPI lifespan, so detection no longer depends solely on an administrator opening the alert list. The background task is code- and CI-validated, but its execution in a deployed instance has not been demonstrated.
+The security-alert API retains a request-triggered supplemental scan on normal unfiltered alert-list reads. In addition, this branch starts an independent periodic RBAC scan from the FastAPI lifespan (default 300 seconds, configurable with a 60-second minimum). A PostgreSQL transaction-scoped advisory lock prevents overlapping scans across API instances; each scan transaction has a 15-second statement timeout. Failures are logged and retried at the next interval. The background task is code- and CI-validated, but execution in a deployed instance has not been demonstrated; host sleep/restarts can interrupt it, and no durable scanner-health record exists.
 
 The alert table supports open, acknowledged, investigating, resolved, and false-positive states. The API can update alert state and deduplicate active incidents.
 
@@ -140,7 +140,7 @@ Consequently, the registry is currently a policy foundation and management surfa
 1. Define how the legacy admin allowlist and profile capability fields map to the RBAC registry.
 2. Provision initial assignments through an explicitly approved, audited, out-of-band process.
 3. Detect missing, expired, unexpected, and conflicting assignments.
-4. Run discrepancy checks independently of an administrator opening the alerts page. Use a bounded scheduled/background mechanism or another independently invoked server-side trigger with deduplication and health visibility.
+4. The periodic independent scanner is now implemented for active user-role assignments and the four explicitly mapped administrative role policies. Next, add role-level policy integrity detection that works even when no users are assigned, with a dedicated role-target alert identity (do not overload the alert table's `user_id` field). Add durable scanner-health visibility after detector coverage is sound.
 5. Keep invalid assignments blocked at write time and detected if introduced through an out-of-band path.
 
 ### P0 — Prove administrator notifications
@@ -363,3 +363,11 @@ The scanner also currently records audit events on repeated RBAC findings, even 
 Further source tracing confirms that `fcm.send_push` returns a delivered-device count, but `send_push_safely` discards that count and returns no outcome. Failures are logged without persisting per-recipient delivery state. Existing recipient helpers target donor/requester/conversation participants, not the server-managed administrator allowlist. The Admin API does have a private `LIFELINK_ADMIN_USER_IDS` allowlist, but that allowlist is not itself an FCM recipient resolver and does not establish that every listed account has a current registered device token.
 
 Do not simply call `send_push_safely` from the RBAC scanner. A safe implementation needs (1) a server-side recipient resolver that intersects the current admin allowlist with valid registered device tokens, (2) a stable alert/event deduplication key, (3) a persisted delivery-attempt/outcome record with bounded retry semantics, (4) payloads containing only a generic alert notification and opaque alert identifier (never user identity, IP address, session IDs, or evidence), and (5) tests for no recipients, invalid tokens, partial FCM failures, repeated scans, and recipient allowlist changes. The current schema has no dedicated notification-delivery ledger, and the current safe wrapper hides the send count, so this remains a separate schema-and-API design task rather than an unverified call-site addition.
+
+## Scanner policy coverage boundary (2026-11-27)
+
+Migration 020 seeds permission mappings only for `operations_admin`, `user_admin`, `security_admin`, and `auditor`. The scanner compares these four roles against the exact seeded least-privilege matrix for active user-role assignments, detecting both missing expected grants and unexpected extra grants. It deliberately does not infer a permission policy for `requester`, `donor`, or `super_admin` because the migration does not seed mappings for them.
+
+This remains assignment-scoped detection: if no user is assigned to a role, a changed or missing role-permission mapping for that role is not currently detected. The existing alert table's active uniqueness key is `(rule_id, user_id)`; synthetic role IDs must not be placed in `user_id`. A separate role-target key/schema and an approved policy for all seven roles are prerequisites for safe role-level monitoring. The live read-only snapshot found zero user-role assignments.
+
+CI validation on implementation commit `2c38d2ba58cdf66751719614be7991e26cb41075` passed backend tests (including PostgreSQL integration tests), Ruff, mypy, Docker/admin-site validation, Android quality gate, Gitleaks, and Python plus Java/Kotlin CodeQL. The follow-up documentation commits do not establish deployed runtime behavior; their own CI runs remain the merge gate.
