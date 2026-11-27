@@ -96,10 +96,12 @@ def main() -> None:
 
     if (
         "body:has(#login-view:not(.hidden))" not in html
+        or "body:has(#mfa-view:not(.hidden))" not in html
         or " > .top { display: none; }" not in html
         or "width: min(100%, 480px)" not in html
+        or "width: min(100%, 520px)" not in html
     ):
-        fail("login and password recovery must use a centered authentication surface without workspace navigation")
+        fail("login, recovery, and MFA verification must use centered authentication surfaces without workspace navigation")
 
     if (
         'id="page-title" tabindex="-1"' not in html
