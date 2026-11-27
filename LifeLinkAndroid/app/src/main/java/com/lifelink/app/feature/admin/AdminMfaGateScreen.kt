@@ -51,6 +51,7 @@ private enum class AdminMfaStep {
     AUDIT_PENDING,
 }
 
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun AdminMfaGateScreen(
     repository: SupabaseAuthRepository,
