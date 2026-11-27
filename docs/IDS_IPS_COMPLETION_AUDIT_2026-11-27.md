@@ -17,7 +17,7 @@ Existing components include:
 - An application session registry, Supabase-session validation, and administrator session-revocation controls.
 - Security-alert storage, deduplication, severity/status lifecycle, and admin read/update endpoints.
 - Three narrow active admin intrusion rules: IDS-03, IDS-04, and IDS-05.
-- A role/permission registry, least-privilege seed mappings, role-applicability checks, and RBAC-01/RBAC-02 discrepancy alerts.
+- A role/permission registry, least-privilege seed mappings, role-applicability checks, assignment-scoped RBAC-01/RBAC-02 checks, and role-scoped RBAC-03 policy integrity findings.
 - Admin UI/API surfaces for viewing alerts, sessions, audit records, users, and role assignments.
 
 The largest gaps are not missing tables. They are incomplete permission enforcement, remaining role-policy gaps for three unconfigured roles, no verified end-to-end administrator alert delivery, incomplete identity/role registry reconciliation, and lack of a complete evidence-backed acceptance run across Android and web actions.
@@ -373,7 +373,7 @@ Migration 020 seeds permission mappings only for `operations_admin`, `user_admin
 
 Migration 021 creates a separate role-targeted findings table with an active uniqueness key of `(rule_id, role_key)`. Role identifiers are never placed in the user-scoped `lifelink_security_alerts.user_id` field. The live read-only snapshot found zero user-role assignments; RBAC-03 is designed to detect role-mapping drift despite that empty assignment table.
 
-CI validation on implementation commit `2c38d2ba58cdf66751719614be7991e26cb41075` passed backend tests (including PostgreSQL integration tests), Ruff, mypy, Docker/admin-site validation, Android quality gate, Gitleaks, and Python plus Java/Kotlin CodeQL. The follow-up documentation commits do not establish deployed runtime behavior; their own CI runs remain the merge gate.
+CI validation on implementation head `dcb3fbec7828fee37741d5cde65f221078d14ee9` passed backend tests including PostgreSQL end-to-end tests, Ruff, mypy, the RLS inventory check, Admin Console integrity/CSP validation, Docker build, Android quality gate (lint, Detekt, Spotless, unit tests, debug build), Gitleaks, and Python plus Java/Kotlin CodeQL. This is repository CI evidence, not deployed runtime or manual device acceptance; no production migration or deployment was performed.
 
 
 ## Role-level RBAC detector update (2026-11-27)
