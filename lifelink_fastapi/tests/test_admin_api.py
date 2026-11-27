@@ -71,7 +71,7 @@ def test_admin_allowlist_is_server_configured_not_user_claim(monkeypatch):
     async def check():
         with pytest.raises(HTTPException) as error:
             await require_admin(
-                principal=Principal(subject="regular-user", role="admin", email_verified=True),
+                principal=Principal(subject="regular-user", role="admin", email_verified=True, assurance_level="aal2"),
                 session=FakeSession(),
                 request=_request_context(),
             )
