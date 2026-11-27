@@ -119,3 +119,8 @@ The new read-only admin endpoint is `GET /v1/admin/security/role-integrity` (ser
 - No admin RBAC assignments were provisioned and `LIFELINK_RBAC_ENFORCEMENT_MODE` remains in its safe default `observe` mode. Do not enable enforcement until a reviewed out-of-band provisioning plan has assigned real administrator UUIDs.
 - A live LifeLink database cleanup removed only explicitly marked demo security alerts, audit rows with demo/example/fixture metadata, and five synthetic session rows. Remaining operational audit/session records and the RBAC role/permission registry were preserved.
 - Administrator alert delivery through a background push/email channel is still not implemented or verified. The Android app no longer contains admin support, and no web push subscription/delivery channel currently exists. The existing Admin Console alert queue remains available, but it must not be described as out-of-band notification delivery.
+
+
+### Administrator notification channel status
+
+The web Admin Console now supports opt-in browser notifications while the authenticated console remains open. It polls a permission-protected, cursor-based feed of new security alert and role-policy event metadata every 60 seconds, displays a generic notification without evidence or personal data, and stops on sign-out or authorization failure. This is an in-console browser notification only; no service worker, background web push, email delivery, or notification delivery while the console is closed is implemented or claimed.
