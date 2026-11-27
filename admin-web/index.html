@@ -2085,6 +2085,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  function showAddMfaFactor(){mfaMode="manage-add";mfaReturnToManage=true;showMfaView();$("mfa-cancel").classList.remove("hidden");$("mfa-step-manage").classList.add("hidden");$("mfa-step-challenge").classList.add("hidden");$("mfa-step-enroll").classList.remove("hidden");$("mfa-title").textContent="Add a replacement authenticator.";$("mfa-intro").textContent="Verify the new factor before removing any existing authenticator.";$("mfa-enroll-title").textContent="Register replacement device";$("mfa-enroll-guidance").textContent="Use a separate device or separately protected authenticator vault. Verifying a factor signs out your other active sessions.";$("mfa-factor-name").value="Replacement authenticator";$("mfa-backup-device-wrap").classList.remove("hidden");$("mfa-backup-device").checked=false;clearMfaPending();}
  async function backToAdminConsole(){
    if(window.LifeLinkAdminMFA.assuranceLevel(accessToken)!=="aal2"){mfaReturnToManage=false;showMfaChallenge();return;}
+   if(window.LifeLinkAdminMFA.verifiedFactors(mfaFactors).length<2){mfaReturnToManage=true;showBackupEnrollment();return;}
    mfaReturnToManage=false;$("mfa-view").classList.add("hidden");$("app-view").classList.remove("hidden");$("session-tools").classList.remove("hidden");
  }
  async function removeMfaFactor(factorId,button){
