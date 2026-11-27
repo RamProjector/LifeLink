@@ -119,7 +119,8 @@ async def _record_denied_admin_attempt(
                 "ON CONFLICT (rule_id, user_id) "
                 "WHERE status IN ('open', 'acknowledged', 'investigating') "
                 "DO UPDATE SET last_seen_at = now(), occurrences = lifelink_security_alerts.occurrences + 1, "
-                "session_id = EXCLUDED.session_id, evidence = EXCLUDED.evidence"
+                "session_id = EXCLUDED.session_id, evidence = EXCLUDED.evidence, "
+                "correlation_id = EXCLUDED.correlation_id"
             ),
             {
                 "rule_id": rule_id,
@@ -403,26 +404,29 @@ async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, 
         "super_admin": {"dashboard.read", "users.read", "users.update", "users.suspend", "requests.read", "requests.update", "operations.read", "communications.metadata.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke", "roles.read", "roles.assign", "permissions.manage", "reports.read", "settings.read", "settings.update"},
     }
     count = 0
+    correlation_id = _correlation_id(request.headers.get("x-correlation-id"))
     for row in result.mappings().all():
         user_id, role_key = row["user_id"], row["role_key"]
         profile = {"can_request": row["can_request"], "can_donate": row["can_donate"], "has_donor_profile": row["has_donor_profile"]}
         reason = _role_mismatch_reason(role_key, user_id, profile)
         if reason:
-            await _record_rbac_mismatch(session, principal, request, user_id, role_key, reason)
+            await _record_rbac_mismatch(session, principal, request, user_id, role_key, reason, correlation_id)
             count += 1
         unexpected = sorted(set(row["permissions"] or []) - allowed_permissions.get(role_key, set()))
         if unexpected:
             await _write_audit(session, principal.subject, "security.rbac.permission_mismatch", request=request,
                 session_id=principal.session_id, outcome="denied", target_type="user", target_id=user_id,
+                correlation_id=correlation_id,
                 metadata={"role_key": role_key, "unexpected_permission_keys": unexpected, "rule_id": "RBAC-02"})
             await session.execute(text(
                 "INSERT INTO lifelink_security_alerts (rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, correlation_id) "
                 "VALUES ('RBAC-02', 'high', 'open', :user_id, :session_id, 'Role contains permissions outside approved policy', CAST(:evidence AS jsonb), 1, :correlation_id) "
                 "ON CONFLICT (rule_id, user_id) WHERE status IN ('open', 'acknowledged', 'investigating') "
-                "DO UPDATE SET last_seen_at = now(), occurrences = lifelink_security_alerts.occurrences + 1, evidence = EXCLUDED.evidence"
+                "DO UPDATE SET last_seen_at = now(), occurrences = lifelink_security_alerts.occurrences + 1, "
+                "evidence = EXCLUDED.evidence, correlation_id = EXCLUDED.correlation_id"
             ), {"user_id": user_id, "session_id": principal.session_id,
                 "evidence": __import__("json").dumps({"role_key": role_key, "unexpected_permission_keys": unexpected}),
-                "correlation_id": _correlation_id(request.headers.get("x-correlation-id"))})
+                "correlation_id": correlation_id})
             count += 1
     return count
 
@@ -706,10 +710,12 @@ def _role_mismatch_reason(role_key: str, user_id: str, profile: dict | None) -> 
         return None
     return "role_has_no_applicability_policy"
 
-async def _record_rbac_mismatch(session, principal, request, user_id: str, role_key: str, reason: str) -> None:
+async def _record_rbac_mismatch(session, principal, request, user_id: str, role_key: str, reason: str,
+                               correlation_id: str | None = None) -> None:
     """Persist an IDS finding and deduplicated administrator alert."""
     await _write_audit(session, principal.subject, "security.rbac.role_mismatch", request=request,
         session_id=principal.session_id, outcome="denied", target_type="user", target_id=user_id,
+        correlation_id=correlation_id,
         metadata={"role_key": role_key, "mismatch_reason": reason, "rule_id": "RBAC-01"})
     await session.execute(text(
         "INSERT INTO lifelink_security_alerts "
@@ -718,10 +724,11 @@ async def _record_rbac_mismatch(session, principal, request, user_id: str, role_
         "'Role assignment is not applicable to this account', CAST(:evidence AS jsonb), 1, :correlation_id) "
         "ON CONFLICT (rule_id, user_id) WHERE status IN ('open', 'acknowledged', 'investigating') "
         "DO UPDATE SET last_seen_at = now(), occurrences = lifelink_security_alerts.occurrences + 1, "
-        "session_id = EXCLUDED.session_id, evidence = EXCLUDED.evidence"
+        "session_id = EXCLUDED.session_id, evidence = EXCLUDED.evidence, "
+        "correlation_id = EXCLUDED.correlation_id"
     ), {"user_id": user_id, "session_id": principal.session_id,
         "evidence": __import__("json").dumps({"role_key": role_key, "mismatch_reason": reason}),
-        "correlation_id": _correlation_id(request.headers.get("x-correlation-id"))})
+        "correlation_id": correlation_id or _correlation_id(request.headers.get("x-correlation-id"))})
 
 class AdminUserRolesUpdate(BaseModel):
     # An empty list is a deliberate revoke-all operation; it must remain possible
