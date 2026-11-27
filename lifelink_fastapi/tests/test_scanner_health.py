@@ -63,7 +63,7 @@ def test_rbac_scanner_persists_success_and_findings(monkeypatch):
     assert session.committed is True
 
 
-def _two_findings() -> int:
+async def _two_findings() -> int:
     return 2
 
 
