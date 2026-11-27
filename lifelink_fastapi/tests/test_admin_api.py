@@ -1300,7 +1300,7 @@ def test_role_policy_integrity_enforces_explicit_zero_admin_grants_for_requester
     findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
 
     assert findings == 1
-    insert_sql, params = session.statements[5]
+    insert_sql, params = session.statements[3]
     assert "INSERT INTO lifelink_role_security_findings" in insert_sql
     assert params["role_key"] == "super_admin"
     assert '"unexpected_permission_keys": ["settings.update"]' in params["evidence"]
