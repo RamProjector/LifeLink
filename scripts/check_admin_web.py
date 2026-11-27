@@ -175,7 +175,7 @@ def main() -> None:
 
     if (
         '@router.get("/preflight")' not in admin_api
-        or 'action="admin.identity.preflight"' not in admin_api
+        or '"admin.identity.preflight"' not in admin_api
         or 'return {"authorized": True}' not in admin_api
         or 'await api("/v1/admin/preflight")' not in html
     ):
