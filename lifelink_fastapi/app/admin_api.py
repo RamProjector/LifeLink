@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import re
 from datetime import datetime, timezone
@@ -808,8 +809,11 @@ async def admin_security_scanner_health(
     )
     await session.commit()
     try:
-        scan_interval_seconds = max(60, int(float(os.getenv("LIFELINK_RBAC_SCAN_SECONDS", "300"))))
-    except ValueError:
+        configured_interval = float(os.getenv("LIFELINK_RBAC_SCAN_SECONDS", "300"))
+        if not math.isfinite(configured_interval):
+            raise ValueError("scan interval must be finite")
+        scan_interval_seconds = min(86400, max(60, int(configured_interval)))
+    except (ValueError, OverflowError):
         scan_interval_seconds = 300
     if row is None:
         return {"scanner_key": "rbac", "status": "never_run", "last_findings": 0,
