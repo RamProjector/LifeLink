@@ -88,9 +88,7 @@ Confirmed narrow rules:
 - IDS-04: missing administrator session context.
 - IDS-05: reuse of a revoked administrator session.
 
-The security-alert API also calls the RBAC discrepancy scanner when a normal unfiltered alert-list request is made. A correlation-filtered request intentionally skips the scan to preserve correlation-based filtering.
-
-This means the RBAC discrepancy scan is currently demand-driven by the alert-list endpoint, not demonstrated as a scheduled or independently running monitor. If no administrator opens the normal alert list, this path does not establish continuous detection.
+The security-alert API also calls the RBAC discrepancy scanner when a normal unfiltered alert-list request is made. A correlation-filtered request intentionally skips that supplemental scan to preserve correlation-based filtering. In addition, this branch now starts a periodic RBAC scan from the FastAPI lifespan, so detection no longer depends solely on an administrator opening the alert list. The background task is code- and CI-validated, but its execution in a deployed instance has not been demonstrated.
 
 The alert table supports open, acknowledged, investigating, resolved, and false-positive states. The API can update alert state and deduplicate active incidents.
 
@@ -315,7 +313,7 @@ flowchart TD
     O -. delivery result / retry state required .-> M
 ```
 
-**Flowchart interpretation:** Authentication, application-session checks, the server-side admin allowlist, audit persistence, alert storage/lifecycle, and the alert-list-triggered RBAC scan exist in the reviewed code. The diagram's server-side authorization box represents current authorization controls, not universal per-permission enforcement: most admin routes still use the legacy allowlist. The independent trigger and verified administrator notification path remain incomplete.
+**Flowchart interpretation:** Authentication, application-session checks, the server-side admin allowlist, audit persistence, alert storage/lifecycle, an alert-list supplemental scan, and a periodic lifespan scanner exist in the reviewed branch. The diagram's server-side authorization box represents current authorization controls, not universal per-permission enforcement: most admin routes still use the legacy allowlist. Deployed runtime evidence, persistent scanner-health reporting, and verified administrator notification delivery remain incomplete.
 
 ### Independent scan implementation constraints confirmed by source inspection
 
@@ -344,7 +342,7 @@ The branch now contains an initial independent scanner implementation (not yet p
 - The existing alert upsert now increments occurrences only when the finding evidence changes, rather than on every unchanged polling pass.
 - Focused tests were added for requestless scan execution, system actor attribution, and evidence-sensitive occurrence updates.
 
-**Not yet established:** no workflow run has yet confirmed these changes pass the backend test suite; no deployed instance has demonstrated scanner execution; there is no persisted last-success/last-failure health record or administrator notification delivery. Application logs currently provide completion duration/findings and failure visibility. The scanner remains a draft implementation pending CI and runtime review.
+**Validation update (2026-11-27):** the latest PR-head workflow runs report success for backend tests (including PostgreSQL integration tests), Ruff, mypy, Docker/admin-site validation, Android quality gate, secret scanning, and both CodeQL language analyses. This verifies the checked-in code against those CI jobs, not a deployed instance. There is still no persisted last-success/last-failure health record or administrator notification delivery; application logs currently provide scan completion duration/findings and failure visibility. Runtime execution remains unverified.
 
 The scan uses the existing web-service lifespan, not a new paid worker or external scheduler. It reads the existing RBAC registry only and makes no role assignments or policy changes.
 
