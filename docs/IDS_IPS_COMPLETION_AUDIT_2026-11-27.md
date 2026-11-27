@@ -93,7 +93,7 @@ The security-alert API is read-only; detection is performed by an independent pe
 
 The alert table supports open, acknowledged, investigating, resolved, and false-positive states. The API can update alert state and deduplicate active incidents.
 
-**Not yet verified:** delivery to an administrator through push notification, email, or another actual notification channel. A row in `lifelink_security_alerts` is not proof that an administrator was notified.
+**Delivery boundary:** the web Admin Console now offers opt-in browser notifications while an authenticated console remains open. This is foreground, browser-permission-based polling; it does not work after sign-out, tab closure, or browser shutdown. Background push/email delivery, durable per-recipient delivery attempts, retries, and end-to-end provider delivery remain unimplemented and unverified. A row in `lifelink_security_alerts` is not proof that an administrator was notified.
 
 ### RBAC and authorization
 
@@ -139,7 +139,7 @@ Operational admin routes now declare permission-specific guards while retaining 
 1. Define how the legacy admin allowlist and profile capability fields map to the RBAC registry.
 2. Provision initial assignments through an explicitly approved, audited, out-of-band process.
 3. Detect missing, expired, unexpected, and conflicting assignments.
-4. The periodic independent scanner is now implemented for active user-role assignments and the four explicitly mapped administrative role policies. Next, add role-level policy integrity detection that works even when no users are assigned, with a dedicated role-target alert identity (do not overload the alert table's `user_id` field). Add durable scanner-health visibility after detector coverage is sound.
+4. The periodic FastAPI-lifespan scanner now checks active user-role assignments and the four explicitly mapped administrative role policies. RBAC-03 role-level policy integrity detection works even when no users are assigned and stores findings in a dedicated role-target table. Persisted scanner-health visibility is also implemented in migration 022, the startup schema routine, a protected Admin API endpoint, and the web Security alerts panel. Deployed runtime operation and full lifespan start/stop behavior remain to be verified.
 5. Keep invalid assignments blocked at write time and detected if introduced through an out-of-band path.
 
 ### P0 — Prove administrator notifications
@@ -263,7 +263,7 @@ Before enabling per-route checks, add a reviewed permission matrix for all seven
 
 ### Independent detector deployment finding
 
-The checked-in `lifelink_fastapi/render.yaml` declares one Docker web service and no Render cron/background worker. The repository configuration therefore does not currently demonstrate an independent scheduled RBAC discrepancy scan. Do not add a paid service or assume a scheduler exists. First choose an existing free-compatible execution mechanism supported by the deployed runtime, with bounded batches, idempotent alert upserts, health/last-run visibility, and a lock to prevent overlapping scans. A normal admin page read must remain a supplemental trigger only.
+The checked-in `lifelink_fastapi/render.yaml` declares one Docker web service and no separate Render cron/background worker. The RBAC scanner is launched as an independent asyncio task from the FastAPI lifespan, not from an admin page read, and uses a PostgreSQL advisory lock plus a 15-second statement timeout. Persisted last-run/success/failure health is now available to the Admin Console. This remains an in-process task: it can stop during host sleep, restart, or instance shutdown, and it does not provide a separate always-on worker guarantee. Explicit query batching and deployed runtime verification remain outstanding. Do not add a paid service or assume a separate scheduler exists.
 
 ### Notification provider finding
 
@@ -311,7 +311,7 @@ flowchart TD
     O -. delivery result / retry state required .-> M
 ```
 
-**Flowchart interpretation:** Authentication, application-session checks, the server-side admin allowlist, audit persistence, alert storage/lifecycle, and the independent periodic scanner scan, and a periodic lifespan scanner exist in the reviewed branch. The diagram's server-side authorization box represents current authorization controls, not universal per-permission enforcement: most admin routes still use the legacy allowlist. Deployed runtime evidence, persistent scanner-health reporting, and verified administrator notification delivery remain incomplete.
+**Flowchart interpretation:** Authentication, application-session checks, the server-side admin allowlist, audit persistence, alert storage/lifecycle, and the periodic FastAPI-lifespan scanner exist in the reviewed branch. Operational Admin API routes now declare permission-specific guards, but `LIFELINK_RBAC_ENFORCEMENT_MODE` defaults to `observe`; exact role-permission enforcement is staged and must not be enabled while live user-role assignments remain empty. Persisted scanner-health reporting is implemented in code but not yet verified in the deployed runtime. Browser notifications are opt-in and foreground-only; background push/email delivery remains incomplete.
 
 ### Independent scan implementation constraints confirmed by source inspection
 
@@ -323,8 +323,8 @@ The existing FastAPI lifespan already runs periodic maintenance tasks, and rende
 2. **Implemented:** a PostgreSQL transaction-scoped advisory lock prevents concurrent scans across API instances.
 3. **Partially implemented:** the scan preserves the active-assignment expiry filter and applies a 15-second transaction-local statement timeout. It does not yet use explicit pagination/batching; add that if registry growth makes a full scan too expensive.
 4. **Implemented:** active alerts are upserted, and occurrence counts increase only when finding evidence changes.
-5. **Outstanding:** scan duration/result count and failures are written to application logs, but there is no persisted last-success/last-failure health record or administrator-visible monitor health.
-6. **Partially implemented:** transient failures are logged and retried on the next interval; prolonged failure is not yet represented in a durable health surface.
+5. **Implemented in the continuation branch:** scan duration, finding count, last start/finish/success/failure, consecutive failures, and a sanitized error code are persisted in `lifelink_security_scanner_runs` and exposed through the protected scanner-health endpoint and Admin Console panel. Live deployment/runtime verification remains outstanding.
+6. **Implemented with bounded retry cadence:** transient failures are logged, a sanitized failure state is persisted in a fresh transaction, and the scanner retries on the next configured interval. The UI marks an old last-success result as stale. Host-level uptime and restart behavior still need deployment verification.
 7. **Implemented:** alert-list GET requests are read-only and never trigger RBAC scans; the lifespan task owns periodic detection.
 
 Focused tests cover system actor attribution, requestless scanning, evidence-sensitive occurrence updates, an empty registry result, advisory-lock contention (including rollback when another instance owns the lock), successful scan commit, and clean cancellation at the interval boundary. The test exercises the scanner loop directly; it does not yet prove the complete FastAPI lifespan starts/stops all maintenance tasks under a real ASGI server, nor does it verify durable health reporting or retry behavior after a database failure. CI success is evidence for the checked-in test suite, not proof of a deployed runtime scan.
