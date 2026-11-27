@@ -198,6 +198,8 @@ def main() -> None:
     factor_discovery = sign_in_flow.find("mfaFactors=await")
     if admin_check < 0 or factor_discovery < 0 or admin_check > factor_discovery:
         fail("server-side admin allowlist verification must run before MFA enrollment")
+    if "mfaFlowGeneration" not in html or "if(flow!==mfaFlowGeneration)" not in html:
+        fail("MFA enrollment and verification must ignore stale asynchronous responses after cancellation")
 
     print(f"Admin website integrity passed: {len(parser.ids)} unique IDs, {len(set(parser.icon_names))} SVG icon types.")
 
