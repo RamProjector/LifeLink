@@ -213,7 +213,7 @@ async def _scan_rbac_discrepancies_forever() -> None:
                         "last_error_code, consecutive_failures, updated_at) "
                         "VALUES ('rbac', 'failed', now(), now(), now(), 'scan_failed', 1, now()) "
                         "ON CONFLICT (scanner_key) DO UPDATE SET status = 'failed', "
-                        "last_finished_at = now(), last_failed_at = now(), "
+                        "last_started_at = now(), last_finished_at = now(), last_failed_at = now(), "
                         "last_error_code = 'scan_failed', "
                         "consecutive_failures = lifelink_security_scanner_runs.consecutive_failures + 1, "
                         "updated_at = now()"
