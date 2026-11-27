@@ -724,18 +724,21 @@ def test_security_alert_correlation_filter_does_not_mutate_alerts(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("aal_claim", "expected"),
+    ("include_aal", "aal_claim", "expected"),
     [
-        (None, "aal1"),
-        ("aal1", "aal1"),
-        ("aal2", "aal2"),
-        ("aal3", "unknown"),
-        ("", "unknown"),
-        (False, "unknown"),
-        (2, "unknown"),
+        (False, None, "aal1"),
+        (True, None, "unknown"),
+        (True, "aal1", "aal1"),
+        (True, "aal2", "aal2"),
+        (True, "aal3", "unknown"),
+        (True, "", "unknown"),
+        (True, False, "unknown"),
+        (True, 2, "unknown"),
     ],
 )
-def test_verified_supabase_principal_preserves_authenticator_assurance(monkeypatch, aal_claim, expected):
+def test_verified_supabase_principal_preserves_authenticator_assurance(
+    monkeypatch, include_aal, aal_claim, expected
+):
     """Preserve only recognized Supabase AAL values; absent AAL is AAL1."""
     from app import security
 
@@ -757,7 +760,7 @@ def test_verified_supabase_principal_preserves_authenticator_assurance(monkeypat
         "iss": "https://example.supabase.co/auth/v1",
         "aud": "authenticated",
     }
-    if aal_claim is not None:
+    if include_aal:
         claims["aal"] = aal_claim
     monkeypatch.setattr(security.jwt, "decode", lambda *args, **kwargs: claims)
 
