@@ -2024,6 +2024,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   <div class="table-toolbar alerts-toolbar"><label class="small" for="alert-status-filter">Investigation status</label><select id="alert-status-filter" aria-label="Filter security alerts by investigation status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select><label class="small" for="alerts-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="alerts-correlation-filter" type="search" maxlength="80" placeholder="Find an incident by correlation ID" autocomplete="off"></div></div>
   <div id="alerts-table" class="tablewrap" aria-live="polite"><div class="empty">Select Security alerts to load incidents.</div></div>
   <div class="actions alerts-pagination"><button id="alerts-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="alerts-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="alerts-page" class="muted small" aria-live="polite"></span></div>
+  <div class="role-integrity-section"><div class="overview-panel-heading"><div><h2>IDS/IPS scanner health</h2><p class="muted small">Last persisted outcome of the independent RBAC policy scanner. A clean scan is not the same as a scanner that has never run.</p></div><span class="snapshot-kind">Operational status</span></div><div id="scanner-health" class="tablewrap" aria-live="polite"><div class="empty">Loading scanner health…</div></div></div>
   <div class="role-integrity-section"><div class="overview-panel-heading"><div><h2>Role policy integrity</h2><p class="muted small">Independent checks of reviewed role-permission policies, including roles with no assigned users. Unconfigured roles are not treated as violations.</p></div><span class="snapshot-kind">RBAC-03 · Read only</span></div><div id="role-integrity-table" class="tablewrap" aria-live="polite"><div class="empty">Loading role policy findings…</div></div></div>
  </section>
  <section id="page-errors" aria-labelledby="page-title" class="panel hidden">
@@ -2567,6 +2568,33 @@ async function loadUsers() {
       if(token===pageLoadToken)$("analytics-summary").removeAttribute("aria-busy");
     }
   }
+  async function loadScannerHealth() {
+    const token=pageLoadToken,el=$("scanner-health");
+    setLoadingState("scanner-health","Checking scanner health","Retrieving the last persisted IDS/IPS scanner result…");
+    try {
+      const data=await api("/v1/admin/security/scanner");
+      if(token!==pageLoadToken||activePage!=="alerts")return;
+      if(!data||data.scanner_key!=="rbac"||typeof data.status!=="string")throw new Error("Unexpected scanner health response");
+      const succeeded=data.last_succeeded_at?new Date(data.last_succeeded_at).toLocaleString():"Never";
+      const failed=data.last_failed_at?new Date(data.last_failed_at).toLocaleString():"Never";
+      const status=String(data.status).replace(/[^a-z_]/g,"");
+      el.innerHTML='<div class="tablewrap"><table><tbody>'+
+        '<tr><th scope="row">Scanner</th><td>RBAC policy integrity</td></tr>'+
+        '<tr><th scope="row">Last status</th><td><span class="tag status-'+esc(status)+'">'+esc(data.status)+'</span></td></tr>'+
+        '<tr><th scope="row">Last successful scan</th><td>'+esc(succeeded)+'</td></tr>'+
+        '<tr><th scope="row">Last failed scan</th><td>'+esc(failed)+'</td></tr>'+
+        '<tr><th scope="row">Findings on last success</th><td>'+esc(data.last_findings??0)+'</td></tr>'+
+        '<tr><th scope="row">Consecutive failures</th><td>'+esc(data.consecutive_failures??0)+'</td></tr>'+
+        '<tr><th scope="row">Last error code</th><td>'+esc(data.last_error_code||"None")+'</td></tr>'+
+        '</tbody></table></div>';
+    } catch(e) {
+      if(token!==pageLoadToken||activePage!=="alerts")return;
+      setErrorState("scanner-health","Scanner health unavailable",safeError(e,"The scanner health record could not be retrieved."),()=>loadPage("alerts"));
+    } finally {
+      if(token===pageLoadToken)el.removeAttribute("aria-busy");
+    }
+  }
+
   async function loadRoleIntegrity() {
     const token=pageLoadToken,tableEl=$("role-integrity-table");
     setLoadingState("role-integrity-table","Checking role policy findings","Retrieving independent RBAC-03 findings…");
@@ -2615,7 +2643,7 @@ async function loadUsers() {
       if(page==="roles") await loadRoles();
       if(page==="audit") await loadEvents("audit");
       if(page==="sessions") await loadSessions();
-      if(page==="alerts"){ await loadAlerts(); await loadRoleIntegrity(); }
+      if(page==="alerts"){ await loadAlerts(); await loadRoleIntegrity(); await loadScannerHealth(); }
       if(page==="errors") await loadEvents("errors");
     } catch(e) {
       if(token!==pageLoadToken||activePage!==page)return;
