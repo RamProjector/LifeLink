@@ -206,6 +206,16 @@ def main() -> None:
         fail("server-side admin allowlist verification must run before MFA enrollment")
     if "mfaFlowGeneration" not in html or "if(flow!==mfaFlowGeneration)" not in html:
         fail("MFA enrollment and verification must ignore stale asynchronous responses after cancellation")
+    management_start = html.find("async function showMfaManagement()")
+    management_end = html.find("function showAddMfaFactor()", management_start)
+    if management_start < 0 or management_end < 0:
+        fail("MFA factor management flow is missing")
+    management_flow = html[management_start:management_end]
+    if "const flow=mfaFlowGeneration" not in management_flow or management_flow.count("if(flow!==mfaFlowGeneration)") < 2:
+        fail("MFA factor management must ignore stale responses after cancellation")
+    sign_in_flow = html[sign_in_start:sign_in_end]
+    if "const flow=++mfaFlowGeneration" not in sign_in_flow or "if(flow!==mfaFlowGeneration)return" not in sign_in_flow:
+        fail("Admin sign-in must not restore a stale session after cancellation")
 
     print(f"Admin website integrity passed: {len(parser.ids)} unique IDs, {len(set(parser.icon_names))} SVG icon types.")
 
