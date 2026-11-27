@@ -818,6 +818,54 @@ async def admin_security_scanner_health(
     return {**dict(row), "scan_interval_seconds": scan_interval_seconds}
 
 
+@router.get("/security/notifications")
+async def admin_security_notifications(
+    request: Request,
+    after: datetime = Query(...),
+    after_id: str = Query(default="00000000-0000-0000-0000-000000000000", min_length=36, max_length=36),
+    limit: int = Query(default=25, ge=1, le=50),
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin_permission("security.alerts.read")),
+):
+    """Return only new, non-sensitive alert metadata for opt-in browser notifications."""
+    result = await session.execute(
+        text(
+            "SELECT id, rule_id, severity, created_at, source FROM ("
+            "SELECT id::text AS id, rule_id, severity, created_at, 'alert'::text AS source "
+            "FROM lifelink_security_alerts "
+            "UNION ALL "
+            "SELECT id::text AS id, rule_id, severity, created_at, 'role_policy'::text AS source "
+            "FROM lifelink_role_security_findings"
+            ") AS new_events WHERE (created_at, id) > (:after, :after_id) "
+            "ORDER BY created_at ASC, id ASC LIMIT :limit"
+        ),
+        {"after": after, "after_id": after_id, "limit": limit},
+    )
+    rows = result.mappings().all()
+    items = [
+        {
+            "id": row["id"],
+            "rule_id": row["rule_id"],
+            "severity": row["severity"],
+            "created_at": row["created_at"],
+            "source": row["source"],
+        }
+        for row in rows
+    ]
+    cursor = (
+        {"created_at": rows[-1]["created_at"], "id": rows[-1]["id"]}
+        if rows else {"created_at": after, "id": after_id}
+    )
+    if items:
+        await _write_audit(
+            session, principal.subject, "admin.security.notifications.polled", request=request,
+            session_id=principal.session_id, target_type="security_notifications",
+            metadata={"returned_count": len(items), "source": "browser_notification_poll"},
+        )
+        await session.commit()
+    return {"items": items, "cursor": cursor}
+
+
 @router.get("/security/alerts")
 async def admin_security_alerts(
     request: Request,
