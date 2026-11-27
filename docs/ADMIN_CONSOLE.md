@@ -46,7 +46,8 @@ A verified session whose user UUID is on the server-side allowlist is routed to 
 - PATCH /v1/admin/users/{user_id} — update requester/donor capability fields; records before/after values.
 - GET /v1/admin/audit?limit=50&offset=0 — recent audit events.
 - GET /v1/admin/sessions?limit=50&offset=0 — observed administrator sessions.
-- GET /v1/admin/security/alerts?limit=50&offset=0 — security alert queue.
+- GET /v1/admin/security/alerts?limit=50&offset=0 — user/session-scoped security alert queue.
+- GET /v1/admin/security/role-integrity?limit=50&offset=0&status=open — role-scoped RBAC-03 policy findings; displayed in the Security alerts page without overloading user alert identities.
 - PATCH /v1/admin/security/alerts/{alert_id} — acknowledge, investigate, resolve, or mark an alert as false positive.
 - POST /v1/admin/sessions/{session_id}/revoke — revoke an observed session for subsequent admin API access.
 - GET /v1/admin/errors?limit=50&offset=0 — recorded API errors and denied admin requests.
@@ -118,7 +119,7 @@ Admin web actions and data loading map authentication, authorization, missing-re
 
 ## IDS/IPS completion status — 2026-11-27
 
-The existing IDS/IPS implementation includes audit fields, personal audit history, observed-session registry, alert lifecycle, IDS-03/04/05, and RBAC-01/02 checks. It is not yet a complete IDS/IPS release: admin API routes still use the legacy administrator allowlist rather than enforcing each seeded permission; the RBAC discrepancy scan is invoked by an unfiltered alert-list read rather than an independent monitor; and actual administrator notification delivery has not been verified. The connected database currently has 0 user-role assignments in the RBAC registry, so do not remove or replace the existing bootstrap allowlist until a safe, approved migration and provisioning path exists.
+The existing IDS/IPS implementation includes audit fields, personal audit history, observed-session registry, alert lifecycle, IDS-03/04/05, RBAC-01/02, and an independent periodic scanner. RBAC-03 now checks the four explicitly seeded administrative role-permission policies independently of user assignments and exposes findings in the Security alerts page through a separate role-scoped endpoint/table. Migration 021 must be applied through the reviewed migration process before that scanner path and endpoint can operate against the database. It is not yet a complete IDS/IPS release: admin API routes still use the legacy administrator allowlist rather than enforcing each seeded permission, and actual administrator notification delivery has not been verified. The connected database currently has 0 user-role assignments in the RBAC registry, so do not remove or replace the existing bootstrap allowlist until a safe, approved migration and provisioning path exists.
 
 Session inventory is an observed-application-session registry, not a claim that every Supabase Auth session is automatically listed. Session revocation is an application-side denial control; do not describe it as revoking Supabase refresh tokens unless a separate Auth revocation operation is implemented and tested.
 
