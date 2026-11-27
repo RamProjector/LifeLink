@@ -2096,6 +2096,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  function clearMfaPending(){pendingMfaFactor=null;$("mfa-qr").removeAttribute("src");$("mfa-secret").textContent="";$("mfa-enroll-code").value="";$("mfa-enroll-code").disabled=true;$("mfa-enroll-verify").disabled=true;$("mfa-qr-wrap").classList.add("hidden");$("mfa-enroll-start").disabled=false;}
  async function cancelMfaAndReturn(){stopBrowserNotifications("Off");mfaFlowGeneration++;pendingMfaEnrollmentCompletion=false;$("mfa-audit-retry").classList.add("hidden");const config=currentMfaConfig();let remoteSignedOut=true;try{if(config.accessToken)await window.LifeLinkAdminMFA.signOut(config);}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("mfa-view").classList.add("hidden");$("login-view").classList.remove("hidden");message("login-message",remoteSignedOut?"Sign-in cancelled. No administrator console access was opened.":"Signed out locally, but Supabase server-side sign-out could not be confirmed. Close this tab and retry when online.",!remoteSignedOut);}
  function stopBrowserNotifications(statusText="Off") {
+   securityNotificationGeneration++;
    if(securityNotificationTimer!==null){clearInterval(securityNotificationTimer);securityNotificationTimer=null;}
    securityNotificationCursor=null;securityNotificationInFlight=false;
    const button=$("browser-notifications-toggle");if(button)button.textContent="Enable browser notifications";
@@ -2133,11 +2134,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
        const permission=await Notification.requestPermission();
        if(permission!=="granted"){$("browser-notifications-status").textContent=permission==="denied"?"Notifications blocked in browser settings":"Permission not granted";return;}
        securityNotificationGeneration++;
+       const generation=securityNotificationGeneration;
        securityNotificationCursor={created_at:new Date(Date.now()-5000).toISOString(),id:"00000000-0000-0000-0000-000000000000"};
        $("browser-notifications-toggle").textContent="Disable browser notifications";
        $("browser-notifications-status").textContent="Starting…";
        await pollSecurityNotifications();
-       securityNotificationTimer=setInterval(pollSecurityNotifications,60000);
+       if(generation===securityNotificationGeneration&&securityNotificationCursor&&accessToken){
+         securityNotificationTimer=setInterval(pollSecurityNotifications,60000);
+       }
      } catch(error) {$("browser-notifications-status").textContent=safeError(error,"Browser notifications could not be enabled.");}
    });
  }
