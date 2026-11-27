@@ -141,6 +141,7 @@
       if (!part) return "unknown";
       const normalized = part.replace(/-/g, "+").replace(/_/g, "/");
       const payload = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")));
+      if (!Object.prototype.hasOwnProperty.call(payload, "aal")) return "aal1";
       return payload.aal === "aal1" || payload.aal === "aal2" ? payload.aal : "unknown";
     } catch {
       return "unknown";
