@@ -366,9 +366,9 @@ Do not simply call `send_push_safely` from the RBAC scanner. A safe implementati
 
 ## Scanner policy coverage boundary (2026-11-27)
 
-Migration 020 seeds permission mappings only for `operations_admin`, `user_admin`, `security_admin`, and `auditor`. The scanner compares these four roles against the exact seeded least-privilege matrix for active user-role assignments, detecting both missing expected grants and unexpected extra grants. It deliberately does not infer a permission policy for `requester`, `donor`, or `super_admin` because the migration does not seed mappings for them.
+Migration 020 seeds permission mappings only for `operations_admin`, `user_admin`, `security_admin`, and `auditor`. RBAC-02 compares these four policies for active user-role assignments. RBAC-03 now independently compares the four role definitions and their permission mappings even when no users hold those roles. It deliberately does not infer a permission policy for `requester`, `donor`, or `super_admin` because migration 020 does not seed mappings for them.
 
-This remains assignment-scoped detection: if no user is assigned to a role, a changed or missing role-permission mapping for that role is not currently detected. The existing alert table's active uniqueness key is `(rule_id, user_id)`; synthetic role IDs must not be placed in `user_id`. A separate role-target key/schema and an approved policy for all seven roles are prerequisites for safe role-level monitoring. The live read-only snapshot found zero user-role assignments.
+Migration 021 creates a separate role-targeted findings table with an active uniqueness key of `(rule_id, role_key)`. Role identifiers are never placed in the user-scoped `lifelink_security_alerts.user_id` field. The live read-only snapshot found zero user-role assignments; RBAC-03 is designed to detect role-mapping drift despite that empty assignment table.
 
 CI validation on implementation commit `2c38d2ba58cdf66751719614be7991e26cb41075` passed backend tests (including PostgreSQL integration tests), Ruff, mypy, Docker/admin-site validation, Android quality gate, Gitleaks, and Python plus Java/Kotlin CodeQL. The follow-up documentation commits do not establish deployed runtime behavior; their own CI runs remain the merge gate.
 
