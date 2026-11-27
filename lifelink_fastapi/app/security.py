@@ -23,6 +23,9 @@ class Principal:
     email_verified: bool | None = None
     session_id: str | None = None
     session_expires_at: datetime | None = None
+    # Supabase treats a missing AAL claim as aal1. Unknown values remain explicit
+    # so later admin enforcement can fail closed.
+    assurance_level: str = "aal1"
 
 
 def auth_required(default: bool = False) -> bool:
@@ -91,6 +94,8 @@ def _verify_supabase_token(token: str) -> Principal:
         session_id=claims.get("session_id") if isinstance(claims.get("session_id"), str) else None,
         session_expires_at=datetime.fromtimestamp(claims["exp"], timezone.utc)
         if isinstance(claims.get("exp"), (int, float)) else None,
+        assurance_level=claims.get("aal")
+        if claims.get("aal") in ("aal1", "aal2") else ("aal1" if "aal" not in claims else "unknown"),
     )
 
 
