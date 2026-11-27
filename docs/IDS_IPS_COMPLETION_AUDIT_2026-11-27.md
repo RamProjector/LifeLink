@@ -219,3 +219,18 @@ Do not declare IDS/IPS complete until all of the following are demonstrated:
 - The flowchart, role/permission matrix, and criteria test evidence are complete.
 
 No production migration, permission grant, role assignment, deployment, or merge is authorized by this audit.
+
+## Android client-to-backend trace
+
+The Android Retrofit interface at `LifeLinkAndroid/app/src/main/java/com/lifelink/app/data/remote/LifeLinkApi.kt` calls the same PostgreSQL API for the following groups:
+
+| Android feature/API group | Backend route families | Audit/security follow-up |
+|---|---|---|
+| Admin | `/v1/admin/me`, dashboard, users, user update, audit, errors | Add alert/session/role APIs to Android only if the app actually exposes those admin workflows; enforce permission on every server route regardless of client |
+| Account | profile read/update, push-token registration | Verify profile event and push-token registration/removal event; token must never be stored in audit metadata |
+| Requester | emergency request create/detail/history/cancel/fulfill, contact selected donors, contact status/report/block, manual broadcast | Retain atomic request/contact events; confirm all failed/denied operations are safely observable |
+| Donor | donor profile create/read/update, presence, availability, delete, map, visibility, inbox, response | Reconcile legacy donor routes with newer donor-profile routes; ensure response and legacy availability/presence are audited |
+| Location sharing | activate/revoke share, matched donor exact-location read, open conversation | Preserve atomic grant/revoke and exact-location disclosure audit; never include coordinates |
+| Messaging | conversation list/messages, send, saved-message add/remove, contact-share list/create, report/block | Preserve content-free message/bookmark/contact-share audit and moderation audit; never store message bodies, attachments, or disclosed contact values |
+
+This is an interface-level trace, not proof that every UI action has been manually exercised. The remaining client verification must map each screen/view-model action to the Retrofit method and confirm the authenticated user ID, expected server authorization, audit event, and user-visible result. The app's push-token registration endpoint is present in the interface; no corresponding alert-delivery linkage was found in the security-alert implementation search.
