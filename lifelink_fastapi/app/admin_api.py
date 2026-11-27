@@ -445,7 +445,98 @@ async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, 
                         "unexpected_permission_keys": unexpected,
                     }), "correlation_id": correlation_id})
                 count += 1
+    count += await _scan_rbac_role_policy_integrity(session, principal, request)
     return count
+
+
+async def _scan_rbac_role_policy_integrity(
+    session: AsyncSession, principal: Principal, request: Request | None
+) -> int:
+    """Check seeded role policies independently of whether users hold those roles."""
+    result = await session.execute(text(
+        "SELECT r.role_key, "
+        "COALESCE(array_agg(DISTINCT p.permission_key) FILTER (WHERE p.permission_key IS NOT NULL), ARRAY[]::varchar[]) AS permissions "
+        "FROM lifelink_roles r "
+        "LEFT JOIN lifelink_role_permissions rp ON rp.role_id = r.id "
+        "LEFT JOIN lifelink_permissions p ON p.id = rp.permission_id "
+        "GROUP BY r.role_key ORDER BY r.role_key"
+    ))
+    correlation_id = _correlation_id(request.headers.get("x-correlation-id")) if request else None
+    count = 0
+    for row in result.mappings().all():
+        role_key = row["role_key"]
+        mismatch = _rbac_permission_mismatch(role_key, set(row["permissions"] or []))
+        if mismatch is None:
+            continue  # No approved policy exists; do not infer one.
+        missing, unexpected = mismatch
+        evidence = {
+            "role_key": role_key,
+            "missing_permission_keys": missing,
+            "unexpected_permission_keys": unexpected,
+        }
+        if missing or unexpected:
+            await session.execute(text(
+                "INSERT INTO lifelink_role_security_findings "
+                "(rule_id, role_key, severity, status, summary, evidence, occurrences, correlation_id) "
+                "VALUES ('RBAC-03', :role_key, 'high', 'open', "
+                "'Role permission mapping differs from approved policy', CAST(:evidence AS jsonb), 1, :correlation_id) "
+                "ON CONFLICT (rule_id, role_key) "
+                "WHERE status IN ('open', 'acknowledged', 'investigating') "
+                "DO UPDATE SET last_seen_at = now(), "
+                "occurrences = lifelink_role_security_findings.occurrences + CASE "
+                "WHEN lifelink_role_security_findings.evidence IS DISTINCT FROM EXCLUDED.evidence THEN 1 ELSE 0 END, "
+                "evidence = EXCLUDED.evidence, "
+                "correlation_id = COALESCE(EXCLUDED.correlation_id, lifelink_role_security_findings.correlation_id)"
+            ), {"role_key": role_key, "evidence": __import__("json").dumps(evidence),
+                "correlation_id": correlation_id})
+            count += 1
+        else:
+            # Close an active finding automatically once the approved policy is restored.
+            await session.execute(text(
+                "UPDATE lifelink_role_security_findings SET status = 'resolved', resolved_at = now() "
+                "WHERE rule_id = 'RBAC-03' AND role_key = :role_key "
+                "AND status IN ('open', 'acknowledged', 'investigating')"
+            ), {"role_key": role_key})
+    return count
+
+
+@router.get("/security/role-integrity")
+async def admin_role_integrity_findings(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    finding_status: str | None = Query(default="open", alias="status", pattern="^(open|acknowledged|investigating|resolved|false_positive)$"),
+):
+    result = await session.execute(text(
+        "SELECT id, rule_id, role_key, severity, status, summary, evidence, occurrences, "
+        "created_at, last_seen_at, resolved_at, correlation_id "
+        "FROM lifelink_role_security_findings "
+        "WHERE (CAST(:status AS varchar) IS NULL OR status = CAST(:status AS varchar)) "
+        "ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, "
+        "last_seen_at DESC LIMIT :limit OFFSET :offset"
+    ), {"status": finding_status, "limit": limit, "offset": offset})
+    rows = result.mappings().all()
+    await _write_audit(
+        session, principal.subject, "admin.security.role_integrity.read", request=request,
+        session_id=principal.session_id, session_expires_at=principal.session_expires_at,
+        target_type="role_security_findings",
+        metadata={"limit": limit, "offset": offset, "status": finding_status},
+    )
+    await session.commit()
+    return {
+        "items": [
+            {**dict(row), **{
+                key: row[key].isoformat() if row[key] else None
+                for key in ("created_at", "last_seen_at", "resolved_at")
+            }, "evidence": _safe_audit_metadata(row["evidence"])}
+            for row in rows
+        ],
+        "limit": limit,
+        "offset": offset,
+    }
+
 
 @router.get("/security/alerts")
 async def admin_security_alerts(
