@@ -517,6 +517,7 @@ def test_admin_audit_metadata_is_bounded():
         ("GET", "/v1/admin/sessions", None),
         ("GET", "/v1/admin/security/alerts", None),
         ("GET", "/v1/admin/security/role-integrity", None),
+        ("GET", "/v1/admin/security/scanner", None),
         ("PATCH", "/v1/admin/security/alerts/00000000-0000-0000-0000-000000000001", {"status": "resolved"}),
         ("GET", "/v1/admin/errors", None),
         ("PATCH", "/v1/admin/users/another-user", {
@@ -1466,3 +1467,35 @@ def test_admin_scanner_health_reports_never_run_when_no_status_exists(monkeypatc
         }
 
     asyncio.run(check())
+
+
+
+def test_admin_routes_declare_the_expected_permission_matrix():
+    from app.admin_api import router
+
+    expected = {
+        "/v1/admin/me": "dashboard.read",
+        "/v1/admin/dashboard": "dashboard.read",
+        "/v1/admin/users": "users.read",
+        "/v1/admin/users/{user_id}": "users.update",
+        "/v1/admin/security/role-integrity": "audit.read",
+        "/v1/admin/security/scanner": "security.alerts.read",
+        "/v1/admin/security/alerts": "security.alerts.read",
+        "/v1/admin/security/alerts/{alert_id}": "security.alerts.manage",
+        "/v1/admin/sessions": "security.sessions.read",
+        "/v1/admin/sessions/{session_id}/revoke": "security.sessions.revoke",
+        "/v1/admin/audit": "audit.read",
+        "/v1/admin/errors": "audit.read",
+        "/v1/admin/roles": "roles.read",
+        "/v1/admin/users/{user_id}/roles": "roles.read",
+    }
+    actual = {}
+    for route in router.routes:
+        if route.path not in expected:
+            continue
+        guard = next(
+            dependency.call for dependency in route.dependant.dependencies
+            if dependency.call.__name__ == "require_admin"
+        )
+        actual[route.path] = getattr(guard, "permission_key", None)
+    assert actual == expected
