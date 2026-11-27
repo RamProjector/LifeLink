@@ -61,6 +61,14 @@ def run_scenario(pg_url: str, scenario):
                 )
             """))
             await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS auth.mfa_factors (
+                    id UUID PRIMARY KEY,
+                    user_id UUID NOT NULL,
+                    factor_type TEXT NOT NULL,
+                    status TEXT NOT NULL
+                )
+            """))
+            await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS lifelink_user_sessions (
                     session_id VARCHAR(128) PRIMARY KEY,
                     user_id VARCHAR(128) NOT NULL,
