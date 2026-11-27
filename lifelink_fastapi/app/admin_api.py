@@ -5,7 +5,7 @@ import os
 import re
 from datetime import datetime, timezone
 from typing import Literal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
@@ -831,7 +831,7 @@ async def admin_security_scanner_health(
 async def admin_security_notifications(
     request: Request,
     after: datetime = Query(...),
-    after_id: str = Query(default="00000000-0000-0000-0000-000000000000", min_length=36, max_length=36),
+    after_id: UUID = Query(default=UUID(int=0)),
     limit: int = Query(default=25, ge=1, le=50),
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(require_admin_permission("security.alerts.read")),
@@ -850,7 +850,7 @@ async def admin_security_notifications(
             ") AS new_events WHERE (created_at, id) > (:after, :after_id) "
             "ORDER BY created_at ASC, id ASC LIMIT :limit"
         ),
-        {"after": after, "after_id": after_id, "limit": limit},
+        {"after": after, "after_id": str(after_id), "limit": limit},
     )
     rows = result.mappings().all()
     items = [
@@ -865,7 +865,7 @@ async def admin_security_notifications(
     ]
     cursor = (
         {"created_at": rows[-1]["created_at"], "id": rows[-1]["id"]}
-        if rows else {"created_at": after, "id": after_id}
+        if rows else {"created_at": after, "id": str(after_id)}
     )
     if items:
         await _write_audit(
