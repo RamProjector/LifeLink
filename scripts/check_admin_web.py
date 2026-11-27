@@ -220,6 +220,14 @@ def main() -> None:
         fail("security center must display role-level RBAC-03 findings from the protected role-integrity endpoint")
 
     if (
+        'securityNotificationGeneration++' not in html
+        or 'if(generation!==securityNotificationGeneration)return;' not in html
+        or 'if(generation===securityNotificationGeneration&&securityNotificationCursor&&accessToken)' not in html
+        or 'function stopBrowserNotifications(statusText="Off") {\\n   securityNotificationGeneration++;' not in html
+    ):
+        fail("browser security notification polling must ignore in-flight responses after sign-out and must not restart after authorization failure")
+
+    if (
         'id="scanner-health"' not in html
         or '"/v1/admin/security/scanner"' not in html
         or "async function loadScannerHealth()" not in html
