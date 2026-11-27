@@ -1956,6 +1956,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   <p id="mfa-factor-count" class="mfa-help" aria-live="polite"></p>
   <div id="mfa-factor-list" class="mfa-factor-list" aria-live="polite"></div>
   <div class="mfa-actions"><button id="mfa-manage-add" type="button">Add replacement authenticator</button><button id="mfa-manage-back" type="button" class="secondary">Back to admin console</button></div>
+  <div class="mfa-recovery-receipt"><label for="mfa-recovery-ticket">Approved recovery ticket</label><input id="mfa-recovery-ticket" type="text" maxlength="64" autocomplete="off" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,63}" placeholder="e.g. SEC-2026-104"><button id="mfa-recovery-record" type="button" class="secondary">Record approved recovery</button><p class="mfa-help">Use only after a two-operator recovery has been approved and both authenticators are verified. This records a client-reported receipt for operator reconciliation.</p></div>
  </section>
  <div id="mfa-message" class="notice hidden" role="status" aria-live="polite"></div>
  <button id="mfa-cancel" type="button" class="secondary" style="width:100%;margin-top:16px">Cancel and return to sign in</button>
@@ -2114,6 +2115,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
    if(window.LifeLinkAdminMFA.verifiedFactors(mfaFactors).length<2){mfaReturnToManage=true;showBackupEnrollment();return;}
    mfaReturnToManage=false;$("mfa-view").classList.add("hidden");$("app-view").classList.remove("hidden");$("session-tools").classList.remove("hidden");
  }
+ async function recordMfaRecoveryReceipt(){
+    const ticket=$("mfa-recovery-ticket").value.trim(),count=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors).length,button=$("mfa-recovery-record");
+    if(!/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/.test(ticket)){message("mfa-message","Enter the approved recovery ticket reference.",true);return;}
+    if(count<2){message("mfa-message","Verify two authenticators before recording recovery.",true);return;}
+    button.disabled=true;
+    try{
+      await api("/v1/admin/mfa/events",{method:"POST",body:JSON.stringify({event_type:"recovery_reenrollment_verified",verified_factor_count:count,ticket_reference:ticket})});
+      message("mfa-message","Recovery receipt recorded. Reconcile the ticket with the two-operator incident record and Supabase Auth audit log.");
+      $("mfa-recovery-ticket").value="";
+    }catch(e){message("mfa-message",safeError(e,"The recovery receipt could not be recorded."),true);}
+    finally{button.disabled=false;}
+  }
  async function removeMfaFactor(factorId,button){
    const initial=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors);
    if(window.LifeLinkAdminMFA.assuranceLevel(accessToken)!=="aal2"){mfaReturnToManage=true;showMfaChallenge();return;}if(initial.length<=2){message("mfa-message","Add and verify a replacement before removing a factor.",true);return;}
@@ -2552,6 +2565,7 @@ async function loadUsers() {
  $("mfa-cancel").addEventListener("click",cancelMfaAndReturn);
  $("manage-mfa").addEventListener("click",showMfaManagement);
  $("mfa-manage-add").addEventListener("click",showAddMfaFactor);
+ $("mfa-recovery-record").addEventListener("click",recordMfaRecoveryReceipt);
  $("mfa-manage-back").addEventListener("click",backToAdminConsole);
  $("mfa-enroll-code").addEventListener("keydown",e=>{if(e.key==="Enter")verifyMfaEnrollment();});
  $("mfa-challenge-code").addEventListener("keydown",e=>{if(e.key==="Enter")verifyMfaChallenge();});
