@@ -206,6 +206,7 @@ def test_admin_rejects_aal2_with_only_one_verified_totp_factor(monkeypatch):
     monkeypatch.setattr(admin_api, "_record_denied_admin_attempt", capture_denial)
 
     async def check():
+        session = FakeSession([0, 1])
         with pytest.raises(HTTPException) as error:
             await require_admin(
                 principal=Principal(
@@ -214,7 +215,7 @@ def test_admin_rejects_aal2_with_only_one_verified_totp_factor(monkeypatch):
                     session_id="session-1",
                     assurance_level="aal2",
                 ),
-                session=FakeSession([0, 1]),
+                session=session,
                 request=_request_context(),
             )
         assert error.value.status_code == 403
