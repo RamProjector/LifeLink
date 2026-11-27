@@ -22,9 +22,11 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
-import retrofit2.http.Path
 import retrofit2.http.PUT
+import retrofit2.http.Path
 import retrofit2.http.Query
+
+private const val MAX_MFA_FRIENDLY_NAME_LENGTH = 64
 
 class SupabaseAuthRepository(
     private val sessionStore: AuthSessionStore,
@@ -194,7 +196,6 @@ class SupabaseAuthRepository(
             }
         }
 
-
     suspend fun listMfaFactors(session: AuthSession): Result<List<SupabaseMfaFactor>> =
         withContext(Dispatchers.IO) {
             runCatching {
@@ -209,7 +210,7 @@ class SupabaseAuthRepository(
         withContext(Dispatchers.IO) {
             runCatching {
                 val name = friendlyName.trim()
-                require(name.isNotEmpty() && name.length <= 64) { "Enter a valid authenticator name." }
+                require(name.isNotEmpty() && name.length <= MAX_MFA_FRIENDLY_NAME_LENGTH) { "Enter a valid authenticator name." }
                 val response = api?.enrollMfaFactor(
                     publishableKey,
                     "Bearer ${session.accessToken}",
@@ -493,9 +494,7 @@ data class AuthCallback(val kind: AuthCallbackKind, val email: String?, val acce
 data class PasswordUpdateRequest(@SerializedName("password") val password: String)
 
 
-data class SupabaseMfaUser(
-    @SerializedName("factors") val factors: List<SupabaseMfaFactor>?,
-)
+data class SupabaseMfaUser(@SerializedName("factors") val factors: List<SupabaseMfaFactor>?)
 
 data class SupabaseMfaFactor(
     @SerializedName("id") val id: String,
@@ -535,7 +534,6 @@ data class SupabaseMfaVerifyResponse(
     @SerializedName("refresh_token") val refreshToken: String?,
     @SerializedName("user") val user: SupabaseUser?,
 )
-
 
 data class SupabaseAuthResponse(
     @SerializedName("access_token") val accessToken: String?,
