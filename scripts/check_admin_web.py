@@ -193,10 +193,15 @@ def main() -> None:
         "async def require_admin_identity(" not in admin_api
         or 'if principal.assurance_level != "aal2":' not in admin_api
         or "principal: Principal = Depends(require_admin_identity)" not in admin_api
-        or '@router.post("/mfa/events")' not in admin_api
+        or "async def require_admin_mfa_event(" not in admin_api
+        or "principal: Principal = Depends(require_admin_mfa_event)" not in admin_api
+        or "FROM auth.mfa_factors" not in admin_api
+        or "factor_type = 'totp' AND status = 'verified'" not in admin_api
         or '"security.admin_mfa.assurance_denied"' not in admin_api
+        or '"security.admin_mfa.factor_count_denied"' not in admin_api
+        or '"Two verified TOTP authenticators are required"' not in admin_api
     ):
-        fail("all operational admin endpoints must enforce AAL2 while identity preflight remains AAL1-only")
+        fail("operational admin routes must enforce AAL2 and two server-confirmed TOTP factors; only MFA audit receipts may use the AAL2 enrollment gate")
 
     if (
         "adminPreflight()" not in android_api
