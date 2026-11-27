@@ -211,6 +211,7 @@ def test_admin_audit_metadata_is_bounded():
         ("GET", "/v1/admin/audit", None),
         ("GET", "/v1/admin/sessions", None),
         ("GET", "/v1/admin/security/alerts", None),
+        ("GET", "/v1/admin/security/role-integrity", None),
         ("PATCH", "/v1/admin/security/alerts/00000000-0000-0000-0000-000000000001", {"status": "resolved"}),
         ("GET", "/v1/admin/errors", None),
         ("PATCH", "/v1/admin/users/another-user", {
