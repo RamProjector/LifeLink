@@ -89,7 +89,7 @@ Operational admin routes now use permission-specific dependency guards. The guar
 | `GET /v1/admin/users` | `users.read` |
 | `PATCH /v1/admin/users/{user_id}` | `users.update` |
 | `GET /v1/admin/security/role-integrity`, audit, errors | `audit.read` |
-| `GET /v1/admin/security/alerts`, scanner health | `security.alerts.read` |
+| `GET /v1/admin/security/alerts`, scanner health, browser notification feed | `security.alerts.read` |
 | `PATCH /v1/admin/security/alerts/{alert_id}` | `security.alerts.manage` |
 | `GET /v1/admin/sessions` | `security.sessions.read` |
 | `POST /v1/admin/sessions/{session_id}/revoke` | `security.sessions.revoke` |
