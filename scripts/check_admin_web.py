@@ -16,6 +16,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HTML_PATH = ROOT / "admin-web" / "index.html"
 ICONS_PATH = ROOT / "admin-web" / "icons.js"
+MFA_JS_PATH = ROOT / "admin-web" / "mfa.js"
+MFA_TEST_PATH = ROOT / "scripts" / "test_admin_mfa.js"
 ADMIN_API_PATH = ROOT / "lifelink_fastapi" / "app" / "admin_api.py"
 
 
@@ -44,8 +46,8 @@ def fail(message: str) -> None:
 
 
 def main() -> None:
-    if not HTML_PATH.is_file() or not ICONS_PATH.is_file() or not ADMIN_API_PATH.is_file():
-        fail("admin website entry point or SVG icon library is missing")
+    if not HTML_PATH.is_file() or not ICONS_PATH.is_file() or not MFA_JS_PATH.is_file() or not MFA_TEST_PATH.is_file() or not ADMIN_API_PATH.is_file():
+        fail("admin website entry point, SVG icon library, or MFA module/tests are missing")
 
     html = HTML_PATH.read_text(encoding="utf-8")
     icons = ICONS_PATH.read_text(encoding="utf-8")
@@ -94,6 +96,28 @@ def main() -> None:
         fail("duplicate HTML id attributes: " + ", ".join(sorted(duplicates)))
     if not parser.icon_script_found:
         fail("index.html does not load the reusable ./icons.js module")
+    for javascript_path in (MFA_JS_PATH, MFA_TEST_PATH):
+        result = subprocess.run(
+            ["node", "--check", str(javascript_path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode:
+            fail(f"JavaScript syntax error in {javascript_path.name}: " + result.stderr.strip())
+
+    mfa_tests = subprocess.run(
+        ["node", str(MFA_TEST_PATH)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if mfa_tests.returncode:
+        fail("admin MFA transport regression tests failed: " + mfa_tests.stderr.strip())
+    mfa_source = MFA_JS_PATH.read_text(encoding="utf-8")
+    if "localStorage" in mfa_source or "sessionStorage" in mfa_source:
+        fail("admin MFA tokens must remain in memory and never use browser storage")
+
     if "createElementNS(NS" not in icons or "currentColor" not in icons:
         fail("SVG icons must be created with the SVG DOM API and inherit currentColor")
     if "innerHTML" in icons or "eval(" in icons:
