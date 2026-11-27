@@ -838,7 +838,10 @@ async def admin_replace_user_roles(
     ]
     if mismatches:
         for role_key, reason in mismatches:
-            await _record_rbac_mismatch(session, principal, request, user_id, role_key, reason)
+            await _record_rbac_mismatch(
+                session, principal, request, user_id, role_key, reason,
+                _correlation_id(request.headers.get("x-correlation-id")),
+            )
         await session.commit()
         raise HTTPException(status_code=409, detail={
             "message": "One or more roles are not applicable to this account",
