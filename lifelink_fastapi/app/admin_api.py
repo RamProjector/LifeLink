@@ -27,7 +27,7 @@ def _configured_admin_ids() -> set[str]:
     }
 
 
-async def require_admin(
+async def require_admin_identity(
     request: Request,
     principal: Principal = Depends(get_active_postgres_principal),
     session: AsyncSession = Depends(get_db_session),
@@ -72,6 +72,31 @@ async def require_admin(
                 detail="This session has been revoked. Sign in again.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+    return principal
+
+
+async def require_admin(
+    request: Request,
+    principal: Principal = Depends(get_active_postgres_principal),
+    session: AsyncSession = Depends(get_db_session),
+) -> Principal:
+    """Require allowlisted identity, active session, and verified Supabase AAL2."""
+    principal = await require_admin_identity(request, principal, session)
+    if principal.assurance_level != "aal2":
+        await _record_denied_admin_attempt(
+            session,
+            principal,
+            request,
+            rule_id="IDS-06",
+            action="security.admin_mfa.assurance_denied",
+            severity="high",
+            threshold=3,
+            summary="An administrator session attempted protected access without verified MFA assurance",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator multi-factor verification is required. Complete authenticator verification and sign in again.",
+        )
     return principal
 
 
@@ -277,7 +302,7 @@ def _correlation_id(value: str | None) -> str:
 async def admin_identity_preflight(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    principal: Principal = Depends(require_admin),
+    principal: Principal = Depends(require_admin_identity),
     x_correlation_id: str | None = Header(default=None),
 ):
     """Confirm allowlist/session eligibility before MFA without returning admin data.
