@@ -4,6 +4,7 @@ import os
 import re
 from datetime import datetime, timezone
 from uuid import uuid4
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
@@ -175,6 +176,17 @@ class AdminProfileUpdate(BaseModel):
     can_donate: bool
 
 
+class AdminMfaAuditEvent(BaseModel):
+    event_type: Literal[
+        "factor_enrollment_verified",
+        "factor_replacement_verified",
+        "factor_removal_requested",
+        "recovery_reenrollment_verified",
+    ]
+    verified_factor_count: int = Field(ge=0, le=10)
+    ticket_reference: str | None = Field(default=None, min_length=3, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$")
+
+
 def _audit_action_kind(action: str) -> str:
     """Map CRUD event verbs to the required normalized action vocabulary."""
     tokens = set(re.split(r"[^a-z]+", action.lower()))
@@ -320,6 +332,58 @@ async def admin_identity_preflight(
     )
     await session.commit()
     return {"authorized": True}
+
+
+@router.post("/mfa/events")
+async def admin_mfa_event(
+    payload: AdminMfaAuditEvent,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin),
+    x_correlation_id: str | None = Header(default=None),
+):
+    """Record a bounded MFA lifecycle event after AAL2 verification.
+
+    This is an audit receipt, not proof of factor inventory: the client may report
+    only the event it just completed through Supabase Auth. Recovery receipts
+    require an independently approved operator ticket and two verified factors.
+    """
+    if payload.event_type == "factor_enrollment_verified" and payload.verified_factor_count < 1:
+        raise HTTPException(status_code=422, detail="At least one verified authenticator is required")
+    if payload.event_type in {"factor_replacement_verified", "recovery_reenrollment_verified"} and payload.verified_factor_count < 2:
+        raise HTTPException(status_code=422, detail="Two verified authenticators are required")
+    if payload.event_type == "factor_removal_requested" and payload.verified_factor_count < 3:
+        raise HTTPException(status_code=422, detail="A removal request must preserve at least two verified authenticators")
+    if payload.event_type == "recovery_reenrollment_verified" and not payload.ticket_reference:
+        raise HTTPException(status_code=422, detail="An approved recovery ticket reference is required")
+
+    action = {
+        "factor_enrollment_verified": "admin.mfa.factor_enrollment_verified",
+        "factor_replacement_verified": "admin.mfa.factor_replacement_verified",
+        "factor_removal_requested": "admin.mfa.factor_removal_requested",
+        "recovery_reenrollment_verified": "admin.mfa.recovery_reenrollment_verified",
+    }[payload.event_type]
+    metadata = {
+        "event_type": payload.event_type,
+        "verified_factor_count": payload.verified_factor_count,
+        "evidence_source": "client_reported_after_supabase_auth_confirmation",
+    }
+    if payload.ticket_reference:
+        metadata["ticket_reference"] = payload.ticket_reference
+    await _write_audit(
+        session,
+        principal.subject,
+        action,
+        request=request,
+        session_id=principal.session_id,
+        session_expires_at=principal.session_expires_at,
+        target_type="admin_mfa",
+        target_id=payload.event_type,
+        correlation_id=_correlation_id(x_correlation_id),
+        metadata=metadata,
+    )
+    await session.commit()
+    return {"recorded": True}
 
 
 @router.get("/me")
