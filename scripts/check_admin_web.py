@@ -189,6 +189,8 @@ def main() -> None:
         or "async function removeMfaFactor" not in html
         or "initial.length<=2" not in html
         or "unenroll(currentMfaConfig(),factorId)" not in html
+        or 'backup=mfaMode==="backup"||mfaMode==="manage-add"' not in html
+        or "mfaReturnToManage" not in html
         or 'id="manage-mfa"' not in html
     ):
         fail("admin console must require AAL2 and two verified TOTP factors, with replacement-before-removal controls")
