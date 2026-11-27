@@ -22,7 +22,7 @@ It seeds requester/donor and four administrative role types plus a super-adminis
 
 Role assignment requires both ordinary administrator authentication and membership in the separate server-side `LIFELINK_RBAC_MANAGER_USER_IDS` allowlist. Do not populate this variable from user-editable profile metadata or public signup. Use verified Supabase Auth UUIDs and keep the list in the backend's private environment configuration.
 
-The current admin allowlist remains the bootstrap gate for the existing console. This is intentionally not yet a complete permission-enforcement migration: existing admin routes have not all been converted to granular permission dependencies, and requester/donor application authorization still uses its existing policy.
+The server-managed admin allowlist and MFA checks remain the identity/bootstrap gate. Operational admin routes now declare permission-specific dependencies. The rollout is deliberately staged by the backend-only `LIFELINK_RBAC_ENFORCEMENT_MODE` setting: `observe` (the default) preserves current allowlist + MFA behavior while assignments are provisioned; `enforce` requires an active, non-expired administrative role assignment containing the exact permission for each route. Unknown mode values fail closed with HTTP 503. Requester/donor application authorization continues to use its existing policy.
 
 ## Personal activity history
 
@@ -66,7 +66,7 @@ A read-only inspection of the connected LifeLink database found 7 role definitio
 
 The RBAC discrepancy scan now runs as a bounded FastAPI lifespan task at a configurable interval (default 300 seconds, minimum 60 seconds), independently of administrator alert-page reads. A PostgreSQL transaction-scoped advisory lock prevents overlapping scans across API instances, and each scan transaction has a 15-second statement timeout. Errors are logged and retried on the next interval. This is periodic in-process monitoring, not an external always-on service: host sleep/restarts can interrupt it, and no durable last-success/last-failure health record is currently persisted.
 
-The audit did not verify delivery of RBAC/IDS alerts through push, email, or another notification channel. Persisting an alert row and displaying it in the Admin Console are not proof that an administrator was notified. Do not claim notification delivery until the channel, retry state, and end-to-end receipt are tested.
+The audit did not verify delivery of RBAC/IDS alerts through push, email, or another notification channel. Persisting an alert row and displaying it in the Admin Console are not proof that an administrator was notified. Do not claim notification delivery until a supported web-admin delivery channel, recipient resolution, retry state, and end-to-end receipt are tested.
 
 These findings are repository/live-schema observations only. No user-role assignments, production grants, policies, migrations, or deployment settings were changed.
 
