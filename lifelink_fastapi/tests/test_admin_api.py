@@ -219,7 +219,7 @@ def test_admin_rejects_aal2_with_only_one_verified_totp_factor(monkeypatch):
                 request=_request_context(),
             )
         assert error.value.status_code == 403
-        assert "two verified TOTP" in error.value.detail
+        assert "two verified totp" in error.value.detail.lower()
         assert recorded["rule_id"] == "IDS-07"
         assert recorded["action"] == "security.admin_mfa.factor_count_denied"
         factor_query = session.scalar_statements[-1]
@@ -618,7 +618,7 @@ def test_ordinary_admin_cannot_assign_roles_through_http(monkeypatch):
     monkeypatch.delenv("LIFELINK_RBAC_MANAGER_USER_IDS", raising=False)
 
     async def fake_session():
-        yield FakeSession([0])
+        yield FakeSession([0, 2])
 
     app.dependency_overrides[get_db_session] = fake_session
     app.dependency_overrides[get_postgres_principal] = lambda: Principal(
