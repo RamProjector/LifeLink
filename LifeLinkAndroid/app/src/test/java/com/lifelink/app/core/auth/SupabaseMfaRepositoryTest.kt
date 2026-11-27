@@ -1,5 +1,8 @@
 package com.lifelink.app.core.auth
 
+import com.lifelink.app.feature.admin.AdminMfaStep
+import com.lifelink.app.feature.admin.nextAdminMfaStep
+
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.gson.JsonParser
@@ -174,4 +177,13 @@ class SupabaseMfaRepositoryTest {
         assertTrue(result.isFailure)
         assertEquals(0, server.requestCount)
     }
+    @Test
+    fun adminMfaRoutingKeepsAal2AndBackupFactorRequirementsDistinct() {
+        assertEquals(AdminMfaStep.ENROLL_PRIMARY, nextAdminMfaStep("aal1", 0))
+        assertEquals(AdminMfaStep.CHALLENGE, nextAdminMfaStep("aal1", 1))
+        assertEquals(AdminMfaStep.ENROLL_BACKUP, nextAdminMfaStep("aal2", 1))
+        assertEquals(AdminMfaStep.CONFIRM_ACCESS, nextAdminMfaStep("aal2", 2))
+        assertEquals(AdminMfaStep.CHALLENGE, nextAdminMfaStep("unknown", 2))
+    }
+
 }
