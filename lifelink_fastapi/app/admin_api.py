@@ -375,7 +375,7 @@ async def _write_audit(
             "session_id": session_id,
             "ip_address": peer_ip,
             "timestamp": datetime.now(timezone.utc),
-            "device_used": user_agent,
+            "device_used": device_used,
             "metadata": __import__("json").dumps(metadata or {}),
             "created_at": datetime.now(timezone.utc),
             "outcome": outcome,
