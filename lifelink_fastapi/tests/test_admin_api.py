@@ -1293,7 +1293,9 @@ def test_role_policy_integrity_does_not_infer_unconfigured_role_policy():
 
 
 def test_admin_permission_guard_defaults_to_legacy_compatible_observe_mode(monkeypatch):
-    from app.admin_api import require_admin_permission
+    from app import admin_api
+
+    require_admin_permission = admin_api.require_admin_permission
 
     monkeypatch.delenv("LIFELINK_RBAC_ENFORCEMENT_MODE", raising=False)
     monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
@@ -1376,7 +1378,9 @@ def test_admin_permission_guard_denies_missing_permission_and_records_ids08(monk
 
 
 def test_admin_permission_guard_fails_closed_on_invalid_mode(monkeypatch):
-    from app.admin_api import require_admin_permission
+    from app import admin_api
+
+    require_admin_permission = admin_api.require_admin_permission
 
     monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "typo")
     monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
