@@ -1345,8 +1345,8 @@ def test_admin_permission_guard_enforces_exact_active_role_permission(monkeypatc
     asyncio.run(check())
     permission_query = session.scalar_statements[-1]
     assert "FROM lifelink_user_roles ur" in permission_query
-    assert "JOIN lifelink_role_permissions rp" in permission_query
-    assert "JOIN lifelink_permissions p" in permission_query
+    assert "LEFT JOIN lifelink_role_permissions rp" in permission_query
+    assert "LEFT JOIN lifelink_permissions p" in permission_query
     assert "p.permission_key = :permission_key" in permission_query
     assert "ur.expires_at > now()" in permission_query
 
