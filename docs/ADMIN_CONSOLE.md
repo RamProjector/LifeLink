@@ -55,7 +55,7 @@ The backend requires AAL2 plus at least two server-confirmed verified TOTP facto
 - The refresh token is rotated through Supabase Auth before protected API calls when the access token is near expiry.
 - The TOTP setup secret is displayed only during enrollment and cleared from the page after verification or sign-out. Never log, copy into tickets, or commit the QR payload, secret, OTP, access token, or refresh token.
 - Supabase documents that verifying a factor promotes the current session to AAL2 and signs out the user's other active sessions. Operators must be warned before completing enrollment.
-- Supabase does not provide standard TOTP recovery codes. The backup factor must be held separately from the primary factor. Losing every verified factor can permanently prevent sign-in.
+- LifeLink does not currently enable Supabase's experimental recovery-code feature, which requires an Auth-server opt-in and separate validation. The supported backup path remains a second TOTP factor held separately from the primary factor. Losing every verified factor can permanently prevent sign-in unless the approved operator recovery procedure is completed.
 
 ### Operator-assisted recovery runbook (documented; not yet operationally tested)
 
