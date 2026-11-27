@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import get_db_session
 from .db_models import Donor, EmergencyRequest, LifeLinkProfile
-from .security import Principal, get_active_postgres_principal, require_verified_email
+from .security import Principal, device_class, get_active_postgres_principal, require_verified_email
 
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
 
@@ -333,7 +333,7 @@ async def _write_audit(
     # headers. Do not trust X-Forwarded-For until the deployment's trusted-proxy
     # configuration is explicitly verified.
     peer_ip = request.client.host if request and request.client else None
-    user_agent = request.headers.get("user-agent", "unknown")[:255] if request else "unknown"
+    device_used = device_class(request.headers.get("user-agent") if request else None)
     if session_id:
         await session.execute(
             text(
@@ -350,7 +350,7 @@ async def _write_audit(
             {
                 "session_id": session_id,
                 "user_id": actor_id,
-                "device_used": user_agent,
+                "device_used": device_used,
                 "ip_address": peer_ip,
                 "now": datetime.now(timezone.utc),
                 "expires_at": session_expires_at,
