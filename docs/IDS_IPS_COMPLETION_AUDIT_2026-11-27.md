@@ -234,3 +234,56 @@ The Android Retrofit interface at `LifeLinkAndroid/app/src/main/java/com/lifelin
 | Messaging | conversation list/messages, send, saved-message add/remove, contact-share list/create, report/block | Preserve content-free message/bookmark/contact-share audit and moderation audit; never store message bodies, attachments, or disclosed contact values |
 
 This is an interface-level trace, not proof that every UI action has been manually exercised. The remaining client verification must map each screen/view-model action to the Retrofit method and confirm the authenticated user ID, expected server authorization, audit event, and user-visible result. The app's push-token registration endpoint is present in the interface; no corresponding alert-delivery linkage was found in the security-alert implementation search.
+
+## 2026-11-27 implementation-readiness follow-up
+
+### Authorization route inventory and safe transition
+
+A second source inspection of `lifelink_fastapi/app/admin_api.py`, `app/security.py`, migration 020, and `tests/test_admin_api.py` confirms:
+
+- The admin router's existing handlers consistently depend on `require_admin`; the permission registry is not yet used as a per-route authorization dependency.
+- `require_admin` verifies the subject against the private `LIFELINK_ADMIN_USER_IDS` allowlist, requires verified-email policy, requires session context, and rejects sessions marked revoked in the application session registry.
+- Role assignment is separately gated by `LIFELINK_RBAC_MANAGER_USER_IDS`; this must remain a distinct privilege from ordinary administrator access.
+- The current tests cover allowlist denial, session requirements/revocation, role-manager separation, role applicability, and selected admin HTTP boundaries. They do not yet prove per-permission access for every admin route.
+- The live registry's zero assignment count means a strict registry-only rollout would deny all current admins until a controlled assignment process is completed.
+
+The route-to-permission mapping in the P0 list above is the intended first-pass policy. The implementation should use a dependency factory or equivalent centralized policy function, not scattered inline role checks. For a backward-compatible transition:
+
+1. Keep `require_admin` as the authentication and legacy bootstrap gate.
+2. For an allowlisted administrator with no RBAC assignment rows, retain legacy access temporarily and emit a measurable legacy-fallback audit event (without recording secrets).
+3. If any RBAC assignment exists for that subject, require an active assignment and the exact permission for the route. An expired or incomplete assignment must not silently fall back to the broad allowlist.
+4. If RBAC tables cannot be queried, deny permission-sensitive operations with a controlled 503/authorization failure; do not silently grant legacy access during a database failure.
+5. Preserve the separate RBAC-manager allowlist for role assignment and permission-policy administration. Do not let `super_admin` self-assign or bootstrap itself.
+6. Before removing legacy fallback, reconcile every currently allowlisted admin with an approved, audited RBAC assignment and verify at least two independently controlled managers.
+
+This fallback is a migration bridge, not the target security posture. It must have an explicit removal condition and should be time-bounded operationally.
+
+### Important permission-seed discrepancy to resolve before activation
+
+Migration 020 seeds 19 permission definitions but its visible role-permission seed statements only populate mappings for `operations_admin`, `user_admin`, `security_admin`, and `auditor`. It does not seed mappings for `super_admin`, and it does not map `roles.assign` to a role. The live database count of 19 mappings is consistent with the four least-privilege role groups, not proof that every permission has an intended grant.
+
+Before enabling per-route checks, add a reviewed permission matrix for all seven roles, explicitly decide which permission keys are intentionally unassigned, and seed the super-administrator/manager policy without making role assignment self-service. Do not infer that the super-admin role should automatically receive every permission merely from its display name.
+
+### Independent detector deployment finding
+
+The checked-in `lifelink_fastapi/render.yaml` declares one Docker web service and no Render cron/background worker. The repository configuration therefore does not currently demonstrate an independent scheduled RBAC discrepancy scan. Do not add a paid service or assume a scheduler exists. First choose an existing free-compatible execution mechanism supported by the deployed runtime, with bounded batches, idempotent alert upserts, health/last-run visibility, and a lock to prevent overlapping scans. A normal admin page read must remain a supplemental trigger only.
+
+### Notification provider finding
+
+The same Render configuration declares `FIREBASE_SERVICE_ACCOUNT_JSON` as a private environment variable. This is evidence that a Firebase credential is expected by the service, not proof that IDS/IPS alerts are connected to FCM or that a notification has been delivered. Trace the existing push-token storage, Firebase sender, recipient eligibility, and retry/error handling before extending it. Any alert notification implementation must target only authorized administrators, avoid exposing sensitive evidence in notification payloads, deduplicate by alert/event, and record delivery outcomes without logging credentials or device tokens.
+
+### Implementation gate for the next code change
+
+Do not make a permission-enforcement code change until the permission matrix and rollout semantics above are represented in tests. The minimum focused test set must cover:
+
+- Each route permission's allow and deny cases.
+- An allowlisted admin with no assignment (temporary legacy bridge).
+- An assigned admin missing the required permission (deny; no fallback).
+- Expired-only assignments (deny).
+- Multiple roles whose effective permissions are the union of active role mappings.
+- Unknown role keys or unexpected permission mappings.
+- RBAC registry query failure (deny; no broad fallback).
+- RBAC-manager allowlist separation and prevention of self-assignment.
+- Regression coverage for existing admin authentication, session revocation, user management, audit, alert, and session routes.
+
+The source review and this readiness update are documentation-only. No code behavior, live database state, Render configuration, production grants, or deployment was changed.
