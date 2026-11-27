@@ -227,8 +227,13 @@ def main() -> None:
         or "lifelink_security_scanner_runs" not in admin_api
         or "def require_admin_permission(" not in admin_api
         or 'LIFELINK_RBAC_ENFORCEMENT_MODE' not in admin_api
+        or '@router.get("/security/notifications")' not in admin_api
+        or 'browser-notifications-toggle' not in html
+        or 'pollSecurityNotifications' not in html
+        or 'Notification.requestPermission()' not in html
+        or '"/v1/admin/security/notifications"' not in html
     ):
-        fail("security center must display persisted scanner health and admin routes must expose staged RBAC permission enforcement")
+        fail("security center must expose scanner health and opt-in browser notifications behind staged RBAC permission enforcement")
 
     if 'data-status="false_positive"' not in html or "a.acknowledged_at" not in html or "a.resolved_at" not in html:
         fail("security alerts must support false-positive disposition and show their recorded handling history")
