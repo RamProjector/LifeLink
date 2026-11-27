@@ -722,7 +722,6 @@ def test_security_alert_correlation_filter_does_not_mutate_alerts(monkeypatch):
     asyncio.run(check())
 
 
-
 @pytest.mark.parametrize(
     ("include_aal", "aal_claim", "expected"),
     [
