@@ -85,7 +85,7 @@ def main() -> None:
     csp = csp_match.group(1)
     script_hash = base64.b64encode(hashlib.sha256(inline_scripts[0].encode("utf-8")).digest()).decode("ascii")
     if f"'sha256-{script_hash}'" not in csp:
-        fail("Content Security Policy hash does not match the inline application script")
+        fail(f"Content Security Policy hash does not match the inline application script; expected sha256-{script_hash}")
     script_policy = re.search(r"(?:^|;)\s*script-src\s+([^;]+)", csp)
     if not script_policy or "'unsafe-inline'" in script_policy.group(1):
         fail("inline application scripts must be hash-authorized, not allowed with unsafe-inline")
