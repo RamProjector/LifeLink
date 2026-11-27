@@ -287,6 +287,17 @@ def main() -> None:
     if "const flow=++mfaFlowGeneration" not in sign_in_flow or "if(flow!==mfaFlowGeneration)return" not in sign_in_flow:
         fail("Admin sign-in must not restore a stale session after cancellation")
 
+    if (
+        'id="mfa-audit-retry"' not in html
+        or "pendingMfaEnrollmentCompletion = false" not in html
+        or "async function finishVerifiedMfaEnrollment(" not in html
+        or 'pendingMfaEnrollmentCompletion=true' not in html
+        or 'await api("/v1/admin/mfa/events"' not in html
+        or 'pendingMfaEnrollmentCompletion=false;retry.classList.add("hidden")' not in html
+        or 'mfa-audit-retry").addEventListener("click",()=>finishVerifiedMfaEnrollment())' not in html
+    ):
+        fail("web MFA enrollment must retry factor inventory/audit receipts and block admin entry until the receipt is saved")
+
     print(f"Admin website integrity passed: {len(parser.ids)} unique IDs, {len(set(parser.icon_names))} SVG icon types.")
 
 
