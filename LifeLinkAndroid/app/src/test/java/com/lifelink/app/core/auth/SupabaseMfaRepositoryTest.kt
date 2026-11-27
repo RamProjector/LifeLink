@@ -141,7 +141,6 @@ class SupabaseMfaRepositoryTest {
         assertEquals("unknown", repository.assuranceLevel("not-a-jwt"))
     }
 
-
     @Test
     fun missingRotatedRefreshTokenDoesNotPersistAnAal2Session() = runBlocking {
         val payload = Base64.getUrlEncoder().withoutPadding()
