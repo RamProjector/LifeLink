@@ -157,7 +157,7 @@ async def _record_denied_admin_attempt(
     summary: str,
 ) -> None:
     """Persist denied admin access and raise a deduplicated alert after a threshold."""
-    correlation_id = _correlation_id(request.headers.get("x-correlation-id"))
+    correlation_id = _correlation_id(request.headers.get("x-correlation-id")) if request else None
     await _write_audit(
         session,
         principal.subject,
@@ -558,7 +558,24 @@ async def admin_update_user(
     return {"user_id": row.user_id, "role": payload.role, "can_request": row.can_request, "can_donate": row.can_donate}
 
 
-async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, request: Request) -> int:
+# Exact grants explicitly seeded by migration 020. Roles without a reviewed
+# matrix are deliberately excluded until their intended policy is approved.
+RBAC_APPROVED_PERMISSION_MATRIX = {
+    "operations_admin": frozenset({"dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"}),
+    "user_admin": frozenset({"dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"}),
+    "security_admin": frozenset({"dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"}),
+    "auditor": frozenset({"dashboard.read", "audit.read", "reports.read"}),
+}
+
+
+def _rbac_permission_mismatch(role_key: str, actual_permissions: set[str]) -> tuple[list[str], list[str]] | None:
+    expected = RBAC_APPROVED_PERMISSION_MATRIX.get(role_key)
+    if expected is None:
+        return None
+    return sorted(expected - actual_permissions), sorted(actual_permissions - expected)
+
+
+async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, request: Request | None) -> int:
     """Detect inapplicable roles and permission grants outside the approved role policy."""
     result = await session.execute(text(
         "SELECT ur.user_id::text AS user_id, r.role_key, "
@@ -573,16 +590,8 @@ async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, 
         "WHERE ur.expires_at IS NULL OR ur.expires_at > now() "
         "GROUP BY ur.user_id, r.role_key, p.can_request, p.can_donate"
     ))
-    allowed_permissions = {
-        "requester": set(), "donor": set(),
-        "operations_admin": {"dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"},
-        "user_admin": {"dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"},
-        "security_admin": {"dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"},
-        "auditor": {"dashboard.read", "audit.read", "reports.read"},
-        "super_admin": {"dashboard.read", "users.read", "users.update", "users.suspend", "requests.read", "requests.update", "operations.read", "communications.metadata.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke", "roles.read", "roles.assign", "permissions.manage", "reports.read", "settings.read", "settings.update"},
-    }
     count = 0
-    correlation_id = _correlation_id(request.headers.get("x-correlation-id"))
+    correlation_id = _correlation_id(request.headers.get("x-correlation-id")) if request else None
     for row in result.mappings().all():
         user_id, role_key = row["user_id"], row["role_key"]
         profile = {"can_request": row["can_request"], "can_donate": row["can_donate"], "has_donor_profile": row["has_donor_profile"]}
@@ -590,23 +599,129 @@ async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, 
         if reason:
             await _record_rbac_mismatch(session, principal, request, user_id, role_key, reason, correlation_id)
             count += 1
-        unexpected = sorted(set(row["permissions"] or []) - allowed_permissions.get(role_key, set()))
-        if unexpected:
-            await _write_audit(session, principal.subject, "security.rbac.permission_mismatch", request=request,
-                session_id=principal.session_id, outcome="denied", target_type="user", target_id=user_id,
-                correlation_id=correlation_id,
-                metadata={"role_key": role_key, "unexpected_permission_keys": unexpected, "rule_id": "RBAC-02"})
+        permission_mismatch = _rbac_permission_mismatch(role_key, set(row["permissions"] or []))
+        if permission_mismatch is not None:
+            missing, unexpected = permission_mismatch
+            if missing or unexpected:
+                await _write_audit(session, principal.subject, "security.rbac.permission_mismatch", request=request,
+                    session_id=principal.session_id, outcome="denied", target_type="user", target_id=user_id,
+                    correlation_id=correlation_id,
+                    metadata={"role_key": role_key, "missing_permission_keys": missing,
+                              "unexpected_permission_keys": unexpected, "rule_id": "RBAC-02"})
+                await session.execute(text(
+                    "INSERT INTO lifelink_security_alerts (rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, correlation_id) "
+                    "VALUES ('RBAC-02', 'high', 'open', :user_id, :session_id, 'Role permission mapping differs from approved policy', CAST(:evidence AS jsonb), 1, :correlation_id) "
+                    "ON CONFLICT (rule_id, user_id) WHERE status IN ('open', 'acknowledged', 'investigating') "
+                    "DO UPDATE SET last_seen_at = now(), "
+                    "occurrences = lifelink_security_alerts.occurrences + CASE "
+                    "WHEN lifelink_security_alerts.evidence IS DISTINCT FROM EXCLUDED.evidence THEN 1 ELSE 0 END, "
+                    "evidence = EXCLUDED.evidence, "
+                    "correlation_id = COALESCE(EXCLUDED.correlation_id, lifelink_security_alerts.correlation_id)"
+                ), {"user_id": user_id, "session_id": principal.session_id,
+                    "evidence": __import__("json").dumps({
+                        "role_key": role_key, "missing_permission_keys": missing,
+                        "unexpected_permission_keys": unexpected,
+                    }), "correlation_id": correlation_id})
+                count += 1
+    count += await _scan_rbac_role_policy_integrity(session, principal, request)
+    return count
+
+
+async def _scan_rbac_role_policy_integrity(
+    session: AsyncSession, principal: Principal, request: Request | None
+) -> int:
+    """Check approved role policies independently of assignments and detect missing role rows."""
+    result = await session.execute(text(
+        "SELECT r.role_key, "
+        "COALESCE(array_agg(DISTINCT p.permission_key) FILTER (WHERE p.permission_key IS NOT NULL), ARRAY[]::varchar[]) AS permissions "
+        "FROM lifelink_roles r "
+        "LEFT JOIN lifelink_role_permissions rp ON rp.role_id = r.id "
+        "LEFT JOIN lifelink_permissions p ON p.id = rp.permission_id "
+        "GROUP BY r.role_key ORDER BY r.role_key"
+    ))
+    actual_by_role = {
+        row["role_key"]: set(row["permissions"] or [])
+        for row in result.mappings().all()
+    }
+    correlation_id = _correlation_id(request.headers.get("x-correlation-id")) if request else None
+    count = 0
+    for role_key, expected in RBAC_APPROVED_PERMISSION_MATRIX.items():
+        role_missing = role_key not in actual_by_role
+        if role_missing:
+            missing, unexpected = sorted(expected), []
+        else:
+            mismatch = _rbac_permission_mismatch(role_key, actual_by_role[role_key])
+            if mismatch is None:
+                continue
+            missing, unexpected = mismatch
+        evidence = {
+            "role_key": role_key,
+            "role_definition_missing": role_missing,
+            "missing_permission_keys": missing,
+            "unexpected_permission_keys": unexpected,
+        }
+        if role_missing or missing or unexpected:
             await session.execute(text(
-                "INSERT INTO lifelink_security_alerts (rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, correlation_id) "
-                "VALUES ('RBAC-02', 'high', 'open', :user_id, :session_id, 'Role contains permissions outside approved policy', CAST(:evidence AS jsonb), 1, :correlation_id) "
-                "ON CONFLICT (rule_id, user_id) WHERE status IN ('open', 'acknowledged', 'investigating') "
-                "DO UPDATE SET last_seen_at = now(), occurrences = lifelink_security_alerts.occurrences + 1, "
-                "evidence = EXCLUDED.evidence, correlation_id = EXCLUDED.correlation_id"
-            ), {"user_id": user_id, "session_id": principal.session_id,
-                "evidence": __import__("json").dumps({"role_key": role_key, "unexpected_permission_keys": unexpected}),
+                "INSERT INTO lifelink_role_security_findings "
+                "(rule_id, role_key, severity, status, summary, evidence, occurrences, correlation_id) "
+                "VALUES ('RBAC-03', :role_key, 'high', 'open', "
+                "'Role permission mapping differs from approved policy', CAST(:evidence AS jsonb), 1, :correlation_id) "
+                "ON CONFLICT (rule_id, role_key) "
+                "WHERE status IN ('open', 'acknowledged', 'investigating') "
+                "DO UPDATE SET last_seen_at = now(), "
+                "occurrences = lifelink_role_security_findings.occurrences + CASE "
+                "WHEN lifelink_role_security_findings.evidence IS DISTINCT FROM EXCLUDED.evidence THEN 1 ELSE 0 END, "
+                "evidence = EXCLUDED.evidence, "
+                "correlation_id = COALESCE(EXCLUDED.correlation_id, lifelink_role_security_findings.correlation_id)"
+            ), {"role_key": role_key, "evidence": __import__("json").dumps(evidence),
                 "correlation_id": correlation_id})
             count += 1
+        else:
+            # Close an active finding automatically once the approved policy is restored.
+            await session.execute(text(
+                "UPDATE lifelink_role_security_findings SET status = 'resolved', resolved_at = now() "
+                "WHERE rule_id = 'RBAC-03' AND role_key = :role_key "
+                "AND status IN ('open', 'acknowledged', 'investigating')"
+            ), {"role_key": role_key})
     return count
+
+@router.get("/security/role-integrity")
+async def admin_role_integrity_findings(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    principal: Principal = Depends(require_admin),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    finding_status: str | None = Query(default="open", alias="status", pattern="^(open|acknowledged|investigating|resolved|false_positive)$"),
+):
+    result = await session.execute(text(
+        "SELECT id, rule_id, role_key, severity, status, summary, evidence, occurrences, "
+        "created_at, last_seen_at, resolved_at, correlation_id "
+        "FROM lifelink_role_security_findings "
+        "WHERE (CAST(:status AS varchar) IS NULL OR status = CAST(:status AS varchar)) "
+        "ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, "
+        "last_seen_at DESC LIMIT :limit OFFSET :offset"
+    ), {"status": finding_status, "limit": limit, "offset": offset})
+    rows = result.mappings().all()
+    await _write_audit(
+        session, principal.subject, "admin.security.role_integrity.read", request=request,
+        session_id=principal.session_id, session_expires_at=principal.session_expires_at,
+        target_type="role_security_findings",
+        metadata={"limit": limit, "offset": offset, "status": finding_status},
+    )
+    await session.commit()
+    return {
+        "items": [
+            {**dict(row), **{
+                key: row[key].isoformat() if row[key] else None
+                for key in ("created_at", "last_seen_at", "resolved_at")
+            }, "evidence": _safe_audit_metadata(row["evidence"])}
+            for row in rows
+        ],
+        "limit": limit,
+        "offset": offset,
+    }
+
 
 @router.get("/security/alerts")
 async def admin_security_alerts(
@@ -619,10 +734,8 @@ async def admin_security_alerts(
     correlation_id: str | None = Query(default=None, max_length=80),
     x_correlation_id: str | None = Header(default=None),
 ):
-    # A correlation-filtered read must not create a new RBAC occurrence first:
-    # doing so would replace the stored alert correlation ID before the filter runs.
-    if correlation_id is None:
-        await _scan_rbac_discrepancies(session, principal, request)
+    # Detection runs in the independent lifespan scanner. Keep this GET read-only:
+    # alert retrieval must not trigger policy scans or mutate finding state.
     result = await session.execute(
         text(
             "SELECT id, rule_id, severity, status, user_id, session_id, summary, evidence, occurrences, "
@@ -891,7 +1004,7 @@ def _role_mismatch_reason(role_key: str, user_id: str, profile: dict | None) -> 
         return None
     return "role_has_no_applicability_policy"
 
-async def _record_rbac_mismatch(session, principal, request, user_id: str, role_key: str, reason: str,
+async def _record_rbac_mismatch(session, principal, request: Request | None, user_id: str, role_key: str, reason: str,
                                correlation_id: str | None = None) -> None:
     """Persist an IDS finding and deduplicated administrator alert."""
     await _write_audit(session, principal.subject, "security.rbac.role_mismatch", request=request,
@@ -904,12 +1017,14 @@ async def _record_rbac_mismatch(session, principal, request, user_id: str, role_
         "VALUES ('RBAC-01', 'high', 'open', CAST(:user_id AS varchar), :session_id, "
         "'Role assignment is not applicable to this account', CAST(:evidence AS jsonb), 1, :correlation_id) "
         "ON CONFLICT (rule_id, user_id) WHERE status IN ('open', 'acknowledged', 'investigating') "
-        "DO UPDATE SET last_seen_at = now(), occurrences = lifelink_security_alerts.occurrences + 1, "
+        "DO UPDATE SET last_seen_at = now(), "
+        "occurrences = lifelink_security_alerts.occurrences + CASE "
+        "WHEN lifelink_security_alerts.evidence IS DISTINCT FROM EXCLUDED.evidence THEN 1 ELSE 0 END, "
         "session_id = EXCLUDED.session_id, evidence = EXCLUDED.evidence, "
-        "correlation_id = EXCLUDED.correlation_id"
+        "correlation_id = COALESCE(EXCLUDED.correlation_id, lifelink_security_alerts.correlation_id)"
     ), {"user_id": user_id, "session_id": principal.session_id,
         "evidence": __import__("json").dumps({"role_key": role_key, "mismatch_reason": reason}),
-        "correlation_id": correlation_id or _correlation_id(request.headers.get("x-correlation-id"))})
+        "correlation_id": correlation_id or (_correlation_id(request.headers.get("x-correlation-id")) if request else None)})
 
 class AdminUserRolesUpdate(BaseModel):
     # An empty list is a deliberate revoke-all operation; it must remain possible
