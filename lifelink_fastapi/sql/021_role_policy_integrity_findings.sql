@@ -26,5 +26,6 @@ CREATE INDEX IF NOT EXISTS ix_lifelink_role_security_findings_status_created
     ON lifelink_role_security_findings (status, created_at DESC);
 
 ALTER TABLE lifelink_role_security_findings ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE lifelink_role_security_findings FROM PUBLIC, anon, authenticated;
 
 COMMIT;
