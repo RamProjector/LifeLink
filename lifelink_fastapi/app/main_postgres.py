@@ -852,7 +852,7 @@ async def create_emergency_request_postgres(
     active_request_id = await session.scalar(
         select(EmergencyRequestRow.id)
         .where(
-            EmergencyRequestRow.requester_id == principal.subject,
+            EmergencyRequestRow.requester_id == requester_id,
             EmergencyRequestRow.status.in_(
                 [RequestStatusEnum(value) for value in ACTIVE_REQUEST_STATUSES]
             ),
