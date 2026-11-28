@@ -58,7 +58,7 @@ The Render service metadata does not expose the database connection identity. Co
 
 The security advisor returned:
 
-- 18 informational findings for RLS-enabled tables without client policies. The project documents these as backend-only tables; do not add broad client policies merely to silence the informational advisor.
+- 18 informational findings for RLS-enabled tables without client policies. A separate read-only grant inventory found no direct table privileges for `anon` or `authenticated` on any of these 18 tables, consistent with the FastAPI-only data-access boundary. Preserve that boundary; do not add broad client policies merely to silence the informational advisor.
 - One warning: Supabase Auth leaked-password protection is disabled. This setting was not changed in this review.
 
 ## 3. Live Render deployment boundary
@@ -71,7 +71,7 @@ Merging PR #227 would trigger automatic production deployment. No deployment, ma
 
 ## 4. Administrator notification boundary
 
-LifeLink already has Firebase Cloud Messaging integration for Android requester/donor notifications. Its server-side credential is configured through the Render environment variable `FIREBASE_SERVICE_ACCOUNT_JSON`; this review did not inspect or expose its value and did not establish that the secret is currently configured and valid.
+LifeLink already has Firebase Cloud Messaging integration for Android requester/donor notifications. The backend reads its server-side credential from the Render environment variable `FIREBASE_SERVICE_ACCOUNT_JSON`; this review did not inspect or expose its value and did not establish that the secret is currently configured and valid.
 
 The Admin Console implementation provides opt-in foreground browser notifications while the authenticated console is open. It stops polling after sign-out or authorization failure. This is not background delivery.
 
