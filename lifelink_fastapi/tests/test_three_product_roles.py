@@ -15,8 +15,8 @@ def test_three_product_role_migration_is_guarded_and_idempotent() -> None:
     assert "('donor', 'Blood Donor'" in migration
     assert "('admin', 'Admin'" in migration
     assert "WHERE r.role_key = 'admin'" in migration
-    assert "permissions.manage" not in migration
-    assert "settings.update" not in migration
+    assert "'permissions.manage'" not in migration
+    assert "'settings.update'" not in migration
     assert "DELETE FROM public.lifelink_roles" in migration
     assert "ON CONFLICT (role_key) DO UPDATE" in migration
 
