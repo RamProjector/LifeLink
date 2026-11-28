@@ -66,7 +66,9 @@ def test_rbac_scanner_publishes_running_state_before_scan_and_persists_success(m
     assert "pg_try_advisory_xact_lock(728194620114)" in sql
     assert "SET LOCAL statement_timeout = '15000ms'" in sql
     assert "status = 'succeeded'" in sql
-    assert "last_succeeded_at = now()" in sql
+    assert "last_succeeded_at = clock_timestamp()" in sql
+    assert "last_finished_at = clock_timestamp()" in sql
+    assert "updated_at = clock_timestamp()" in sql
     assert "last_findings = :findings" in sql
     assert "last_duration_ms = :duration_ms" in sql
     assert "INSERT INTO lifelink_security_scanner_runs" in running_sql
@@ -101,8 +103,9 @@ def test_rbac_scanner_persists_sanitized_failure_and_retries(monkeypatch):
     assert running_session.committed is True
     assert "status = 'failed'" in sql
     assert "last_error_code = 'scan_failed'" in sql
-    assert "last_failed_at = now()" in sql
-    assert "last_started_at = now()" in sql
+    assert "last_failed_at = clock_timestamp()" in sql
+    assert "last_started_at, last_finished_at, last_failed_at" in sql
+    assert "clock_timestamp(), clock_timestamp(), clock_timestamp(), 'scan_failed'" in sql
     assert "consecutive_failures = lifelink_security_scanner_runs.consecutive_failures + 1" in sql
     assert "private row details" not in sql
     assert failed_session.committed is True
