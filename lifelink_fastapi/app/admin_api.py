@@ -906,7 +906,11 @@ async def admin_security_notifications(
     principal: Principal = Depends(require_admin_permission("security.alerts.read")),
 ):
     """Return only new, non-sensitive alert metadata for opt-in browser notifications."""
-    effective_after = after or datetime.now(timezone.utc)
+    effective_after = after
+    if effective_after is None:
+        effective_after = await session.scalar(text("SELECT clock_timestamp()"))
+    if effective_after is None:
+        raise HTTPException(status_code=503, detail="Notification cursor time is unavailable")
     if effective_after.tzinfo is None or effective_after.utcoffset() is None:
         raise HTTPException(status_code=422, detail="Notification cursor must include a timezone")
     result = await session.execute(
