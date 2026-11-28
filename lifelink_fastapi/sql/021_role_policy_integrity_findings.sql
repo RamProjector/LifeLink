@@ -36,6 +36,6 @@ BEGIN
         REVOKE ALL ON TABLE lifelink_role_security_findings FROM authenticated;
     END IF;
 END
-$;
+$role_guard$;
 
 COMMIT;
