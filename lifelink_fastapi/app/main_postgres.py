@@ -195,9 +195,9 @@ async def _scan_rbac_discrepancies_forever() -> None:
                     duration_ms = round((time.monotonic() - started_at) * 1000)
                     await session.execute(text(
                         "UPDATE lifelink_security_scanner_runs SET status = 'succeeded', "
-                        "last_finished_at = now(), last_succeeded_at = now(), "
+                        "last_finished_at = clock_timestamp(), last_succeeded_at = clock_timestamp(), "
                         "last_findings = :findings, last_duration_ms = :duration_ms, "
-                        "consecutive_failures = 0, last_error_code = NULL, updated_at = now() "
+                        "consecutive_failures = 0, last_error_code = NULL, updated_at = clock_timestamp() "
                         "WHERE scanner_key = 'rbac'"
                     ), {"findings": max(0, int(findings)), "duration_ms": duration_ms})
                     await session.commit()
