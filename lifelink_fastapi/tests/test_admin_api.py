@@ -1744,6 +1744,9 @@ def test_admin_user_inventory_includes_auth_accounts_and_effective_rbac_permissi
             return [{
                 "user_id": "user-1",
                 "email": "user@example.test",
+                "account_state": "active",
+                "email_confirmed": True,
+                "is_anonymous": False,
                 "role": "requester",
                 "display_name": None,
                 "can_request": True,
@@ -1775,6 +1778,9 @@ def test_admin_user_inventory_includes_auth_accounts_and_effective_rbac_permissi
         )
         assert result["total"] == 42
         assert result["items"][0]["user_id"] == "user-1"
+        assert result["items"][0]["account_state"] == "active"
+        assert result["items"][0]["email_confirmed"] is True
+        assert result["items"][0]["is_anonymous"] is False
         assert result["items"][0]["has_profile"] is True
         assert result["items"][0]["rbac_roles"] == ["requester"]
         assert result["items"][0]["rbac_permissions"] == []
@@ -1782,6 +1788,10 @@ def test_admin_user_inventory_includes_auth_accounts_and_effective_rbac_permissi
         assert "LEFT JOIN lifelink_profiles" in query
         assert "LEFT JOIN lifelink_user_roles" in query
         assert "LEFT JOIN lifelink_role_permissions" in query
+        assert "to_jsonb(u)->>'deleted_at'" in query
+        assert "to_jsonb(u)->>'banned_until'" in query
+        assert "to_jsonb(u)->>'email_confirmed_at'" in query
+        assert "to_jsonb(u)->>'is_anonymous'" in query
         assert "ur.expires_at > now()" in query
         assert "array_agg(DISTINCT perm.permission_key" in query
 
