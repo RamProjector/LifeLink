@@ -1085,21 +1085,23 @@ async def admin_audit_logs(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     action: str | None = Query(default=None, max_length=64),
+    actor_id: str | None = Query(default=None, max_length=128),
     correlation_id: str | None = Query(default=None, max_length=128),
     x_correlation_id: str | None = Header(default=None),
 ):
     # Record the read before selecting the page; no endpoint permits audit mutation or deletion.
     await _write_audit(session, principal.subject, "admin.audit.read", request=request, session_id=principal.session_id, session_expires_at=principal.session_expires_at, target_type="audit_log",
                        correlation_id=_correlation_id(x_correlation_id),
-                       metadata={"limit": limit, "offset": offset, "filtered": bool(action or correlation_id)})
+                       metadata={"limit": limit, "offset": offset, "filtered": bool(action or actor_id or correlation_id)})
     query = (
         "SELECT id, log_id, actor_id, action, actions, description, session_id, ip_address, timestamp, device_used, "
             "metadata, created_at, outcome, target_type, target_id, correlation_id "
         "FROM audit_events WHERE (CAST(:action AS varchar) IS NULL OR action = CAST(:action AS varchar)) "
+        "AND (CAST(:actor_id AS varchar) IS NULL OR actor_id = CAST(:actor_id AS varchar)) "
         "AND (CAST(:correlation_id AS varchar) IS NULL OR correlation_id = CAST(:correlation_id AS varchar)) "
         "ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
     )
-    result = await session.execute(text(query), {"action": action, "correlation_id": correlation_id, "limit": limit, "offset": offset})
+    result = await session.execute(text(query), {"action": action, "actor_id": actor_id, "correlation_id": correlation_id, "limit": limit, "offset": offset})
     rows = result.mappings().all()
     await session.commit()
     return {
