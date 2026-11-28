@@ -194,8 +194,16 @@ def main() -> None:
     if "if(/^[=+@" not in html or "text=" not in html:
         fail("CSV export must neutralize spreadsheet formula starters")
 
-    if "audit-action-filter" not in html or "auditAction?" not in html or "audit-filter-apply" not in html:
-        fail("audit history must expose its exact-action server-side filter")
+    if (
+        "audit-action-filter" not in html
+        or "audit-actor-filter" not in html
+        or "auditActor?" not in html
+        or "actor_id=" not in html
+        or "auditAction?" not in html
+        or "audit-filter-apply" not in html
+        or 'actor_id: str | None = Query(default=None, max_length=128)' not in admin_api
+    ):
+        fail("audit history must expose exact-action and per-user server-side filters")
 
     if (
         '@router.get("/preflight")' not in admin_api
