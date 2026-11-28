@@ -177,3 +177,57 @@ This section supersedes any earlier head, workflow, PR-state, or review-status s
 - No production migration, database grant, Auth configuration change, role assignment, deployment, or merge was performed by this verification.
 
 **Disposition:** implementation CI is green on the current head, but the release is not complete. Keep PR #227 open. Required external gates remain runtime DB-role verification, non-production MFA and RBAC enforcement/recovery rehearsals, scanner lifecycle verification after a non-production deployment, notification-channel decision, manual web/Android acceptance, independent review, and explicit production deployment/merge approval.
+
+## 10. CodeRabbit finding remediation and final code-head validation — 2026-11-28
+
+This section supersedes earlier review and CI statements where they differ.
+
+### Remediated review findings
+
+The 12 CodeRabbit inline findings from the 2026-11-28 review were individually checked against the current code, fixed, and their GitHub review threads resolved:
+
+1. Initial browser-notification cursor now comes from PostgreSQL `clock_timestamp()` when the client omits a cursor; browser time is not used.
+2. The browser notification polling interval is installed before the initial awaited poll, and generation checks prevent stale responses from reviving polling or changing status after sign-out.
+3. The audit-coverage document now explicitly says coarse device labels apply to new writes; historical audit rows may still contain raw User-Agent values and are returned unchanged.
+4. RBAC assignment expiry is checked with `statement_timestamp()`, not transaction-start `now()`.
+5. The user-directory disclosure policy now explicitly states that `users.read` includes active RBAC role keys and mapped permission summaries; full role-registry and assignment-detail endpoints remain under `roles.read`.
+6. Audit filter metadata uses `is not None` semantics so an explicitly supplied empty filter is recorded as a filter.
+7. Scanner success timestamps use `clock_timestamp()` for actual completion time.
+8. Scanner failure timestamps also use `clock_timestamp()`; a failure update preserves the previously recorded scan start time instead of overwriting it with failure time.
+9. iOS User-Agent classification now requires an iPhone/iPad/iPod marker or standalone `ios` token; client names such as `axios` remain Unknown device.
+10. Migrations 021 and 022 revoke from `anon` and `authenticated` only when those roles exist, while always revoking from `PUBLIC`.
+11. The scanner-health no-row test removes `LIFELINK_RBAC_SCAN_SECONDS` from its environment so it tests the default deterministically.
+12. The RBAC assigned-by index startup helper is now tested with fake connections for both the absent-table and present-table cases.
+
+Additional regression coverage verifies FastAPI lifespan starts all four background workers, cancels them on shutdown, and does not start them when schema setup fails. A notification-feed test verifies the initial cursor uses the PostgreSQL clock.
+
+All 12 inline review threads are resolved. A fresh CodeRabbit review was requested on the final code head; no new review result has yet been received. The previous CodeRabbit review record remains `CHANGES_REQUESTED` until a fresh review/approval updates it; thread resolution alone is not an approval.
+
+### Final implementation-code head and CI
+
+**Implementation-code head:** `83be962b978fd9e2eb3bb1978d52c07347b7d010`.
+
+All five required workflows passed on this exact code head:
+
+| Workflow | Run | Result |
+|---|---:|---|
+| Security scan / Gitleaks | [#2186](https://github.com/RamProjector/LifeLink/actions/runs/46105226900) | Passed |
+| Android UI test APK (fake backend) | [#1025](https://github.com/RamProjector/LifeLink/actions/runs/46105226892) | Passed |
+| Validate cloud package | [#4453](https://github.com/RamProjector/LifeLink/actions/runs/46105226909) | Passed |
+| Build Android APKs | [#1705](https://github.com/RamProjector/LifeLink/actions/runs/46105226866) | Passed |
+| CodeQL (Python and Java/Kotlin) | [#2084](https://github.com/RamProjector/LifeLink/actions/runs/46105226893) | Passed |
+
+Backend/PostgreSQL validation: **349 passed**, one upstream Starlette/AnyIO deprecation warning, **65.08% coverage**. Ruff, mypy, Admin Console/inline-SVG validation, Docker build, RLS decision check, Android lint/Detekt/Spotless/unit tests/debug build, Gitleaks, and both CodeQL language analyses passed.
+
+Artifacts from this code head (available until 2026-12-12):
+- [Debug APK and Android validation reports — run #1705](https://github.com/RamProjector/LifeLink/actions/runs/46105226866)
+  - APK archive SHA-256: `8565c97f65ed82f5fcea0b9313f4dd7083bb0cb0b2443457e55b816967946e27`
+  - Validation archive SHA-256: `d39f04370891b7d65535dcc12f5fcb2eb884f6be00e18cffa6dc4830cff4c6f1`
+- [Fake-backend UI APK — run #1025](https://github.com/RamProjector/LifeLink/actions/runs/46105226892)
+  - Artifact SHA-256: `718909fd853c79295d24c05254ac00842c1ccce432a9ff5bc950a07ee0eac34f`
+
+The PR remains open, ready for review, mergeable, and unmerged. The code head is 176 commits ahead of `main`, with 27 changed files. No production deployment, migration application, privilege grant, RBAC assignment, Auth configuration change, or merge was performed.
+
+### Release boundary remains unchanged
+
+The successful code-head CI does not close the non-production/production gates: actual Render runtime database-role identity; non-production MFA and two-operator recovery rehearsal; approved administrator assignments and enforcement verification; deployed scanner lifecycle/health verification; administrator background-notification channel decision and durable delivery receipts; manual web/Android acceptance; independent review; and explicit deployment/merge approval. Keep RBAC in `observe` and do not merge or deploy until those gates are completed.
