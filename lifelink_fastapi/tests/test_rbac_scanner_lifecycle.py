@@ -79,7 +79,13 @@ def test_background_rbac_scanner_respects_advisory_lock_and_cancels_cleanly(
         assert calls[0][0] is session
         assert calls[0][1:] == ("system:rbac-scanner", None)
         assert "SET LOCAL statement_timeout = '15000ms'" in session.statements
-        assert any(params.get("scan_started_at") is not None for params in session.parameters)
+        scan_started_at_values = [
+            params["scan_started_at"]
+            for params in session.parameters
+            if params.get("scan_started_at") is not None
+        ]
+        assert len(scan_started_at_values) == 1
+        assert isinstance(scan_started_at_values[0], datetime)
         assert any(
             "clock_timestamp()" in statement and "RETURNING last_started_at" in statement
             for statement in session.statements
