@@ -1737,3 +1737,95 @@ def test_admin_user_inventory_includes_auth_accounts_and_effective_rbac_permissi
         assert "array_agg(DISTINCT perm.permission_key" in query
 
     asyncio.run(check())
+
+
+
+def test_rbac_role_policy_integrity_flags_unapproved_unassigned_role():
+    from app.admin_api import RBAC_APPROVED_PERMISSION_MATRIX, _scan_rbac_role_policy_integrity
+
+    class Rows:
+        def __init__(self, values):
+            self.values = values
+
+        def mappings(self):
+            return self
+
+        def all(self):
+            return self.values
+
+    class CaptureSession:
+        def __init__(self):
+            self.calls = []
+
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            values = params or {}
+            self.calls.append((sql, values))
+            if "FROM lifelink_roles r" in sql:
+                roles = [
+                    {"role_key": key, "permissions": sorted(permissions)}
+                    for key, permissions in RBAC_APPROVED_PERMISSION_MATRIX.items()
+                ]
+                roles.append({"role_key": "legacy_admin", "permissions": ["users.read"]})
+                return Rows(roles)
+            if "SELECT role_key FROM lifelink_role_security_findings" in sql:
+                return Rows([])
+            return Rows([])
+
+    session = CaptureSession()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+
+    findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
+
+    assert findings == 1
+    insert = next(
+        (sql, params)
+        for sql, params in session.calls
+        if "INSERT INTO lifelink_role_security_findings" in sql
+    )
+    assert insert[1]["role_key"] == "legacy_admin"
+    assert '"role_definition_unapproved": true' in insert[1]["evidence"]
+
+
+def test_rbac_role_policy_integrity_resolves_removed_unapproved_role():
+    from app.admin_api import RBAC_APPROVED_PERMISSION_MATRIX, _scan_rbac_role_policy_integrity
+
+    class Rows:
+        def __init__(self, values):
+            self.values = values
+
+        def mappings(self):
+            return self
+
+        def all(self):
+            return self.values
+
+    class CaptureSession:
+        def __init__(self):
+            self.calls = []
+
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            values = params or {}
+            self.calls.append((sql, values))
+            if "FROM lifelink_roles r" in sql:
+                roles = [
+                    {"role_key": key, "permissions": sorted(permissions)}
+                    for key, permissions in RBAC_APPROVED_PERMISSION_MATRIX.items()
+                ]
+                return Rows(roles)
+            if "SELECT role_key FROM lifelink_role_security_findings" in sql:
+                return Rows([{"role_key": "legacy_admin"}])
+            return Rows([])
+
+    session = CaptureSession()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+
+    findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
+
+    assert findings == 0
+    assert any(
+        "UPDATE lifelink_role_security_findings SET status = 'resolved'" in sql
+        and params["role_key"] == "legacy_admin"
+        for sql, params in session.calls
+    )
