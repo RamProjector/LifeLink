@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
-
 import pytest
+from datetime import datetime, timezone
 
 
 SCANNER_STARTED_AT = datetime(2026, 11, 28, 12, 0, tzinfo=timezone.utc)
