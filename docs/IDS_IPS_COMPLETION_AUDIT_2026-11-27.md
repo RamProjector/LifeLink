@@ -467,3 +467,10 @@ The backend test verifies the Auth-rooted query, active-assignment expiry filter
 ## Per-user audit history in Admin Console (2026-11-28)
 
 The protected Admin API audit endpoint now accepts an exact `actor_id` filter in addition to exact action and correlation ID. The web Audit activity page exposes a User ID field and applies it server-side, allowing authorized auditors/administrators to inspect one user's event history without fetching the entire log and filtering only in the browser. The personal `GET /v1/audit/me` endpoint remains separately scoped to the verified caller and does not accept a caller-selected actor ID. A backend regression test asserts the SQL actor filter and bound parameter; the Admin Console static check requires the per-user filter wiring.
+
+
+## Superseding three-role authorization decision — 2026-11-28
+
+The product role requirement is exactly **Requester, Blood Donor, and Admin**. The earlier RBAC registry design in migration 020 introduced administrator subroles and super_admin, which are not approved product roles. The PR branch now adds migration 024 to normalize the registry to requester, donor, and admin, moves the reviewed administrative permission set under the single admin role, and refuses to remove legacy role definitions while any assignments remain. The API permission guard and RBAC-03 policy have been updated to the three-role model.
+
+Migration 024 has **not** been applied to production. The prior read-only snapshot reported zero role assignments, but that must be rechecked immediately before any migration. If assignments exist, migration 024 intentionally aborts; do not force it or delete assignment records. Keep RBAC in observe mode until non-production migration, assignment, and route verification pass.
