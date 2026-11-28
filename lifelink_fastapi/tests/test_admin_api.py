@@ -684,7 +684,7 @@ def test_ordinary_admin_cannot_assign_roles_through_http(monkeypatch):
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             return await client.put(
                 "/v1/admin/users/00000000-0000-0000-0000-000000000001/roles",
-                json={"role_keys": ["auditor"]},
+                json={"role_keys": ["admin"]},
             )
 
     try:
@@ -702,10 +702,8 @@ def test_rbac_policy_rejects_roles_not_applicable_to_user(monkeypatch):
     profile = {"can_request": True, "can_donate": False, "has_donor_profile": False}
     assert _role_mismatch_reason("requester", "regular-user", profile) is None
     assert _role_mismatch_reason("donor", "regular-user", profile) == "donor_capability_missing"
-    assert _role_mismatch_reason("security_admin", "regular-user", profile) == "account_not_in_admin_allowlist"
-    assert _role_mismatch_reason("security_admin", "approved-admin", profile) is None
-    assert _role_mismatch_reason("super_admin", "approved-admin", profile) == "super_admin_requires_rbac_manager_allowlist"
-    assert _role_mismatch_reason("super_admin", "security-owner", profile) == "account_not_in_admin_allowlist"
+    assert _role_mismatch_reason("admin", "regular-user", profile) == "account_not_in_admin_allowlist"
+    assert _role_mismatch_reason("admin", "approved-admin", profile) is None
 
 
 def test_audit_action_kind_classifies_application_crud_verbs():
@@ -1164,13 +1162,9 @@ def test_rbac_scanner_runs_without_http_request_context():
             self.statements.append(sql)
             if "FROM lifelink_roles r" in sql:
                 return Rows([
-                    {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"]},
-                    {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
-                    {"role_key": "security_admin", "permissions": ["dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"]},
-                    {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
                     {"role_key": "requester", "permissions": []},
                     {"role_key": "donor", "permissions": []},
-                    {"role_key": "super_admin", "permissions": []},
+                    {"role_key": "admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "requests.read", "operations.read", "communications.metadata.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke", "roles.read", "reports.read"]},
                 ])
             return Rows([])
 
@@ -1182,28 +1176,27 @@ def test_rbac_scanner_runs_without_http_request_context():
     assert findings == 0
     assert "FROM lifelink_user_roles ur" in session.statements[0]
 
-def test_rbac_permission_policy_detects_missing_and_unexpected_grants():
-    from app.admin_api import _rbac_permission_mismatch
+def test_rbac_permission_policy_has_exactly_three_product_roles():
+    from app.admin_api import RBAC_APPROVED_PERMISSION_MATRIX, _rbac_permission_mismatch
 
-    actual = {"dashboard.read", "users.read", "unexpected.permission"}
-    assert _rbac_permission_mismatch("operations_admin", actual) == (
-        ["operations.read", "reports.read", "requests.read"],
-        ["unexpected.permission"],
-    )
-    assert _rbac_permission_mismatch("auditor", {"dashboard.read", "audit.read", "reports.read"}) == ([], [])
-    # End-user roles hold no administrative permission keys; their application
-    # access remains governed by capability, ownership, and participant checks.
+    assert set(RBAC_APPROVED_PERMISSION_MATRIX) == {"requester", "donor", "admin"}
     assert _rbac_permission_mismatch("requester", set()) == ([], [])
     assert _rbac_permission_mismatch("donor", set()) == ([], [])
-    # super_admin is a separately allowlisted privileged path, not a wildcard grant.
-    assert _rbac_permission_mismatch("super_admin", set()) == ([], [])
-    assert _rbac_permission_mismatch("requester", {"users.read"}) == ([], ["users.read"])
-    assert _rbac_permission_mismatch("donor", {"security.alerts.manage"}) == ([], ["security.alerts.manage"])
-    assert _rbac_permission_mismatch("super_admin", {"permissions.manage"}) == ([], ["permissions.manage"])
+    admin_grants = RBAC_APPROVED_PERMISSION_MATRIX["admin"]
+    assert "users.read" in admin_grants
+    assert "security.alerts.manage" in admin_grants
+    assert "audit.read" in admin_grants
+    assert "permissions.manage" not in admin_grants
+    assert "settings.update" not in admin_grants
+    assert _rbac_permission_mismatch("admin", set(admin_grants)) == ([], [])
+    assert _rbac_permission_mismatch("admin", set(admin_grants) | {"unexpected.permission"}) == ([], ["unexpected.permission"])
+    assert _rbac_permission_mismatch("security_admin", set()) is None
 
 
-def test_role_policy_integrity_scans_seeded_roles_without_user_assignments():
-    from app.admin_api import _scan_rbac_role_policy_integrity
+def test_role_policy_integrity_accepts_exactly_three_roles():
+    from app.admin_api import RBAC_APPROVED_PERMISSION_MATRIX, _scan_rbac_role_policy_integrity
+
+    expected = sorted(RBAC_APPROVED_PERMISSION_MATRIX["admin"])
 
     class Rows:
         def mappings(self):
@@ -1211,13 +1204,9 @@ def test_role_policy_integrity_scans_seeded_roles_without_user_assignments():
 
         def all(self):
             return [
-                {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read"]},
-                {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
-                {"role_key": "security_admin", "permissions": ["dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"]},
-                {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
                 {"role_key": "requester", "permissions": []},
                 {"role_key": "donor", "permissions": []},
-                {"role_key": "super_admin", "permissions": []},
+                {"role_key": "admin", "permissions": expected},
             ]
 
     class Session:
@@ -1232,19 +1221,13 @@ def test_role_policy_integrity_scans_seeded_roles_without_user_assignments():
     principal = Principal(subject="system:rbac-scanner", email_verified=True)
     findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
 
-    assert findings == 1
+    assert findings == 0
     assert "FROM lifelink_roles r" in session.statements[0][0]
     assert "lifelink_user_roles" not in session.statements[0][0]
-    insert_sql, params = session.statements[4]
-    assert "INSERT INTO lifelink_role_security_findings" in insert_sql
-    assert "ON CONFLICT (rule_id, role_key)" in insert_sql
-    assert params["role_key"] == "operations_admin"
-    assert '"missing_permission_keys": ["operations.read", "reports.read", "requests.read"]' in params["evidence"]
-    assert session.statements[5][1]["role_key"] == "user_admin"
-    assert "UPDATE lifelink_role_security_findings" in session.statements[5][0]
+    assert not any("INSERT INTO lifelink_role_security_findings" in sql for sql, _ in session.statements)
 
 
-def test_role_policy_integrity_detects_missing_approved_role_definition():
+def test_role_policy_integrity_detects_missing_admin_role_definition():
     from app.admin_api import _scan_rbac_role_policy_integrity
 
     class Rows:
@@ -1252,14 +1235,9 @@ def test_role_policy_integrity_detects_missing_approved_role_definition():
             return self
 
         def all(self):
-            # security_admin is deliberately absent from the registry result.
             return [
-                {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"]},
-                {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
                 {"role_key": "requester", "permissions": []},
                 {"role_key": "donor", "permissions": []},
-                {"role_key": "super_admin", "permissions": []},
-                {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
             ]
 
     class Session:
@@ -1275,14 +1253,14 @@ def test_role_policy_integrity_detects_missing_approved_role_definition():
     findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
 
     assert findings == 1
-    insert_sql, params = session.statements[6]
-    assert "INSERT INTO lifelink_role_security_findings" in insert_sql
-    assert params["role_key"] == "security_admin"
-    assert '"role_definition_missing": true' in params["evidence"]
+    inserts = [(sql, params) for sql, params in session.statements if "INSERT INTO lifelink_role_security_findings" in sql]
+    assert len(inserts) == 1
+    assert inserts[0][1]["role_key"] == "admin"
+    assert '"role_definition_missing": true' in inserts[0][1]["evidence"]
 
 
-def test_role_policy_integrity_enforces_explicit_zero_admin_grants_for_requester_donor_and_super_admin():
-    from app.admin_api import _scan_rbac_role_policy_integrity
+def test_role_policy_integrity_detects_unapproved_role_definition():
+    from app.admin_api import RBAC_APPROVED_PERMISSION_MATRIX, _scan_rbac_role_policy_integrity
 
     class Rows:
         def mappings(self):
@@ -1290,13 +1268,10 @@ def test_role_policy_integrity_enforces_explicit_zero_admin_grants_for_requester
 
         def all(self):
             return [
-                {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"]},
-                {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
-                {"role_key": "security_admin", "permissions": ["dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"]},
-                {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
                 {"role_key": "requester", "permissions": []},
                 {"role_key": "donor", "permissions": []},
-                {"role_key": "super_admin", "permissions": ["settings.update"]},
+                {"role_key": "admin", "permissions": sorted(RBAC_APPROVED_PERMISSION_MATRIX["admin"])},
+                {"role_key": "auditor", "permissions": ["audit.read"]},
             ]
 
     class Session:
@@ -1312,12 +1287,10 @@ def test_role_policy_integrity_enforces_explicit_zero_admin_grants_for_requester
     findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
 
     assert findings == 1
-    insert_sql, params = session.statements[3]
-    assert "INSERT INTO lifelink_role_security_findings" in insert_sql
-    assert params["role_key"] == "super_admin"
-    assert '"unexpected_permission_keys": ["settings.update"]' in params["evidence"]
-    assert len(session.statements) == 9
-
+    inserts = [(sql, params) for sql, params in session.statements if "INSERT INTO lifelink_role_security_findings" in sql]
+    assert len(inserts) == 1
+    assert inserts[0][1]["role_key"] == "auditor"
+    assert '"role_definition_unapproved": true' in inserts[0][1]["evidence"]
 
 
 def test_admin_permission_guard_defaults_to_legacy_compatible_observe_mode(monkeypatch):
