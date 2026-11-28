@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-ospT+IIXF7Hm7Etg6fhg0nWMh9Sl6kgoiW//4ZXtNPg='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-F1sEKsno7dQVi7Au59JXyhlCxLo3fq/3QYHoHED61NM='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -2755,6 +2755,7 @@ async function loadUsers() {
  $("alerts-correlation-filter").addEventListener("change",e=>{alertCorrelation=e.target.value.trim();offsets.alerts=0;loadPage("alerts");});
  $("audit-filter-apply").addEventListener("click",()=>{auditAction=$("audit-action-filter").value.trim().slice(0,64);auditActor=$("audit-actor-filter").value.trim().slice(0,128);auditCorrelation=$("audit-correlation-filter").value.trim().slice(0,128);offsets.audit=0;loadPage("audit");});
  $("audit-filter-clear").addEventListener("click",()=>{$("audit-action-filter").value="";$("audit-actor-filter").value="";$("audit-correlation-filter").value="";auditAction="";auditActor="";auditCorrelation="";offsets.audit=0;loadPage("audit");});
+ $("audit-actor-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("audit-filter-apply").click();});
  $("audit-correlation-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("audit-filter-apply").click();});
  enableBrowserNotifications();
  $("errors-filter-apply").addEventListener("click",()=>{errorsCorrelation=$("errors-correlation-filter").value.trim().slice(0,128);offsets.errors=0;loadPage("errors");});
