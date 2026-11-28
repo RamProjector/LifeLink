@@ -9,6 +9,7 @@ class ScannerSession:
     def __init__(self, lock_acquired: bool):
         self.lock_acquired = lock_acquired
         self.statements: list[str] = []
+        self.parameters: list[dict] = []
         self.committed = False
         self.rolled_back = False
 
@@ -16,8 +17,9 @@ class ScannerSession:
         self.statements.append(str(statement))
         return self.lock_acquired
 
-    async def execute(self, statement):
+    async def execute(self, statement, params=None):
         self.statements.append(str(statement))
+        self.parameters.append(params or {})
 
     async def commit(self):
         self.committed = True
@@ -68,6 +70,7 @@ def test_background_rbac_scanner_respects_advisory_lock_and_cancels_cleanly(
         assert calls[0][0] is session
         assert calls[0][1:] == ("system:rbac-scanner", None)
         assert "SET LOCAL statement_timeout = '15000ms'" in session.statements
+        assert any(params.get("scan_started_at") is not None for params in session.parameters)
         assert session.committed is True
         assert session.rolled_back is False
     else:
