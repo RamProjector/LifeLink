@@ -300,3 +300,60 @@ The query uses `to_jsonb(auth.users)` extraction for optional Auth fields rather
 Regression coverage was added to the existing admin user-inventory test for response mapping and SQL field extraction. The Admin Console's single inline script remains hash-authorized in the Content Security Policy; its CSP hash was recalculated after the UI change. The Admin Console docs and IDS/IPS completion audit were updated in the same PR.
 
 **Acceptance boundary:** automated coverage verifies the constructed query and response mapping, not the actual Auth account states in a live Supabase instance. Controlled non-production test accounts in active, banned, deleted, email-unverified, and anonymous states must be used to confirm the live Auth schema values and rendered output before treating this criterion as operationally verified. No Auth state was changed and no production data was queried or modified as part of this implementation.
+
+## 13. Live runtime-role correlation and query-time RBAC refresh — 2026-11-28
+
+This section records a new read-only verification pass against the connected LifeLink Supabase project and Render services. It supersedes earlier assumptions where newer observations differ. It does not authorize deployment, migration, grants, role assignment, or RBAC enforcement.
+
+### Render deployment boundary
+
+- The Render API service `srv-dalugdbl550s73chtsfg` is configured to deploy from `main`, with auto-deploy enabled. The Admin Console static site also deploys from `main`.
+- The latest API deployment is live on `3205ed4eb9eba307eeb94ab7aa8d420d83376e0a` (PR #226 merge), not this PR branch.
+- The current PR #227 branch is therefore not deployed. No deploy was triggered.
+
+### Supabase live schema and data snapshot
+
+Read-only checks against project `nphbhlxnujmylhubzmne` confirmed:
+
+- Project status: `ACTIVE_HEALTHY`; PostgreSQL `17.6.1.166`.
+- Supabase migration history currently lists only `007_donor_map_chat_contact_sharing` and `020_rbac_role_permission_registry`. PR migrations 021, 022, and 023 have not been applied to the live project.
+- `lifelink_roles`: 7 rows; `lifelink_permissions`: 19 rows; `lifelink_role_permissions`: 19 rows.
+- `lifelink_user_roles`: 0 assignments; `lifelink_security_alerts`: 0 rows; `lifelink_user_sessions`: 25 rows; `audit_events`: 393 rows.
+- `lifelink_security_scanner_runs` is absent from the live schema, as expected before migration 022 is deployed.
+- The live `auth.users` schema includes `email_confirmed_at`, `banned_until`, `deleted_at`, and `is_anonymous`, which are the optional account-state fields read by the PR's inventory query.
+
+### Auth-schema privilege boundary
+
+A read-only `has_table_privilege` matrix confirmed:
+
+| Database role | auth.users SELECT | auth.sessions SELECT | auth.mfa_factors SELECT |
+|---|---:|---:|---:|
+| postgres | yes | yes | yes |
+| service_role | no | no | no |
+| authenticated | no | no | no |
+| anon | no | no | no |
+
+This proves the `postgres` role has the required grants, but it does **not** prove that the Render API uses `postgres`. No grants were changed.
+
+### Runtime connection correlation result
+
+- A point-in-time `pg_stat_activity` query showed only `authenticator` / PostgREST, `pgbouncer`, and `postgres` sessions associated with `mgmt-api` and `pg_net`; no identifiable Render API connection was present in that snapshot.
+- Supavisor logs in the available window showed the pool user as `postgres` and the pooler application name as `Supavisor`. These fields did not identify a Render service or its runtime DB role.
+- PostgreSQL log aggregation showed `postgres` sessions with `Supavisor` and `mgmt-api` application names; no distinct Render API application name was identified.
+- Render service metadata exposes the service configuration and deploy SHA but not the environment-variable values or the effective DB username. No secrets were requested, retrieved, or copied.
+
+**Finding:** The actual Render API database role remains unverified. Do not infer that it is `postgres` from Supavisor logs or from the privileges held by `postgres`. The release gate remains open until the effective runtime role is established using a safe, non-secret method and its least-privilege grants are checked.
+
+### Additional branch hardening
+
+The current PR branch now changes all three active-role inventory/detail reads in `lifelink_fastapi/app/admin_api.py` from transaction-start `now()` to statement-start `statement_timestamp()`. This keeps displayed active role assignments aligned with the authorization guard's expiry semantics when the request transaction has already been open during authentication/MFA checks. The corresponding inventory regression assertion was updated in `lifelink_fastapi/tests/test_admin_api.py`.
+
+CI for the resulting commit must pass before this code change is treated as validated. This is additive to the existing query-time expiry guard and does not alter role assignments or enforcement mode.
+
+### Security Advisor interpretation
+
+The latest Supabase security advisor still reports 18 RLS-enabled/no-policy tables and leaked-password protection disabled. The no-policy tables remain backend-only by design; a separate grant inspection must continue to confirm no client-role access before rollout. Leaked-password protection remains a plan-level limitation on the connected Free organization and is not addressed by a schema change or an unapproved paid-plan upgrade.
+
+### Release disposition
+
+Keep `LIFELINK_RBAC_ENFORCEMENT_MODE=observe`. Do not apply migrations 021–023, grant Auth-schema privileges, provision role assignments, enable enforce mode, or deploy PR #227 until the Render runtime role is positively identified, non-production MFA and two-operator recovery rehearsals pass, scanner health is verified after deployment to non-production, browser/Android acceptance is recorded, independent review is complete, and production rollout is explicitly approved.
