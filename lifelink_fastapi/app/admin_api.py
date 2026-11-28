@@ -881,7 +881,13 @@ async def admin_security_scanner_health(
     result = await session.execute(text(
         "SELECT scanner_key, status, last_started_at, last_finished_at, last_succeeded_at, "
         "last_failed_at, last_findings, last_duration_ms, consecutive_failures, "
-        "last_error_code, updated_at "
+        "last_error_code, updated_at, "
+        "CASE WHEN status = 'running' AND last_started_at IS NOT NULL "
+        "THEN GREATEST(0, EXTRACT(EPOCH FROM (clock_timestamp() - last_started_at))) "
+        "ELSE NULL END AS running_age_seconds, "
+        "CASE WHEN status = 'succeeded' AND last_succeeded_at IS NOT NULL "
+        "THEN GREATEST(0, EXTRACT(EPOCH FROM (clock_timestamp() - last_succeeded_at))) "
+        "ELSE NULL END AS success_age_seconds "
         "FROM lifelink_security_scanner_runs WHERE scanner_key = 'rbac'"
     ))
     row = result.mappings().first()
@@ -900,6 +906,7 @@ async def admin_security_scanner_health(
     if row is None:
         return {"scanner_key": "rbac", "status": "never_run", "last_findings": 0,
                 "consecutive_failures": 0, "last_error_code": None,
+                "running_age_seconds": None, "success_age_seconds": None,
                 "scan_interval_seconds": scan_interval_seconds}
     return {**dict(row), "scan_interval_seconds": scan_interval_seconds}
 
