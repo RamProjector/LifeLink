@@ -290,9 +290,9 @@ No production database migration, privilege grant, RBAC assignment, Auth configu
 
 The paginated `GET /v1/admin/users` inventory now includes read-only Auth account-state fields derived from `auth.users`:
 
-- `account_state`: `deleted` when Auth `deleted_at` is populated; otherwise `banned` when `banned_until` is later than PostgreSQL `statement_timestamp()`; otherwise `active`.
-- `email_confirmed`: whether `email_confirmed_at` is populated.
-- `is_anonymous`: the Auth anonymous-account flag.
+- `account_state`: `unknown` if the Auth JSON row does not expose both `deleted_at` and `banned_until`; otherwise `deleted` when `deleted_at` is populated, `banned` when `banned_until` is later than PostgreSQL `statement_timestamp()`, and `active` only when both fields are available and neither condition applies.
+- `email_confirmed`: `true`/`false` when `email_confirmed_at` is available, otherwise `null` (rendered as unknown).
+- `is_anonymous`: `true`/`false` when the Auth anonymous-account field is available, otherwise `null` (rendered as unknown).
 - The Admin Console displays the status, email verification, and anonymous-account marker beside the profile and RBAC data.
 
 The query uses `to_jsonb(auth.users)` extraction for optional Auth fields rather than hard references to optional columns. This avoids a hard parse-time dependency on those columns in Supabase Auth schema versions where optional fields may differ. The status is descriptive inventory only: the console does not suspend, ban, delete, restore, or otherwise mutate Auth identities. Unknown/missing response values render as `unknown` in the UI; they are not silently labeled active.
