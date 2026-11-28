@@ -570,25 +570,43 @@ async def admin_list_users(
     x_correlation_id: str | None = Header(default=None),
 ):
     result = await session.execute(
-        select(LifeLinkProfile).order_by(LifeLinkProfile.created_at.desc()).offset(offset).limit(limit)
+        text(
+            "SELECT u.id::varchar AS user_id, COALESCE(u.email, p.email) AS email, "
+            "COALESCE(p.role::varchar, 'unconfigured') AS role, p.display_name, "
+            "COALESCE(p.can_request, false) AS can_request, "
+            "COALESCE(p.can_donate, false) AS can_donate, "
+            "COALESCE(p.created_at, u.created_at) AS created_at, "
+            "(p.user_id IS NOT NULL) AS has_profile, "
+            "COALESCE(array_agg(DISTINCT r.role_key ORDER BY r.role_key) "
+            "FILTER (WHERE r.role_key IS NOT NULL), ARRAY[]::varchar[]) AS rbac_roles, "
+            "COALESCE(array_agg(DISTINCT perm.permission_key ORDER BY perm.permission_key) "
+            "FILTER (WHERE perm.permission_key IS NOT NULL), ARRAY[]::varchar[]) AS rbac_permissions "
+            "FROM auth.users u "
+            "LEFT JOIN lifelink_profiles p ON p.user_id = u.id::varchar "
+            "LEFT JOIN lifelink_user_roles ur ON ur.user_id = u.id "
+            "AND (ur.expires_at IS NULL OR ur.expires_at > now()) "
+            "LEFT JOIN lifelink_roles r ON r.id = ur.role_id "
+            "LEFT JOIN lifelink_role_permissions rp ON rp.role_id = r.id "
+            "LEFT JOIN lifelink_permissions perm ON perm.id = rp.permission_id "
+            "GROUP BY u.id, u.email, u.created_at, p.user_id, p.email, p.role, "
+            "p.display_name, p.can_request, p.can_donate, p.created_at "
+            "ORDER BY COALESCE(p.created_at, u.created_at) DESC, u.id "
+            "LIMIT :limit OFFSET :offset"
+        ),
+        {"limit": limit, "offset": offset},
     )
-    profiles = result.scalars().all()
-    total = await session.scalar(select(func.count()).select_from(LifeLinkProfile)) or 0
+    users = result.mappings().all()
+    total = await session.scalar(text("SELECT count(*) FROM auth.users")) or 0
     await _write_audit(session, principal.subject, "admin.users.list", request=request, session_id=principal.session_id, session_expires_at=principal.session_expires_at, target_type="user_list",
                        correlation_id=_correlation_id(x_correlation_id), metadata={"limit": limit, "offset": offset})
     await session.commit()
     return {
         "items": [
             {
-                "user_id": row.user_id,
-                "email": row.email,
-                "role": row.role.value if hasattr(row.role, "value") else str(row.role),
-                "display_name": row.display_name,
-                "can_request": row.can_request,
-                "can_donate": row.can_donate,
-                "created_at": row.created_at,
+                **dict(row),
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
-            for row in profiles
+            for row in users
         ],
         "total": total,
         "limit": limit,
