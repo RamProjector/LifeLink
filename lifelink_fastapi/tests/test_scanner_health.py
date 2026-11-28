@@ -41,10 +41,20 @@ async def _cancel_after_one_iteration(_seconds: float) -> None:
     raise asyncio.CancelledError
 
 
-def test_rbac_scanner_persists_success_and_findings(monkeypatch):
+def test_rbac_scanner_publishes_running_state_before_scan_and_persists_success(monkeypatch):
     session = ScannerSession()
-    monkeypatch.setattr(db, "AsyncSessionLocal", lambda: session)
-    monkeypatch.setattr(admin_api, "_scan_rbac_discrepancies", lambda *_args: _two_findings())
+    running_session = ScannerSession()
+    sessions = iter((session, running_session))
+    monkeypatch.setattr(db, "AsyncSessionLocal", lambda: next(sessions))
+
+    async def scan_after_running_state_is_committed(*_args):
+        # This simulates the Admin Console reading from another connection:
+        # the running-state transaction must already be committed before work begins.
+        assert running_session.committed is True
+        assert any("status = 'running'" in statement for statement in running_session.statements)
+        return 2
+
+    monkeypatch.setattr(admin_api, "_scan_rbac_discrepancies", scan_after_running_state_is_committed)
     monkeypatch.setattr(main_postgres.asyncio, "sleep", _cancel_after_one_iteration)
     monkeypatch.setenv("LIFELINK_RBAC_SCAN_SECONDS", "60")
 
@@ -52,14 +62,15 @@ def test_rbac_scanner_persists_success_and_findings(monkeypatch):
         asyncio.run(main_postgres._scan_rbac_discrepancies_forever())
 
     sql = "\\n".join(session.statements)
+    running_sql = "\\n".join(running_session.statements)
     assert "pg_try_advisory_xact_lock(728194620114)" in sql
     assert "SET LOCAL statement_timeout = '15000ms'" in sql
-    assert "INSERT INTO lifelink_security_scanner_runs" in sql
-    assert "status = 'running'" in sql
     assert "status = 'succeeded'" in sql
     assert "last_succeeded_at = now()" in sql
     assert "last_findings = :findings" in sql
     assert "last_duration_ms = :duration_ms" in sql
+    assert "INSERT INTO lifelink_security_scanner_runs" in running_sql
+    assert "status = 'running'" in running_sql
     assert session.committed is True
 
 
@@ -69,11 +80,13 @@ async def _two_findings() -> int:
 
 def test_rbac_scanner_persists_sanitized_failure_and_retries(monkeypatch):
     scan_session = ScannerSession()
-    health_session = ScannerSession()
-    sessions = iter((scan_session, health_session))
+    running_session = ScannerSession()
+    failed_session = ScannerSession()
+    sessions = iter((scan_session, running_session, failed_session))
     monkeypatch.setattr(db, "AsyncSessionLocal", lambda: next(sessions))
 
     async def fail_scan(*_args):
+        assert running_session.committed is True
         raise RuntimeError("private row details and SQL must not be persisted")
 
     monkeypatch.setattr(admin_api, "_scan_rbac_discrepancies", fail_scan)
@@ -83,14 +96,16 @@ def test_rbac_scanner_persists_sanitized_failure_and_retries(monkeypatch):
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(main_postgres._scan_rbac_discrepancies_forever())
 
-    sql = "\\n".join(health_session.statements)
+    sql = "\\n".join(failed_session.statements)
+    assert "status = 'running'" in "\\n".join(running_session.statements)
+    assert running_session.committed is True
     assert "status = 'failed'" in sql
     assert "last_error_code = 'scan_failed'" in sql
     assert "last_failed_at = now()" in sql
     assert "last_started_at = now()" in sql
     assert "consecutive_failures = lifelink_security_scanner_runs.consecutive_failures + 1" in sql
     assert "private row details" not in sql
-    assert health_session.committed is True
+    assert failed_session.committed is True
     assert scan_session.rolled_back is True
 
 
