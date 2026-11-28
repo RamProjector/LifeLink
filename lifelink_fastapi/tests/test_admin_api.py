@@ -1801,8 +1801,13 @@ def test_admin_user_inventory_includes_auth_accounts_and_effective_rbac_permissi
 
 
 
-def test_rbac_discrepancy_scan_uses_statement_time_for_active_assignments():
+def test_rbac_discrepancy_scan_uses_statement_time_for_active_assignments(monkeypatch):
     from app import admin_api
+
+    async def no_role_policy_scan(*args, **kwargs):
+        return 0
+
+    monkeypatch.setattr(admin_api, "_scan_rbac_role_policy_integrity", no_role_policy_scan)
 
     class Rows:
         def mappings(self):
