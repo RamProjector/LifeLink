@@ -496,3 +496,35 @@ PR #227 remains open and unmerged. The 15 previous inline review threads remain 
 The current code head is fully CI-validated, but release gates remain: non-production migration and RBAC assignment/enforcement rehearsal; MFA backup/recovery rehearsal; deployed scanner lifecycle verification; manual browser/Android acceptance; independent review; and explicit production deployment/merge approval. Editing pending requests and reposting inactive requests are separate unimplemented lifecycle requirements.
 
 No production migration, database grant, role assignment, Auth configuration change, deployment, or merge was performed in this verification. The subsequent documentation-only commits do not change this validated application code; their own required CI must still pass before the PR head is considered fully green.
+
+
+## 16. Superseding live read-only database snapshot and review-boundary reconciliation — 2026-11-28
+
+This section records a fresh read-only check of the connected LifeLink Supabase project and a source review of the current PR branch. It supersedes older live counts and migration snapshots where they differ. No production writes, DDL, grants, role changes, Auth changes, or deployment were performed.
+
+### Supabase live state (read-only)
+
+- Project `nphbhlxnujmylhubzmne` is `ACTIVE_HEALTHY`, PostgreSQL `17.6.1.166`, region `ap-southeast-1`.
+- The migration ledger currently lists only `007_donor_map_chat_contact_sharing` and `020_rbac_role_permission_registry`. Branch migrations 021–024 remain unapplied.
+- Current counts: 7 historical role definitions, 19 permission definitions, 19 role-permission mappings, 0 user-role assignments, 0 security alerts, 26 session-registry rows, and 394 audit-event rows.
+- `lifelink_security_scanner_runs` does not exist in the live schema because migration 022 has not been applied.
+- A privilege check for the RBAC, audit, session, and security-alert tables returned no SELECT privilege for `anon` or `authenticated`; `service_role` has SELECT. The 18 Supabase Advisor `rls_enabled_no_policy` findings therefore remain an intentional backend-only policy pattern for the inspected tables, but the grants must be rechecked after every schema change.
+- Supabase Advisor continues to report leaked-password protection disabled. This is an Auth configuration/plan setting, not something to silently alter through a database migration.
+- The SQL inspection connection reports `current_user = postgres` and `session_user = postgres`. This describes the inspection connection only and does not establish the Render API's effective runtime database role.
+
+### Source review reconciliation
+
+The current branch source was checked against previously reported review findings:
+
+- Browser notification polling starts with a null cursor; the first API request omits `after`, and `/security/notifications` obtains its cursor from PostgreSQL `clock_timestamp()`. The browser no longer seeds the cursor from `Date.now()`.
+- The notification interval is installed before awaiting the initial poll, with generation checks retained to prevent stale polls from mutating a stopped session.
+- Scanner health exposes database-calculated `running_age_seconds` and `success_age_seconds`; the Admin Console uses these ages rather than comparing database timestamps to the browser clock.
+- Scanner failure persistence is guarded by `status = 'running'` and the same `last_started_at` returned by PostgreSQL for that run, so a late failure cannot overwrite a newer run.
+- New-database setup examples use the complete ordered `sql/*.sql` migration glob; existing-database instructions remain separate.
+- The `users.read` directory response intentionally includes only the effective role-key and permission summary; full role registry and per-user assignment detail remain under `roles.read`. The approved distinction is now explicitly documented in `docs/RBAC_IMPLEMENTATION.md`.
+
+### Release disposition
+
+Keep `LIFELINK_RBAC_ENFORCEMENT_MODE=observe`. Do not apply migrations 021–024, change grants, provision roles, alter Auth configuration, or deploy until the actual Render API runtime database role is identified and least-privilege access is verified; a non-production migration/assignment/enforcement rehearsal is completed; MFA backup and two-operator recovery are rehearsed; scanner health and notification delivery are observed after non-production deployment; and manual requester, donor, and admin acceptance plus independent review pass.
+
+The current Supabase project is the production project. No non-production Supabase branch was created because branch creation may incur cost and requires explicit cost/workspace approval. No production migration or deployment is authorized by this verification.
