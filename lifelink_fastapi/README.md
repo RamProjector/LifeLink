@@ -102,7 +102,7 @@ Outbound push notifications are enabled by setting `FIREBASE_SERVICE_ACCOUNT_JSO
 
 ## PostgreSQL package
 
-- `sql/001_initial_schema.sql`–`sql/006_donor_operational_profile.sql` — ordered PostgreSQL/PostGIS schema migrations, constraints, indexes, triggers, and operational profile fields.
+- `sql/001_initial_schema.sql`–`sql/024_three_product_roles.sql` — ordered PostgreSQL/PostGIS schema migrations, constraints, indexes, triggers, requester/donor privacy workflows, audit and IDS/IPS foundations, RBAC, and the three-role registry normalization. Apply only the migrations not already recorded in the target database's migration ledger; never rerun the initial migration loop against an existing database.
 - `app/db_models.py` — SQLAlchemy 2.0 typed models.
 - `app/db.py` — async engine and session dependency.
 - `app/repositories.py` — PostgreSQL donor and request repositories.
