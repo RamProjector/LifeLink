@@ -120,6 +120,6 @@ Regression evidence added:
 - `test_overdue_active_request_is_expired_before_replacement` verifies an overdue active request is closed before a replacement is created.
 - Existing lifecycle tests were adjusted to use separate requester accounts or close/expire the prior request when they need multiple simultaneous examples for other test purposes.
 
-**Status:** implemented in PR #227; automated PostgreSQL validation is pending on the latest branch head. No production migration or live database change was made for this application-level transaction lock.
+**Status:** implemented and automated-PostgreSQL verified on code head `055bc65a1adcf357ac70072c66b57366a84a374c`. The backend/PostgreSQL suite passed **356 tests**, including both new one-active-request regressions and the concurrent two-idempotency-key race. Required lint, Docker/Admin Console, Android quality, Android APK, fake-backend UI APK, Gitleaks, and Python/Java-Kotlin CodeQL workflows also passed on this exact code head (runs are recorded in `docs/IDS_IPS_RELEASE_GATE_2026-11-28.md`, section 15). No production migration or live database change was made for this application-level transaction lock.
 
 This does not yet complete the broader requester lifecycle checklist. Editing a pending request and explicitly reposting an inactive request remain separate feature/acceptance items and must not be marked complete based on the one-active-request guard alone.
