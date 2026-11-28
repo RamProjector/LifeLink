@@ -177,7 +177,7 @@ Do not introduce a paid provider or new external service without approval.
 
 ### P2 — Admin console and academic evidence
 
-1. **Implemented in the branch:** show every Auth account (including accounts without a profile), legacy capabilities, active RBAC roles, and effective mapped permissions in the paginated Admin Console user inventory. Assignment expiry remains available through the per-user roles endpoint; add explicit account-state visibility and verify with controlled test data.
+1. **Implemented in the branch:** show every Auth account (including accounts without a profile), account status (`active`, `banned`, `deleted`, or `unknown`), email-verification state, anonymous-account state, legacy capabilities, active RBAC roles, and effective mapped permissions in the paginated Admin Console user inventory. Status is derived from the Auth row's JSON representation to tolerate Supabase Auth schema versions that omit optional columns; it is read-only and does not mutate account status. Assignment expiry remains available through the per-user roles endpoint. The backend regression test verifies field mapping and safe SQL construction; controlled multi-account non-production verification remains a release gate.
 2. Show each user's own audit history and session history under access controls.
 3. Show alert severity, rule, correlation, occurrence count, first/last seen, status, and notification delivery state.
 4. **Implemented in this audit:** add the IDS/IPS processing flowchart and seven-role administrative permission matrix; keep these synchronized with actual code.
