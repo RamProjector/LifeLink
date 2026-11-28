@@ -231,3 +231,56 @@ The PR remains open, ready for review, mergeable, and unmerged. The code head is
 ### Release boundary remains unchanged
 
 The successful code-head CI does not close the non-production/production gates: actual Render runtime database-role identity; non-production MFA and two-operator recovery rehearsal; approved administrator assignments and enforcement verification; deployed scanner lifecycle/health verification; administrator background-notification channel decision and durable delivery receipts; manual web/Android acceptance; independent review; and explicit deployment/merge approval. Keep RBAC in `observe` and do not merge or deploy until those gates are completed.
+
+
+## 11. Standards-based security research and current PR verification — 2026-11-28
+
+This section is a superseding research and repository-state snapshot. It does not authorize production rollout.
+
+### Standards reviewed
+
+1. **OWASP Application Security Verification Standard (ASVS) 5.0.0 — stable, published 2025-05-30.** Use ASVS as the application-security verification framework. In particular, its V16 Security Logging and Error Handling objective distinguishes security-event records from ordinary error/performance logs and requires useful, protected security telemetry without unnecessary sensitive personal data. Apply this to authentication decisions, authorization denials, policy bypass attempts, alert handling, audit integrity, and safe error responses. Do not treat the presence of an audit table as proof of complete coverage.
+   - https://asvs.owasp.org/
+   - https://github.com/OWASP/ASVS/blob/master/5.0/en/0x25-V16-Security-Logging-and-Error-Handling.md
+
+2. **OWASP API Security Top 10 (2023).** The most directly applicable risks are API1 Broken Object Level Authorization, API2 Broken Authentication, API3 Broken Object Property Level Authorization, API4 Unrestricted Resource Consumption, API5 Broken Function Level Authorization, API8 Security Misconfiguration, and API9 Improper Inventory Management. Verification must test cross-account object access, sensitive-field disclosure/mass assignment, role-specific route access, pagination and scan bounds, production-safe defaults, and inventory completeness—not merely HTTP status codes.
+   - https://api-security.owasp.org/editions/2023/en/0x11-t10/
+   - https://devguide.owasp.org/en/07-training-education/07-api-top-ten/
+
+3. **NIST SP 800-61 Rev. 3 — final, published 2025-04-03.** Rev. 3 supersedes Rev. 2 and integrates incident response into CSF 2.0 cybersecurity risk management. LifeLink's alert triage, evidence preservation, escalation, recovery, and post-incident review should be treated as an operational lifecycle, not just an alert-generation feature.
+   - https://csrc.nist.gov/pubs/sp/800/61/r3/final
+
+4. **NIST SP 800-92 Rev. 1 — Initial Public Draft only.** NIST's Log Management publications page still lists Rev. 1 as Draft. It can inform planning, but must not be cited as a final standard or used to claim formal compliance. The final 2006 SP 800-92 remains the final publication in that series listed by NIST.
+   - https://csrc.nist.gov/pubs/sp/800/92/r1/ipd
+   - https://csrc.nist.gov/Projects/log-management/publications
+
+### Evidence mapping to this implementation
+
+| Research requirement | LifeLink implementation/evidence | Remaining verification |
+|---|---|---|
+| Authentication and function-level authorization | Server-side verified identity, active-session/AAL2 checks, admin allowlist, endpoint-specific permission dependencies, separate RBAC-manager allowlist, staged `observe`/ `enforce` behavior | Non-production valid-JWT integration rehearsal for exact grants, expiry, missing grants, registry failure, and super-admin dual-allowlist exception |
+| Object and property-level authorization | Per-user audit filters, user inventory rooted in `auth.users`, profile-less accounts represented, restricted role/permission disclosure | Route-by-route cross-account and field-disclosure acceptance; confirm every ID-bearing handler checks ownership/scope |
+| Resource consumption and scanner safety | Bounded scanner interval, advisory lock, bounded statement timeout, pagination limits, persisted scanner health | Load/abuse testing and deployed non-production scanner start/success/failure/recovery/shutdown verification |
+| Security logging and privacy | Structured audit events, correlation IDs, coarse device labels for new writes, transaction-aware audit behavior | Complete route-to-audit matrix and manual rollback/idempotency tests; historical raw User-Agent records remain historical data and are not claimed to have been rewritten |
+| Alerting and incident response | Protected alert feed and opt-in foreground browser notification polling | Background administrator delivery and durable per-recipient receipts are not implemented; test end-to-end alert triage, acknowledgement, escalation, and recovery only after a channel is approved |
+| Platform and inventory security | Gitleaks, CodeQL, RLS decision checks, Android quality checks, CSP/static Admin Console validation | Independent review and manual browser/physical-device acceptance remain required |
+
+### Current PR and review state — live GitHub verification
+
+- PR #227 is **open, ready for review, mergeable, and unmerged**, targeting `main`.
+- Current PR head: `04cd30c0d9e15876af44cd96062a89f7d9b78fb3`; 177 commits and 27 changed files.
+- The 12 CodeRabbit inline review threads are all marked resolved and outdated at the current head. Resolution means the inline findings were addressed; it does not constitute reviewer approval.
+- The submitted CodeRabbit review remains `CHANGES_REQUESTED`. Follow-up review requests were rate-limited and no fresh approval has been recorded. An independent human review remains outstanding.
+- All five PR-triggered workflows associated with the current documentation-only head completed successfully:
+  - Security scan / Gitleaks: [run #2188](https://github.com/RamProjector/LifeLink/actions/runs/46105648759).
+  - Android UI test APK (fake backend): [run #1027](https://github.com/RamProjector/LifeLink/actions/runs/46105648746).
+  - Build Android APKs: [run #1707](https://github.com/RamProjector/LifeLink/actions/runs/46105648653).
+  - Validate cloud package: [run #4455](https://github.com/RamProjector/LifeLink/actions/runs/46105648707).
+  - CodeQL: [run #2086](https://github.com/RamProjector/LifeLink/actions/runs/46105648718).
+- The latest documentation-only commit does not change application code. The immediately preceding implementation-code head remains `83be962b978fd9e2eb3bb1978d52c07347b7d010`, with 349 backend/PostgreSQL tests passing, 65.08% coverage, and the validation recorded in section 10.
+
+### Release disposition
+
+This research refresh closes a documentation/research traceability gap only. It does not close the operational release gates. Keep RBAC in `observe`; do not merge or deploy until the actual Render runtime database role is verified, non-production MFA and two-operator recovery rehearsals pass, administrator assignments and enforcement are approved and tested, scanner lifecycle is verified on a deployed non-production service, the administrator notification delivery decision is made, manual web/Android acceptance is recorded, independent review is complete, and explicit merge/deployment approval is obtained.
+
+No production database migration, privilege grant, RBAC assignment, Auth configuration change, deployment, or merge was performed as part of this research refresh.
