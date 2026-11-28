@@ -2641,15 +2641,21 @@ async function loadUsers() {
       if(token!==pageLoadToken||activePage!=="alerts")return;
       if(!data||data.scanner_key!=="rbac"||typeof data.status!=="string")throw new Error("Unexpected scanner health response");
       const succeededAt=data.last_succeeded_at?Date.parse(data.last_succeeded_at):NaN;
+      const startedAt=data.last_started_at?Date.parse(data.last_started_at):NaN;
       const succeeded=Number.isFinite(succeededAt)?new Date(succeededAt).toLocaleString():"Never";
+      const started=Number.isFinite(startedAt)?new Date(startedAt).toLocaleString():"Not recorded";
       const failed=data.last_failed_at?new Date(data.last_failed_at).toLocaleString():"Never";
       const intervalSeconds=Math.max(60,Number(data.scan_interval_seconds)||300);
-      const isStale=data.status==="succeeded"&&Number.isFinite(succeededAt)&&(Date.now()-succeededAt)>intervalSeconds*2000;
+      const staleAfterMs=Math.max(120000,intervalSeconds*2000);
+      const runningTooLong=data.status==="running"&&(!Number.isFinite(startedAt)||(Date.now()-startedAt)>staleAfterMs);
+      const successTooOld=data.status==="succeeded"&&Number.isFinite(succeededAt)&&(Date.now()-succeededAt)>staleAfterMs;
+      const isStale=runningTooLong||successTooOld;
       const displayStatus=isStale?"stale":data.status;
       const status=String(displayStatus).replace(/[^a-z_]/g,"");
       el.innerHTML='<table><tbody>'+
         '<tr><th scope="row">Scanner</th><td>RBAC policy integrity</td></tr>'+
         '<tr><th scope="row">Last status</th><td><span class="tag status-'+esc(status)+'">'+esc(displayStatus)+'</span></td></tr>'+
+        '<tr><th scope="row">Last scan started</th><td>'+esc(started)+'</td></tr>'+
         '<tr><th scope="row">Last successful scan</th><td>'+esc(succeeded)+'</td></tr>'+
         '<tr><th scope="row">Last failed scan</th><td>'+esc(failed)+'</td></tr>'+
         '<tr><th scope="row">Expected scan interval</th><td>'+esc(intervalSeconds)+' seconds</td></tr>'+
