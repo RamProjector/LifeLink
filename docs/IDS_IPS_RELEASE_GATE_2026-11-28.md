@@ -284,3 +284,19 @@ This section is a superseding research and repository-state snapshot. It does no
 This research refresh closes a documentation/research traceability gap only. It does not close the operational release gates. Keep RBAC in `observe`; do not merge or deploy until the actual Render runtime database role is verified, non-production MFA and two-operator recovery rehearsals pass, administrator assignments and enforcement are approved and tested, scanner lifecycle is verified on a deployed non-production service, the administrator notification delivery decision is made, manual web/Android acceptance is recorded, independent review is complete, and explicit merge/deployment approval is obtained.
 
 No production database migration, privilege grant, RBAC assignment, Auth configuration change, deployment, or merge was performed as part of this research refresh.
+
+
+## 12. Auth account-state visibility in the Admin Console — implementation update
+
+The paginated `GET /v1/admin/users` inventory now includes read-only Auth account-state fields derived from `auth.users`:
+
+- `account_state`: `deleted` when Auth `deleted_at` is populated; otherwise `banned` when `banned_until` is later than PostgreSQL `statement_timestamp()`; otherwise `active`.
+- `email_confirmed`: whether `email_confirmed_at` is populated.
+- `is_anonymous`: the Auth anonymous-account flag.
+- The Admin Console displays the status, email verification, and anonymous-account marker beside the profile and RBAC data.
+
+The query uses `to_jsonb(auth.users)` extraction for optional Auth fields rather than hard references to optional columns. This avoids a hard parse-time dependency on those columns in Supabase Auth schema versions where optional fields may differ. The status is descriptive inventory only: the console does not suspend, ban, delete, restore, or otherwise mutate Auth identities. Unknown/missing response values render as `unknown` in the UI; they are not silently labeled active.
+
+Regression coverage was added to the existing admin user-inventory test for response mapping and SQL field extraction. The Admin Console's single inline script remains hash-authorized in the Content Security Policy; its CSP hash was recalculated after the UI change. The Admin Console docs and IDS/IPS completion audit were updated in the same PR.
+
+**Acceptance boundary:** automated coverage verifies the constructed query and response mapping, not the actual Auth account states in a live Supabase instance. Controlled non-production test accounts in active, banned, deleted, email-unverified, and anonymous states must be used to confirm the live Auth schema values and rendered output before treating this criterion as operationally verified. No Auth state was changed and no production data was queried or modified as part of this implementation.
