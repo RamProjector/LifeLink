@@ -189,16 +189,19 @@ async def _scan_rbac_discrepancies_forever() -> None:
                     # The scan session must retain its transaction-scoped advisory
                     # lock throughout the scan, so its uncommitted health write is
                     # invisible to the Admin Console until the scan has finished.
-                    scan_started_at = datetime.now(timezone.utc)
                     async with AsyncSessionLocal() as health_session:
-                        await health_session.execute(text(
+                        result = await health_session.execute(text(
                             "INSERT INTO lifelink_security_scanner_runs "
                             "(scanner_key, status, last_started_at, last_findings, updated_at) "
-                            "VALUES ('rbac', 'running', :scan_started_at, 0, :scan_started_at) "
+                            "VALUES ('rbac', 'running', clock_timestamp(), 0, clock_timestamp()) "
                             "ON CONFLICT (scanner_key) DO UPDATE SET "
                             "status = 'running', last_started_at = EXCLUDED.last_started_at, last_finished_at = NULL, "
-                            "last_error_code = NULL, updated_at = EXCLUDED.updated_at"
-                        ), {"scan_started_at": scan_started_at})
+                            "last_error_code = NULL, updated_at = EXCLUDED.updated_at "
+                            "RETURNING last_started_at"
+                        ))
+                        # Use the database-generated timestamp for both completion
+                        # guards and freshness calculations; API host clocks may drift.
+                        scan_started_at = result.scalar_one()
                         await health_session.commit()
                     started_at = time.monotonic()
                     findings = await _scan_rbac_discrepancies(
