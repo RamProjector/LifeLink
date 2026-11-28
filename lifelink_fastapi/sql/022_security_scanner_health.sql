@@ -22,7 +22,7 @@ CREATE INDEX IF NOT EXISTS ix_lifelink_security_scanner_runs_status
 
 ALTER TABLE lifelink_security_scanner_runs ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM PUBLIC;
-DO $
+DO $role_guard$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
         REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM anon;
