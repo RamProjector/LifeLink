@@ -31,6 +31,6 @@ BEGIN
         REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM authenticated;
     END IF;
 END
-$;
+$role_guard$;
 
 COMMIT;
