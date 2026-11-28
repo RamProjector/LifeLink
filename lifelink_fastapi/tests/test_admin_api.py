@@ -1793,7 +1793,7 @@ def test_admin_user_inventory_includes_auth_accounts_and_effective_rbac_permissi
         assert "to_jsonb(u) ? 'email_confirmed_at'" in query
         assert "to_jsonb(u) ? 'is_anonymous'" in query
         assert "THEN 'unknown' WHEN" in query
-        assert "ur.expires_at > now()" in query
+        assert "ur.expires_at > statement_timestamp()" in query
         assert "array_agg(DISTINCT perm.permission_key" in query
 
     asyncio.run(check())
