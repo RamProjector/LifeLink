@@ -1469,6 +1469,13 @@ async def _prepare_three_role_migration_database(pg_url: str, *, legacy_assignme
             END
         );
     """)
+    await connection.execute("""
+        INSERT INTO public.lifelink_role_permissions (role_id, permission_id)
+        SELECT r.id, p.id
+        FROM public.lifelink_roles r
+        JOIN public.lifelink_permissions p ON p.permission_key = 'security.alerts.read'
+        WHERE r.role_key IN ('requester', 'donor');
+    """)
     if legacy_assignment:
         await connection.execute("""
             INSERT INTO public.lifelink_user_roles (user_id, role_id)
@@ -1495,8 +1502,16 @@ def test_three_product_role_migration_reconciles_real_postgres_registry(pg_url: 
                 WHERE r.role_key = 'admin'
                 ORDER BY p.permission_key
             """)
+            non_admin_grants = await connection.fetch("""
+                SELECT r.role_key, count(rp.permission_id) AS count
+                FROM public.lifelink_roles r
+                LEFT JOIN public.lifelink_role_permissions rp ON rp.role_id = r.id
+                WHERE r.role_key IN ('requester', 'donor')
+                GROUP BY r.role_key
+            """)
             assert [row["role_key"] for row in roles] == ["admin", "donor", "requester"]
             assert len(grants) == 13
+            assert {row["role_key"]: row["count"] for row in non_admin_grants} == {"requester": 0, "donor": 0}
             assert {row["permission_key"] for row in grants} == {
                 "dashboard.read", "users.read", "users.update", "users.suspend",
                 "requests.read", "operations.read", "reports.read", "roles.read",
