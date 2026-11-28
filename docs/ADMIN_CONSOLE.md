@@ -223,3 +223,8 @@ The paginated Admin Console user inventory starts from Supabase `auth.users`, jo
 The seven-role administrative permission policy is explicit: requester and donor have no administrative permission grants and continue using application capability/ownership checks; four administrative roles use their exact reviewed permission matrices; super_admin has no ordinary permission-map grants and remains gated by both the ordinary admin allowlist and separate RBAC-manager allowlist. The independent scanner checks all seven policies.
 
 Audit/session `device_used` stores a coarse platform label rather than the raw User-Agent string or browser/model version. Forwarded IP headers remain untrusted until the deployed proxy chain is verified.
+
+
+## Product-role boundary (2026-11-28)
+
+LifeLink has exactly three product roles: Requester, Blood Donor, and Admin. The Admin Console is web-only; the Android app is for Requester and Blood Donor. User-management, security, audit, and reporting areas are permissions under one Admin role, not separate administrator roles. See [the three-role authorization audit](THREE_ROLE_AUTHORIZATION_AUDIT_2026-11-28.md) and [RBAC implementation notes](RBAC_IMPLEMENTATION.md).
