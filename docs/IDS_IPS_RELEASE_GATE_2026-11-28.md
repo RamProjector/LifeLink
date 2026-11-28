@@ -440,3 +440,59 @@ PR #227 remains open and unmerged. The exact head is on `security/ids-ips-consol
 The actual Render API database role remains unverified. Migration 024 is not applied. Keep RBAC in `observe`. Non-production migration/assignment/enforcement tests, MFA backup/recovery rehearsals, deployed scanner lifecycle verification, manual browser/Android acceptance, independent review, and explicit production deployment/merge approval remain release gates.
 
 No production migration, grant, role assignment, Auth configuration change, deployment, or merge was performed in this verification.
+
+
+## 15. Requester-scoped one-active-request enforcement and final code validation — 2026-11-28
+
+This section supersedes earlier implementation-head and CI statements where they differ. It does not authorize production rollout.
+
+### Requester lifecycle finding and implementation
+
+The source audit found that the create endpoint previously serialized only identical idempotency keys. Two concurrent requests from the same requester using different keys could therefore create two active blood requests, contrary to the product rule.
+
+The PostgreSQL API now:
+- Retains the existing idempotency-key transaction lock for retries of the same intent.
+- Acquires a second transaction-scoped advisory lock keyed by the authenticated request owner's ID, serializing distinct request intents for the same requester across API workers.
+- Expires overdue active requests and closes their open matches/contacts while holding that lock.
+- Rejects another non-expired active request with HTTP 409 and the `active_request_exists` code.
+- Holds the requester lock until the new request and its creation audit event commit.
+
+The lock is scoped to the validated `payload.requester_id`, so local development mode does not collapse different test users into one shared lock. No schema migration was required; this is an application-level transaction guard. Direct database inserts outside the API would not use this guard, so all supported request creation paths must continue to use this endpoint.
+
+Regression coverage:
+- `test_requester_cannot_create_two_active_requests_concurrently`: two concurrent create requests with distinct idempotency keys; asserts one 201, one 409, and exactly one active row.
+- `test_overdue_active_request_is_expired_before_replacement`: verifies a due request is transitioned and its history retained before a replacement is accepted.
+- Existing sweeper, donor opt-out, and privacy-flow tests were updated to use separate requesters or close the prior request when they intentionally need multiple request examples.
+
+The broader requester lifecycle audit remains open for edit-pending-request and repost-inactive-request behavior; this implementation does not claim those features are complete.
+
+### Exact code-head CI
+
+**Validated code head:** `055bc65a1adcf357ac70072c66b57366a84a374c`.
+
+All five required PR-triggered workflows passed on this exact code head:
+
+| Workflow | Run | Result |
+|---|---:|---|
+| Validate cloud package (backend, lint, Docker, Admin Console/CSP, Android quality) | [#46129993364](https://github.com/RamProjector/LifeLink/actions/runs/46129993364) | Passed |
+| Android UI test APK (fake backend) | [#46129993381](https://github.com/RamProjector/LifeLink/actions/runs/46129993381) | Passed |
+| Build Android APKs | [#46129993371](https://github.com/RamProjector/LifeLink/actions/runs/46129993371) | Passed |
+| CodeQL (Python and Java/Kotlin) | [#46129993367](https://github.com/RamProjector/LifeLink/actions/runs/46129993367) | Passed |
+| Security scan / Gitleaks | [#46129993417](https://github.com/RamProjector/LifeLink/actions/runs/46129993417) | Passed |
+
+Backend/PostgreSQL suite: **356 passed**, one upstream Starlette/AnyIO deprecation warning, approximately **65% coverage**. Ruff, mypy, Android lint/Detekt/Spotless/unit tests/debug build, Admin website/CSP validation, Docker build, RLS decision validation, Gitleaks, and both CodeQL language analyses passed.
+
+Artifacts from this exact code head (available until 2026-12-12):
+- Android APK archive: [artifact #15257407437](https://github.com/RamProjector/LifeLink/actions/runs/46129993371), SHA-256 `7a989f2ac72dc584c4355268b12f3f8d405c808ad84118699cb77a4f197f96a8`.
+- Android validation report: [artifact #15256944974](https://github.com/RamProjector/LifeLink/actions/runs/46129993371), SHA-256 `85e808466fa9d90822710fdd8275ff008cf4ea1934faf7edb4b9510645c15761`.
+- Fake-backend UI APK: [artifact #15256733938](https://github.com/RamProjector/LifeLink/actions/runs/46129993381), SHA-256 `fa08835a8f67c9add339b161052ee59665b704958a2228102720f9e3a06d5836`.
+
+These are CI artifacts, not signed production releases or physical-device acceptance evidence.
+
+### Current release disposition
+
+PR #227 remains open and unmerged. The 15 previous inline review threads remain resolved, but the previously submitted CodeRabbit review state is still `CHANGES_REQUESTED`; the latest review command was triggered but has not produced a fresh completed review or approval. The actual Render API database role remains unverified. Migrations 021–024 remain unapplied; there are still no user-role assignments in the latest read-only Supabase snapshot. Keep RBAC in `observe`.
+
+The current code head is fully CI-validated, but release gates remain: non-production migration and RBAC assignment/enforcement rehearsal; MFA backup/recovery rehearsal; deployed scanner lifecycle verification; manual browser/Android acceptance; independent review; and explicit production deployment/merge approval. Editing pending requests and reposting inactive requests are separate unimplemented lifecycle requirements.
+
+No production migration, database grant, role assignment, Auth configuration change, deployment, or merge was performed in this verification. The subsequent documentation-only commits do not change this validated application code; their own required CI must still pass before the PR head is considered fully green.
