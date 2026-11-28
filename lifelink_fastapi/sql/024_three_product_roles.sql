@@ -31,6 +31,13 @@ SET display_name = EXCLUDED.display_name,
     description = EXCLUDED.description,
     is_system = TRUE;
 
+-- Requester and donor are application roles, not administrative roles.
+-- Remove any legacy administrative permission mappings from those roles.
+DELETE FROM public.lifelink_role_permissions rp
+USING public.lifelink_roles r
+WHERE rp.role_id = r.id
+  AND r.role_key IN ('requester', 'donor');
+
 -- Normalize the single Admin permission set. Keep the reviewed operational,
 -- user-management, security, audit, and reporting capabilities; do not grant
 -- permissions.manage or settings.update by implication.
