@@ -569,3 +569,14 @@ The Supabase migration ledger reports only `007_donor_map_chat_contact_sharing` 
 ### Corrected release disposition
 
 Keep `LIFELINK_RBAC_ENFORCEMENT_MODE=observe`. Before release, reconcile the migration ledger with existing schema objects; verify/apply 022 and 023 only in a rehearsed non-production environment; rehearse 024 against a snapshot of the current seven-role/zero-assignment registry; verify the Render runtime database identity and least privilege; verify the notification delivery provider and durable receipts; and complete MFA recovery, scanner runtime, browser/Android acceptance, and independent review. The current Render services have no PR preview, and no non-production Supabase branch exists. No production change is authorized by this snapshot.
+
+
+## 18. Final pre-validation snapshot — 2026-11-28
+
+The branch's latest application/test-source change is `080250f31e416cb18f46efa9f159407b0cd79325` (scanner lifecycle test import ordering). Commits `4dbceae3731257745ecbe62087ba40967e586acb`, `13c5f501d142374e5a897983021ca4304e4a1bbc`, and `526c33da568cc6107dc5284f6b8b26a5f9ccc1d5` after it are documentation-only updates: live schema/deployment reconciliation, canonical plan baseline correction, and explicit requester lifecycle recovery scope. No application source changed in those documentation commits.
+
+On commit `13c5f501d142374e5a897983021ca4304e4a1bbc`, the backend suite passed **356 tests** with **65.07% coverage**; Ruff and Mypy passed; Dockerfile validation, Gitleaks, Python CodeQL, and the fake-backend Android UI APK passed. The Android quality job, debug APK validation, and Java/Kotlin CodeQL were cancelled when the next documentation-only commit was pushed. They are not counted as passing on that snapshot. The full Android and Java/Kotlin checks had passed on earlier implementation commit `673eb138e75dbf400d78bd57b785ffb3e93cccb8`, whose workflow runs are linked in section 17, but a final-head run is still required.
+
+At this snapshot, PR #227 remains open and mergeable, with zero unresolved inline review threads. CodeRabbit's latest submitted review remains `CHANGES_REQUESTED`; its automated check is skipped/neutral, not an approval. A fresh independent review of the final head is still required. No merge or production deployment was performed.
+
+This section is the final documentation change before the next full validation cycle; do not push additional commits until the new head's Android, backend, Docker, security, and CodeQL checks have completed.
