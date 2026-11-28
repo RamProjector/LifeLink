@@ -2112,7 +2112,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
      await refreshIfNeeded();
      if(generation!==securityNotificationGeneration||!accessToken||!securityNotificationCursor)return;
      const cursor=securityNotificationCursor;
-     const query="?after="+encodeURIComponent(cursor.created_at)+"&after_id="+encodeURIComponent(cursor.id)+"&limit=25";
+     const query=cursor.created_at?"?after="+encodeURIComponent(cursor.created_at)+"&after_id="+encodeURIComponent(cursor.id)+"&limit=25":"?limit=25";
      const data=await api("/v1/admin/security/notifications"+query);
      if(generation!==securityNotificationGeneration)return;
      if(!data||!Array.isArray(data.items)||!data.cursor)throw new Error("Invalid security notification response");
@@ -2140,13 +2140,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
        if(permission!=="granted"){$("browser-notifications-status").textContent=permission==="denied"?"Notifications blocked in browser settings":"Permission not granted";return;}
        securityNotificationGeneration++;
        const generation=securityNotificationGeneration;
-       securityNotificationCursor={created_at:new Date(Date.now()-5000).toISOString(),id:"00000000-0000-0000-0000-000000000000"};
+       securityNotificationCursor={created_at:null,id:"00000000-0000-0000-0000-000000000000"};
        $("browser-notifications-toggle").textContent="Disable browser notifications";
        $("browser-notifications-status").textContent="Starting…";
+       securityNotificationTimer=setInterval(()=>{if(generation===securityNotificationGeneration)pollSecurityNotifications();},60000);
        await pollSecurityNotifications();
-       if(generation===securityNotificationGeneration&&securityNotificationCursor&&accessToken){
-         securityNotificationTimer=setInterval(pollSecurityNotifications,60000);
-       }
+       if(generation!==securityNotificationGeneration){return;}
      } catch(error) {$("browser-notifications-status").textContent=safeError(error,"Browser notifications could not be enabled.");}
    });
  }
