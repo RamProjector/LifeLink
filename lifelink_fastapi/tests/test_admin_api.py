@@ -1370,7 +1370,7 @@ def test_admin_permission_guard_enforces_exact_active_role_permission(monkeypatc
     assert "LEFT JOIN lifelink_role_permissions rp" in permission_query
     assert "LEFT JOIN lifelink_permissions p" in permission_query
     assert "p.permission_key = :permission_key" in permission_query
-    assert "ur.expires_at > now()" in permission_query
+    assert "ur.expires_at > statement_timestamp()" in permission_query
 
 
 def test_admin_permission_guard_denies_missing_permission_and_records_ids08(monkeypatch):
