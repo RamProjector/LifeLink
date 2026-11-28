@@ -4,7 +4,7 @@
 **Repository:** `RamProjector/LifeLink`  
 **Implementation PR:** [#227 — Complete staged IDS/IPS authorization and scanner health](https://github.com/RamProjector/LifeLink/pull/227)  
 **Implementation branch:** `security/ids-ips-consolidated-completion`  
-**Verified implementation head:** `716f8fef5e75c4bca2af49197c3b1c1f29d7ad0d)
+**Verified implementation head:** `716f8fef5e75c4bca2af49197c3b1c1f29d7ad0d`
 
 This document records a read-only release-gate review. It does not authorize or perform a production deployment, database migration, privilege grant, RBAC assignment, Auth configuration change, or PR merge.
 
