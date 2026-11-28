@@ -104,9 +104,11 @@ def test_rbac_scanner_persists_sanitized_failure_and_retries(monkeypatch):
     assert "status = 'failed'" in sql
     assert "last_error_code = 'scan_failed'" in sql
     assert "last_failed_at = clock_timestamp()" in sql
-    assert "last_started_at, last_finished_at, last_failed_at" in sql
-    assert "clock_timestamp(), clock_timestamp(), clock_timestamp(), 'scan_failed'" in sql
-    assert "consecutive_failures = lifelink_security_scanner_runs.consecutive_failures + 1" in sql
+    assert "WHERE scanner_key = 'rbac' AND status = 'running'" in sql
+    assert "AND last_started_at = :scan_started_at" in sql
+    assert "UPDATE lifelink_security_scanner_runs SET status = 'failed'" in sql
+    assert "consecutive_failures = consecutive_failures + 1" in sql
+    assert "INSERT INTO lifelink_security_scanner_runs" not in sql
     assert "private row details" not in sql
     assert failed_session.committed is True
     assert scan_session.rolled_back is True
