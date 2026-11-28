@@ -2646,8 +2646,13 @@ async function loadUsers() {
       const failed=data.last_failed_at?new Date(data.last_failed_at).toLocaleString():"Never";
       const intervalSeconds=Math.max(60,Number(data.scan_interval_seconds)||300);
       const staleAfterMs=Math.max(120000,intervalSeconds*2000);
-      const runningTooLong=data.status==="running"&&(!Number.isFinite(startedAt)||(Date.now()-startedAt)>staleAfterMs);
-      const successTooOld=data.status==="succeeded"&&Number.isFinite(succeededAt)&&(Date.now()-succeededAt)>staleAfterMs;
+      // Freshness ages are calculated by PostgreSQL at response time. Do not
+      // compare server timestamps with the browser clock, which may be skewed.
+      const runningAgeSeconds=Number(data.running_age_seconds);
+      const successAgeSeconds=Number(data.success_age_seconds);
+      const staleAfterSeconds=Math.max(120,intervalSeconds*2);
+      const runningTooLong=data.status==="running"&&(!Number.isFinite(runningAgeSeconds)||runningAgeSeconds>staleAfterSeconds);
+      const successTooOld=data.status==="succeeded"&&(!Number.isFinite(successAgeSeconds)||successAgeSeconds>staleAfterSeconds);
       const isStale=runningTooLong||successTooOld;
       const displayStatus=isStale?"stale":data.status;
       const status=String(displayStatus).replace(/[^a-z_]/g,"");
