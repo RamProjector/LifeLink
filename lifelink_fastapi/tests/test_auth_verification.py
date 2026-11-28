@@ -17,8 +17,8 @@ from app.security import (
     Principal,
     _claim_says_unverified,
     _get_principal,
-    device_class,
     _has_verification_claim,
+    device_class,
     require_verified_email,
 )
 
