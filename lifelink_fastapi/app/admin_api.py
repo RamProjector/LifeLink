@@ -575,11 +575,14 @@ async def admin_list_users(
     result = await session.execute(
         text(
             "SELECT u.id::varchar AS user_id, COALESCE(u.email, p.email) AS email, "
-            "CASE WHEN NULLIF(to_jsonb(u)->>'deleted_at', '') IS NOT NULL THEN 'deleted' "
+            "CASE WHEN NOT (to_jsonb(u) ? 'deleted_at') OR NOT (to_jsonb(u) ? 'banned_until') THEN 'unknown' "
+            "WHEN NULLIF(to_jsonb(u)->>'deleted_at', '') IS NOT NULL THEN 'deleted' "
             "WHEN NULLIF(to_jsonb(u)->>'banned_until', '')::timestamptz > statement_timestamp() THEN 'banned' "
             "ELSE 'active' END AS account_state, "
-            "(NULLIF(to_jsonb(u)->>'email_confirmed_at', '') IS NOT NULL) AS email_confirmed, "
-            "(COALESCE(to_jsonb(u)->>'is_anonymous', 'false') = 'true') AS is_anonymous, "
+            "CASE WHEN to_jsonb(u) ? 'email_confirmed_at' "
+            "THEN NULLIF(to_jsonb(u)->>'email_confirmed_at', '') IS NOT NULL ELSE NULL END AS email_confirmed, "
+            "CASE WHEN to_jsonb(u) ? 'is_anonymous' "
+            "THEN COALESCE(to_jsonb(u)->>'is_anonymous', 'false') = 'true' ELSE NULL END AS is_anonymous, "
             "COALESCE(p.role::varchar, 'unconfigured') AS role, p.display_name, "
             "COALESCE(p.can_request, false) AS can_request, "
             "COALESCE(p.can_donate, false) AS can_donate, "
