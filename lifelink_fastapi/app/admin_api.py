@@ -726,7 +726,7 @@ async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, 
 async def _scan_rbac_role_policy_integrity(
     session: AsyncSession, principal: Principal, request: Request | None
 ) -> int:
-    """Check approved role policies independently of assignments and detect missing role rows."""
+    """Check the exact approved role registry, including missing and unapproved roles."""
     result = await session.execute(text(
         "SELECT r.role_key, "
         "COALESCE(array_agg(DISTINCT p.permission_key) FILTER (WHERE p.permission_key IS NOT NULL), ARRAY[]::varchar[]) AS permissions "
@@ -739,6 +739,7 @@ async def _scan_rbac_role_policy_integrity(
         row["role_key"]: set(row["permissions"] or [])
         for row in result.mappings().all()
     }
+    approved_role_keys = set(RBAC_APPROVED_PERMISSION_MATRIX)
     correlation_id = _correlation_id(request.headers.get("x-correlation-id")) if request else None
     count = 0
     for role_key, expected in RBAC_APPROVED_PERMISSION_MATRIX.items():
@@ -774,6 +775,46 @@ async def _scan_rbac_role_policy_integrity(
             count += 1
         else:
             # Close an active finding automatically once the approved policy is restored.
+            await session.execute(text(
+                "UPDATE lifelink_role_security_findings SET status = 'resolved', resolved_at = now() "
+                "WHERE rule_id = 'RBAC-03' AND role_key = :role_key "
+                "AND status IN ('open', 'acknowledged', 'investigating')"
+            ), {"role_key": role_key})
+
+    # The policy is an exact seven-role registry. An extra role definition is a
+    # finding even before anyone is assigned to it, so it cannot become an
+    # undocumented privilege path later.
+    for role_key in sorted(set(actual_by_role) - approved_role_keys):
+        evidence = {
+            "role_key": role_key,
+            "role_definition_unapproved": True,
+            "actual_permission_keys": sorted(actual_by_role[role_key]),
+        }
+        await session.execute(text(
+            "INSERT INTO lifelink_role_security_findings "
+            "(rule_id, role_key, severity, status, summary, evidence, occurrences, correlation_id) "
+            "VALUES ('RBAC-03', :role_key, 'high', 'open', "
+            "'Role definition is outside the approved seven-role registry', CAST(:evidence AS jsonb), 1, :correlation_id) "
+            "ON CONFLICT (rule_id, role_key) "
+            "WHERE status IN ('open', 'acknowledged', 'investigating') "
+            "DO UPDATE SET last_seen_at = now(), "
+            "occurrences = lifelink_role_security_findings.occurrences + CASE "
+            "WHEN lifelink_role_security_findings.evidence IS DISTINCT FROM EXCLUDED.evidence THEN 1 ELSE 0 END, "
+            "evidence = EXCLUDED.evidence, "
+            "correlation_id = COALESCE(EXCLUDED.correlation_id, lifelink_role_security_findings.correlation_id)"
+        ), {"role_key": role_key, "evidence": __import__("json").dumps(evidence),
+            "correlation_id": correlation_id})
+        count += 1
+
+    # Resolve unapproved-role findings only after the corresponding definition
+    # has actually disappeared from the registry.
+    existing_findings = await session.execute(text(
+        "SELECT role_key FROM lifelink_role_security_findings "
+        "WHERE rule_id = 'RBAC-03' AND status IN ('open', 'acknowledged', 'investigating')"
+    ))
+    for finding in existing_findings.mappings().all():
+        role_key = finding["role_key"]
+        if role_key not in approved_role_keys and role_key not in actual_by_role:
             await session.execute(text(
                 "UPDATE lifelink_role_security_findings SET status = 'resolved', resolved_at = now() "
                 "WHERE rule_id = 'RBAC-03' AND role_key = :role_key "
