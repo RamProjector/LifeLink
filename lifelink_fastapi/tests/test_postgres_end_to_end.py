@@ -16,8 +16,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from fastapi import Depends, HTTPException
 import pytest
+from fastapi import Depends, HTTPException
 from starlette.requests import Request
 
 ROOT = Path(__file__).resolve().parents[1]
