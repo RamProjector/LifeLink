@@ -254,6 +254,8 @@ def main() -> None:
         'id="scanner-health"' not in html
         or '"/v1/admin/security/scanner"' not in html
         or "async function loadScannerHealth()" not in html
+        or "runningTooLong" not in html
+        or "last_started_at" not in html
         or '@router.get("/security/scanner")' not in admin_api
         or "lifelink_security_scanner_runs" not in admin_api
         or "def require_admin_permission(" not in admin_api
