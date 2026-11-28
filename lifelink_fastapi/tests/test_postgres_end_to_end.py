@@ -12,12 +12,15 @@ from __future__ import annotations
 import asyncio
 import tempfile
 import uuid
+from pathlib import Path
 from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi import Depends, HTTPException
 from starlette.requests import Request
+
+ROOT = Path(__file__).resolve().parents[1]
 
 pgserver = pytest.importorskip("pgserver")
 
@@ -1458,10 +1461,10 @@ async def _prepare_three_role_migration_database(pg_url: str, *, legacy_assignme
         FROM public.lifelink_roles r
         JOIN public.lifelink_permissions p ON p.permission_key = ANY(
             CASE r.role_key
-                WHEN 'operations_admin' THEN ARRAY['dashboard.read','users.read','requests.read','operations.read','reports.read']
-                WHEN 'user_admin' THEN ARRAY['dashboard.read','users.read','users.update','users.suspend','roles.read']
-                WHEN 'security_admin' THEN ARRAY['dashboard.read','audit.read','security.alerts.read','security.alerts.manage','security.sessions.read','security.sessions.revoke']
-                WHEN 'auditor' THEN ARRAY['dashboard.read','audit.read','reports.read']
+                WHEN 'operations_admin' THEN ARRAY['dashboard.read','users.read','requests.read','operations.read','reports.read']::varchar[]
+                WHEN 'user_admin' THEN ARRAY['dashboard.read','users.read','users.update','users.suspend','roles.read']::varchar[]
+                WHEN 'security_admin' THEN ARRAY['dashboard.read','audit.read','security.alerts.read','security.alerts.manage','security.sessions.read','security.sessions.revoke']::varchar[]
+                WHEN 'auditor' THEN ARRAY['dashboard.read','audit.read','reports.read']::varchar[]
                 ELSE ARRAY[]::varchar[]
             END
         );
@@ -1477,7 +1480,6 @@ async def _prepare_three_role_migration_database(pg_url: str, *, legacy_assignme
 
 def test_three_product_role_migration_reconciles_real_postgres_registry(pg_url: str):
     import asyncio
-    import asyncpg
 
     async def check():
         connection = await _prepare_three_role_migration_database(pg_url, legacy_assignment=False)
