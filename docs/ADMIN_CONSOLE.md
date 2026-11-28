@@ -216,6 +216,8 @@ See `docs/IDS_IPS_COMPLETION_AUDIT_2026-11-27.md` for the criteria matrix, live 
 
 ## User inventory, role policy, and device telemetry (2026-11-28)
 
+The Audit activity page supports server-side exact-action, actor/user-ID, and correlation-ID filters; the personal `GET /v1/audit/me` endpoint remains scoped to the verified caller and does not accept a caller-selected actor ID.
+
 The paginated Admin Console user inventory starts from Supabase `auth.users`, joins optional `lifelink_profiles`, and aggregates only active/non-expired `lifelink_user_roles` with their mapped permissions. It includes users without profiles, total count, legacy capability flags, active role keys, and effective permission keys. Missing-profile accounts remain visible but capability mutation buttons are unavailable until a profile exists.
 
 The seven-role administrative permission policy is explicit: requester and donor have no administrative permission grants and continue using application capability/ownership checks; four administrative roles use their exact reviewed permission matrices; super_admin has no ordinary permission-map grants and remains gated by both the ordinary admin allowlist and separate RBAC-manager allowlist. The independent scanner checks all seven policies.
