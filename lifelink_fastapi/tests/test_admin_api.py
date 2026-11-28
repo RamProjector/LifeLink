@@ -1654,12 +1654,11 @@ def test_admin_security_notification_feed_rejects_timezone_naive_cursor():
     asyncio.run(check())
 
 
-def test_super_admin_permission_requires_separate_rbac_manager_allowlist(monkeypatch):
+def test_admin_permission_enforcement_uses_single_admin_product_role(monkeypatch):
     from app import admin_api
 
     monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "enforce")
     monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
-    monkeypatch.setenv("LIFELINK_RBAC_MANAGER_USER_IDS", "admin-1")
     session = FakeSession([0, 2, 1])
 
     async def check():
@@ -1668,25 +1667,23 @@ def test_super_admin_permission_requires_separate_rbac_manager_allowlist(monkeyp
             subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
         )
         await admin_api.require_admin(request=request, principal=principal, session=session)
-        principal = await admin_api.require_admin_permission("settings.update")(
+        principal = await admin_api.require_admin_permission("security.alerts.read")(
             request=request, principal=principal, session=session
         )
         assert principal.subject == "admin-1"
 
     asyncio.run(check())
     query = session.scalar_statements[-1]
-    params = session.scalar_parameters[-1]
-    assert "r.role_key = 'super_admin' AND :is_rbac_manager" in query
+    assert "r.role_key = 'admin'" in query
     assert "p.permission_key = :permission_key" in query
-    assert params["is_rbac_manager"] is True
+    assert "super_admin" not in query
 
 
-def test_super_admin_permission_is_not_granted_without_rbac_manager_allowlist(monkeypatch):
+def test_admin_permission_is_denied_without_an_active_admin_role_grant(monkeypatch):
     from app import admin_api
 
     monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "enforce")
     monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
-    monkeypatch.delenv("LIFELINK_RBAC_MANAGER_USER_IDS", raising=False)
     session = FakeSession([0, 2, 0])
     recorded = {}
 
@@ -1702,13 +1699,14 @@ def test_super_admin_permission_is_not_granted_without_rbac_manager_allowlist(mo
         )
         await admin_api.require_admin(request=request, principal=principal, session=session)
         with pytest.raises(HTTPException) as error:
-            await admin_api.require_admin_permission("settings.update")(
+            await admin_api.require_admin_permission("security.alerts.read")(
                 request=request, principal=principal, session=session
             )
         assert error.value.status_code == 403
 
     asyncio.run(check())
-    assert session.scalar_parameters[-1]["is_rbac_manager"] is False
+    assert "r.role_key = 'admin'" in session.scalar_statements[-1]
+    assert "is_rbac_manager" not in session.scalar_statements[-1]
     assert recorded["rule_id"] == "IDS-08"
 
 
