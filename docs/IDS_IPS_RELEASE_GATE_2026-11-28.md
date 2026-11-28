@@ -364,3 +364,18 @@ Keep `LIFELINK_RBAC_ENFORCEMENT_MODE=observe`. Do not apply migrations 021–023
 The product role requirement is exactly **Requester, Blood Donor, and Admin**. The earlier RBAC registry design in migration 020 introduced administrator subroles and super_admin, which are not approved product roles. The PR branch now adds migration 024 to normalize the registry to requester, donor, and admin, moves the reviewed administrative permission set under the single admin role, and refuses to remove legacy role definitions while any assignments remain. The API permission guard and RBAC-03 policy have been updated to the three-role model.
 
 Migration 024 has **not** been applied to production. The prior read-only snapshot reported zero role assignments, but that must be rechecked immediately before any migration. If assignments exist, migration 024 intentionally aborts; do not force it or delete assignment records. Keep RBAC in observe mode until non-production migration, assignment, and route verification pass.
+
+
+## Fresh read-only Supabase role and migration verification — 2026-11-28
+
+The connected LifeLink project was rechecked read-only after migration 024 was added to the branch:
+
+- Project status: ACTIVE_HEALTHY.
+- Live role registry still contains the seven historical definitions from migration 020: requester, donor, super_admin, security_admin, operations_admin, user_admin, and auditor.
+- All seven role definitions currently have **zero user-role assignments**.
+- Requester, donor, and super_admin currently have zero administrative permission mappings.
+- The four historical administrative role definitions collectively map to exactly 13 distinct permission keys. This set matches the reviewed permission union now assigned to the single admin role by branch migration 024.
+- The migration ledger reports 007_donor_map_chat_contact_sharing and 020_rbac_role_permission_registry. Migrations 021–024 are not recorded as applied in the live migration ledger.
+- Migration 024 has **not** been applied. No production role definitions, role assignments, permission mappings, grants, or user records were changed by this verification.
+
+The current zero-assignment result means migration 024's legacy-assignment guard is expected to pass if the database remains unchanged, but it must be rechecked immediately before any deployment. The migration is still not authorized for production application by this read-only verification. Keep RBAC in observe mode.
