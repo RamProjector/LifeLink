@@ -176,6 +176,17 @@ def main() -> None:
     ):
         fail("overview must visualize validated live dashboard totals with an accessible chart")
 
+    if (
+        "FROM auth.users u" not in admin_api
+        or "LEFT JOIN lifelink_user_roles ur" not in admin_api
+        or "LEFT JOIN lifelink_role_permissions rp" not in admin_api
+        or "array_agg(DISTINCT perm.permission_key" not in admin_api
+        or "RBAC roles & permissions" not in html
+        or "effective permissions" not in html
+        or "u.has_profile?" not in html
+    ):
+        fail("user inventory must include every Auth account, active RBAC roles/permissions, and profile-safe capability controls")
+
     if "data-table-export" not in html or "URL.createObjectURL(blob)" not in html:
         fail("admin data tables must provide client-side CSV export")
     if "const csvCell" not in html or "rows.filter(row=>!row.hidden)" not in html:
