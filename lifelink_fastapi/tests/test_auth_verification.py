@@ -111,6 +111,8 @@ def test_get_profile_allows_verified_principal_past_the_gate():
         ("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)", "macOS device"),
         ("Mozilla/5.0 (X11; Linux x86_64)", "Linux device"),
         ("okhttp/4.12.0", "Unknown device"),
+        ("axios/1.7.0", "Unknown device"),
+        ("iOS app", "iOS device"),
         ("", "Unknown device"),
         (None, "Unknown device"),
     ],
