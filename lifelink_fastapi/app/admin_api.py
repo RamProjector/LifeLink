@@ -182,7 +182,7 @@ def require_admin_permission(permission_key: str):
                 "AND r.role_key IN ('operations_admin', 'user_admin', 'security_admin', 'auditor', 'super_admin') "
                 "AND ((r.role_key = 'super_admin' AND :is_rbac_manager) "
                 "OR (r.role_key <> 'super_admin' AND p.permission_key = :permission_key)) "
-                "AND (ur.expires_at IS NULL OR ur.expires_at > now())"
+                "AND (ur.expires_at IS NULL OR ur.expires_at > statement_timestamp())"
                 ")"
             ),
             {
@@ -896,14 +896,15 @@ async def admin_security_scanner_health(
 @router.get("/security/notifications")
 async def admin_security_notifications(
     request: Request,
-    after: datetime = Query(...),
+    after: datetime | None = Query(default=None),
     after_id: UUID = Query(default=UUID(int=0)),
     limit: int = Query(default=25, ge=1, le=50),
     session: AsyncSession = Depends(get_db_session),
     principal: Principal = Depends(require_admin_permission("security.alerts.read")),
 ):
     """Return only new, non-sensitive alert metadata for opt-in browser notifications."""
-    if after.tzinfo is None or after.utcoffset() is None:
+    effective_after = after or datetime.now(timezone.utc)
+    if effective_after.tzinfo is None or effective_after.utcoffset() is None:
         raise HTTPException(status_code=422, detail="Notification cursor must include a timezone")
     result = await session.execute(
         text(
@@ -916,7 +917,7 @@ async def admin_security_notifications(
             ") AS new_events WHERE (created_at, id) > (:after, :after_id) "
             "ORDER BY created_at ASC, id ASC LIMIT :limit"
         ),
-        {"after": after, "after_id": str(after_id), "limit": limit},
+        {"after": effective_after, "after_id": str(after_id), "limit": limit},
     )
     rows = result.mappings().all()
     items = [
@@ -931,7 +932,7 @@ async def admin_security_notifications(
     ]
     cursor = (
         {"created_at": rows[-1]["created_at"], "id": rows[-1]["id"]}
-        if rows else {"created_at": after, "id": str(after_id)}
+        if rows else {"created_at": effective_after, "id": str(after_id)}
     )
     if items:
         await _write_audit(
