@@ -35,7 +35,7 @@ BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
         REVOKE ALL ON TABLE lifelink_role_security_findings FROM authenticated;
     END IF;
-END
+END;
 $role_guard$;
 
 COMMIT;
