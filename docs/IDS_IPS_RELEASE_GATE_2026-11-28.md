@@ -379,3 +379,64 @@ The connected LifeLink project was rechecked read-only after migration 024 was a
 - Migration 024 has **not** been applied. No production role definitions, role assignments, permission mappings, grants, or user records were changed by this verification.
 
 The current zero-assignment result means migration 024's legacy-assignment guard is expected to pass if the database remains unchanged, but it must be rechecked immediately before any deployment. The migration is still not authorized for production application by this read-only verification. Keep RBAC in observe mode.
+
+
+## 14. Superseding scanner-run guard, RBAC observe-mode disclosure, and exact-head validation — 2026-11-28
+
+This section supersedes earlier head, CI, role-registry, and review-state snapshots where they differ. It does not authorize production rollout.
+
+### Additional scanner lifecycle hardening
+
+The successful RBAC scanner completion update now uses the same run-identity guard as the failure update. It writes success only while the persisted health row remains `status = 'running'` and `last_started_at` matches that scan's own start timestamp. This prevents a late/stale completion from overwriting a newer run's status if the advisory-lock transaction boundary is ever changed or interrupted. A regression assertion checks the success update's state and run-identity predicate.
+
+The failure path retains its existing matching-run guard, sanitized `scan_failed` code, completion timestamps, and consecutive-failure increment. No scanner health table was created in production; migration 022 remains unapplied.
+
+### Observe-mode authorization disclosure
+
+`SECURITY.md` now explicitly documents the staged authorization boundary: `observe` preserves the allowlist, verified session, AAL2, and two-verified-TOTP gates but does not use the permission map as an access-denial gate. Thus, an allowlisted administrator may pass operational route checks in observe mode without an exact permission-map row. In `enforce`, only an active assignment to the single `admin` role with the exact route permission satisfies the RBAC check; legacy `super_admin` does not. The RBAC-manager allowlist is separate and protects role assignment, not ordinary operational route access.
+
+### Fresh read-only Supabase snapshot
+
+The connected LifeLink project `nphbhlxnujmylhubzmne` was queried read-only on 2026-11-28:
+
+- Project state: `ACTIVE_HEALTHY`; PostgreSQL 17.6.1.166.
+- Role definitions: 7 (the historical requester, donor, super_admin, security_admin, operations_admin, user_admin, and auditor keys).
+- User-role assignments: 0.
+- Permission definitions: 19; role-permission mappings: 19.
+- Requester and donor have zero administrative permission mappings.
+- The four historical administrative role mappings collectively contain the 13 distinct permissions intended for the single Admin role.
+- The Supabase migration history lists `007_donor_map_chat_contact_sharing` and `020_rbac_role_permission_registry`; branch migrations 021–024 remain unapplied.
+- The SQL inspection connection reported `current_user = postgres` and `session_user = postgres`. This identifies only the Supabase inspection connection and is not evidence of the Render API's runtime role.
+
+No production rows, schema, grants, role definitions, role assignments, Auth settings, or deployments were changed.
+
+### Exact-head CI
+
+**Validated implementation head:** `9ea3770699c4ec26ab8454462f2c5bdd7ee7213d`.
+
+All five required PR-triggered workflows passed on this exact head:
+
+| Workflow | Run | Result |
+|---|---:|---|
+| Validate cloud package (backend, lint, Docker, Admin Console/CSP, Android quality gate) | [#46128334291](https://github.com/RamProjector/LifeLink/actions/runs/46128334291) | Passed |
+| Android UI test APK (fake backend) | [#46128334236](https://github.com/RamProjector/LifeLink/actions/runs/46128334236) | Passed |
+| Build Android APKs | [#46128334247](https://github.com/RamProjector/LifeLink/actions/runs/46128334247) | Passed |
+| CodeQL (Python and Java/Kotlin) | [#46128334266](https://github.com/RamProjector/LifeLink/actions/runs/46128334266) | Passed |
+| Security scan / Gitleaks | [#46128334293](https://github.com/RamProjector/LifeLink/actions/runs/46128334293) | Passed |
+
+Backend/PostgreSQL suite: **354 passed**, one upstream Starlette/AnyIO deprecation warning, approximately **65% coverage**. Ruff, mypy, Android lint/Detekt/Spotless/unit tests/debug build, Admin website and CSP validation, Docker build, RLS decision validation, Gitleaks, and both CodeQL language analyses passed.
+
+Artifacts generated from this exact head (available until 2026-12-12):
+- Android APK archive: [artifact #15257156017](https://github.com/RamProjector/LifeLink/actions/runs/46128334247), SHA-256 `fa4463ecaaf51148c666aef5218f5ef82e27fbaaeee1137c881cfe61d888180f`.
+- Android validation report: [artifact #15257116131](https://github.com/RamProjector/LifeLink/actions/runs/46128334247), SHA-256 `0f5f3d840dffeb36efeaa4e372dd4e0269853478f644d1c8bc170f528b9adaa0`.
+- Fake-backend UI APK: [artifact #15256886684](https://github.com/RamProjector/LifeLink/actions/runs/46128334236), SHA-256 `2b9087df787d8b6c9c2bbd75f3f4ecdb5fc28b19d3ac38d1faf512c94abe0cfe`.
+
+These are CI artifacts, not signed production releases or physical-device acceptance evidence.
+
+### PR and release disposition
+
+PR #227 remains open and unmerged. The exact head is on `security/ids-ips-consolidated-completion`, targeting `main`. All 15 inline review threads are resolved; the previously submitted CodeRabbit review remains `CHANGES_REQUESTED`, and a fresh review has not yet cleared that state. Do not merge solely because inline threads are resolved or CI is green.
+
+The actual Render API database role remains unverified. Migration 024 is not applied. Keep RBAC in `observe`. Non-production migration/assignment/enforcement tests, MFA backup/recovery rehearsals, deployed scanner lifecycle verification, manual browser/Android acceptance, independent review, and explicit production deployment/merge approval remain release gates.
+
+No production migration, grant, role assignment, Auth configuration change, deployment, or merge was performed in this verification.
