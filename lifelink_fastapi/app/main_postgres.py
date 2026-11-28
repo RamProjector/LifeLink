@@ -200,8 +200,13 @@ async def _scan_rbac_discrepancies_forever() -> None:
                         "last_finished_at = clock_timestamp(), last_succeeded_at = clock_timestamp(), "
                         "last_findings = :findings, last_duration_ms = :duration_ms, "
                         "consecutive_failures = 0, last_error_code = NULL, updated_at = clock_timestamp() "
-                        "WHERE scanner_key = 'rbac'"
-                    ), {"findings": max(0, int(findings)), "duration_ms": duration_ms})
+                        "WHERE scanner_key = 'rbac' AND status = 'running' "
+                        "AND last_started_at = :scan_started_at"
+                    ), {
+                        "findings": max(0, int(findings)),
+                        "duration_ms": duration_ms,
+                        "scan_started_at": scan_started_at,
+                    })
                     await session.commit()
                     logger.info(
                         "RBAC discrepancy scan completed; findings=%s duration_ms=%s",
