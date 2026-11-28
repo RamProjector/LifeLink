@@ -1137,7 +1137,7 @@ async def admin_audit_logs(
     # Record the read before selecting the page; no endpoint permits audit mutation or deletion.
     await _write_audit(session, principal.subject, "admin.audit.read", request=request, session_id=principal.session_id, session_expires_at=principal.session_expires_at, target_type="audit_log",
                        correlation_id=_correlation_id(x_correlation_id),
-                       metadata={"limit": limit, "offset": offset, "filtered": bool(action or actor_id or correlation_id)})
+                       metadata={"limit": limit, "offset": offset, "filtered": any(value is not None for value in (action, actor_id, correlation_id))})
     query = (
         "SELECT id, log_id, actor_id, action, actions, description, session_id, ip_address, timestamp, device_used, "
             "metadata, created_at, outcome, target_type, target_id, correlation_id "
