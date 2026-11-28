@@ -90,7 +90,6 @@ Operational admin routes now use permission-specific dependency guards. The guar
 | `GET /v1/admin/me`, dashboard | `dashboard.read` |
 | `GET /v1/admin/users` | `users.read` (includes the effective RBAC role keys and mapped administrative-permission summary in the directory; full role registry and per-user assignment details remain `roles.read`) |
 
-The approved disclosure scope for `users.read` includes the account/profile fields plus a read-only summary of each account’s active RBAC role keys and mapped administrative permission keys in the user directory. It does not permit listing the full role registry or retrieving assignment timestamps/expiry details; those remain behind `roles.read`. This makes the `/users` summary an explicit part of the `users.read` permission contract rather than an accidental bypass of the dedicated role-detail route.
 | `PATCH /v1/admin/users/{user_id}` | `users.update` |
 | `GET /v1/admin/security/role-integrity`, audit, errors | `audit.read` |
 | `GET /v1/admin/security/alerts`, scanner health, browser notification feed | `security.alerts.read` |
@@ -99,6 +98,8 @@ The approved disclosure scope for `users.read` includes the account/profile fiel
 | `POST /v1/admin/sessions/{session_id}/revoke` | `security.sessions.revoke` |
 | `GET /v1/admin/roles`, user-role reads | `roles.read` |
 | `PUT /v1/admin/users/{user_id}/roles` | Separate `LIFELINK_RBAC_MANAGER_USER_IDS` allowlist and applicability checks |
+
+The approved disclosure scope for `users.read` includes the account/profile fields plus a read-only summary of each account’s active RBAC role keys and mapped administrative permission keys in the user directory. It does not permit listing the full role registry or retrieving assignment timestamps/expiry details; those remain behind `roles.read`. This makes the `/users` summary an explicit part of the `users.read` permission contract rather than an accidental bypass of the dedicated role-detail route.
 
 Do not change the backend mode to `enforce` until all current administrators have approved role assignments and the exact role-to-route matrix has passed non-production verification. The current seed has no dedicated manager-role grant for `roles.assign`, so the separate RBAC-manager safeguard remains authoritative for role assignment.
 
