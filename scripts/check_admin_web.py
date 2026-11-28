@@ -182,7 +182,7 @@ def main() -> None:
         or "LEFT JOIN lifelink_role_permissions rp" not in admin_api
         or "array_agg(DISTINCT perm.permission_key" not in admin_api
         or "RBAC roles & permissions" not in html
-        or "effective permissions" not in html
+        or "mapped admin grants" not in html
         or "u.has_profile?" not in html
     ):
         fail("user inventory must include every Auth account, active RBAC roles/permissions, and profile-safe capability controls")
