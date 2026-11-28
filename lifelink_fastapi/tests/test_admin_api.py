@@ -1164,7 +1164,7 @@ def test_rbac_scanner_runs_without_http_request_context():
                 return Rows([
                     {"role_key": "requester", "permissions": []},
                     {"role_key": "donor", "permissions": []},
-                    {"role_key": "admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "requests.read", "operations.read", "communications.metadata.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke", "roles.read", "reports.read"]},
+                    {"role_key": "admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "requests.read", "operations.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke", "roles.read", "reports.read"]},
                 ])
             return Rows([])
 
