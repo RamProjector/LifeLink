@@ -667,11 +667,14 @@ async def admin_update_user(
 RBAC_APPROVED_PERMISSION_MATRIX = {
     "requester": frozenset(),
     "donor": frozenset(),
-    "super_admin": frozenset(),
-    "operations_admin": frozenset({"dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"}),
-    "user_admin": frozenset({"dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"}),
-    "security_admin": frozenset({"dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"}),
-    "auditor": frozenset({"dashboard.read", "audit.read", "reports.read"}),
+    # One Admin product role; administrative areas are permissions, not roles.
+    "admin": frozenset({
+        "dashboard.read", "users.read", "users.update", "users.suspend",
+        "requests.read", "operations.read", "communications.metadata.read",
+        "audit.read", "security.alerts.read", "security.alerts.manage",
+        "security.sessions.read", "security.sessions.revoke", "roles.read",
+        "reports.read",
+    }),
 }
 
 
@@ -1236,7 +1239,7 @@ def _require_rbac_manager(principal: Principal) -> None:
 
 def _role_mismatch_reason(role_key: str, user_id: str, profile: dict | None) -> str | None:
     """Return why a role is not applicable to an account, if it is not."""
-    admin_roles = {"super_admin", "security_admin", "operations_admin", "user_admin", "auditor"}
+    admin_roles = {"admin"}
     if role_key == "requester":
         return None if profile and profile.get("can_request") else "requester_capability_missing"
     if role_key == "donor":
@@ -1244,8 +1247,6 @@ def _role_mismatch_reason(role_key: str, user_id: str, profile: dict | None) -> 
     if role_key in admin_roles:
         if user_id not in _configured_admin_ids():
             return "account_not_in_admin_allowlist"
-        if role_key == "super_admin" and user_id not in _configured_rbac_manager_ids():
-            return "super_admin_requires_rbac_manager_allowlist"
         return None
     return "role_has_no_applicability_policy"
 
@@ -1274,7 +1275,7 @@ async def _record_rbac_mismatch(session, principal, request: Request | None, use
 class AdminUserRolesUpdate(BaseModel):
     # An empty list is a deliberate revoke-all operation; it must remain possible
     # to remove stale or excessive role assignments without assigning a replacement.
-    role_keys: list[str] = Field(max_length=8)
+    role_keys: list[str] = Field(max_length=3)
 
 
 @router.get("/roles")
