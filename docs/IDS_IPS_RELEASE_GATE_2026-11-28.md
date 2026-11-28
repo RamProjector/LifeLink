@@ -124,3 +124,18 @@ Before declaring IDS/IPS complete or merging the PR, complete these gates:
 ## 6. Explicit safety state
 
 The only production write during this verification was the additive restoration of the 20 user-requested demo audit examples described above. No deployment, migration application, privilege grant, RBAC assignment, Auth configuration change, or destructive cleanup was performed during this verification. RBAC enforcement remains in observe mode; no administrator assignments were created; and PR #227 remains draft, open, and unmerged.
+
+
+## 7. Additional Render/runtime correlation check — 2026-11-28
+
+A further read-only check was made after the final CI run:
+
+- Render workspace service inventory confirms the LifeLink API service is `srv-dalugdbl550s73chtsfg`, rooted at `lifelink_fastapi/`, running `uvicorn app.main_postgres:app`, on the Free plan in Singapore, with one instance, and automatic deployment from `main`.
+- The LifeLink API's latest live Render deployment remains `3205ed4eb9eba307eeb94ab7aa8d420d83376e0a` (PR #226). The Admin Console static site also auto-deploys from `main`. PR #227 is not deployed.
+- The recent Render application log sample contained routine `GET /health` 200 responses and a normal process shutdown. A filtered search for `permission denied`, `auth.users`, `lifelink_security_scanner_runs`, `RBAC discrepancy scan`, and `database connection` returned no matching records in the queried window. This is not proof that those code paths were exercised; the candidate PR is not deployed.
+- A read-only `pg_stat_activity` snapshot on the connected Supabase project showed only internal Supabase/PostgREST/pgbouncer/exporter/cron connections. It did not identify a Render API connection, a Render-specific application name, or a Render client address. No role can therefore be attributed to the running API from this snapshot.
+- The Render service metadata endpoint does not return environment-variable names or values, and this review did not read or expose secrets. Do not use a guessed `DATABASE_URL` or a guessed connection role to test Auth-schema privileges.
+
+**Conclusion:** The Render runtime database identity remains unverified. This is an evidence limitation, not evidence of a permission failure or success. The next valid test must execute a read-only identity query from the actual API runtime (for example, a tightly scoped, authenticated internal diagnostic that returns only `current_user` and `session_user`, never a DSN, password, host, or token), then verify the minimum required Auth-schema reads for that exact role. Do not add a public unauthenticated endpoint or expose connection details. Prefer a staging deployment and remove the diagnostic after the check.
+
+The PR was changed from draft to ready-for-review after all five workflows passed. A fresh `/review` request was posted. No independent review result had been received at the time this note was written. This does not authorize merge or production deployment.
