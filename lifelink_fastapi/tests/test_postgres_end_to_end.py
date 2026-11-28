@@ -1384,6 +1384,28 @@ def test_admin_security_alert_correlation_filter_matches_persisted_alert(pg_url,
         assert response["items"][0]["correlation_id"] == (
             "alert-correlation-pg-test"
         )
+
+        # Exercise both nullable filter parameters together. This reproduces
+        # the production request shape when the Admin Console opens the alerts
+        # page without a status or correlation filter.
+        async with sessions() as db_session:
+            unfiltered = await admin_api.admin_security_alerts(
+                request=request,
+                session=db_session,
+                principal=Principal(
+                    subject="admin-user",
+                    email="admin@example.com",
+                    session_id="admin-session-pg-test",
+                ),
+                limit=50,
+                offset=0,
+                alert_status=None,
+                correlation_id=None,
+                x_correlation_id="list-alerts-unfiltered-pg-test",
+            )
+
+        assert len(unfiltered["items"]) == 1
+        assert unfiltered["items"][0]["rule_id"] == "AUTH-TEST"
         await engine.dispose()
 
     run_scenario(pg_url, scenario)
