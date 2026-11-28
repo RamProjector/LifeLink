@@ -220,7 +220,7 @@ The Audit activity page supports server-side exact-action, actor/user-ID, and co
 
 The paginated Admin Console user inventory starts from Supabase `auth.users`, joins optional `lifelink_profiles`, and aggregates only active/non-expired `lifelink_user_roles` with their mapped permissions. It includes users without profiles, total count, legacy capability flags, active role keys, and effective permission keys. Missing-profile accounts remain visible but capability mutation buttons are unavailable until a profile exists.
 
-The seven-role administrative permission policy is explicit: requester and donor have no administrative permission grants and continue using application capability/ownership checks; four administrative roles use their exact reviewed permission matrices; super_admin has no ordinary permission-map grants and remains gated by both the ordinary admin allowlist and separate RBAC-manager allowlist. The independent scanner checks all seven policies.
+The product role registry contains exactly requester, donor, and admin. Requester and donor have no administrative permission grants and continue using application capability, ownership, consent, and participant checks. All administrative functional areas are permissions under the single admin role. The independent scanner checks the exact three-role registry and detects unapproved extra role definitions.
 
 Audit/session `device_used` stores a coarse platform label rather than the raw User-Agent string or browser/model version. Forwarded IP headers remain untrusted until the deployed proxy chain is verified.
 
