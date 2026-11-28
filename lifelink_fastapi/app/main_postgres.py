@@ -221,12 +221,12 @@ async def _scan_rbac_discrepancies_forever() -> None:
                         "INSERT INTO lifelink_security_scanner_runs "
                         "(scanner_key, status, last_started_at, last_finished_at, last_failed_at, "
                         "last_error_code, consecutive_failures, updated_at) "
-                        "VALUES ('rbac', 'failed', now(), now(), now(), 'scan_failed', 1, now()) "
+                        "VALUES ('rbac', 'failed', clock_timestamp(), clock_timestamp(), clock_timestamp(), 'scan_failed', 1, clock_timestamp()) "
                         "ON CONFLICT (scanner_key) DO UPDATE SET status = 'failed', "
-                        "last_started_at = now(), last_finished_at = now(), last_failed_at = now(), "
+                        "last_finished_at = clock_timestamp(), last_failed_at = clock_timestamp(), "
                         "last_error_code = 'scan_failed', "
                         "consecutive_failures = lifelink_security_scanner_runs.consecutive_failures + 1, "
-                        "updated_at = now()"
+                        "updated_at = clock_timestamp()"
                     ))
                     await health_session.commit()
             except asyncio.CancelledError:
