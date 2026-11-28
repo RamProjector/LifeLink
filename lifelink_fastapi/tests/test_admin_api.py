@@ -1608,6 +1608,7 @@ def test_admin_security_notification_feed_returns_only_safe_event_metadata(monke
 def test_admin_security_notification_feed_uses_server_time_when_cursor_is_omitted():
     from datetime import datetime, timezone
     from uuid import UUID
+
     from app import admin_api
 
     database_now = datetime(2026, 11, 28, 3, 45, tzinfo=timezone.utc)
