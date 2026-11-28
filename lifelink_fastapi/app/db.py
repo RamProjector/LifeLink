@@ -87,6 +87,16 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 async def create_all_tables() -> None:
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+        # Index the RBAC assignment actor foreign key. Guard the startup path
+        # because a fresh database may not have applied the RBAC registry yet.
+        rbac_user_roles_exists = await connection.scalar(text(
+            "SELECT to_regclass('public.lifelink_user_roles') IS NOT NULL"
+        ))
+        if rbac_user_roles_exists:
+            await connection.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_lifelink_user_roles_assigned_by "
+                "ON public.lifelink_user_roles (assigned_by)"
+            ))
         # create_all() creates new tables but does not add columns to tables that
         # already exist. Keep the requester location-source upgrade here as well
         # as sql/014_requester_location_source.sql so existing Render databases
