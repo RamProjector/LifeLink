@@ -15,14 +15,24 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import AsyncSessionLocal, create_all_tables, get_db_session
-from .db_models import AuditEvent, Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum, Message
+from .db_models import (
+    AuditEvent,
+    Conversation,
+    Donor as DonorRow,
+    EmergencyRequest as EmergencyRequestRow,
+    Facility,
+    LifeLinkProfile,
+    LifeLinkRoleEnum,
+    Message,
+    RequestStatusEnum,
+)
 from .fcm import send_push_safely
 from .main import (
     EmergencyRequestIn,
@@ -810,7 +820,56 @@ async def create_emergency_request_postgres(
             notifications_created=0,
         )
 
+    # Idempotency locks protect retries of one key; this separate requester lock
+    # serializes distinct request intents from the same account across API workers.
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"),
+        {"lock_key": f"lifelink:requester-active-request:{principal.subject}"},
+    )
     now = datetime.now(timezone.utc)
+
+    # Expire overdue requests under the same transaction and lock before
+    # enforcing the one-active-request rule. Keep the lock until the new request
+    # and its audit event commit, so a concurrent create cannot slip between
+    # expiry and insertion.
+    expired_result = await session.execute(
+        update(EmergencyRequestRow)
+        .where(
+            EmergencyRequestRow.requester_id == principal.subject,
+            EmergencyRequestRow.status.in_(
+                [RequestStatusEnum(value) for value in ACTIVE_REQUEST_STATUSES]
+            ),
+            EmergencyRequestRow.response_deadline <= now,
+        )
+        .values(status=RequestStatusEnum.EXPIRED, updated_at=now)
+        .returning(EmergencyRequestRow.id)
+    )
+    expired_request_ids = list(expired_result.scalars().all())
+    if expired_request_ids:
+        await store.close_expired_request_children_async(expired_request_ids, now)
+
+    active_request_id = await session.scalar(
+        select(EmergencyRequestRow.id)
+        .where(
+            EmergencyRequestRow.requester_id == principal.subject,
+            EmergencyRequestRow.status.in_(
+                [RequestStatusEnum(value) for value in ACTIVE_REQUEST_STATUSES]
+            ),
+            EmergencyRequestRow.response_deadline > now,
+        )
+        .order_by(EmergencyRequestRow.created_at.desc())
+        .limit(1)
+        .with_for_update()
+    )
+    if active_request_id is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "active_request_exists: You already have an active blood request. "
+                "Manage or close it before creating another."
+            ),
+        )
+
     request_id = f"req_{uuid4().hex}"
     donor_repository = SqlAlchemyDonorRepository(session)
     donors = await donor_repository.list_active_donors(excluded_user_id=principal.subject)
