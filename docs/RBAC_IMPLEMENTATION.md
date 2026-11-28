@@ -88,7 +88,7 @@ Operational admin routes now use permission-specific dependency guards. The guar
 | Route | Permission in enforce mode |
 |---|---|
 | `GET /v1/admin/me`, dashboard | `dashboard.read` |
-| `GET /v1/admin/users` | `users.read` |
+| `GET /v1/admin/users` | `users.read` (includes the effective RBAC role keys and mapped administrative-permission summary in the directory; full role registry and per-user assignment details remain `roles.read`) |
 | `PATCH /v1/admin/users/{user_id}` | `users.update` |
 | `GET /v1/admin/security/role-integrity`, audit, errors | `audit.read` |
 | `GET /v1/admin/security/alerts`, scanner health, browser notification feed | `security.alerts.read` |
