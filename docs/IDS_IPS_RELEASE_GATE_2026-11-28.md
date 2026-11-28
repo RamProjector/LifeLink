@@ -33,11 +33,13 @@ The connected LifeLink database was inspected using read-only queries on 2026-11
 | Registered RBAC roles | 7 |
 | Permission definitions | 19 |
 | Role-permission mappings | 19 |
-| Active user-role assignments | 0 |
+| User-role assignment rows | 0 |
 | Security alerts | 0 |
-| Observed application sessions | 24 |
+| Session registry rows | 25 |
+| Active session rows | 1 |
+| Audit event rows | 373 |
 
-The RBAC registry is populated, but no user has an active registry assignment. Keep `LIFELINK_RBAC_ENFORCEMENT_MODE=observe` until an explicitly approved, audited bootstrap process provisions and verifies the intended administrators in a non-production environment. Do not infer administrator access from public signup or client-editable profile metadata.
+The seven-role registry currently maps administrative permissions as follows: `operations_admin` 5, `user_admin` 5, `security_admin` 6, and `auditor` 3. `requester`, `donor`, and `super_admin` each have zero ordinary mapped administrative permissions.\n\nThe RBAC registry is populated, but no user has an active registry assignment. Keep `LIFELINK_RBAC_ENFORCEMENT_MODE=observe` until an explicitly approved, audited bootstrap process provisions and verifies the intended administrators in a non-production environment. Do not infer administrator access from public signup or client-editable profile metadata.
 
 The role-scoped findings table exists. The new `lifelink_security_scanner_runs` health table did not exist in the live database at the time of this check. The implementation branch contains both migration `022_security_scanner_health.sql` and an idempotent startup schema path. The scanner-health table should therefore be verified after an approved deployment; it must not be described as already live.
 
