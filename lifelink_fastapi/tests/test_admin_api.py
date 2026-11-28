@@ -742,6 +742,8 @@ def test_admin_audit_query_explicitly_types_nullable_action_filter():
             self.statements.append(sql)
             if "FROM audit_events WHERE" in sql:
                 assert params["action"] is None
+                assert params["actor_id"] == "user-42"
+                assert params["correlation_id"] is None
                 return EmptyRows()
             return None
 
@@ -755,6 +757,8 @@ def test_admin_audit_query_explicitly_types_nullable_action_filter():
             limit=50,
             offset=0,
             action=None,
+            actor_id="user-42",
+            correlation_id=None,
             x_correlation_id=None,
         )
 
@@ -762,6 +766,8 @@ def test_admin_audit_query_explicitly_types_nullable_action_filter():
     audit_query = next(statement for statement in session.statements if "FROM audit_events WHERE" in statement)
     assert "CAST(:action AS varchar) IS NULL" in audit_query
     assert "action = CAST(:action AS varchar)" in audit_query
+    assert "CAST(:actor_id AS varchar) IS NULL" in audit_query
+    assert "actor_id = CAST(:actor_id AS varchar)" in audit_query
     assert "CAST(:correlation_id AS varchar) IS NULL" in audit_query
     assert "correlation_id = CAST(:correlation_id AS varchar)" in audit_query
 
