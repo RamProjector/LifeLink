@@ -32,6 +32,20 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 export LIFELINK_DATABASE_URL='postgresql+asyncpg://lifelink:lifelink@localhost:5432/lifelink'
+# Local-only Supabase Auth compatibility stub. Supabase-hosted databases already
+# provide auth.users; never run this bootstrap against a hosted project.
+psql "postgresql://lifelink:lifelink@localhost:5432/lifelink" -v ON_ERROR_STOP=1 <<'SQL'
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE TABLE IF NOT EXISTS auth.users (
+    id uuid PRIMARY KEY,
+    email varchar(255),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz,
+    banned_until timestamptz,
+    email_confirmed_at timestamptz,
+    is_anonymous boolean NOT NULL DEFAULT false
+);
+SQL
 for migration in sql/*.sql; do
   psql "postgresql://lifelink:lifelink@localhost:5432/lifelink" \
     -v ON_ERROR_STOP=1 -f "$migration" || exit 1
