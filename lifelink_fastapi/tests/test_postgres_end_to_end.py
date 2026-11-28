@@ -1556,6 +1556,9 @@ def test_three_product_role_migration_reconciles_real_postgres_registry(pg_url: 
         try:
             migration = (ROOT / "sql" / "024_three_product_roles.sql").read_text(encoding="utf-8")
             await connection.execute(migration)
+            # Reapplying the guarded normalization against its populated result
+            # must remain safe and preserve the exact three-role registry.
+            await connection.execute(migration)
             roles = await connection.fetch("SELECT role_key FROM public.lifelink_roles ORDER BY role_key")
             grants = await connection.fetch("""
                 SELECT p.permission_key
