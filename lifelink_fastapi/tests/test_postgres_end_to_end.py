@@ -1408,3 +1408,121 @@ def test_security_alert_upsert_refreshes_latest_correlation_id(pg_url, monkeypat
         await engine.dispose()
 
     run_scenario(pg_url, scenario)
+
+
+async def _prepare_three_role_migration_database(pg_url: str, *, legacy_assignment: bool):
+    import asyncpg
+
+    host = parse_qs(urlsplit(pg_url).query)["host"][0]
+    connection = await asyncpg.connect(user="postgres", database="postgres", host=host)
+    await connection.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+    await connection.execute("""
+        CREATE TABLE public.lifelink_roles (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            role_key VARCHAR(64) NOT NULL UNIQUE,
+            display_name VARCHAR(100) NOT NULL,
+            description VARCHAR(500) NOT NULL DEFAULT '',
+            is_system BOOLEAN NOT NULL DEFAULT TRUE
+        );
+        CREATE TABLE public.lifelink_permissions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            permission_key VARCHAR(100) NOT NULL UNIQUE
+        );
+        CREATE TABLE public.lifelink_user_roles (
+            user_id UUID NOT NULL,
+            role_id UUID NOT NULL REFERENCES public.lifelink_roles(id) ON DELETE RESTRICT,
+            PRIMARY KEY (user_id, role_id)
+        );
+        CREATE TABLE public.lifelink_role_permissions (
+            role_id UUID NOT NULL REFERENCES public.lifelink_roles(id) ON DELETE CASCADE,
+            permission_id UUID NOT NULL REFERENCES public.lifelink_permissions(id) ON DELETE CASCADE,
+            PRIMARY KEY (role_id, permission_id)
+        );
+    """)
+    await connection.execute("""
+        INSERT INTO public.lifelink_roles (role_key, display_name, description) VALUES
+            ('requester', 'Requester', 'Requester role'),
+            ('donor', 'Donor', 'Donor role'),
+            ('super_admin', 'Super Administrator', 'Legacy administrator role'),
+            ('security_admin', 'Security Administrator', 'Legacy administrator role'),
+            ('operations_admin', 'Operations Administrator', 'Legacy administrator role'),
+            ('user_admin', 'User Administrator', 'Legacy administrator role'),
+            ('auditor', 'Auditor', 'Legacy administrator role');
+        INSERT INTO public.lifelink_permissions (permission_key) VALUES
+            ('dashboard.read'), ('users.read'), ('users.update'), ('users.suspend'),
+            ('requests.read'), ('operations.read'), ('reports.read'), ('roles.read'),
+            ('audit.read'), ('security.alerts.read'), ('security.alerts.manage'),
+            ('security.sessions.read'), ('security.sessions.revoke');
+        INSERT INTO public.lifelink_role_permissions (role_id, permission_id)
+        SELECT r.id, p.id
+        FROM public.lifelink_roles r
+        JOIN public.lifelink_permissions p ON p.permission_key = ANY(
+            CASE r.role_key
+                WHEN 'operations_admin' THEN ARRAY['dashboard.read','users.read','requests.read','operations.read','reports.read']
+                WHEN 'user_admin' THEN ARRAY['dashboard.read','users.read','users.update','users.suspend','roles.read']
+                WHEN 'security_admin' THEN ARRAY['dashboard.read','audit.read','security.alerts.read','security.alerts.manage','security.sessions.read','security.sessions.revoke']
+                WHEN 'auditor' THEN ARRAY['dashboard.read','audit.read','reports.read']
+                ELSE ARRAY[]::varchar[]
+            END
+        );
+    """)
+    if legacy_assignment:
+        await connection.execute("""
+            INSERT INTO public.lifelink_user_roles (user_id, role_id)
+            SELECT '00000000-0000-0000-0000-000000000001', id
+            FROM public.lifelink_roles WHERE role_key = 'auditor';
+        """)
+    return connection
+
+
+def test_three_product_role_migration_reconciles_real_postgres_registry(pg_url: str):
+    import asyncio
+    import asyncpg
+
+    async def check():
+        connection = await _prepare_three_role_migration_database(pg_url, legacy_assignment=False)
+        try:
+            migration = (ROOT / "sql" / "024_three_product_roles.sql").read_text(encoding="utf-8")
+            await connection.execute(migration)
+            roles = await connection.fetch("SELECT role_key FROM public.lifelink_roles ORDER BY role_key")
+            grants = await connection.fetch("""
+                SELECT p.permission_key
+                FROM public.lifelink_role_permissions rp
+                JOIN public.lifelink_roles r ON r.id = rp.role_id
+                JOIN public.lifelink_permissions p ON p.id = rp.permission_id
+                WHERE r.role_key = 'admin'
+                ORDER BY p.permission_key
+            """)
+            assert [row["role_key"] for row in roles] == ["admin", "donor", "requester"]
+            assert len(grants) == 13
+            assert {row["permission_key"] for row in grants} == {
+                "dashboard.read", "users.read", "users.update", "users.suspend",
+                "requests.read", "operations.read", "reports.read", "roles.read",
+                "audit.read", "security.alerts.read", "security.alerts.manage",
+                "security.sessions.read", "security.sessions.revoke",
+            }
+        finally:
+            await connection.close()
+
+    asyncio.run(check())
+
+
+def test_three_product_role_migration_refuses_legacy_assignments(pg_url: str):
+    import asyncio
+    import asyncpg
+
+    async def check():
+        connection = await _prepare_three_role_migration_database(pg_url, legacy_assignment=True)
+        try:
+            migration = (ROOT / "sql" / "024_three_product_roles.sql").read_text(encoding="utf-8")
+            with pytest.raises(asyncpg.PostgresError, match="legacy role assignments require reviewed mapping"):
+                await connection.execute(migration)
+            await connection.execute("ROLLBACK")
+            roles = await connection.fetch("SELECT role_key FROM public.lifelink_roles ORDER BY role_key")
+            assert "auditor" in {row["role_key"] for row in roles}
+            assignments = await connection.fetch("SELECT count(*) AS count FROM public.lifelink_user_roles")
+            assert assignments[0]["count"] == 1
+        finally:
+            await connection.close()
+
+    asyncio.run(check())
