@@ -666,7 +666,7 @@ RBAC_APPROVED_PERMISSION_MATRIX = {
     # One Admin product role; administrative areas are permissions, not roles.
     "admin": frozenset({
         "dashboard.read", "users.read", "users.update", "users.suspend",
-        "requests.read", "operations.read", "communications.metadata.read",
+        "requests.read", "operations.read",
         "audit.read", "security.alerts.read", "security.alerts.manage",
         "security.sessions.read", "security.sessions.revoke", "roles.read",
         "reports.read",
