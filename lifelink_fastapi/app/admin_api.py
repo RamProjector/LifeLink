@@ -656,12 +656,10 @@ async def admin_update_user(
     return {"user_id": row.user_id, "role": payload.role, "can_request": row.can_request, "can_donate": row.can_donate}
 
 
-# Exact grants explicitly reviewed for every registered role. The 19 keys in
-# migration 020 are administrative permissions, not end-user feature grants.
-# Requester/donor authorization continues to use the existing capability,
-# ownership, and participant checks; those roles must hold no admin grants.
-# super_admin uses the separate admin + RBAC-manager allowlists and likewise
-# must not acquire ordinary permission-map rows or self-service privileges.
+# Exact grants explicitly reviewed for the three product roles.
+# Administrative functional areas are permissions attached to the single admin
+# role; requester/donor continue to use capability, ownership, consent, and
+# participant checks and must hold no administrative permission grants.
 RBAC_APPROVED_PERMISSION_MATRIX = {
     "requester": frozenset(),
     "donor": frozenset(),
