@@ -346,7 +346,7 @@ This proves the `postgres` role has the required grants, but it does **not** pro
 
 ### Additional branch hardening
 
-The current PR branch now changes all three active-role inventory/detail reads in `lifelink_fastapi/app/admin_api.py` from transaction-start `now()` to statement-start `statement_timestamp()`. This keeps displayed active role assignments aligned with the authorization guard's expiry semantics when the request transaction has already been open during authentication/MFA checks. The corresponding inventory regression assertion was updated in `lifelink_fastapi/tests/test_admin_api.py`.
+The current PR branch now changes all active-role inventory, role-detail, role-replacement, and RBAC discrepancy-scanner reads in `lifelink_fastapi/app/admin_api.py` from transaction-start `now()` to statement-start `statement_timestamp()`. This keeps displayed and evaluated active role assignments aligned with the authorization guard's expiry semantics when the request transaction has already been open during authentication/MFA checks. The inventory assertion was updated and a focused scanner regression test verifies the scanner query uses statement time.
 
 CI for the resulting commit must pass before this code change is treated as validated. This is additive to the existing query-time expiry guard and does not alter role assignments or enforcement mode.
 
