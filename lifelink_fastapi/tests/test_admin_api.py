@@ -1800,6 +1800,37 @@ def test_admin_user_inventory_includes_auth_accounts_and_effective_rbac_permissi
 
 
 
+
+def test_rbac_discrepancy_scan_uses_statement_time_for_active_assignments():
+    from app import admin_api
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class Session:
+        def __init__(self):
+            self.statements = []
+
+        async def execute(self, statement, params=None):
+            self.statements.append(str(statement))
+            return Rows()
+
+    session = Session()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+
+    count = asyncio.run(admin_api._scan_rbac_discrepancies(session, principal, None))
+
+    assert count == 0
+    assert len(session.statements) == 1
+    assert "ur.expires_at > statement_timestamp()" in session.statements[0]
+    assert "ur.expires_at > now()" not in session.statements[0]
+
+
+
 def test_rbac_role_policy_integrity_flags_unapproved_unassigned_role():
     from app.admin_api import RBAC_APPROVED_PERMISSION_MATRIX, _scan_rbac_role_policy_integrity
 
