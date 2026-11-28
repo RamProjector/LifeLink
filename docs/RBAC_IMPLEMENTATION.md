@@ -89,6 +89,8 @@ Operational admin routes now use permission-specific dependency guards. The guar
 |---|---|
 | `GET /v1/admin/me`, dashboard | `dashboard.read` |
 | `GET /v1/admin/users` | `users.read` (includes the effective RBAC role keys and mapped administrative-permission summary in the directory; full role registry and per-user assignment details remain `roles.read`) |
+
+The approved disclosure scope for `users.read` includes the account/profile fields plus a read-only summary of each account’s active RBAC role keys and mapped administrative permission keys in the user directory. It does not permit listing the full role registry or retrieving assignment timestamps/expiry details; those remain behind `roles.read`. This makes the `/users` summary an explicit part of the `users.read` permission contract rather than an accidental bypass of the dedicated role-detail route.
 | `PATCH /v1/admin/users/{user_id}` | `users.update` |
 | `GET /v1/admin/security/role-integrity`, audit, errors | `audit.read` |
 | `GET /v1/admin/security/alerts`, scanner health, browser notification feed | `security.alerts.read` |
