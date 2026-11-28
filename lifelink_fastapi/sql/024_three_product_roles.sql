@@ -42,8 +42,7 @@ WHERE rp.role_id = r.id
       SELECT p.id FROM public.lifelink_permissions p
       WHERE p.permission_key NOT IN (
           'dashboard.read', 'users.read', 'users.update', 'users.suspend',
-          'requests.read', 'operations.read', 'communications.metadata.read',
-          'audit.read', 'security.alerts.read', 'security.alerts.manage',
+          'requests.read', 'operations.read',     'audit.read', 'security.alerts.read', 'security.alerts.manage',
           'security.sessions.read', 'security.sessions.revoke', 'roles.read',
           'reports.read'
       )
@@ -55,8 +54,7 @@ FROM public.lifelink_roles r
 JOIN public.lifelink_permissions p
   ON p.permission_key IN (
       'dashboard.read', 'users.read', 'users.update', 'users.suspend',
-      'requests.read', 'operations.read', 'communications.metadata.read',
-      'audit.read', 'security.alerts.read', 'security.alerts.manage',
+      'requests.read', 'operations.read', 'audit.read', 'security.alerts.read', 'security.alerts.manage',
       'security.sessions.read', 'security.sessions.revoke', 'roles.read',
       'reports.read'
   )
