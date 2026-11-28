@@ -1446,6 +1446,8 @@ def test_admin_scanner_health_returns_persisted_status_without_error_details(mon
                 "last_duration_ms": 121,
                 "consecutive_failures": 2,
                 "last_error_code": "scan_failed",
+                "running_age_seconds": None,
+                "success_age_seconds": None,
             }
 
     class Session(FakeSession):
@@ -1471,6 +1473,10 @@ def test_admin_scanner_health_returns_persisted_status_without_error_details(mon
         assert result["scan_interval_seconds"] == 300
         assert result["consecutive_failures"] == 2
         assert result["last_error_code"] == "scan_failed"
+        assert result["running_age_seconds"] is None
+        assert result["success_age_seconds"] is None
+        assert "clock_timestamp() - last_started_at" in session.statements[0]
+        assert "clock_timestamp() - last_succeeded_at" in session.statements[0]
         assert "exception" not in result
         assert "SELECT scanner_key, status" in session.statements[0]
 
@@ -1506,7 +1512,9 @@ def test_admin_scanner_health_reports_never_run_when_no_status_exists(monkeypatc
         )
         assert result == {
             "scanner_key": "rbac", "status": "never_run", "last_findings": 0,
-            "consecutive_failures": 0, "last_error_code": None, "scan_interval_seconds": 300,
+            "consecutive_failures": 0, "last_error_code": None,
+            "running_age_seconds": None, "success_age_seconds": None,
+            "scan_interval_seconds": 300,
         }
 
     asyncio.run(check())
