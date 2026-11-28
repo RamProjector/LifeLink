@@ -241,7 +241,10 @@ def main() -> None:
     if (
         'securityNotificationGeneration++' not in html
         or 'if(generation!==securityNotificationGeneration)return;' not in html
-        or 'if(generation===securityNotificationGeneration&&securityNotificationCursor&&accessToken)' not in html
+        or 'securityNotificationTimer=setInterval(()=>{if(generation===securityNotificationGeneration)pollSecurityNotifications();},60000);' not in html
+        or html.index('securityNotificationTimer=setInterval(()=>{if(generation===securityNotificationGeneration)pollSecurityNotifications();},60000);') > html.index('await pollSecurityNotifications();')
+        or 'securityNotificationCursor={created_at:null,id:"00000000-0000-0000-0000-000000000000"};' not in html
+        or 'new Date(Date.now()-5000)' in html
         or 'function stopBrowserNotifications(statusText="Off") {' not in html
         or 'securityNotificationGeneration++;' not in html
         or 'if(generation!==securityNotificationGeneration||!accessToken||!securityNotificationCursor)return;' not in html
