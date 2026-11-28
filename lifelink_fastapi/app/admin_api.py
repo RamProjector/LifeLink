@@ -179,16 +179,14 @@ def require_admin_permission(permission_key: str):
                 "LEFT JOIN lifelink_role_permissions rp ON rp.role_id = r.id "
                 "LEFT JOIN lifelink_permissions p ON p.id = rp.permission_id "
                 "WHERE ur.user_id = CAST(:user_id AS uuid) "
-                "AND r.role_key IN ('operations_admin', 'user_admin', 'security_admin', 'auditor', 'super_admin') "
-                "AND ((r.role_key = 'super_admin' AND :is_rbac_manager) "
-                "OR (r.role_key <> 'super_admin' AND p.permission_key = :permission_key)) "
+                "AND r.role_key = 'admin' "
+                "AND p.permission_key = :permission_key "
                 "AND (ur.expires_at IS NULL OR ur.expires_at > statement_timestamp())"
                 ")"
             ),
             {
                 "user_id": principal.subject,
                 "permission_key": permission_key,
-                "is_rbac_manager": principal.subject in _configured_rbac_manager_ids(),
             },
         )
         if not granted:
@@ -795,7 +793,7 @@ async def _scan_rbac_role_policy_integrity(
                 "AND status IN ('open', 'acknowledged', 'investigating')"
             ), {"role_key": role_key})
 
-    # The policy is an exact seven-role registry. An extra role definition is a
+    # The policy is an exact three-role registry. An extra role definition is a
     # finding even before anyone is assigned to it, so it cannot become an
     # undocumented privilege path later.
     for role_key in sorted(set(actual_by_role) - approved_role_keys):
@@ -808,7 +806,7 @@ async def _scan_rbac_role_policy_integrity(
             "INSERT INTO lifelink_role_security_findings "
             "(rule_id, role_key, severity, status, summary, evidence, occurrences, correlation_id) "
             "VALUES ('RBAC-03', :role_key, 'high', 'open', "
-            "'Role definition is outside the approved seven-role registry', CAST(:evidence AS jsonb), 1, :correlation_id) "
+            "'Role definition is outside the approved three-role registry', CAST(:evidence AS jsonb), 1, :correlation_id) "
             "ON CONFLICT (rule_id, role_key) "
             "WHERE status IN ('open', 'acknowledged', 'investigating') "
             "DO UPDATE SET last_seen_at = now(), "
