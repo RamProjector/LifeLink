@@ -27,7 +27,7 @@ The largest remaining gaps are rollout and evidence: live administrator-role ass
 | Criteria | Existing implementation | Status | Required completion |
 |---|---|---|---|
 | IDS/IPS linked to the same application database | FastAPI uses the LifeLink PostgreSQL/Supabase database; IDS/IPS tables are in that database | Foundation present | Verify Android actions reach the same backend/database and document the end-to-end path |
-| Identify all users | Admin user-list endpoint exists | Partial | Prove complete user inventory, pagination/total count, account-state coverage, and role/capability joins |
+| Identify all users | Admin user inventory now starts from `auth.users`, includes accounts without profiles, total-count pagination, legacy capabilities, active RBAC roles, and effective mapped permissions | Partial | Add explicit account-state visibility and verify with controlled multi-account test data |
 | Identify roles and permissions per user | Seven role definitions, 19 permissions, 19 role-permission mappings; role-read and user-role APIs exist | Partial | Reconcile legacy profile capabilities/admin allowlists with the new RBAC registry; provision assignments through a controlled process |
 | Record user sessions | `lifelink_user_sessions`, authenticated-session validation, session inventory/revocation | Partial | Clearly label this as observed application sessions; reconcile Auth session lifecycle and test all clients |
 | Record ADD/EDIT/DELETE operations | Audit schema and action normalization exist; numerous sensitive writes have atomic audit events | Partial | Finish remaining mutation coverage, confirm classification and actor attribution, and test all client-triggered mutations |
@@ -172,7 +172,7 @@ Do not introduce a paid provider or new external service without approval.
 
 ### P2 — Admin console and academic evidence
 
-1. Show users with legacy capabilities, effective RBAC roles, permissions, and assignment expiry together.
+1. **Implemented in the branch:** show every Auth account (including accounts without a profile), legacy capabilities, active RBAC roles, and effective mapped permissions in the paginated Admin Console user inventory. Assignment expiry remains available through the per-user roles endpoint; add explicit account-state visibility and verify with controlled test data.
 2. Show each user's own audit history and session history under access controls.
 3. Show alert severity, rule, correlation, occurrence count, first/last seen, status, and notification delivery state.
 4. **Implemented in this audit:** add the IDS/IPS processing flowchart and seven-role administrative permission matrix; keep these synchronized with actual code.
@@ -450,3 +450,10 @@ The data cleanup was explicitly limited to records bearing clear synthetic marke
 ### Browser notification continuation
 
 The web Admin Console now has an opt-in browser notification control. A protected cursor-based endpoint returns only new event identifiers, rule IDs, severity, timestamp, and source; the browser notification text is generic and contains no evidence or personal data. Polling occurs every 60 seconds only while the authenticated console is open and stops on sign-out or 401/403. This improves active-console notification, but it is not background push/email and does not notify administrators after the console closes.
+
+
+## Complete Auth user inventory and effective RBAC visibility (2026-11-28)
+
+The Admin API user directory now queries from `auth.users` rather than `lifelink_profiles`, so accounts without a LifeLink profile are not silently omitted. The response includes the profile-presence flag, legacy requester/donor capability values, current non-expired RBAC role keys, the union of mapped permissions from those active roles, and a total count for pagination. Accounts without a profile are visible but their requester/donor capability controls are disabled in the Admin Console; the UI does not pretend a profile mutation can succeed for a missing profile. The user table displays role and effective permission data in a collapsible detail section.
+
+The backend test verifies the Auth-rooted query, active-assignment expiry filter, role/permission joins, pagination total, and missing-profile-safe response. The web static check verifies the new table integration. Account-state labels and a live multi-account acceptance run remain outstanding; no account, role, or permission data was changed.
