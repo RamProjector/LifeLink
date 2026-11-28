@@ -1316,7 +1316,7 @@ def test_role_policy_integrity_enforces_explicit_zero_admin_grants_for_requester
     assert "INSERT INTO lifelink_role_security_findings" in insert_sql
     assert params["role_key"] == "super_admin"
     assert '"unexpected_permission_keys": ["settings.update"]' in params["evidence"]
-    assert len(session.statements) == 8
+    assert len(session.statements) == 9
 
 
 
