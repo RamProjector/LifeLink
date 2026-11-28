@@ -1605,17 +1605,12 @@ def test_admin_security_notification_feed_returns_only_safe_event_metadata(monke
 
 
 
-def test_admin_security_notification_feed_uses_server_time_when_cursor_is_omitted(monkeypatch):
+def test_admin_security_notification_feed_uses_server_time_when_cursor_is_omitted():
     from datetime import datetime, timezone
     from uuid import UUID
     from app import admin_api
 
-    server_now = datetime(2026, 11, 28, 3, 45, tzinfo=timezone.utc)
-
-    class FixedDateTime:
-        @staticmethod
-        def now(tz=None):
-            return server_now
+    database_now = datetime(2026, 11, 28, 3, 45, tzinfo=timezone.utc)
 
     class Rows:
         def mappings(self):
@@ -1629,12 +1624,16 @@ def test_admin_security_notification_feed_uses_server_time_when_cursor_is_omitte
             super().__init__()
             self.parameters = []
 
+        async def scalar(self, statement, params=None):
+            self.scalar_statements.append(str(statement))
+            self.scalar_parameters.append(params or {})
+            return database_now
+
         async def execute(self, statement, params=None):
             self.statements.append(str(statement))
             self.parameters.append(params or {})
             return Rows()
 
-    monkeypatch.setattr(admin_api, "datetime", FixedDateTime)
     session = Session()
 
     async def check():
@@ -1646,8 +1645,9 @@ def test_admin_security_notification_feed_uses_server_time_when_cursor_is_omitte
             session=session,
             principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
         )
-        assert result["cursor"] == {"created_at": server_now, "id": str(UUID(int=0))}
-        assert session.parameters[0]["after"] == server_now
+        assert result["cursor"] == {"created_at": database_now, "id": str(UUID(int=0))}
+        assert session.scalar_statements == ["SELECT clock_timestamp()"]
+        assert session.parameters[0]["after"] == database_now
 
     asyncio.run(check())
 
