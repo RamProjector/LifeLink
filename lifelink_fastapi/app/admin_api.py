@@ -560,6 +560,9 @@ async def admin_dashboard(
     }
 
 
+# users.read intentionally includes the effective RBAC role keys and mapped
+# administrative permission summary shown in the user directory. Full role
+# registry and assignment-detail endpoints remain separately gated by roles.read.
 @router.get("/users")
 async def admin_list_users(
     request: Request,
