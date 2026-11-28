@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import os
 import logging
+import math
 import time
 from decimal import Decimal
 from contextlib import asynccontextmanager
@@ -14,14 +15,24 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import AsyncSessionLocal, create_all_tables, get_db_session
-from .db_models import AuditEvent, Conversation, Donor as DonorRow, EmergencyRequest as EmergencyRequestRow, Facility, LifeLinkProfile, LifeLinkRoleEnum, Message
+from .db_models import (
+    AuditEvent,
+    Conversation,
+    Donor as DonorRow,
+    EmergencyRequest as EmergencyRequestRow,
+    Facility,
+    LifeLinkProfile,
+    LifeLinkRoleEnum,
+    Message,
+    RequestStatusEnum,
+)
 from .fcm import send_push_safely
 from .main import (
     EmergencyRequestIn,
@@ -147,7 +158,7 @@ async def _expire_stale_location_shares_forever() -> None:
 
 
 async def _scan_rbac_discrepancies_forever() -> None:
-    """Run RBAC discrepancy detection independently of administrator page reads.
+    """Run RBAC discrepancy detection independently and persist scanner health.
 
     The transaction-scoped advisory lock prevents duplicate scans when multiple
     API instances are running. Findings use a system actor, never an admin identity.
@@ -156,29 +167,64 @@ async def _scan_rbac_discrepancies_forever() -> None:
     from .admin_api import _scan_rbac_discrepancies
 
     try:
-        interval = max(60.0, float(os.getenv("LIFELINK_RBAC_SCAN_SECONDS", "300")))
-    except ValueError:
+        configured_interval = float(os.getenv("LIFELINK_RBAC_SCAN_SECONDS", "300"))
+        if not math.isfinite(configured_interval):
+            raise ValueError("scan interval must be finite")
+        interval = min(86400.0, max(60.0, configured_interval))
+    except (ValueError, OverflowError):
         logger.warning("LIFELINK_RBAC_SCAN_SECONDS is invalid; using 300 seconds")
         interval = 300.0
 
     system_principal = Principal(subject="system:rbac-scanner", email_verified=True)
     while True:
+        scan_started_at: datetime | None = None
         try:
             async with AsyncSessionLocal() as session:
                 acquired = await session.scalar(
                     text("SELECT pg_try_advisory_xact_lock(728194620114)")
                 )
                 if acquired:
-                    started_at = time.monotonic()
                     await session.execute(text("SET LOCAL statement_timeout = '15000ms'"))
+                    # Publish the running state in its own committed transaction.
+                    # The scan session must retain its transaction-scoped advisory
+                    # lock throughout the scan, so its uncommitted health write is
+                    # invisible to the Admin Console until the scan has finished.
+                    async with AsyncSessionLocal() as health_session:
+                        result = await health_session.execute(text(
+                            "INSERT INTO lifelink_security_scanner_runs "
+                            "(scanner_key, status, last_started_at, last_findings, updated_at) "
+                            "VALUES ('rbac', 'running', clock_timestamp(), 0, clock_timestamp()) "
+                            "ON CONFLICT (scanner_key) DO UPDATE SET "
+                            "status = 'running', last_started_at = EXCLUDED.last_started_at, last_finished_at = NULL, "
+                            "last_error_code = NULL, updated_at = EXCLUDED.updated_at "
+                            "RETURNING last_started_at"
+                        ))
+                        # Use the database-generated timestamp for both completion
+                        # guards and freshness calculations; API host clocks may drift.
+                        scan_started_at = result.scalar_one()
+                        await health_session.commit()
+                    started_at = time.monotonic()
                     findings = await _scan_rbac_discrepancies(
                         session, system_principal, None
                     )
+                    duration_ms = round((time.monotonic() - started_at) * 1000)
+                    await session.execute(text(
+                        "UPDATE lifelink_security_scanner_runs SET status = 'succeeded', "
+                        "last_finished_at = clock_timestamp(), last_succeeded_at = clock_timestamp(), "
+                        "last_findings = :findings, last_duration_ms = :duration_ms, "
+                        "consecutive_failures = 0, last_error_code = NULL, updated_at = clock_timestamp() "
+                        "WHERE scanner_key = 'rbac' AND status = 'running' "
+                        "AND last_started_at = :scan_started_at"
+                    ), {
+                        "findings": max(0, int(findings)),
+                        "duration_ms": duration_ms,
+                        "scan_started_at": scan_started_at,
+                    })
                     await session.commit()
                     logger.info(
                         "RBAC discrepancy scan completed; findings=%s duration_ms=%s",
                         findings,
-                        round((time.monotonic() - started_at) * 1000),
+                        duration_ms,
                     )
                 else:
                     await session.rollback()
@@ -187,6 +233,27 @@ async def _scan_rbac_discrepancies_forever() -> None:
             raise
         except Exception:
             logger.exception("RBAC discrepancy scan failed")
+            # Update only the running record created by this exact scan. The
+            # advisory-lock transaction has been released during exception
+            # handling, so another instance may already have published a newer run.
+            # A timestamp guard prevents this stale failure from overwriting it.
+            try:
+                if scan_started_at is not None:
+                    async with AsyncSessionLocal() as health_session:
+                        await health_session.execute(text(
+                            "UPDATE lifelink_security_scanner_runs SET status = 'failed', "
+                            "last_finished_at = clock_timestamp(), last_failed_at = clock_timestamp(), "
+                            "last_error_code = 'scan_failed', "
+                            "consecutive_failures = consecutive_failures + 1, "
+                            "updated_at = clock_timestamp() "
+                            "WHERE scanner_key = 'rbac' AND status = 'running' "
+                            "AND last_started_at = :scan_started_at"
+                        ), {"scan_started_at": scan_started_at})
+                        await health_session.commit()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Unable to persist RBAC scanner failure status")
         await asyncio.sleep(interval)
 
 
@@ -710,6 +777,7 @@ async def create_emergency_request_postgres(
     if principal.subject != "development-user" and principal.subject != payload.requester_id:
         raise HTTPException(status_code=403, detail="requester_id must match the authenticated user")
     require_verified_email(principal)
+    requester_id = payload.requester_id
     await enforce_rate_limit(f"request-create:{principal.subject}", 5, 300)
     if idempotency_header and idempotency_header != payload.idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key header must match payload.idempotency_key.")
@@ -756,7 +824,56 @@ async def create_emergency_request_postgres(
             notifications_created=0,
         )
 
+    # Idempotency locks protect retries of one key; this separate requester lock
+    # serializes distinct request intents from the same account across API workers.
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"),
+        {"lock_key": f"lifelink:requester-active-request:{requester_id}"},
+    )
     now = datetime.now(timezone.utc)
+
+    # Expire overdue requests under the same transaction and lock before
+    # enforcing the one-active-request rule. Keep the lock until the new request
+    # and its audit event commit, so a concurrent create cannot slip between
+    # expiry and insertion.
+    expired_result = await session.execute(
+        update(EmergencyRequestRow)
+        .where(
+            EmergencyRequestRow.requester_id == requester_id,
+            EmergencyRequestRow.status.in_(
+                [RequestStatusEnum(value) for value in ACTIVE_REQUEST_STATUSES]
+            ),
+            EmergencyRequestRow.response_deadline <= now,
+        )
+        .values(status=RequestStatusEnum.EXPIRED, updated_at=now)
+        .returning(EmergencyRequestRow.id)
+    )
+    expired_request_ids = list(expired_result.scalars().all())
+    if expired_request_ids:
+        await store.close_expired_request_children_async(expired_request_ids, now)
+
+    active_request_id = await session.scalar(
+        select(EmergencyRequestRow.id)
+        .where(
+            EmergencyRequestRow.requester_id == requester_id,
+            EmergencyRequestRow.status.in_(
+                [RequestStatusEnum(value) for value in ACTIVE_REQUEST_STATUSES]
+            ),
+            EmergencyRequestRow.response_deadline > now,
+        )
+        .order_by(EmergencyRequestRow.created_at.desc())
+        .limit(1)
+        .with_for_update()
+    )
+    if active_request_id is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "active_request_exists: You already have an active blood request. "
+                "Manage or close it before creating another."
+            ),
+        )
+
     request_id = f"req_{uuid4().hex}"
     donor_repository = SqlAlchemyDonorRepository(session)
     donors = await donor_repository.list_active_donors(excluded_user_id=principal.subject)

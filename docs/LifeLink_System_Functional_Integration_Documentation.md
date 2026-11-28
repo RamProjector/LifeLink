@@ -30,6 +30,8 @@ LifeLink is an authenticated emergency blood-donor discovery and coordination sy
 
 The system also supports donor onboarding, donor availability, donor GPS/location refresh, donor inboxes, donor accept/decline/arrival responses, request status polling, cancellation, fulfillment, offline draft and submission handling, profile capability persistence, push-token registration, account-scoped Room persistence, and privacy-safe distance-band map summaries.
 
+LifeLink has exactly three product roles: Requester, Blood Donor, and Admin. The Android application serves Requester and Blood Donor workflows. Admin operates the separate web-only administrative console; user management, security monitoring, audit review, and reporting are permissions within that single Admin role, not additional roles.
+
 The repository currently contains an in-progress privacy-first extension for **opt-in exact donor location sharing after donor acceptance** and **request-scoped in-app chat**. The intended boundary is that exact donor pins are never public: they are returned only to the owner of an active emergency request when the donor has accepted the contact request, opted into exact location sharing, and has a fresh location snapshot. Chat is similarly authorized by the request/contact relationship. These new changes are documented here as implementation-in-progress until Android compilation, live database migration, and two-account end-to-end verification are completed.
 
 The integration boundary is:

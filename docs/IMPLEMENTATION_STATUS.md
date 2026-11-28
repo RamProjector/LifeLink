@@ -126,3 +126,27 @@ PR [#114](https://github.com/RamProjector/LifeLink/pull/114) adds a narrowly sco
 PR [#115](https://github.com/RamProjector/LifeLink/pull/115) addresses a mismatch in `MainActivity`: the code described `hasDonorProfile` as distinct from `canDonate`, but initialized it from the server profile's `can_donate` capability flag. That flag can be enabled by switching into donor mode before donor onboarding is complete, so it is not proof that a donor profile exists.
 
 The change checks the authenticated user's actual `/v1/donor-profile` resource before switching back to requester mode, keeps the current role if that lookup fails, and avoids showing a role transition before the server accepts the capability update. CI and device verification are pending; this entry records the audit and intended behavior, not a claim that the change has shipped.
+
+
+## Three-role RBAC implementation update — 2026-11-28
+
+The current implementation branch standardizes the LifeLink product role model to exactly **Requester**, **Blood Donor**, and **Admin**. The Android app supports requester/donor; Admin remains web-only. Administrative work areas are permissions under the single admin role.
+
+Migration 024 normalizes the historical RBAC registry created by migration 020. It preserves requester/donor, creates admin, consolidates the reviewed administrative permission set under admin, and refuses to remove any legacy role definition while it has an assignment. It has **not** been applied to production. The prior live snapshot reported zero RBAC assignments, but this must be checked again read-only before deployment. Keep RBAC enforcement in observe mode until non-production migration and role/permission acceptance are complete.
+
+This is branch implementation status, not proof that the new schema is live or that the entire requester/donor/admin feature set has passed manual device and browser acceptance.
+
+
+## Fresh read-only Supabase role and migration verification — 2026-11-28
+
+The connected LifeLink project was rechecked read-only after migration 024 was added to the branch:
+
+- Project status: ACTIVE_HEALTHY.
+- Live role registry still contains the seven historical definitions from migration 020: requester, donor, super_admin, security_admin, operations_admin, user_admin, and auditor.
+- All seven role definitions currently have **zero user-role assignments**.
+- Requester, donor, and super_admin currently have zero administrative permission mappings.
+- The four historical administrative role definitions collectively map to exactly 13 distinct permission keys. This set matches the reviewed permission union now assigned to the single admin role by branch migration 024.
+- The migration ledger reports 007_donor_map_chat_contact_sharing and 020_rbac_role_permission_registry. Migrations 021–024 are not recorded as applied in the live migration ledger.
+- Migration 024 has **not** been applied. No production role definitions, role assignments, permission mappings, grants, or user records were changed by this verification.
+
+The current zero-assignment result means migration 024's legacy-assignment guard is expected to pass if the database remains unchanged, but it must be rechecked immediately before any deployment. The migration is still not authorized for production application by this read-only verification. Keep RBAC in observe mode.

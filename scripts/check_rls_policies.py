@@ -58,6 +58,7 @@ BACKEND_ONLY_TABLES: dict[str, str] = {
     "lifelink_user_roles": "RBAC user-role assignments; RLS is enabled and all reads/writes are mediated by FastAPI using the backend database identity; no client role receives direct access.",
     "lifelink_role_permissions": "RBAC role-permission mappings; RLS is enabled and all reads/writes are mediated by FastAPI using the backend database identity; no client role receives direct access.",
     "lifelink_role_security_findings": "RBAC-03 role policy findings; RLS is enabled and the table is accessible only through FastAPI using the backend database identity; no client role receives direct access.",
+    "lifelink_security_scanner_runs": "IDS/IPS scanner health telemetry; RLS is enabled and status is exposed only through the authenticated Admin API; no client role receives direct table access.",
 }
 
 # SQL comments must be removed before matching: a commented-out

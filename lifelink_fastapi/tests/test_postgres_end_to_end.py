@@ -13,11 +13,14 @@ import asyncio
 import tempfile
 import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi import Depends, HTTPException
 from starlette.requests import Request
+
+ROOT = Path(__file__).resolve().parents[1]
 
 pgserver = pytest.importorskip("pgserver")
 
@@ -449,8 +452,10 @@ def test_sweeper_expires_requests_and_closes_open_matches_and_contacts(pg_url):
             f"WHERE id = '{created['request_id']}'"
         )
 
-        # A second request that is still inside its deadline must be left alone.
-        still_open = await submit_request(client, current, requester)
+        # A different requester may create a request while the first request is
+        # overdue but has not yet been swept.
+        other_requester = new_user("other-requester")
+        still_open = await submit_request(client, current, other_requester)
 
         from app.repositories import SqlAlchemyRequestStore
 
@@ -539,8 +544,8 @@ def test_sweeper_limit_bounds_a_single_sweep(pg_url):
     """
 
     async def scenario(client, current, run_sql):
-        requester = new_user("requester")
-        created = [await submit_request(client, current, requester) for _ in range(3)]
+        requesters = [new_user("requester") for _ in range(3)]
+        created = [await submit_request(client, current, requester) for requester in requesters]
         ids = ", ".join(f"'{item['request_id']}'" for item in created)
         await run_sql(
             f"UPDATE emergency_requests SET response_deadline = now() - interval '1 hour' "
@@ -726,13 +731,17 @@ def test_blood_type_change_immediately_rematches_active_requests(pg_url):
 
 def test_donor_inbox_excludes_expired_and_closed_requests(pg_url):
     async def scenario(client, current, run_sql):
-        donor, requester = new_user("donor"), new_user("requester")
+        donor = new_user("donor")
+        active_requester = new_user("active-requester")
+        expired_requester = new_user("expired-requester")
+        cancelled_requester = new_user("cancelled-requester")
+        fulfilled_requester = new_user("fulfilled-requester")
         await setup_donor(client, current, donor)
 
-        active = await submit_request(client, current, requester)
-        expired = await submit_request(client, current, requester)
-        cancelled = await submit_request(client, current, requester)
-        fulfilled = await submit_request(client, current, requester)
+        active = await submit_request(client, current, active_requester)
+        expired = await submit_request(client, current, expired_requester)
+        cancelled = await submit_request(client, current, cancelled_requester)
+        fulfilled = await submit_request(client, current, fulfilled_requester)
         await run_sql(
             "UPDATE emergency_requests SET response_deadline = now() - interval '5 minutes' "
             f"WHERE id = '{expired['request_id']}'"
@@ -780,6 +789,60 @@ def test_request_history_survives_the_deadline_passing(pg_url):
         history = await client.get("/v1/emergency-requests")
         assert history.status_code == 200, history.text
         assert {item["request_id"] for item in history.json()} == {created["request_id"], second["request_id"]}
+
+    run_scenario(pg_url, scenario)
+
+
+def test_requester_cannot_create_two_active_requests_concurrently(pg_url):
+    async def scenario(client, current, run_sql):
+        requester = new_user("requester")
+        current["id"] = requester
+        first_payload = request_payload(requester)
+        second_payload = request_payload(requester)
+
+        first, second = await asyncio.gather(
+            client.post("/v1/emergency-requests", json=first_payload),
+            client.post("/v1/emergency-requests", json=second_payload),
+        )
+        assert sorted([first.status_code, second.status_code]) == [201, 409]
+        conflict = first if first.status_code == 409 else second
+        assert "active_request_exists" in conflict.json()["detail"]
+
+        rows = await run_sql(
+            "SELECT count(*) FROM emergency_requests "
+            f"WHERE requester_id = '{requester}' "
+            "AND status IN ('matching', 'awaiting_responses', 'partially_fulfilled', 'manual_broadcast') "
+            "AND response_deadline > now()"
+        )
+        assert rows == [(1,)]
+
+        created = first if first.status_code == 201 else second
+        request_id = created.json()["request_id"]
+        cancelled = await client.post(f"/v1/emergency-requests/{request_id}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
+
+        replacement = await submit_request(client, current, requester)
+        assert replacement["request_id"] != request_id
+
+    run_scenario(pg_url, scenario)
+
+
+def test_overdue_active_request_is_expired_before_replacement(pg_url):
+    async def scenario(client, current, run_sql):
+        requester = new_user("requester")
+        created = await submit_request(client, current, requester)
+        request_id = created["request_id"]
+
+        await run_sql(
+            "UPDATE emergency_requests SET response_deadline = now() - interval '1 minute' "
+            f"WHERE id = '{request_id}'"
+        )
+        replacement = await submit_request(client, current, requester)
+
+        old = await client.get(f"/v1/emergency-requests/{request_id}")
+        assert old.status_code == 200, old.text
+        assert old.json()["status"] == "expired"
+        assert replacement["request_id"] != request_id
 
     run_scenario(pg_url, scenario)
 
@@ -1001,6 +1064,9 @@ def test_strict_mode_only_matches_verified_donors(pg_url, monkeypatch):
         assert created["matches"] == []
 
         await run_sql(f"UPDATE donors SET verified = TRUE WHERE id = '{donor}'")
+        current["id"] = requester
+        cancelled = await client.post(f"/v1/emergency-requests/{created['request_id']}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
         created = await submit_request(client, current, requester)
         assert created["notifications_created"] == 0
         assert [m["donor_id"] for m in created["matches"]] == [donor]
@@ -1318,6 +1384,28 @@ def test_admin_security_alert_correlation_filter_matches_persisted_alert(pg_url,
         assert response["items"][0]["correlation_id"] == (
             "alert-correlation-pg-test"
         )
+
+        # Exercise both nullable filter parameters together. This reproduces
+        # the production request shape when the Admin Console opens the alerts
+        # page without a status or correlation filter.
+        async with sessions() as db_session:
+            unfiltered = await admin_api.admin_security_alerts(
+                request=request,
+                session=db_session,
+                principal=Principal(
+                    subject="admin-user",
+                    email="admin@example.com",
+                    session_id="admin-session-pg-test",
+                ),
+                limit=50,
+                offset=0,
+                alert_status=None,
+                correlation_id=None,
+                x_correlation_id="list-alerts-unfiltered-pg-test",
+            )
+
+        assert len(unfiltered["items"]) == 1
+        assert unfiltered["items"][0]["rule_id"] == "AUTH-TEST"
         await engine.dispose()
 
     run_scenario(pg_url, scenario)
@@ -1408,3 +1496,139 @@ def test_security_alert_upsert_refreshes_latest_correlation_id(pg_url, monkeypat
         await engine.dispose()
 
     run_scenario(pg_url, scenario)
+
+
+async def _prepare_three_role_migration_database(pg_url: str, *, legacy_assignment: bool):
+    import asyncpg
+
+    host = parse_qs(urlsplit(pg_url).query)["host"][0]
+    connection = await asyncpg.connect(user="postgres", database="postgres", host=host)
+    await connection.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+    await connection.execute("""
+        CREATE TABLE public.lifelink_roles (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            role_key VARCHAR(64) NOT NULL UNIQUE,
+            display_name VARCHAR(100) NOT NULL,
+            description VARCHAR(500) NOT NULL DEFAULT '',
+            is_system BOOLEAN NOT NULL DEFAULT TRUE
+        );
+        CREATE TABLE public.lifelink_permissions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            permission_key VARCHAR(100) NOT NULL UNIQUE
+        );
+        CREATE TABLE public.lifelink_user_roles (
+            user_id UUID NOT NULL,
+            role_id UUID NOT NULL REFERENCES public.lifelink_roles(id) ON DELETE RESTRICT,
+            PRIMARY KEY (user_id, role_id)
+        );
+        CREATE TABLE public.lifelink_role_permissions (
+            role_id UUID NOT NULL REFERENCES public.lifelink_roles(id) ON DELETE CASCADE,
+            permission_id UUID NOT NULL REFERENCES public.lifelink_permissions(id) ON DELETE CASCADE,
+            PRIMARY KEY (role_id, permission_id)
+        );
+    """)
+    await connection.execute("""
+        INSERT INTO public.lifelink_roles (role_key, display_name, description) VALUES
+            ('requester', 'Requester', 'Requester role'),
+            ('donor', 'Donor', 'Donor role'),
+            ('super_admin', 'Super Administrator', 'Legacy administrator role'),
+            ('security_admin', 'Security Administrator', 'Legacy administrator role'),
+            ('operations_admin', 'Operations Administrator', 'Legacy administrator role'),
+            ('user_admin', 'User Administrator', 'Legacy administrator role'),
+            ('auditor', 'Auditor', 'Legacy administrator role');
+        INSERT INTO public.lifelink_permissions (permission_key) VALUES
+            ('dashboard.read'), ('users.read'), ('users.update'), ('users.suspend'),
+            ('requests.read'), ('operations.read'), ('reports.read'), ('roles.read'),
+            ('audit.read'), ('security.alerts.read'), ('security.alerts.manage'),
+            ('security.sessions.read'), ('security.sessions.revoke');
+        INSERT INTO public.lifelink_role_permissions (role_id, permission_id)
+        SELECT r.id, p.id
+        FROM public.lifelink_roles r
+        JOIN public.lifelink_permissions p ON p.permission_key = ANY(
+            CASE r.role_key
+                WHEN 'operations_admin' THEN ARRAY['dashboard.read','users.read','requests.read','operations.read','reports.read']::varchar[]
+                WHEN 'user_admin' THEN ARRAY['dashboard.read','users.read','users.update','users.suspend','roles.read']::varchar[]
+                WHEN 'security_admin' THEN ARRAY['dashboard.read','audit.read','security.alerts.read','security.alerts.manage','security.sessions.read','security.sessions.revoke']::varchar[]
+                WHEN 'auditor' THEN ARRAY['dashboard.read','audit.read','reports.read']::varchar[]
+                ELSE ARRAY[]::varchar[]
+            END
+        );
+    """)
+    await connection.execute("""
+        INSERT INTO public.lifelink_role_permissions (role_id, permission_id)
+        SELECT r.id, p.id
+        FROM public.lifelink_roles r
+        JOIN public.lifelink_permissions p ON p.permission_key = 'security.alerts.read'
+        WHERE r.role_key IN ('requester', 'donor');
+    """)
+    if legacy_assignment:
+        await connection.execute("""
+            INSERT INTO public.lifelink_user_roles (user_id, role_id)
+            SELECT '00000000-0000-0000-0000-000000000001', id
+            FROM public.lifelink_roles WHERE role_key = 'auditor';
+        """)
+    return connection
+
+
+def test_three_product_role_migration_reconciles_real_postgres_registry(pg_url: str):
+    import asyncio
+
+    async def check():
+        connection = await _prepare_three_role_migration_database(pg_url, legacy_assignment=False)
+        try:
+            migration = (ROOT / "sql" / "024_three_product_roles.sql").read_text(encoding="utf-8")
+            await connection.execute(migration)
+            # Reapplying the guarded normalization against its populated result
+            # must remain safe and preserve the exact three-role registry.
+            await connection.execute(migration)
+            roles = await connection.fetch("SELECT role_key FROM public.lifelink_roles ORDER BY role_key")
+            grants = await connection.fetch("""
+                SELECT p.permission_key
+                FROM public.lifelink_role_permissions rp
+                JOIN public.lifelink_roles r ON r.id = rp.role_id
+                JOIN public.lifelink_permissions p ON p.id = rp.permission_id
+                WHERE r.role_key = 'admin'
+                ORDER BY p.permission_key
+            """)
+            non_admin_grants = await connection.fetch("""
+                SELECT r.role_key, count(rp.permission_id) AS count
+                FROM public.lifelink_roles r
+                LEFT JOIN public.lifelink_role_permissions rp ON rp.role_id = r.id
+                WHERE r.role_key IN ('requester', 'donor')
+                GROUP BY r.role_key
+            """)
+            assert [row["role_key"] for row in roles] == ["admin", "donor", "requester"]
+            assert len(grants) == 13
+            assert {row["role_key"]: row["count"] for row in non_admin_grants} == {"requester": 0, "donor": 0}
+            assert {row["permission_key"] for row in grants} == {
+                "dashboard.read", "users.read", "users.update", "users.suspend",
+                "requests.read", "operations.read", "reports.read", "roles.read",
+                "audit.read", "security.alerts.read", "security.alerts.manage",
+                "security.sessions.read", "security.sessions.revoke",
+            }
+        finally:
+            await connection.close()
+
+    asyncio.run(check())
+
+
+def test_three_product_role_migration_refuses_legacy_assignments(pg_url: str):
+    import asyncio
+
+    import asyncpg
+
+    async def check():
+        connection = await _prepare_three_role_migration_database(pg_url, legacy_assignment=True)
+        try:
+            migration = (ROOT / "sql" / "024_three_product_roles.sql").read_text(encoding="utf-8")
+            with pytest.raises(asyncpg.PostgresError, match="legacy role assignments require reviewed mapping"):
+                await connection.execute(migration)
+            await connection.execute("ROLLBACK")
+            roles = await connection.fetch("SELECT role_key FROM public.lifelink_roles ORDER BY role_key")
+            assert "auditor" in {row["role_key"] for row in roles}
+            assignments = await connection.fetch("SELECT count(*) AS count FROM public.lifelink_user_roles")
+            assert assignments[0]["count"] == 1
+        finally:
+            await connection.close()
+
+    asyncio.run(check())

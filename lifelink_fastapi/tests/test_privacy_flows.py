@@ -641,8 +641,9 @@ def test_exact_location_requires_a_match_and_donor_opt_in(pg_url):
 
         # A matched donor that has not enabled exact sharing cannot be shared.
         no_optin = new_user("donor")
+        second_requester = new_user("requester")
         await setup_donor(client, current, no_optin, blood_type="O+", exact_sharing=False)
-        created2 = await submit_request(client, current, requester)
+        created2 = await submit_request(client, current, second_requester)
         assert no_optin in [m["donor_id"] for m in created2["matches"]]
         blocked = await client.post(
             f"/v1/emergency-requests/{created2['request_id']}/donors/{no_optin}/location-share"

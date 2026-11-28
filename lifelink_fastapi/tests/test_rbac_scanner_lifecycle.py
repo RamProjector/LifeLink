@@ -1,14 +1,23 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 
 import pytest
+
+SCANNER_STARTED_AT = datetime(2026, 11, 28, 12, 0, tzinfo=timezone.utc)
+
+
+class ScannerResult:
+    def scalar_one(self):
+        return SCANNER_STARTED_AT
 
 
 class ScannerSession:
     def __init__(self, lock_acquired: bool):
         self.lock_acquired = lock_acquired
         self.statements: list[str] = []
+        self.parameters: list[dict] = []
         self.committed = False
         self.rolled_back = False
 
@@ -16,8 +25,12 @@ class ScannerSession:
         self.statements.append(str(statement))
         return self.lock_acquired
 
-    async def execute(self, statement):
-        self.statements.append(str(statement))
+    async def execute(self, statement, params=None):
+        statement_text = str(statement)
+        self.statements.append(statement_text)
+        self.parameters.append(params or {})
+        if "RETURNING last_started_at" in statement_text:
+            return ScannerResult()
 
     async def commit(self):
         self.committed = True
@@ -68,6 +81,17 @@ def test_background_rbac_scanner_respects_advisory_lock_and_cancels_cleanly(
         assert calls[0][0] is session
         assert calls[0][1:] == ("system:rbac-scanner", None)
         assert "SET LOCAL statement_timeout = '15000ms'" in session.statements
+        scan_started_at_values = [
+            params["scan_started_at"]
+            for params in session.parameters
+            if params.get("scan_started_at") is not None
+        ]
+        assert len(scan_started_at_values) == 1
+        assert scan_started_at_values[0] == SCANNER_STARTED_AT
+        assert any(
+            "clock_timestamp()" in statement and "RETURNING last_started_at" in statement
+            for statement in session.statements
+        )
         assert session.committed is True
         assert session.rolled_back is False
     else:

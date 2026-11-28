@@ -7,7 +7,7 @@
 <meta name="application-name" content="LifeLink Admin">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-45HPhMIApGsq92tCrzMm+R+61wDpVBEQ23e2ucxNDDQ='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-4dc1l8rPsJx3sYEw/yeuWqsMuhsu14NcvHUYIK2laBQ='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://nphbhlxnujmylhubzmne.supabase.co https://lifelink-api-uzje.onrender.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
 <title>LifeLink · Admin Console</title>
 <style>
 :root {
@@ -1106,6 +1106,9 @@ tbody tr:hover { background: #f0eee7; }
 
 /* Security alert review: severity and workflow state are separate signals */
 #page-alerts { display: grid; gap: 14px; }
+.browser-notifications-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 16px; margin:14px 0; border:1px solid var(--md-outline-variant); border-radius:14px; background:var(--md-surface-container-low); }
+.browser-notifications-toolbar .actions { align-items:center; }
+@media (max-width:720px) { .browser-notifications-toolbar { align-items:flex-start; flex-direction:column; } }
 .alerts-intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .role-integrity-section { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--md-outline-variant); }
 .role-integrity-section .overview-panel-heading { margin-bottom: 14px; }
@@ -1125,6 +1128,11 @@ tbody tr:hover { background: #f0eee7; }
 #alerts-table .tag.status-acknowledged { background: #e9edf0; color: #465c69; }
 #alerts-table .tag.status-investigating { background: #ece9f3; color: #5c4e78; }
 #alerts-table .tag.status-resolved { background: #e9efe9; color: #48624d; }
+#scanner-health .tag.status-succeeded { background: #e9efe9; color: #48624d; }
+#scanner-health .tag.status-failed { background: #f8eae7; color: #96392f; }
+#scanner-health .tag.status-running { background: #e9edf0; color: #465c69; }
+#scanner-health .tag.status-stale { background: #f8eae7; color: #96392f; }
+#scanner-health .tag.status-never_run { background: var(--md-surface-container); color: var(--md-on-primary-container); }
 #alerts-table .tag.status-false_positive, #alerts-table .tag.status-unknown { background: #efeeeb; color: #66645e; }
 #alerts-table .actions { min-width: 210px; gap: 6px; }
 #alerts-table .actions button { min-height: 40px; padding: 7px 10px; font-size: 11.5px; }
@@ -2005,6 +2013,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   <div class="audit-heading"><div><p class="muted small">Read-only record of administrative and platform events. Use exact action names or correlation IDs to trace related activity.</p></div><span class="snapshot-kind">Read only</span></div>
   <div class="table-toolbar audit-toolbar">
    <div class="audit-filter-field"><label for="audit-action-filter">Exact action</label><input id="audit-action-filter" type="search" maxlength="64" placeholder="e.g. admin.user.update" autocomplete="off"></div>
+   <div class="audit-filter-field"><label for="audit-actor-filter">User ID</label><input id="audit-actor-filter" type="search" maxlength="128" placeholder="Filter one user's activity" autocomplete="off"></div>
    <div class="audit-filter-field"><label for="audit-correlation-filter">Correlation ID</label><input id="audit-correlation-filter" type="search" maxlength="128" placeholder="Trace related events" autocomplete="off"></div>
    <div class="audit-filter-actions"><button id="audit-filter-apply" class="secondary" type="button">Apply filters</button><button id="audit-filter-clear" class="secondary" type="button">Clear</button></div>
   </div>
@@ -2020,10 +2029,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   <div class="actions sessions-pagination"><button id="sessions-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="sessions-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="sessions-page" class="muted small" aria-live="polite"></span></div>
  </section>
  <section id="page-alerts" aria-labelledby="page-title" class="panel hidden">
+  <div class="browser-notifications-toolbar"><div><strong>Browser security notifications</strong><p class="muted small">Optional notifications while this Admin Console is open. No alert evidence or personal data is shown in the notification.</p></div><div class="actions"><button id="browser-notifications-toggle" class="secondary" type="button">Enable browser notifications</button><span id="browser-notifications-status" class="muted small" role="status" aria-live="polite">Off</span></div></div>
   <div class="alerts-intro"><div><p class="muted small">Incidents are deduplicated. Assess severity first, then review investigation status and supporting evidence before changing an incident.</p></div><div class="severity-key" role="group" aria-label="Severity levels"><span class="tag severity-critical">Critical</span><span class="tag severity-high">High</span><span class="tag severity-medium">Medium</span><span class="tag severity-low">Low</span></div></div><p class="alerts-scope-note"><span class="ll-icon" data-icon="shieldCheck" aria-hidden="true"></span><span>Severity describes potential impact; status describes investigation progress. They are independent fields. Status actions below update investigation progress only.</span></p>
   <div class="table-toolbar alerts-toolbar"><label class="small" for="alert-status-filter">Investigation status</label><select id="alert-status-filter" aria-label="Filter security alerts by investigation status"><option value="">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select><label class="small" for="alerts-correlation-filter">Correlation ID</label><div class="search-wrap"><input id="alerts-correlation-filter" type="search" maxlength="80" placeholder="Find an incident by correlation ID" autocomplete="off"></div></div>
   <div id="alerts-table" class="tablewrap" aria-live="polite"><div class="empty">Select Security alerts to load incidents.</div></div>
   <div class="actions alerts-pagination"><button id="alerts-prev" class="secondary" disabled><span class="ll-icon" data-icon="chevronLeft"></span>Previous</button><button id="alerts-next" class="secondary" disabled>Next<span class="ll-icon" data-icon="chevronRight"></span></button><span id="alerts-page" class="muted small" aria-live="polite"></span></div>
+  <div class="role-integrity-section"><div class="overview-panel-heading"><div><h2>IDS/IPS scanner health</h2><p class="muted small">Last persisted outcome of the independent RBAC policy scanner. A clean scan is not the same as a scanner that has never run.</p></div><span class="snapshot-kind">Operational status</span></div><div id="scanner-health" class="tablewrap" aria-live="polite"><div class="empty">Loading scanner health…</div></div></div>
   <div class="role-integrity-section"><div class="overview-panel-heading"><div><h2>Role policy integrity</h2><p class="muted small">Independent checks of reviewed role-permission policies, including roles with no assigned users. Unconfigured roles are not treated as violations.</p></div><span class="snapshot-kind">RBAC-03 · Read only</span></div><div id="role-integrity-table" class="tablewrap" aria-live="polite"><div class="empty">Loading role policy findings…</div></div></div>
  </section>
  <section id="page-errors" aria-labelledby="page-title" class="panel hidden">
@@ -2047,7 +2058,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  let refreshToken = null, accessTokenExpiresAt = 0, refreshInFlight = null, mfaFactors = [], pendingMfaFactor = null, mfaMode = "", adminEmail = "", mfaFlowGeneration = 0, mfaReturnToManage = false, pendingMfaEnrollmentCompletion = false;
  const ADMIN_REDIRECT_URL = "https://lifelink-admin-console.onrender.com/";
  const pageSize = 50;
+ let securityNotificationTimer = null, securityNotificationCursor = null, securityNotificationInFlight = false, securityNotificationGeneration = 0;
  let auditAction = "";
+ let auditActor = "";
  let auditCorrelation = "";
  let errorsCorrelation = "";
  const offsets = { users: 0, audit: 0, sessions: 0, alerts: 0, errors: 0 };
@@ -2083,7 +2096,59 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
  function currentMfaConfig(){return {baseUrl:SUPABASE_URL,publishableKey:SUPABASE_PUBLISHABLE_KEY,accessToken};}
  function showMfaView(){ $("login-view").classList.add("hidden");$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("mfa-view").classList.remove("hidden");message("mfa-message","");}
  function clearMfaPending(){pendingMfaFactor=null;$("mfa-qr").removeAttribute("src");$("mfa-secret").textContent="";$("mfa-enroll-code").value="";$("mfa-enroll-code").disabled=true;$("mfa-enroll-verify").disabled=true;$("mfa-qr-wrap").classList.add("hidden");$("mfa-enroll-start").disabled=false;}
- async function cancelMfaAndReturn(){mfaFlowGeneration++;pendingMfaEnrollmentCompletion=false;$("mfa-audit-retry").classList.add("hidden");const config=currentMfaConfig();let remoteSignedOut=true;try{if(config.accessToken)await window.LifeLinkAdminMFA.signOut(config);}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("mfa-view").classList.add("hidden");$("login-view").classList.remove("hidden");message("login-message",remoteSignedOut?"Sign-in cancelled. No administrator console access was opened.":"Signed out locally, but Supabase server-side sign-out could not be confirmed. Close this tab and retry when online.",!remoteSignedOut);}
+ async function cancelMfaAndReturn(){stopBrowserNotifications("Off");mfaFlowGeneration++;pendingMfaEnrollmentCompletion=false;$("mfa-audit-retry").classList.add("hidden");const config=currentMfaConfig();let remoteSignedOut=true;try{if(config.accessToken)await window.LifeLinkAdminMFA.signOut(config);}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("mfa-view").classList.add("hidden");$("login-view").classList.remove("hidden");message("login-message",remoteSignedOut?"Sign-in cancelled. No administrator console access was opened.":"Signed out locally, but Supabase server-side sign-out could not be confirmed. Close this tab and retry when online.",!remoteSignedOut);}
+ function stopBrowserNotifications(statusText="Off") {
+   securityNotificationGeneration++;
+   if(securityNotificationTimer!==null){clearInterval(securityNotificationTimer);securityNotificationTimer=null;}
+   securityNotificationCursor=null;securityNotificationInFlight=false;
+   const button=$("browser-notifications-toggle");if(button)button.textContent="Enable browser notifications";
+   const status=$("browser-notifications-status");if(status)status.textContent=statusText;
+ }
+ async function pollSecurityNotifications() {
+   if(!accessToken||!securityNotificationCursor||securityNotificationInFlight||!("Notification" in window)||Notification.permission!=="granted")return;
+   securityNotificationInFlight=true;
+   const generation=securityNotificationGeneration;
+   try {
+     await refreshIfNeeded();
+     if(generation!==securityNotificationGeneration||!accessToken||!securityNotificationCursor)return;
+     const cursor=securityNotificationCursor;
+     const query=cursor.created_at?"?after="+encodeURIComponent(cursor.created_at)+"&after_id="+encodeURIComponent(cursor.id)+"&limit=25":"?limit=25";
+     const data=await api("/v1/admin/security/notifications"+query);
+     if(generation!==securityNotificationGeneration)return;
+     if(!data||!Array.isArray(data.items)||!data.cursor)throw new Error("Invalid security notification response");
+     securityNotificationCursor=data.cursor;
+     if(data.items.length){
+       const count=data.items.length;
+       const notice=new Notification("LifeLink security alert",{body:count+" new security event"+(count===1?" requires":"s require")+" review in the Admin Console.",tag:"lifelink-security-alerts"});
+       notice.onclick=()=>{window.focus();loadPage("alerts");notice.close();};
+     }
+     $("browser-notifications-status").textContent="Enabled while this console is open";
+   } catch(error) {
+     if(generation!==securityNotificationGeneration)return;
+     if(Number(error&&error.status)===401||Number(error&&error.status)===403){stopBrowserNotifications("Session ended; notifications stopped");return;}
+     $("browser-notifications-status").textContent="Connection unavailable; retrying";
+   } finally { if(generation===securityNotificationGeneration)securityNotificationInFlight=false; }
+ }
+ function enableBrowserNotifications() {
+   $("browser-notifications-toggle").addEventListener("click",async()=>{
+     if(securityNotificationTimer!==null){stopBrowserNotifications("Off");return;}
+     if(!("Notification" in window)){$("browser-notifications-status").textContent="This browser does not support notifications";return;}
+     const permissionGeneration=securityNotificationGeneration;
+     try {
+       const permission=await Notification.requestPermission();
+       if(permissionGeneration!==securityNotificationGeneration||!accessToken)return;
+       if(permission!=="granted"){$("browser-notifications-status").textContent=permission==="denied"?"Notifications blocked in browser settings":"Permission not granted";return;}
+       securityNotificationGeneration++;
+       const generation=securityNotificationGeneration;
+       securityNotificationCursor={created_at:null,id:"00000000-0000-0000-0000-000000000000"};
+       $("browser-notifications-toggle").textContent="Disable browser notifications";
+       $("browser-notifications-status").textContent="Starting…";
+       securityNotificationTimer=setInterval(()=>{if(generation===securityNotificationGeneration)pollSecurityNotifications();},60000);
+       await pollSecurityNotifications();
+       if(generation!==securityNotificationGeneration){return;}
+     } catch(error) {$("browser-notifications-status").textContent=safeError(error,"Browser notifications could not be enabled.");}
+   });
+ }
  async function enterAdminConsole(){const flow=mfaFlowGeneration,verified=window.LifeLinkAdminMFA.verifiedFactors(mfaFactors);if(window.LifeLinkAdminMFA.assuranceLevel(accessToken)!=="aal2"||verified.length<2)throw new Error("Two verified authenticators and an AAL2 session are required before admin access.");await api("/v1/admin/me");if(flow!==mfaFlowGeneration)return;$("identity").textContent="Signed in as "+(adminEmail||"authorized administrator");$("mfa-view").classList.add("hidden");$("login-view").classList.add("hidden");$("app-view").classList.remove("hidden");$("session-tools").classList.remove("hidden");$("password").value="";clearMfaPending();await loadPage("overview");}
  function showBackupEnrollment(){mfaMode="backup";showMfaView();$("mfa-cancel").classList.remove("hidden");$("mfa-step-manage").classList.add("hidden");$("mfa-title").textContent="Add your backup authenticator.";$("mfa-intro").textContent="Your first authenticator is verified. Register a second one before entering the admin console.";$("mfa-step-challenge").classList.add("hidden");$("mfa-step-enroll").classList.remove("hidden");$("mfa-enroll-title").textContent="Register a separate backup";$("mfa-enroll-guidance").textContent="Use a different device or separately protected authenticator vault. LifeLink does not currently enable Supabase's experimental recovery-code feature. Until that feature is separately validated and enabled, losing every registered authenticator can permanently prevent sign-in. Verifying a factor also signs out your other active sessions.";$("mfa-factor-name").value="Backup authenticator";$("mfa-backup-device-wrap").classList.remove("hidden");$("mfa-backup-device").checked=false;clearMfaPending();}
  function showPrimaryEnrollment(){mfaMode="primary";mfaReturnToManage=false;showMfaView();$("mfa-cancel").classList.remove("hidden");$("mfa-step-manage").classList.add("hidden");$("mfa-title").textContent="Set up administrator MFA.";$("mfa-intro").textContent="Before the admin console opens, register two verified authenticator factors.";$("mfa-step-challenge").classList.add("hidden");$("mfa-step-enroll").classList.remove("hidden");$("mfa-enroll-title").textContent="Register your primary authenticator";$("mfa-enroll-guidance").textContent="Use an authenticator app you control. Keep the setup key private and retain access to this device.";$("mfa-factor-name").value="Primary authenticator";$("mfa-backup-device-wrap").classList.add("hidden");$("mfa-backup-device").checked=false;clearMfaPending();}
@@ -2320,7 +2385,7 @@ async function loadUsers() {
       $("users-prev").disabled=offset===0;
       $("users-next").disabled=offset+pageSize>=Number(data.total);
       $("users-page").textContent=(Number(data.total)===0?"0 users":(offset+1)+"–"+Math.min(offset+pageSize,Number(data.total))+" of "+data.total);
-      tableEl.innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Current access",render:u=>'<span class="tag '+(u.can_request?'success':'')+'">Requester '+(u.can_request?'enabled':'disabled')+'</span><br><span class="tag '+(u.can_donate?'success':'')+'">Donor '+(u.can_donate?'enabled':'disabled')+'</span>'},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Capabilities",render:u=>'<div class="actions"><button class="secondary" data-capability="request" data-enabled="'+String(!!u.can_request)+'" data-id="'+esc(u.user_id)+'">'+(u.can_request?'Disable requester':'Enable requester')+'</button><button class="secondary" data-capability="donate" data-enabled="'+String(!!u.can_donate)+'" data-id="'+esc(u.user_id)+'">'+(u.can_donate?'Disable donor':'Enable donor')+'</button></div>'}]);
+      tableEl.innerHTML=table(data.items,[{label:"User",render:u=>'<strong>'+esc(u.display_name||"Unnamed")+'</strong><br><span class="muted">'+esc(u.email)+'</span><br><code>'+esc(u.user_id)+'</code>'},{label:"Account status",render:u=>{const state=["active","banned","deleted"].includes(u.account_state)?u.account_state:"unknown";return '<span class="tag '+(state==="active"?"success":state==="unknown"?"":"warning")+'">'+esc(state)+'</span><br><span class="small">'+(u.email_confirmed===true?'Email verified':u.email_confirmed===false?'Email unverified':'Email status unknown')+(u.is_anonymous===true?' · Anonymous account':u.is_anonymous===null?' · Anonymous status unknown':'')+'</span>';}},{label:"Profile mode",render:u=>'<span class="tag">'+esc(u.role)+'</span>'},{label:"Current access",render:u=>'<span class="tag '+(u.can_request?'success':'')+'">Requester '+(u.can_request?'enabled':'disabled')+'</span><br><span class="tag '+(u.can_donate?'success':'')+'">Donor '+(u.can_donate?'enabled':'disabled')+'</span>'},{label:"RBAC roles & admin grants",render:u=>{const roles=Array.isArray(u.rbac_roles)?u.rbac_roles:[],permissions=Array.isArray(u.rbac_permissions)?u.rbac_permissions:[];const special=roles.includes("super_admin")?"Super-admin access uses the separate admin and RBAC-manager allowlists.": "No mapped administrative grants; requester/donor app access uses capability and ownership policies.";return '<div>'+ (roles.length?roles.map(role=>'<span class="tag">'+esc(role)+'</span>').join(' '):'<span class="muted">No active RBAC role</span>')+'</div><details><summary>'+permissions.length+' mapped admin grants</summary><div class="small">'+(permissions.length?permissions.map(permission=>'<code>'+esc(permission)+'</code>').join('<br>'):esc(special))+'</div></details>';}},{label:"Created",render:u=>esc(u.created_at?new Date(u.created_at).toLocaleString():"—")},{label:"Capabilities",render:u=>u.has_profile?'<div class="actions"><button class="secondary" data-capability="request" data-enabled="'+String(!!u.can_request)+'" data-id="'+esc(u.user_id)+'">'+(u.can_request?'Disable requester':'Enable requester')+'</button><button class="secondary" data-capability="donate" data-enabled="'+String(!!u.can_donate)+'" data-id="'+esc(u.user_id)+'">'+(u.can_donate?'Disable donor':'Enable donor')+'</button></div>':'<span class="muted">Profile not created; capability changes unavailable</span>'}]);
       renderIcons(tableEl);wireTableTools(tableEl);
       tableEl.querySelectorAll("button[data-capability]").forEach(btn=>btn.addEventListener("click",async()=>{
         const row=data.items.find(user=>user.user_id===btn.dataset.id);if(!row)return;
@@ -2443,13 +2508,13 @@ async function loadUsers() {
    tableEl.setAttribute("aria-live","polite");
    tableEl.innerHTML='<div class="empty"><strong>Loading '+(kind==="audit"?"audit records":"system errors")+'</strong><span class="muted small">Retrieving the latest records…</span></div>';
    try {
-     const data=await api("/v1/admin/"+kind+"?limit="+pageSize+"&offset="+offset+(kind==="audit"&&auditAction?"&action="+encodeURIComponent(auditAction):"")+(correlation?"&correlation_id="+encodeURIComponent(correlation):""));
+     const data=await api("/v1/admin/"+kind+"?limit="+pageSize+"&offset="+offset+(kind==="audit"&&auditAction?"&action="+encodeURIComponent(auditAction):"")+(kind==="audit"&&auditActor?"&actor_id="+encodeURIComponent(auditActor):"")+(correlation?"&correlation_id="+encodeURIComponent(correlation):""));
      if(token!==pageLoadToken||activePage!==kind)return;
       if(!data||!Array.isArray(data.items)) throw new Error("Unexpected "+kind+" response");
      $(kind+"-prev").disabled=offset===0;
      $(kind+"-next").disabled=data.items.length<pageSize;
      $(kind+"-page").textContent=data.items.length===0?"No records on this page":"Showing "+(offset+1)+"–"+(offset+data.items.length);
-     if(kind==="audit") $("audit-filter-note").textContent=[auditAction?"Action: "+auditAction:"",auditCorrelation?"Correlation ID: "+auditCorrelation:""].filter(Boolean).join(" · ")||"Showing all audit actions.";
+     if(kind==="audit") $("audit-filter-note").textContent=[auditAction?"Action: "+auditAction:"",auditActor?"User ID: "+auditActor:"",auditCorrelation?"Correlation ID: "+auditCorrelation:""].filter(Boolean).join(" · ")||"Showing all audit actions.";
      else $("errors-filter-note").textContent=errorsCorrelation?"Filtering correlation ID: "+errorsCorrelation:"Showing all recorded errors and denied events.";
      if(data.items.length===0){
        tableEl.innerHTML='<div class="empty"><strong>No '+(kind==="audit"?"audit records":"system errors")+' found</strong><span class="muted small">'+(correlation?"No records match this correlation ID.":kind==="errors"?"No recorded errors or denied events are currently available.":"There are no audit events on this page.")+'</span></div>';
@@ -2567,6 +2632,49 @@ async function loadUsers() {
       if(token===pageLoadToken)$("analytics-summary").removeAttribute("aria-busy");
     }
   }
+  async function loadScannerHealth() {
+    const token=pageLoadToken,el=$("scanner-health");
+    setLoadingState("scanner-health","Checking scanner health","Retrieving the last persisted IDS/IPS scanner result…");
+    try {
+      const data=await api("/v1/admin/security/scanner");
+      if(token!==pageLoadToken||activePage!=="alerts")return;
+      if(!data||data.scanner_key!=="rbac"||typeof data.status!=="string")throw new Error("Unexpected scanner health response");
+      const succeededAt=data.last_succeeded_at?Date.parse(data.last_succeeded_at):NaN;
+      const startedAt=data.last_started_at?Date.parse(data.last_started_at):NaN;
+      const succeeded=Number.isFinite(succeededAt)?new Date(succeededAt).toLocaleString():"Never";
+      const started=Number.isFinite(startedAt)?new Date(startedAt).toLocaleString():"Not recorded";
+      const failed=data.last_failed_at?new Date(data.last_failed_at).toLocaleString():"Never";
+      const intervalSeconds=Math.max(60,Number(data.scan_interval_seconds)||300);
+      // Freshness ages are calculated by PostgreSQL at response time. Do not
+      // compare server timestamps with the browser clock, which may be skewed.
+      const runningAgeSeconds=data.running_age_seconds==null?NaN:Number(data.running_age_seconds);
+      const successAgeSeconds=data.success_age_seconds==null?NaN:Number(data.success_age_seconds);
+      const staleAfterSeconds=Math.max(120,intervalSeconds*2);
+      const runningTooLong=data.status==="running"&&(!Number.isFinite(runningAgeSeconds)||runningAgeSeconds>staleAfterSeconds);
+      const successTooOld=data.status==="succeeded"&&(!Number.isFinite(successAgeSeconds)||successAgeSeconds>staleAfterSeconds);
+      const isStale=runningTooLong||successTooOld;
+      const displayStatus=isStale?"stale":data.status;
+      const status=String(displayStatus).replace(/[^a-z_]/g,"");
+      el.innerHTML='<table><tbody>'+
+        '<tr><th scope="row">Scanner</th><td>RBAC policy integrity</td></tr>'+
+        '<tr><th scope="row">Last status</th><td><span class="tag status-'+esc(status)+'">'+esc(displayStatus)+'</span></td></tr>'+
+        '<tr><th scope="row">Last scan started</th><td>'+esc(started)+'</td></tr>'+
+        '<tr><th scope="row">Last successful scan</th><td>'+esc(succeeded)+'</td></tr>'+
+        '<tr><th scope="row">Last failed scan</th><td>'+esc(failed)+'</td></tr>'+
+        '<tr><th scope="row">Expected scan interval</th><td>'+esc(intervalSeconds)+' seconds</td></tr>'+
+        '<tr><th scope="row">Last successful duration</th><td>'+esc(data.last_duration_ms??"Not recorded")+' ms</td></tr>'+
+        '<tr><th scope="row">Findings on last success</th><td>'+esc(data.last_findings??0)+'</td></tr>'+
+        '<tr><th scope="row">Consecutive failures</th><td>'+esc(data.consecutive_failures??0)+'</td></tr>'+
+        '<tr><th scope="row">Last error code</th><td>'+esc(data.last_error_code||"None")+'</td></tr>'+
+        '</tbody></table>';
+    } catch(e) {
+      if(token!==pageLoadToken||activePage!=="alerts")return;
+      setErrorState("scanner-health","Scanner health unavailable",safeError(e,"The scanner health record could not be retrieved."),()=>loadPage("alerts"));
+    } finally {
+      if(token===pageLoadToken)el.removeAttribute("aria-busy");
+    }
+  }
+
   async function loadRoleIntegrity() {
     const token=pageLoadToken,tableEl=$("role-integrity-table");
     setLoadingState("role-integrity-table","Checking role policy findings","Retrieving independent RBAC-03 findings…");
@@ -2615,7 +2723,7 @@ async function loadUsers() {
       if(page==="roles") await loadRoles();
       if(page==="audit") await loadEvents("audit");
       if(page==="sessions") await loadSessions();
-      if(page==="alerts"){ await loadAlerts(); await loadRoleIntegrity(); }
+      if(page==="alerts"){ await loadAlerts(); await loadRoleIntegrity(); await loadScannerHealth(); }
       if(page==="errors") await loadEvents("errors");
     } catch(e) {
       if(token!==pageLoadToken||activePage!==page)return;
@@ -2654,9 +2762,11 @@ async function loadUsers() {
  $("alert-status-filter").addEventListener("change",e=>{alertStatus=e.target.value;offsets.alerts=0;loadPage("alerts");});
  $("sessions-correlation-filter").addEventListener("change",e=>{sessionCorrelation=e.target.value.trim();offsets.sessions=0;loadPage("sessions");});
  $("alerts-correlation-filter").addEventListener("change",e=>{alertCorrelation=e.target.value.trim();offsets.alerts=0;loadPage("alerts");});
- $("audit-filter-apply").addEventListener("click",()=>{auditAction=$("audit-action-filter").value.trim().slice(0,64);auditCorrelation=$("audit-correlation-filter").value.trim().slice(0,128);offsets.audit=0;loadPage("audit");});
- $("audit-filter-clear").addEventListener("click",()=>{$("audit-action-filter").value="";$("audit-correlation-filter").value="";auditAction="";auditCorrelation="";offsets.audit=0;loadPage("audit");});
+ $("audit-filter-apply").addEventListener("click",()=>{auditAction=$("audit-action-filter").value.trim().slice(0,64);auditActor=$("audit-actor-filter").value.trim().slice(0,128);auditCorrelation=$("audit-correlation-filter").value.trim().slice(0,128);offsets.audit=0;loadPage("audit");});
+ $("audit-filter-clear").addEventListener("click",()=>{$("audit-action-filter").value="";$("audit-actor-filter").value="";$("audit-correlation-filter").value="";auditAction="";auditActor="";auditCorrelation="";offsets.audit=0;loadPage("audit");});
+ $("audit-actor-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("audit-filter-apply").click();});
  $("audit-correlation-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("audit-filter-apply").click();});
+ enableBrowserNotifications();
  $("errors-filter-apply").addEventListener("click",()=>{errorsCorrelation=$("errors-correlation-filter").value.trim().slice(0,128);offsets.errors=0;loadPage("errors");});
  $("errors-filter-clear").addEventListener("click",()=>{$("errors-correlation-filter").value="";errorsCorrelation="";offsets.errors=0;loadPage("errors");});
  $("errors-correlation-filter").addEventListener("keydown",e=>{if(e.key==="Enter")$("errors-filter-apply").click();});
@@ -2665,7 +2775,7 @@ async function loadUsers() {
    $(kind+"-prev").addEventListener("click",()=>{offsets[kind]=Math.max(0,offsets[kind]-pageSize);loadPage(kind==="users"?"users":kind);});
    $(kind+"-next").addEventListener("click",()=>{offsets[kind]+=pageSize;loadPage(kind==="users"?"users":kind);});
  });
- $("signout").addEventListener("click",async()=>{pageLoadToken++;mfaFlowGeneration++;let remoteSignedOut=true;try{if(accessToken)await window.LifeLinkAdminMFA.signOut(currentMfaConfig());}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("mfa-view").classList.add("hidden");$("password").value="";message("login-message",remoteSignedOut?"Signed out.":"Signed out locally, but Supabase server-side sign-out could not be confirmed. Close this tab and retry when online.",!remoteSignedOut);});
+ $("signout").addEventListener("click",async()=>{stopBrowserNotifications("Off");pageLoadToken++;mfaFlowGeneration++;let remoteSignedOut=true;try{if(accessToken)await window.LifeLinkAdminMFA.signOut(currentMfaConfig());}catch{remoteSignedOut=false;}accessToken=null;refreshToken=null;accessTokenExpiresAt=0;mfaFactors=[];mfaReturnToManage=false;clearMfaPending();$("app-view").classList.add("hidden");$("session-tools").classList.add("hidden");$("login-view").classList.remove("hidden");$("mfa-view").classList.add("hidden");$("password").value="";message("login-message",remoteSignedOut?"Signed out.":"Signed out locally, but Supabase server-side sign-out could not be confirmed. Close this tab and retry when online.",!remoteSignedOut);});
 })();
 </script>
 </body></html>

@@ -6,7 +6,7 @@ LifeLink is a direct requester-to-donor discovery and contact aid. A coordinator
 
 ## Account roles
 
-Every authenticated account selects one primary role during onboarding: **requester** or **donor**. Requesters can create and track requests. Donors can edit their donor profile, set availability, and respond to nearby requests. A future release may support both roles on one account; the MVP keeps role selection explicit to avoid confusing workflows.
+LifeLink has exactly three product roles: **Requester**, **Blood Donor**, and **Admin**. Requesters create and track blood requests. Blood Donors manage their donor profile and availability and respond to eligible nearby requests. Admin is a web-only role assigned through the protected server-side administrator process; it is never selectable during public signup and is not available in the Android app. Administrative work areas (user management, security, audit, and reporting) are permissions within the single Admin role, not additional roles. Preserve the existing requester/donor capability and onboarding rules; do not infer a new role from editable profile metadata.
 
 ## Privacy boundaries
 

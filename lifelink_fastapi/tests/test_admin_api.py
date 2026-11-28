@@ -24,6 +24,7 @@ class FakeSession:
         self.scalar_values = list(scalar_values or [0])
         self.statements = []
         self.scalar_statements = []
+        self.scalar_parameters = []
 
     async def execute(self, statement, params=None):
         self.statements.append(str(statement))
@@ -31,6 +32,7 @@ class FakeSession:
 
     async def scalar(self, statement, params=None):
         self.scalar_statements.append(str(statement))
+        self.scalar_parameters.append(params or {})
         return self.scalar_values.pop(0) if self.scalar_values else 0
 
     async def commit(self):
@@ -477,6 +479,11 @@ def test_startup_adds_admin_audit_columns_and_indexes(monkeypatch):
     assert "CREATE TABLE IF NOT EXISTS lifelink_role_security_findings" in statements
     assert "ux_lifelink_role_security_findings_open_rule_role" in statements
     assert "ALTER TABLE lifelink_role_security_findings ENABLE ROW LEVEL SECURITY" in statements
+    assert "CREATE TABLE IF NOT EXISTS lifelink_security_scanner_runs" in statements
+    assert "ALTER TABLE lifelink_security_scanner_runs ENABLE ROW LEVEL SECURITY" in statements
+    assert "REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM PUBLIC" in statements
+    assert "REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM anon" in statements
+    assert "REVOKE ALL ON TABLE lifelink_security_scanner_runs FROM authenticated" in statements
 
 
 from app.admin_api import _safe_audit_metadata
@@ -515,6 +522,8 @@ def test_admin_audit_metadata_is_bounded():
         ("GET", "/v1/admin/sessions", None),
         ("GET", "/v1/admin/security/alerts", None),
         ("GET", "/v1/admin/security/role-integrity", None),
+        ("GET", "/v1/admin/security/scanner", None),
+        ("GET", "/v1/admin/security/notifications", None),
         ("PATCH", "/v1/admin/security/alerts/00000000-0000-0000-0000-000000000001", {"status": "resolved"}),
         ("GET", "/v1/admin/errors", None),
         ("PATCH", "/v1/admin/users/another-user", {
@@ -675,7 +684,7 @@ def test_ordinary_admin_cannot_assign_roles_through_http(monkeypatch):
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             return await client.put(
                 "/v1/admin/users/00000000-0000-0000-0000-000000000001/roles",
-                json={"role_keys": ["auditor"]},
+                json={"role_keys": ["admin"]},
             )
 
     try:
@@ -693,10 +702,8 @@ def test_rbac_policy_rejects_roles_not_applicable_to_user(monkeypatch):
     profile = {"can_request": True, "can_donate": False, "has_donor_profile": False}
     assert _role_mismatch_reason("requester", "regular-user", profile) is None
     assert _role_mismatch_reason("donor", "regular-user", profile) == "donor_capability_missing"
-    assert _role_mismatch_reason("security_admin", "regular-user", profile) == "account_not_in_admin_allowlist"
-    assert _role_mismatch_reason("security_admin", "approved-admin", profile) is None
-    assert _role_mismatch_reason("super_admin", "approved-admin", profile) == "super_admin_requires_rbac_manager_allowlist"
-    assert _role_mismatch_reason("super_admin", "security-owner", profile) == "account_not_in_admin_allowlist"
+    assert _role_mismatch_reason("admin", "regular-user", profile) == "account_not_in_admin_allowlist"
+    assert _role_mismatch_reason("admin", "approved-admin", profile) is None
 
 
 def test_audit_action_kind_classifies_application_crud_verbs():
@@ -733,6 +740,8 @@ def test_admin_audit_query_explicitly_types_nullable_action_filter():
             self.statements.append(sql)
             if "FROM audit_events WHERE" in sql:
                 assert params["action"] is None
+                assert params["actor_id"] == "user-42"
+                assert params["correlation_id"] is None
                 return EmptyRows()
             return None
 
@@ -746,6 +755,8 @@ def test_admin_audit_query_explicitly_types_nullable_action_filter():
             limit=50,
             offset=0,
             action=None,
+            actor_id="user-42",
+            correlation_id=None,
             x_correlation_id=None,
         )
 
@@ -753,6 +764,8 @@ def test_admin_audit_query_explicitly_types_nullable_action_filter():
     audit_query = next(statement for statement in session.statements if "FROM audit_events WHERE" in statement)
     assert "CAST(:action AS varchar) IS NULL" in audit_query
     assert "action = CAST(:action AS varchar)" in audit_query
+    assert "CAST(:actor_id AS varchar) IS NULL" in audit_query
+    assert "actor_id = CAST(:actor_id AS varchar)" in audit_query
     assert "CAST(:correlation_id AS varchar) IS NULL" in audit_query
     assert "correlation_id = CAST(:correlation_id AS varchar)" in audit_query
 
@@ -1149,10 +1162,9 @@ def test_rbac_scanner_runs_without_http_request_context():
             self.statements.append(sql)
             if "FROM lifelink_roles r" in sql:
                 return Rows([
-                    {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"]},
-                    {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
-                    {"role_key": "security_admin", "permissions": ["dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"]},
-                    {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
+                    {"role_key": "requester", "permissions": []},
+                    {"role_key": "donor", "permissions": []},
+                    {"role_key": "admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "requests.read", "operations.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke", "roles.read", "reports.read"]},
                 ])
             return Rows([])
 
@@ -1164,97 +1176,27 @@ def test_rbac_scanner_runs_without_http_request_context():
     assert findings == 0
     assert "FROM lifelink_user_roles ur" in session.statements[0]
 
-def test_rbac_permission_policy_detects_missing_and_unexpected_grants():
-    from app.admin_api import _rbac_permission_mismatch
+def test_rbac_permission_policy_has_exactly_three_product_roles():
+    from app.admin_api import RBAC_APPROVED_PERMISSION_MATRIX, _rbac_permission_mismatch
 
-    actual = {"dashboard.read", "users.read", "unexpected.permission"}
-    assert _rbac_permission_mismatch("operations_admin", actual) == (
-        ["operations.read", "reports.read", "requests.read"],
-        ["unexpected.permission"],
-    )
-    assert _rbac_permission_mismatch("auditor", {"dashboard.read", "audit.read", "reports.read"}) == ([], [])
-    # These roles are intentionally not assigned an assumed empty or wildcard policy.
-    assert _rbac_permission_mismatch("requester", set()) is None
-    assert _rbac_permission_mismatch("donor", set()) is None
-    assert _rbac_permission_mismatch("super_admin", set()) is None
-
-
-def test_role_policy_integrity_scans_seeded_roles_without_user_assignments():
-    from app.admin_api import _scan_rbac_role_policy_integrity
-
-    class Rows:
-        def mappings(self):
-            return self
-
-        def all(self):
-            return [
-                {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read"]},
-                {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
-                {"role_key": "security_admin", "permissions": ["dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"]},
-                {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
-                {"role_key": "super_admin", "permissions": []},
-            ]
-
-    class Session:
-        def __init__(self):
-            self.statements = []
-
-        async def execute(self, statement, params=None):
-            self.statements.append((str(statement), params or {}))
-            return Rows()
-
-    session = Session()
-    principal = Principal(subject="system:rbac-scanner", email_verified=True)
-    findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
-
-    assert findings == 1
-    assert "FROM lifelink_roles r" in session.statements[0][0]
-    assert "lifelink_user_roles" not in session.statements[0][0]
-    insert_sql, params = session.statements[1]
-    assert "INSERT INTO lifelink_role_security_findings" in insert_sql
-    assert "ON CONFLICT (rule_id, role_key)" in insert_sql
-    assert params["role_key"] == "operations_admin"
-    assert '"missing_permission_keys": ["operations.read", "reports.read", "requests.read"]' in params["evidence"]
-    assert session.statements[2][1]["role_key"] == "user_admin"
-    assert "UPDATE lifelink_role_security_findings" in session.statements[2][0]
+    assert set(RBAC_APPROVED_PERMISSION_MATRIX) == {"requester", "donor", "admin"}
+    assert _rbac_permission_mismatch("requester", set()) == ([], [])
+    assert _rbac_permission_mismatch("donor", set()) == ([], [])
+    admin_grants = RBAC_APPROVED_PERMISSION_MATRIX["admin"]
+    assert "users.read" in admin_grants
+    assert "security.alerts.manage" in admin_grants
+    assert "audit.read" in admin_grants
+    assert "permissions.manage" not in admin_grants
+    assert "settings.update" not in admin_grants
+    assert _rbac_permission_mismatch("admin", set(admin_grants)) == ([], [])
+    assert _rbac_permission_mismatch("admin", set(admin_grants) | {"unexpected.permission"}) == ([], ["unexpected.permission"])
+    assert _rbac_permission_mismatch("security_admin", set()) is None
 
 
-def test_role_policy_integrity_detects_missing_approved_role_definition():
-    from app.admin_api import _scan_rbac_role_policy_integrity
+def test_role_policy_integrity_accepts_exactly_three_roles():
+    from app.admin_api import RBAC_APPROVED_PERMISSION_MATRIX, _scan_rbac_role_policy_integrity
 
-    class Rows:
-        def mappings(self):
-            return self
-
-        def all(self):
-            # security_admin is deliberately absent from the registry result.
-            return [
-                {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"]},
-                {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
-                {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
-            ]
-
-    class Session:
-        def __init__(self):
-            self.statements = []
-
-        async def execute(self, statement, params=None):
-            self.statements.append((str(statement), params or {}))
-            return Rows()
-
-    session = Session()
-    principal = Principal(subject="system:rbac-scanner", email_verified=True)
-    findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
-
-    assert findings == 1
-    insert_sql, params = session.statements[3]
-    assert "INSERT INTO lifelink_role_security_findings" in insert_sql
-    assert params["role_key"] == "security_admin"
-    assert '"role_definition_missing": true' in params["evidence"]
-
-
-def test_role_policy_integrity_does_not_infer_unconfigured_role_policy():
-    from app.admin_api import _scan_rbac_role_policy_integrity
+    expected = sorted(RBAC_APPROVED_PERMISSION_MATRIX["admin"])
 
     class Rows:
         def mappings(self):
@@ -1262,13 +1204,9 @@ def test_role_policy_integrity_does_not_infer_unconfigured_role_policy():
 
         def all(self):
             return [
-                {"role_key": "operations_admin", "permissions": ["dashboard.read", "users.read", "requests.read", "operations.read", "reports.read"]},
-                {"role_key": "user_admin", "permissions": ["dashboard.read", "users.read", "users.update", "users.suspend", "roles.read"]},
-                {"role_key": "security_admin", "permissions": ["dashboard.read", "audit.read", "security.alerts.read", "security.alerts.manage", "security.sessions.read", "security.sessions.revoke"]},
-                {"role_key": "auditor", "permissions": ["dashboard.read", "audit.read", "reports.read"]},
                 {"role_key": "requester", "permissions": []},
                 {"role_key": "donor", "permissions": []},
-                {"role_key": "super_admin", "permissions": ["unreviewed.permission"]},
+                {"role_key": "admin", "permissions": expected},
             ]
 
     class Session:
@@ -1284,5 +1222,685 @@ def test_role_policy_integrity_does_not_infer_unconfigured_role_policy():
     findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
 
     assert findings == 0
-    assert len(session.statements) == 5
-    assert all("INSERT INTO lifelink_role_security_findings" not in statement for statement, _ in session.statements)
+    assert "FROM lifelink_roles r" in session.statements[0][0]
+    assert "lifelink_user_roles" not in session.statements[0][0]
+    assert not any("INSERT INTO lifelink_role_security_findings" in sql for sql, _ in session.statements)
+
+
+def test_role_policy_integrity_detects_missing_admin_role_definition():
+    from app.admin_api import _scan_rbac_role_policy_integrity
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return [
+                {"role_key": "requester", "permissions": []},
+                {"role_key": "donor", "permissions": []},
+            ]
+
+    class Session:
+        def __init__(self):
+            self.statements = []
+
+        async def execute(self, statement, params=None):
+            self.statements.append((str(statement), params or {}))
+            return Rows()
+
+    session = Session()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+    findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
+
+    assert findings == 1
+    inserts = [(sql, params) for sql, params in session.statements if "INSERT INTO lifelink_role_security_findings" in sql]
+    assert len(inserts) == 1
+    assert inserts[0][1]["role_key"] == "admin"
+    assert '"role_definition_missing": true' in inserts[0][1]["evidence"]
+
+
+def test_role_policy_integrity_detects_unapproved_role_definition():
+    from app.admin_api import RBAC_APPROVED_PERMISSION_MATRIX, _scan_rbac_role_policy_integrity
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return [
+                {"role_key": "requester", "permissions": []},
+                {"role_key": "donor", "permissions": []},
+                {"role_key": "admin", "permissions": sorted(RBAC_APPROVED_PERMISSION_MATRIX["admin"])},
+                {"role_key": "auditor", "permissions": ["audit.read"]},
+            ]
+
+    class Session:
+        def __init__(self):
+            self.statements = []
+
+        async def execute(self, statement, params=None):
+            self.statements.append((str(statement), params or {}))
+            return Rows()
+
+    session = Session()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+    findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
+
+    assert findings == 1
+    inserts = [(sql, params) for sql, params in session.statements if "INSERT INTO lifelink_role_security_findings" in sql]
+    assert len(inserts) == 1
+    assert inserts[0][1]["role_key"] == "auditor"
+    assert '"role_definition_unapproved": true' in inserts[0][1]["evidence"]
+
+
+def test_admin_permission_guard_defaults_to_legacy_compatible_observe_mode(monkeypatch):
+    from app import admin_api
+
+    require_admin_permission = admin_api.require_admin_permission
+
+    monkeypatch.delenv("LIFELINK_RBAC_ENFORCEMENT_MODE", raising=False)
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    session = FakeSession([0, 2])
+
+    async def check():
+        request = _request_context()
+        principal = Principal(
+            subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+        )
+        await admin_api.require_admin(request=request, principal=principal, session=session)
+        principal = await require_admin_permission("users.read")(
+            request=request, principal=principal, session=session
+        )
+        assert principal.subject == "admin-1"
+
+    asyncio.run(check())
+    assert len(session.scalar_statements) == 2
+    assert all("lifelink_user_roles" not in statement for statement in session.scalar_statements)
+
+
+def test_admin_permission_guard_enforces_exact_active_role_permission(monkeypatch):
+    from app import admin_api
+
+    require_admin_permission = admin_api.require_admin_permission
+    monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "enforce")
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    session = FakeSession([0, 2, 1])
+
+    async def check():
+        request = _request_context()
+        principal = Principal(
+            subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+        )
+        await admin_api.require_admin(request=request, principal=principal, session=session)
+        principal = await require_admin_permission("users.read")(
+            request=request, principal=principal, session=session
+        )
+        assert principal.subject == "admin-1"
+
+    asyncio.run(check())
+    permission_query = session.scalar_statements[-1]
+    assert "FROM lifelink_user_roles ur" in permission_query
+    assert "LEFT JOIN lifelink_role_permissions rp" in permission_query
+    assert "LEFT JOIN lifelink_permissions p" in permission_query
+    assert "p.permission_key = :permission_key" in permission_query
+    assert "ur.expires_at > statement_timestamp()" in permission_query
+
+
+def test_admin_permission_guard_denies_missing_permission_and_records_ids08(monkeypatch):
+    from app import admin_api
+
+    monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "enforce")
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    recorded = {}
+
+    async def capture_denial(session, principal, request, **kwargs):
+        recorded.update(kwargs)
+
+    monkeypatch.setattr(admin_api, "_record_denied_admin_attempt", capture_denial)
+    session = FakeSession([0, 2, 0])
+
+    async def check():
+        request = _request_context()
+        principal = Principal(
+            subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+        )
+        await admin_api.require_admin(request=request, principal=principal, session=session)
+        with pytest.raises(HTTPException) as error:
+            await admin_api.require_admin_permission("security.sessions.revoke")(
+                request=request, principal=principal, session=session
+            )
+        assert error.value.status_code == 403
+        assert "does not grant" in error.value.detail
+
+    asyncio.run(check())
+    assert recorded["rule_id"] == "IDS-08"
+    assert recorded["action"] == "security.admin_permission.denied"
+    assert recorded["severity"] == "medium"
+
+
+def test_admin_permission_guard_fails_closed_on_invalid_mode(monkeypatch):
+    from app import admin_api
+
+    require_admin_permission = admin_api.require_admin_permission
+
+    monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "typo")
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+
+    async def check():
+        request = _request_context()
+        principal = Principal(
+            subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+        )
+        session = FakeSession([0, 2])
+        await admin_api.require_admin(request=request, principal=principal, session=session)
+        with pytest.raises(HTTPException) as error:
+            await require_admin_permission("audit.read")(
+                request=request, principal=principal, session=session
+            )
+        assert error.value.status_code == 503
+
+    asyncio.run(check())
+
+
+
+def test_admin_scanner_health_returns_persisted_status_without_error_details(monkeypatch):
+    from app import admin_api
+    monkeypatch.setenv("LIFELINK_RBAC_SCAN_SECONDS", "inf")
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def first(self):
+            return {
+                "scanner_key": "rbac",
+                "status": "failed",
+                "last_findings": 3,
+                "last_duration_ms": 121,
+                "consecutive_failures": 2,
+                "last_error_code": "scan_failed",
+                "running_age_seconds": None,
+                "success_age_seconds": None,
+            }
+
+    class Session(FakeSession):
+        async def execute(self, statement, params=None):
+            self.statements.append(str(statement))
+            return Rows()
+
+    async def no_audit(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(admin_api, "_write_audit", no_audit)
+    session = Session()
+
+    async def check():
+        result = await admin_api.admin_security_scanner_health(
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+        )
+        assert result["status"] == "failed"
+        assert result["last_findings"] == 3
+        assert result["last_duration_ms"] == 121
+        assert result["scan_interval_seconds"] == 300
+        assert result["consecutive_failures"] == 2
+        assert result["last_error_code"] == "scan_failed"
+        assert result["running_age_seconds"] is None
+        assert result["success_age_seconds"] is None
+        assert "clock_timestamp() - last_started_at" in session.statements[0]
+        assert "clock_timestamp() - last_succeeded_at" in session.statements[0]
+        assert "exception" not in result
+        assert "SELECT scanner_key, status" in session.statements[0]
+
+    asyncio.run(check())
+
+
+def test_admin_scanner_health_reports_never_run_when_no_status_exists(monkeypatch):
+    monkeypatch.delenv("LIFELINK_RBAC_SCAN_SECONDS", raising=False)
+    from app import admin_api
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def first(self):
+            return None
+
+    class Session(FakeSession):
+        async def execute(self, statement, params=None):
+            self.statements.append(str(statement))
+            return Rows()
+
+    async def no_audit(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(admin_api, "_write_audit", no_audit)
+
+    async def check():
+        result = await admin_api.admin_security_scanner_health(
+            request=_request_context(),
+            session=Session(),
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+        )
+        assert result == {
+            "scanner_key": "rbac", "status": "never_run", "last_findings": 0,
+            "consecutive_failures": 0, "last_error_code": None,
+            "running_age_seconds": None, "success_age_seconds": None,
+            "scan_interval_seconds": 300,
+        }
+
+    asyncio.run(check())
+
+
+
+def test_admin_routes_declare_the_expected_permission_matrix():
+    from app.admin_api import router
+
+    expected = {
+        ("GET", "/v1/admin/me"): "dashboard.read",
+        ("GET", "/v1/admin/dashboard"): "dashboard.read",
+        ("GET", "/v1/admin/users"): "users.read",
+        ("PATCH", "/v1/admin/users/{user_id}"): "users.update",
+        ("GET", "/v1/admin/security/role-integrity"): "audit.read",
+        ("GET", "/v1/admin/security/scanner"): "security.alerts.read",
+        ("GET", "/v1/admin/security/notifications"): "security.alerts.read",
+        ("GET", "/v1/admin/security/alerts"): "security.alerts.read",
+        ("PATCH", "/v1/admin/security/alerts/{alert_id}"): "security.alerts.manage",
+        ("GET", "/v1/admin/sessions"): "security.sessions.read",
+        ("POST", "/v1/admin/sessions/{session_id}/revoke"): "security.sessions.revoke",
+        ("GET", "/v1/admin/audit"): "audit.read",
+        ("GET", "/v1/admin/errors"): "audit.read",
+        ("GET", "/v1/admin/roles"): "roles.read",
+        ("GET", "/v1/admin/users/{user_id}/roles"): "roles.read",
+    }
+    actual = {}
+    for route in router.routes:
+        route_keys = {(method, route.path) for method in getattr(route, "methods", set())}
+        for route_key in route_keys.intersection(expected):
+            guard = next(
+                dependency.call for dependency in route.dependant.dependencies
+                if dependency.call.__name__ == "require_admin"
+            )
+            actual[route_key] = getattr(guard, "permission_key", None)
+    assert actual == expected
+
+
+
+def test_admin_security_notification_feed_returns_only_safe_event_metadata(monkeypatch):
+    from datetime import datetime, timezone
+
+    from app import admin_api
+
+    event_time = datetime(2026, 11, 27, 13, 0, tzinfo=timezone.utc)
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return [{
+                "id": "00000000-0000-0000-0000-000000000001",
+                "rule_id": "IDS-03",
+                "severity": "high",
+                "created_at": event_time,
+                "source": "alert",
+            }]
+
+    class Session(FakeSession):
+        async def execute(self, statement, params=None):
+            self.statements.append(str(statement))
+            return Rows()
+
+    async def no_audit(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(admin_api, "_write_audit", no_audit)
+    session = Session()
+
+    async def check():
+        result = await admin_api.admin_security_notifications(
+            request=_request_context(),
+            after=datetime(2026, 11, 27, 12, 59, tzinfo=timezone.utc),
+            after_id="00000000-0000-0000-0000-000000000000",
+            limit=25,
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+        )
+        assert result["items"] == [{
+            "id": "00000000-0000-0000-0000-000000000001",
+            "rule_id": "IDS-03",
+            "severity": "high",
+            "created_at": event_time,
+            "source": "alert",
+        }]
+        assert result["cursor"] == {
+            "created_at": event_time, "id": "00000000-0000-0000-0000-000000000001"
+        }
+        assert "lifelink_security_alerts" in session.statements[0]
+        assert "lifelink_role_security_findings" in session.statements[0]
+        assert "evidence" not in result["items"][0]
+        assert "summary" not in result["items"][0]
+
+    asyncio.run(check())
+
+
+
+def test_admin_security_notification_feed_uses_server_time_when_cursor_is_omitted():
+    from datetime import datetime, timezone
+    from uuid import UUID
+
+    from app import admin_api
+
+    database_now = datetime(2026, 11, 28, 3, 45, tzinfo=timezone.utc)
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class Session(FakeSession):
+        def __init__(self):
+            super().__init__()
+            self.parameters = []
+
+        async def scalar(self, statement, params=None):
+            self.scalar_statements.append(str(statement))
+            self.scalar_parameters.append(params or {})
+            return database_now
+
+        async def execute(self, statement, params=None):
+            self.statements.append(str(statement))
+            self.parameters.append(params or {})
+            return Rows()
+
+    session = Session()
+
+    async def check():
+        result = await admin_api.admin_security_notifications(
+            request=_request_context(),
+            after=None,
+            after_id=UUID(int=0),
+            limit=25,
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+        )
+        assert result["cursor"] == {"created_at": database_now, "id": str(UUID(int=0))}
+        assert session.scalar_statements == ["SELECT clock_timestamp()"]
+        assert session.parameters[0]["after"] == database_now
+
+    asyncio.run(check())
+
+
+def test_admin_security_notification_feed_rejects_timezone_naive_cursor():
+    from datetime import datetime
+
+    from app import admin_api
+
+    async def check():
+        with pytest.raises(HTTPException) as error:
+            await admin_api.admin_security_notifications(
+                request=_request_context(),
+                after=datetime(2026, 11, 27, 13, 0),
+                after_id="00000000-0000-0000-0000-000000000000",
+                limit=25,
+                session=FakeSession(),
+                principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+            )
+        assert error.value.status_code == 422
+
+    asyncio.run(check())
+
+
+def test_admin_permission_enforcement_uses_single_admin_product_role(monkeypatch):
+    from app import admin_api
+
+    monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "enforce")
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    session = FakeSession([0, 2, 1])
+
+    async def check():
+        request = _request_context()
+        principal = Principal(
+            subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+        )
+        await admin_api.require_admin(request=request, principal=principal, session=session)
+        principal = await admin_api.require_admin_permission("security.alerts.read")(
+            request=request, principal=principal, session=session
+        )
+        assert principal.subject == "admin-1"
+
+    asyncio.run(check())
+    query = session.scalar_statements[-1]
+    assert "r.role_key = 'admin'" in query
+    assert "p.permission_key = :permission_key" in query
+    assert "super_admin" not in query
+
+
+def test_admin_permission_is_denied_without_an_active_admin_role_grant(monkeypatch):
+    from app import admin_api
+
+    monkeypatch.setenv("LIFELINK_RBAC_ENFORCEMENT_MODE", "enforce")
+    monkeypatch.setenv("LIFELINK_ADMIN_USER_IDS", "admin-1")
+    session = FakeSession([0, 2, 0])
+    recorded = {}
+
+    async def capture_denial(session, principal, request, **kwargs):
+        recorded.update(kwargs)
+
+    monkeypatch.setattr(admin_api, "_record_denied_admin_attempt", capture_denial)
+
+    async def check():
+        request = _request_context()
+        principal = Principal(
+            subject="admin-1", email_verified=True, session_id="session-1", assurance_level="aal2"
+        )
+        await admin_api.require_admin(request=request, principal=principal, session=session)
+        with pytest.raises(HTTPException) as error:
+            await admin_api.require_admin_permission("security.alerts.read")(
+                request=request, principal=principal, session=session
+            )
+        assert error.value.status_code == 403
+
+    asyncio.run(check())
+    assert "r.role_key = 'admin'" in session.scalar_statements[-1]
+    assert "is_rbac_manager" not in session.scalar_statements[-1]
+    assert recorded["rule_id"] == "IDS-08"
+
+
+def test_admin_user_inventory_includes_auth_accounts_and_effective_rbac_permissions():
+    from datetime import datetime, timezone
+
+    from app.admin_api import admin_list_users
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return [{
+                "user_id": "user-1",
+                "email": "user@example.test",
+                "account_state": "active",
+                "email_confirmed": True,
+                "is_anonymous": False,
+                "role": "requester",
+                "display_name": None,
+                "can_request": True,
+                "can_donate": False,
+                "created_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+                "has_profile": True,
+                "rbac_roles": ["requester"],
+                "rbac_permissions": [],
+            }]
+
+    class UserInventorySession(FakeSession):
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            self.statements.append(sql)
+            if "FROM auth.users u" in sql:
+                return Rows()
+            return None
+
+    session = UserInventorySession([42])
+
+    async def check():
+        result = await admin_list_users(
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True),
+            limit=25,
+            offset=0,
+            x_correlation_id=None,
+        )
+        assert result["total"] == 42
+        assert result["items"][0]["user_id"] == "user-1"
+        assert result["items"][0]["account_state"] == "active"
+        assert result["items"][0]["email_confirmed"] is True
+        assert result["items"][0]["is_anonymous"] is False
+        assert result["items"][0]["has_profile"] is True
+        assert result["items"][0]["rbac_roles"] == ["requester"]
+        assert result["items"][0]["rbac_permissions"] == []
+        query = next(sql for sql in session.statements if "FROM auth.users u" in sql)
+        assert "LEFT JOIN lifelink_profiles" in query
+        assert "LEFT JOIN lifelink_user_roles" in query
+        assert "LEFT JOIN lifelink_role_permissions" in query
+        assert "to_jsonb(u) ? 'deleted_at'" in query
+        assert "to_jsonb(u) ? 'banned_until'" in query
+        assert "to_jsonb(u) ? 'email_confirmed_at'" in query
+        assert "to_jsonb(u) ? 'is_anonymous'" in query
+        assert "THEN 'unknown' WHEN" in query
+        assert "ur.expires_at > statement_timestamp()" in query
+        assert "array_agg(DISTINCT perm.permission_key" in query
+
+    asyncio.run(check())
+
+
+
+
+def test_rbac_discrepancy_scan_uses_statement_time_for_active_assignments(monkeypatch):
+    from app import admin_api
+
+    async def no_role_policy_scan(*args, **kwargs):
+        return 0
+
+    monkeypatch.setattr(admin_api, "_scan_rbac_role_policy_integrity", no_role_policy_scan)
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class Session:
+        def __init__(self):
+            self.statements = []
+
+        async def execute(self, statement, params=None):
+            self.statements.append(str(statement))
+            return Rows()
+
+    session = Session()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+
+    count = asyncio.run(admin_api._scan_rbac_discrepancies(session, principal, None))
+
+    assert count == 0
+    assert len(session.statements) == 1
+    assert "ur.expires_at > statement_timestamp()" in session.statements[0]
+    assert "ur.expires_at > now()" not in session.statements[0]
+
+
+
+def test_rbac_role_policy_integrity_flags_unapproved_unassigned_role():
+    from app.admin_api import RBAC_APPROVED_PERMISSION_MATRIX, _scan_rbac_role_policy_integrity
+
+    class Rows:
+        def __init__(self, values):
+            self.values = values
+
+        def mappings(self):
+            return self
+
+        def all(self):
+            return self.values
+
+    class CaptureSession:
+        def __init__(self):
+            self.calls = []
+
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            values = params or {}
+            self.calls.append((sql, values))
+            if "FROM lifelink_roles r" in sql:
+                roles = [
+                    {"role_key": key, "permissions": sorted(permissions)}
+                    for key, permissions in RBAC_APPROVED_PERMISSION_MATRIX.items()
+                ]
+                roles.append({"role_key": "legacy_admin", "permissions": ["users.read"]})
+                return Rows(roles)
+            if "SELECT role_key FROM lifelink_role_security_findings" in sql:
+                return Rows([])
+            return Rows([])
+
+    session = CaptureSession()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+
+    findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
+
+    assert findings == 1
+    insert = next(
+        (sql, params)
+        for sql, params in session.calls
+        if "INSERT INTO lifelink_role_security_findings" in sql
+    )
+    assert insert[1]["role_key"] == "legacy_admin"
+    assert '"role_definition_unapproved": true' in insert[1]["evidence"]
+
+
+def test_rbac_role_policy_integrity_resolves_removed_unapproved_role():
+    from app.admin_api import RBAC_APPROVED_PERMISSION_MATRIX, _scan_rbac_role_policy_integrity
+
+    class Rows:
+        def __init__(self, values):
+            self.values = values
+
+        def mappings(self):
+            return self
+
+        def all(self):
+            return self.values
+
+    class CaptureSession:
+        def __init__(self):
+            self.calls = []
+
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            values = params or {}
+            self.calls.append((sql, values))
+            if "FROM lifelink_roles r" in sql:
+                roles = [
+                    {"role_key": key, "permissions": sorted(permissions)}
+                    for key, permissions in RBAC_APPROVED_PERMISSION_MATRIX.items()
+                ]
+                return Rows(roles)
+            if "SELECT role_key FROM lifelink_role_security_findings" in sql:
+                return Rows([{"role_key": "legacy_admin"}])
+            return Rows([])
+
+    session = CaptureSession()
+    principal = Principal(subject="system:rbac-scanner", email_verified=True)
+
+    findings = asyncio.run(_scan_rbac_role_policy_integrity(session, principal, None))
+
+    assert findings == 0
+    assert any(
+        "UPDATE lifelink_role_security_findings SET status = 'resolved'" in sql
+        and params["role_key"] == "legacy_admin"
+        for sql, params in session.calls
+    )

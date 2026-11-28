@@ -26,5 +26,16 @@ CREATE INDEX IF NOT EXISTS ix_lifelink_role_security_findings_status_created
     ON lifelink_role_security_findings (status, created_at DESC);
 
 ALTER TABLE lifelink_role_security_findings ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE lifelink_role_security_findings FROM PUBLIC;
+DO $role_guard$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        REVOKE ALL ON TABLE lifelink_role_security_findings FROM anon;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        REVOKE ALL ON TABLE lifelink_role_security_findings FROM authenticated;
+    END IF;
+END;
+$role_guard$;
 
 COMMIT;

@@ -19,8 +19,6 @@ ICONS_PATH = ROOT / "admin-web" / "icons.js"
 MFA_JS_PATH = ROOT / "admin-web" / "mfa.js"
 MFA_TEST_PATH = ROOT / "scripts" / "test_admin_mfa.js"
 ADMIN_API_PATH = ROOT / "lifelink_fastapi" / "app" / "admin_api.py"
-ANDROID_MFA_GATE_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "feature" / "admin" / "AdminMfaGateScreen.kt"
-ANDROID_AUTH_REPO_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "core" / "auth" / "SupabaseAuthRepository.kt"
 ANDROID_MAIN_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "MainActivity.kt"
 ANDROID_API_PATH = ROOT / "LifeLinkAndroid" / "app" / "src" / "main" / "java" / "com" / "lifelink" / "app" / "data" / "remote" / "LifeLinkApi.kt"
 
@@ -53,14 +51,12 @@ def fail(message: str) -> None:
 
 
 def main() -> None:
-    if not all(path.is_file() for path in (HTML_PATH, ICONS_PATH, MFA_JS_PATH, MFA_TEST_PATH, ADMIN_API_PATH, ANDROID_MFA_GATE_PATH, ANDROID_AUTH_REPO_PATH, ANDROID_MAIN_PATH, ANDROID_API_PATH)):
+    if not all(path.is_file() for path in (HTML_PATH, ICONS_PATH, MFA_JS_PATH, MFA_TEST_PATH, ADMIN_API_PATH, ANDROID_MAIN_PATH, ANDROID_API_PATH)):
         fail("admin website entry point, SVG icon library, or MFA module/tests are missing")
 
     html = HTML_PATH.read_text(encoding="utf-8")
     icons = ICONS_PATH.read_text(encoding="utf-8")
     admin_api = ADMIN_API_PATH.read_text(encoding="utf-8")
-    android_mfa = ANDROID_MFA_GATE_PATH.read_text(encoding="utf-8")
-    android_auth = ANDROID_AUTH_REPO_PATH.read_text(encoding="utf-8")
     android_main = ANDROID_MAIN_PATH.read_text(encoding="utf-8")
     android_api = ANDROID_API_PATH.read_text(encoding="utf-8")
     parser = DocumentCheck()
@@ -89,7 +85,7 @@ def main() -> None:
     csp = csp_match.group(1)
     script_hash = base64.b64encode(hashlib.sha256(inline_scripts[0].encode("utf-8")).digest()).decode("ascii")
     if f"'sha256-{script_hash}'" not in csp:
-        fail("Content Security Policy hash does not match the inline application script")
+        fail(f"Content Security Policy hash does not match the inline application script; expected sha256-{script_hash}")
     script_policy = re.search(r"(?:^|;)\s*script-src\s+([^;]+)", csp)
     if not script_policy or "'unsafe-inline'" in script_policy.group(1):
         fail("inline application scripts must be hash-authorized, not allowed with unsafe-inline")
@@ -153,6 +149,15 @@ def main() -> None:
     if "localStorage" in mfa_source or "sessionStorage" in mfa_source:
         fail("admin MFA tokens must remain in memory and never use browser storage")
 
+    if (
+        "AdminConsoleScreen" in android_main
+        or "AdminMfaGateScreen" in android_main
+        or "/v1/admin/" in android_api
+        or "adminPreflight" in android_api
+        or "adminMfaEvent" in android_api
+    ):
+        fail("Android app must not expose administrator screens, MFA gates, or administrator API contracts")
+
     if "createElementNS(NS" not in icons or "currentColor" not in icons:
         fail("SVG icons must be created with the SVG DOM API and inherit currentColor")
     if "innerHTML" in icons or "eval(" in icons:
@@ -171,6 +176,17 @@ def main() -> None:
     ):
         fail("overview must visualize validated live dashboard totals with an accessible chart")
 
+    if (
+        "FROM auth.users u" not in admin_api
+        or "LEFT JOIN lifelink_user_roles ur" not in admin_api
+        or "LEFT JOIN lifelink_role_permissions rp" not in admin_api
+        or "array_agg(DISTINCT perm.permission_key" not in admin_api
+        or "RBAC roles & admin grants" not in html
+        or "mapped admin grants" not in html
+        or "u.has_profile?" not in html
+    ):
+        fail("user inventory must include every Auth account, active RBAC roles/permissions, and profile-safe capability controls")
+
     if "data-table-export" not in html or "URL.createObjectURL(blob)" not in html:
         fail("admin data tables must provide client-side CSV export")
     if "const csvCell" not in html or "rows.filter(row=>!row.hidden)" not in html:
@@ -178,8 +194,16 @@ def main() -> None:
     if "if(/^[=+@" not in html or "text=" not in html:
         fail("CSV export must neutralize spreadsheet formula starters")
 
-    if "audit-action-filter" not in html or "auditAction?" not in html or "audit-filter-apply" not in html:
-        fail("audit history must expose its exact-action server-side filter")
+    if (
+        "audit-action-filter" not in html
+        or "audit-actor-filter" not in html
+        or "auditActor?" not in html
+        or "actor_id=" not in html
+        or "auditAction?" not in html
+        or "audit-filter-apply" not in html
+        or 'actor_id: str | None = Query(default=None, max_length=128)' not in admin_api
+    ):
+        fail("audit history must expose exact-action and per-user server-side filters")
 
     if (
         '@router.get("/preflight")' not in admin_api
@@ -203,23 +227,6 @@ def main() -> None:
     ):
         fail("operational admin routes must enforce AAL2 and two server-confirmed TOTP factors; only MFA audit receipts may use the AAL2 enrollment gate")
 
-    if (
-        "adminPreflight()" not in android_api
-        or "adminMfaEvent(" not in android_api
-        or "AdminMfaGateScreen(" not in android_main
-        or "account.api.adminPreflight()" not in android_main
-        or "listMfaFactors(" not in android_auth
-        or "enrollMfaTotp(" not in android_auth
-        or "challengeMfa(" not in android_auth
-        or "verifyMfaTotp(" not in android_auth
-        or "verifiedTotpFactors(factors)" not in android_mfa
-        or "verifiedFactorCount = pendingAuditCount" not in android_mfa
-        or "repository.assuranceLevel(activeSession.accessToken)" not in android_mfa
-        or "nextAdminMfaStep(" not in android_mfa
-        or "AdminMfaStep.RELOAD_FACTORS" not in android_mfa
-    ):
-        fail("Android administrator access must use Supabase TOTP enrollment/challenge, AAL2, and two verified factors")
-
     if "audit-correlation-filter" not in html or "errors-correlation-filter" not in html or "correlation_id" not in admin_api:
         fail("audit and error history must support server-side correlation ID tracing")
     if '"SELECT id, log_id, actor_id, action, actions, description, session_id, ip_address, timestamp, device_used, "' not in admin_api:
@@ -230,6 +237,58 @@ def main() -> None:
 
     if 'id="role-integrity-table"' not in html or '/v1/admin/security/role-integrity?limit=50&offset=0&status=open' not in html or "async function loadRoleIntegrity()" not in html:
         fail("security center must display role-level RBAC-03 findings from the protected role-integrity endpoint")
+
+    if (
+        'securityNotificationGeneration++' not in html
+        or 'if(generation!==securityNotificationGeneration)return;' not in html
+        or 'securityNotificationTimer=setInterval(()=>{if(generation===securityNotificationGeneration)pollSecurityNotifications();},60000);' not in html
+        or html.index('securityNotificationTimer=setInterval(()=>{if(generation===securityNotificationGeneration)pollSecurityNotifications();},60000);') > html.index('await pollSecurityNotifications();')
+        or 'securityNotificationCursor={created_at:null,id:"00000000-0000-0000-0000-000000000000"};' not in html
+        or 'new Date(Date.now()-5000)' in html
+        or 'function stopBrowserNotifications(statusText="Off") {' not in html
+        or 'securityNotificationGeneration++;' not in html
+        or 'if(generation!==securityNotificationGeneration||!accessToken||!securityNotificationCursor)return;' not in html
+        or 'const permissionGeneration=securityNotificationGeneration;' not in html
+        or 'if(permissionGeneration!==securityNotificationGeneration||!accessToken)return;' not in html
+    ):
+        fail("browser security notification polling must ignore in-flight responses after sign-out and must not restart after authorization failure")
+
+    if (
+        'id="scanner-health"' not in html
+        or '"/v1/admin/security/scanner"' not in html
+        or "async function loadScannerHealth()" not in html
+        or "runningTooLong" not in html
+        or "last_started_at" not in html
+        or '@router.get("/security/scanner")' not in admin_api
+        or "lifelink_security_scanner_runs" not in admin_api
+        or "def require_admin_permission(" not in admin_api
+        or 'LIFELINK_RBAC_ENFORCEMENT_MODE' not in admin_api
+        or '@router.get("/security/notifications")' not in admin_api
+        or 'browser-notifications-toggle' not in html
+        or 'pollSecurityNotifications' not in html
+        or 'Notification.requestPermission()' not in html
+        or '"/v1/admin/security/notifications"' not in html
+        or "running_age_seconds" not in admin_api
+        or "success_age_seconds" not in admin_api
+        or "clock_timestamp() - last_started_at" not in admin_api
+        or "clock_timestamp() - last_succeeded_at" not in admin_api
+        or "running_age_seconds" not in html
+        or "success_age_seconds" not in html
+        or "Date.now()-startedAt" in html
+        or "Date.now()-succeededAt" in html
+    ):
+        fail("security center must expose server-clock scanner freshness and opt-in browser notifications behind staged RBAC permission enforcement")
+
+    if (
+        'RBAC_APPROVED_PERMISSION_MATRIX = {' not in admin_api
+        or '"requester": frozenset()' not in admin_api
+        or '"donor": frozenset()' not in admin_api
+        or '"admin": frozenset({' not in admin_api
+        or "operations_admin" in admin_api
+        or "security_admin" in admin_api
+        or "super_admin" in admin_api
+    ):
+        fail("backend RBAC must define exactly requester, donor, and admin product roles")
 
     if 'data-status="false_positive"' not in html or "a.acknowledged_at" not in html or "a.resolved_at" not in html:
         fail("security alerts must support false-positive disposition and show their recorded handling history")

@@ -32,7 +32,21 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 export LIFELINK_DATABASE_URL='postgresql+asyncpg://lifelink:lifelink@localhost:5432/lifelink'
-for migration in sql/00*.sql; do
+# Local-only Supabase Auth compatibility stub. Supabase-hosted databases already
+# provide auth.users; never run this bootstrap against a hosted project.
+psql "postgresql://lifelink:lifelink@localhost:5432/lifelink" -v ON_ERROR_STOP=1 <<'SQL'
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE TABLE IF NOT EXISTS auth.users (
+    id uuid PRIMARY KEY,
+    email varchar(255),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz,
+    banned_until timestamptz,
+    email_confirmed_at timestamptz,
+    is_anonymous boolean NOT NULL DEFAULT false
+);
+SQL
+for migration in sql/*.sql; do
   psql "postgresql://lifelink:lifelink@localhost:5432/lifelink" \
     -v ON_ERROR_STOP=1 -f "$migration" || exit 1
 done
@@ -50,7 +64,7 @@ Open the API documentation at `http://localhost:8000/docs`.
 
 ```bash
 cd lifelink_fastapi
-for migration in sql/00*.sql; do
+for migration in sql/*.sql; do
   psql "postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require" \
     -v ON_ERROR_STOP=1 -f "$migration" || exit 1
 done
@@ -102,7 +116,7 @@ Outbound push notifications are enabled by setting `FIREBASE_SERVICE_ACCOUNT_JSO
 
 ## PostgreSQL package
 
-- `sql/001_initial_schema.sql`–`sql/006_donor_operational_profile.sql` — ordered PostgreSQL/PostGIS schema migrations, constraints, indexes, triggers, and operational profile fields.
+- `sql/001_initial_schema.sql`–`sql/024_three_product_roles.sql` — ordered PostgreSQL/PostGIS schema migrations, constraints, indexes, triggers, requester/donor privacy workflows, audit and IDS/IPS foundations, RBAC, and the three-role registry normalization. Apply only the migrations not already recorded in the target database's migration ledger; never rerun the initial migration loop against an existing database.
 - `app/db_models.py` — SQLAlchemy 2.0 typed models.
 - `app/db.py` — async engine and session dependency.
 - `app/repositories.py` — PostgreSQL donor and request repositories.

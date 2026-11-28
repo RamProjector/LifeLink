@@ -18,6 +18,7 @@ from app.security import (
     _claim_says_unverified,
     _get_principal,
     _has_verification_claim,
+    device_class,
     require_verified_email,
 )
 
@@ -97,3 +98,28 @@ def test_get_profile_allows_verified_principal_past_the_gate():
     with pytest.raises(HTTPException) as exc:
         asyncio.run(get_profile(session=_StubSession(), principal=principal))
     assert exc.value.status_code == 404
+
+
+# ------------------------------------------------------------ audit device label
+
+@pytest.mark.parametrize(
+    ("user_agent", "expected"),
+    [
+        ("Mozilla/5.0 (Linux; Android 15; Pixel 9 Build/AP3A)", "Android device"),
+        ("Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X)", "iOS device"),
+        ("Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Windows device"),
+        ("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)", "macOS device"),
+        ("Mozilla/5.0 (X11; Linux x86_64)", "Linux device"),
+        ("okhttp/4.12.0", "Unknown device"),
+        ("axios/1.7.0", "Unknown device"),
+        ("iOS app", "iOS device"),
+        ("", "Unknown device"),
+        (None, "Unknown device"),
+    ],
+)
+def test_device_class_reduces_user_agent_to_coarse_platform(user_agent, expected):
+    label = device_class(user_agent)
+    assert label == expected
+    assert "Mozilla" not in label
+    assert "Pixel" not in label
+    assert "18_1" not in label

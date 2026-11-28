@@ -149,3 +149,8 @@ The authenticated `POST /v1/donor-profile/presence` flow now writes a `donor_pre
 - Keep each sensitive mutation and its audit event in one database transaction. An audit insert failure must roll back the mutation and must not disclose exact location or report a successful message/bookmark action.
 - Preserve idempotency: retries and no-op operations must not create duplicate audit events.
 - Before merge, retain PostgreSQL integration evidence for privacy, rollback, actor attribution, and duplicate suppression across the current-head routes.
+
+
+## 2026-11-28 device attribution update
+
+New backend writes now normalize request User-Agent values through `device_class()` before writing either `lifelink_user_sessions.device_used` or `audit_events.device_used`. New stored labels are limited to coarse platform categories: Android device, iOS device, Windows device, macOS device, Linux device, or Unknown device. This normalization does not rewrite historical records: existing audit rows may still contain raw User-Agent values and are returned unchanged by existing audit queries. No historical User-Agent cleanup is claimed or implied. Browser versions, device model identifiers, and arbitrary User-Agent strings are not persisted in new writes. The classification is informational telemetry only and is never an authentication or authorization signal. The server peer IP remains the source for `ip_address`; forwarded headers remain untrusted until the Render proxy chain is explicitly configured and verified. Focused tests cover known platforms, missing headers, and generic OkHttp clients.

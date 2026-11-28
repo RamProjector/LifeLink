@@ -1,16 +1,16 @@
 # LifeLink Admin Console
 
-The admin console is an additional, restricted interface for the existing FastAPI + Supabase + Android architecture. It does not create administrator accounts and does not grant admin access during public signup.
+The administrator console is web-only and uses the existing FastAPI + Supabase backend. The Android app is limited to requester/donor workflows and does not expose administrator screens, MFA enrollment, or administrator API contracts. The console does not create administrator accounts and does not grant admin access during public signup.
 
 ## Security model
 
 - **Provisioning:** configure LIFELINK_ADMIN_USER_IDS on the API host with comma-separated Supabase Auth user UUIDs. Keep this server-side setting private to trusted operators. Never use an email, public profile field, Android preference, request body, or user_metadata claim as proof of administrator status.
-- **Authentication:** the web console signs in with Supabase Auth using the project's publishable/anon key and passes the access token to the API. The Android console uses the existing signed-in session. The API verifies the token and then checks the configured UUID allowlist for every admin endpoint.
+- **Authentication:** the web console signs in with Supabase Auth using the project's publishable/anon key and passes the access token to the API. The API verifies the token and then checks the configured UUID allowlist for every admin endpoint. Android has no administrator route or screen.
 - **No service-role key:** never enter a Supabase service-role key in the browser or Android app. The UI only requires the public publishable/anon key.
-- **User management:** the current interface manages requester/donor capabilities only. It cannot assign admin status, delete accounts, or disable authentication identities.
-- **Session registry:** verified JWT session IDs are tracked in `lifelink_user_sessions` when a signed-in user reaches the protected admin API, including denied attempts. Admins can inspect and revoke recorded sessions. Revocation is checked on subsequent admin API requests; it does not claim to revoke Supabase refresh tokens or invalidate sessions on non-admin API routes yet.
+- **User management:** the directory is rooted in `auth.users`, includes accounts without a LifeLink profile, and shows account status (`active`, `banned`, `deleted`, or `unknown`), email-verification state, anonymous-account state, legacy requester/donor capabilities, active RBAC roles, and mapped administrative permission keys. Status is read-only inventory; the console does not suspend, delete, or restore Auth identities. Capability controls are disabled for accounts without a profile. The interface cannot assign admin status, delete accounts, or disable authentication identities.
+- **Session registry:** verified JWT session IDs are tracked in `lifelink_user_sessions` when a signed-in user reaches a protected API route. Admins can inspect and revoke observed sessions. Application-side revocation is checked on subsequent protected API requests, including non-admin application routes. It does not claim to revoke Supabase refresh tokens.
 - **Audit trail:** admin session verification, dashboard views, user-list reads, user capability changes, session inventory/revocation, audit-log reads, error-log reads, denied admin requests, and unhandled API/database errors are written to `audit_events`. The IDS/IPS audit envelope adds `session_id`, `log_id`, `actions`, `description`, `ip_address`, `timestamp`, and `device_used`, while retaining legacy columns for compatibility. Event details deliberately omit passwords, bearer tokens, request bodies, blood type, and precise locations.
-- **IDS alerting:** repeated unauthorized admin access (five or more attempts in ten minutes) creates a deduplicated high-severity IDS-03 alert. Reuse of a revoked admin session creates an IDS-05 alert immediately. Repeated AAL1/unknown-assurance admin access creates IDS-06 alerts; repeated AAL2 access attempts with fewer than two verified TOTP factors create IDS-07 alerts. Alerts can be acknowledged, investigated, resolved, or marked false positive in the admin console.
+- **IDS alerting:** IDS-03 detects repeated unauthorized admin access (five or more attempts in ten minutes); IDS-04 detects missing admin session context; IDS-05 detects revoked-session reuse; IDS-06 detects admin access without AAL2; IDS-07 detects fewer than two server-verified TOTP factors; and IDS-08 detects denied per-route RBAC permissions. Alerts are deduplicated and can be acknowledged, investigated, resolved, or marked false positive in the admin console.
 - **Read-only audit interface:** there are no API endpoints for editing or deleting audit events. Database administrators must also restrict direct database mutation privileges on this table. The admin security-activity view displays the new audit context alongside the existing event metadata.
 
 ## Database migration
@@ -30,6 +30,15 @@ The API uses the existing audit_events table. Ensure the application database id
 
 No administrator UUID or credentials are configured by this change. Do not add the variable to a committed .env file.
 
+
+## RBAC permission rollout and scanner health
+
+Operational admin endpoints now declare route-specific permission dependencies. The backend setting `LIFELINK_RBAC_ENFORCEMENT_MODE` defaults to `observe`, preserving the existing allowlist + MFA gate while role assignments are provisioned. Switch to `enforce` only after every current administrator has an approved active role assignment and the role-to-route matrix passes non-production tests. Enforce mode denies missing or expired permission grants; invalid setting values fail closed.
+
+The Security alerts page also shows the last persisted RBAC scanner status, last successful/failed timestamps, last successful finding count, consecutive failures, and a sanitized error code. The protected endpoint is `GET /v1/admin/security/scanner`. A stale or missing successful timestamp must not be presented as a healthy current scan.
+
+Administrators may explicitly enable browser notifications from the Security alerts page. The protected `GET /v1/admin/security/notifications` feed returns only new alert identifiers, rule IDs, severity, timestamp, and source; it never sends evidence or personal details to the browser notification. Polling runs once per minute only while the authenticated Admin Console is open, stops on sign-out/session denial, and is opt-in through the browser permission prompt. It is not a background push service and cannot notify an administrator after the console is closed.
+
 ## Web console
 
 Serve admin-web/index.html over HTTPS using the configured static host. The deployed console uses preconfigured public client settings and exposes only email/password fields. These public settings are not secrets; never include a service-role key. The API origin is fixed in the console, and access/refresh tokens remain in page memory and are cleared on sign-out. The console requests Supabase Auth sign-out; if the network request fails, local tokens are still cleared and the UI warns that server-side sign-out could not be confirmed. Configure LIFELINK_CORS_ORIGINS on the API host with only exact trusted web origins. The API rejects wildcard entries and does not enable credentialed CORS. Do not add broad origins.
@@ -37,7 +46,7 @@ Serve admin-web/index.html over HTTPS using the configured static host. The depl
 
 ## Admin MFA rollout status
 
-The admin TOTP implementation and backend AAL2 authorization are being developed in draft PR #225. Web and Android enrollment/challenge flows are implemented in this branch, but CI, real-device, and non-production Supabase verification remain release blockers. This is **not approval to deploy or enable production enforcement**.
+The web-only admin TOTP flow and backend AAL2 authorization are part of the existing LifeLink security implementation. Consolidated IDS/IPS continuation work is tracked in PR #227. Android administrator screens, admin API contracts, and admin-only MFA repository methods are removed; Android remains requester/donor only. CI and non-production Supabase/MFA verification remain release gates. This is **not approval to deploy or enable production RBAC enforcement**.
 
 ### Current draft sign-in sequence
 
@@ -45,9 +54,9 @@ The admin TOTP implementation and backend AAL2 authorization are being developed
 2. Before asking the account to enroll, it calls `GET /v1/admin/preflight`. This minimal response confirms the signed-in identity, verified-email policy, server-managed UUID allowlist, active session, and revocation state, writes an audit event, and returns only `{ authorized: true }`; it exposes no operational admin data.
 3. The console lists the account's TOTP factors. An AAL1 session with a verified factor is challenged; an account without a verified factor is prompted to enroll a primary factor.
 4. After the first factor is verified, the console requires a second factor and asks the operator to attest that it is stored separately (different device or separately protected authenticator vault).
-5. The web and Android consoles are shown only when the current JWT reports AAL2 and at least two TOTP factors are verified. Both clients call `/v1/admin/me` only after completing this gate.
+5. The web console opens only when the current JWT reports AAL2 and at least two TOTP factors are verified. It calls `/v1/admin/me` only after completing this gate.
 
-The backend requires AAL2 plus at least two server-confirmed verified TOTP factors for operational admin endpoints, including `/me`, dashboard, users, audit, sessions, errors, and roles. It queries Supabase's `auth.mfa_factors` for rows matching the signed-in user, `factor_type = 'totp'`, and `status = 'verified'`; a missing or inaccessible inventory fails closed. The narrowly scoped `/v1/admin/preflight` is the only AAL1 exception and returns only `{ authorized: true }` after signed-token, verified-email, UUID allowlist, active-session, and revocation checks. `POST /v1/admin/mfa/events` has a separate AAL2-only dependency so the first verified factor can be audited without granting operational access. Each lifecycle receipt now independently queries the same server-managed factor inventory and enforces the event-specific minimum (one for initial enrollment, two for backup/replacement/recovery, and three before a removal request); client-reported counts are retained only as comparison metadata. A read-only inspection of the connected LifeLink Supabase project confirmed the table, UUID `user_id`, `factor_type` and `status` enums, and SELECT access for the `postgres` role. The same check confirmed that `service_role`, `authenticated`, and `anon` do **not** have SELECT access to `auth.mfa_factors`. A follow-up privilege check found the same grant pattern for `auth.sessions`, which the existing active-session validator also queries directly. Therefore the Render API's database connection role must be verified to have the required least-privilege SELECT access to **both** Auth tables; do not assume Supabase's API `service_role` has direct SQL access. The Render connector exposes service metadata and logs but not the current environment-variable values or database username, so this runtime role remains unverified. Do not treat this draft as release-ready until CI, manual, and non-production verification pass. The Android gate currently supports enrollment and sign-in challenge; factor replacement/removal management remains in the web console.
+The backend requires AAL2 plus at least two server-confirmed verified TOTP factors for operational admin endpoints, including `/me`, dashboard, users, audit, sessions, errors, and roles. It queries Supabase's `auth.mfa_factors` for rows matching the signed-in user, `factor_type = 'totp'`, and `status = 'verified'`; a missing or inaccessible inventory fails closed. The narrowly scoped `/v1/admin/preflight` is the only AAL1 exception and returns only `{ authorized: true }` after signed-token, verified-email, UUID allowlist, active-session, and revocation checks. `POST /v1/admin/mfa/events` has a separate AAL2-only dependency so the first verified factor can be audited without granting operational access. Each lifecycle receipt now independently queries the same server-managed factor inventory and enforces the event-specific minimum (one for initial enrollment, two for backup/replacement/recovery, and three before a removal request); client-reported counts are retained only as comparison metadata. A read-only inspection of the connected LifeLink Supabase project confirmed the table, UUID `user_id`, `factor_type` and `status` enums, and SELECT access for the `postgres` role. The same check confirmed that `service_role`, `authenticated`, and `anon` do **not** have SELECT access to `auth.mfa_factors`. A follow-up privilege check found the same grant pattern for `auth.sessions`, which the existing active-session validator also queries directly. Therefore the Render API's database connection role must be verified to have the required least-privilege SELECT access to **both** Auth tables; do not assume Supabase's API `service_role` has direct SQL access. The Render connector exposes service metadata and logs but not the current environment-variable values or database username, so this runtime role remains unverified. Do not treat the implementation as production-deployed until CI, manual, and non-production verification pass. Factor enrollment, sign-in challenge, replacement, and removal are handled by the web console.
 
 ### Session and secret handling
 
@@ -76,19 +85,19 @@ Supabase's `aal2` claim proves that the current session completed at least one s
 
 ### Backend enforcement compatibility requirement
 
-Both web and Android clients call `GET /v1/admin/preflight` before factor discovery. The endpoint runs signed-JWT, verified-email, server-managed admin UUID allowlist, active-session, and revocation checks, records an audit event, and returns only `{"authorized": true}`—no operational data. Each client requests the full `GET /v1/admin/me` response only after its AAL2 and two-factor gate.
+The web console calls `GET /v1/admin/preflight` before factor discovery. The endpoint runs signed-JWT, verified-email, server-managed admin UUID allowlist, active-session, and revocation checks, records an audit event, and returns only `{"authorized": true}`—no operational data. The console requests the full `GET /v1/admin/me` response only after its AAL2 and two-factor gate.
 
 The backend MFA boundary is now implemented in this branch. `/v1/admin/preflight` is the only AAL1 exception and returns identity eligibility only. `/v1/admin/mfa/events` requires allowlisted identity plus AAL2 so first-factor enrollment can be audited, but it exposes no operational data. All other admin endpoints require AAL2 and at least two server-confirmed verified TOTP factors from `auth.mfa_factors`. The test suite asserts that all registered admin routes use the correct dependency.
 
 ### Required before rollout
 
-- The web and Android clients now include TOTP enrollment/challenge gates and require two verified factors before showing the console; the web factor manager requires a verified replacement before removal and preserves at least two verified factors.
-- Backend AAL2 enforcement is implemented for every admin endpoint except identity-only preflight; the MFA audit-receipt route has a narrow AAL2-only enrollment dependency. All operational routes also require at least two server-confirmed verified TOTP factors from `auth.mfa_factors`; verify database permissions and direct API denial with one factor in non-production.
+- The web Admin Console includes TOTP enrollment/challenge gates and requires two verified factors before showing the console; the web factor manager requires a verified replacement before removal and preserves at least two verified factors. Android contains no administrator console, administrator MFA gate, or admin-only TOTP repository.
+- Backend AAL2 enforcement is implemented for every operational admin endpoint except identity-only preflight; the MFA audit-receipt route has a narrow AAL2-only enrollment dependency. All operational routes also require at least two server-confirmed verified TOTP factors from `auth.mfa_factors`. Route-specific RBAC permission dependencies are now declared, but enforcement remains staged in `observe` mode until approved assignments exist. Verify database permissions and direct API denial with one factor and with missing/expired RBAC grants in non-production.
 - MFA lifecycle audit receipts cover verified enrollment, replacement, removal requests, recovery re-enrollment, and denied AAL1/unknown-assurance requests. Their verified factor count is queried from Supabase's server-managed inventory; the client-reported count is stored separately for discrepancy review. Receipts contain no secrets, OTPs, or tokens.
 - The two-operator recovery runbook is documented but has not yet been exercised. Test it in a non-production Supabase project and verify the Supabase Auth audit record plus the LifeLink recovery receipt.
 - Add/complete backend tests for AAL1/AAL2, malformed/missing/stale/downgraded claims, revoked sessions, and non-allowlisted accounts; run the full suite on the latest head.
-- Test primary enrollment, backup enrollment on a separate device, sign-in challenge, incorrect/expired codes, refresh rotation, factor loss, and recovery against a non-production Supabase account on both web and Android.
-- Complete manual browser and Android-device verification. Automated syntax, unit, and transport tests do not replace real authenticator testing.
+- Test primary enrollment, backup enrollment on a separate device, sign-in challenge, incorrect/expired codes, refresh rotation, factor loss, and recovery against a non-production Supabase account through the web Admin Console. Android is not an administrator client.
+- Complete manual browser verification. Automated syntax, unit, and transport tests do not replace real authenticator testing.
 
 
 ### MFA manual verification checklist (not yet executed)
@@ -108,18 +117,10 @@ Run this only against a dedicated non-production Supabase Auth project and a tes
 - [ ] Sign-out clears the in-memory tokens and sends Supabase Auth sign-out for the current session.
 - [ ] Missing JWT `aal` is treated as AAL1; malformed or unsupported values fail closed in the UI and backend.
 - [ ] Verify Supabase's documented behavior that factor verification signs out other active sessions, and ensure the operator understands this before completing enrollment.
-- [ ] Android: allowlisted AAL1 account reaches the native MFA gate through `/v1/admin/preflight`; ordinary users continue to the normal app without seeing admin setup.
-- [ ] Android: no-factor account can enroll primary and separately stored backup TOTP factors; the setup secret is not persisted or logged.
-- [ ] Android: returning AAL1 account can challenge a verified factor; AAL2 with two verified factors reaches `/v1/admin/me` and the native admin console.
-- [ ] Android: incorrect/expired codes, network loss, cancellation, and audit-receipt failure do not open the admin console.
 
-**Release blockers:** latest-head CI, manual web/Android verification, non-production Supabase tests, and a witnessed two-operator recovery exercise must pass. The AAL2 backend gate and audit receipt endpoints are implemented in this draft branch but are not production-approved. Do not mark this checklist complete until each item has reproducible evidence.
+**Release blockers:** latest-head CI, manual web verification, non-production Supabase tests, and a witnessed two-operator recovery exercise must pass. The AAL2 backend gate and audit receipt endpoints are implemented in this draft branch but are not production-approved. Do not mark this checklist complete until each item has reproducible evidence.
 
-Until these conditions pass review and the rollout is explicitly approved, keep the AAL2 backend gate out of production and leave issue #222 open.
-
-## Android console
-
-An allowlisted Android session first calls `/v1/admin/preflight`, then uses the native TOTP enrollment/challenge gate. The native admin screen is reached only after AAL2, two verified TOTP factors, and a successful `/v1/admin/me` response. Other users continue to the normal requester/donor experience. A network failure or failed MFA verification never grants admin access.
+Until these conditions pass review and rollout is explicitly approved, do not enable `LIFELINK_RBAC_ENFORCEMENT_MODE=enforce` or deploy the continuation changes. Keep the existing server-managed admin allowlist and MFA boundary intact.
 
 ## API endpoints
 
@@ -133,6 +134,8 @@ An allowlisted Android session first calls `/v1/admin/preflight`, then uses the 
 - GET /v1/admin/sessions?limit=50&offset=0 — observed administrator sessions.
 - GET /v1/admin/security/alerts?limit=50&offset=0 — user/session-scoped security alert queue.
 - GET /v1/admin/security/role-integrity?limit=50&offset=0&status=open — role-scoped RBAC-03 policy findings; displayed in the Security alerts page without overloading user alert identities.
+- GET /v1/admin/security/scanner — persisted RBAC scanner health and last success/failure metadata.
+- GET /v1/admin/security/notifications — cursor-based, non-sensitive event feed for opt-in browser notifications.
 - PATCH /v1/admin/security/alerts/{alert_id} — acknowledge, investigate, resolve, or mark an alert as false positive.
 - POST /v1/admin/sessions/{session_id}/revoke — revoke an observed session for subsequent admin API access.
 - GET /v1/admin/errors?limit=50&offset=0 — recorded API errors and denied admin requests.
@@ -167,10 +170,10 @@ The first IDS/IPS implementation slice adds the required seven-field audit envel
 This is an audit foundation, not a complete IDS/IPS. Role/permission assignment, cross-platform operation coverage, session revocation enforcement, detection rules, alert workflows, and the full Security Center remain subsequent implementation work. Do not treat a missing session claim or unavailable peer IP as verified identity evidence.
 
 
-The current session registry records administrator sessions observed by the admin API. It is not yet a complete inventory of all requester/donor Android and web sessions. Extending session observation and revocation enforcement to every authenticated application endpoint is required before treating the registry as a whole-platform session manager.
+The current session registry records application sessions observed by protected API routes. It is not yet a complete inventory of all requester/donor Android and web sessions. Extending session observation and revocation enforcement to every authenticated application endpoint is required before treating the registry as a whole-platform session manager.
 
 
-The first active IDS rules are IDS-03 (repeated denied admin access), IDS-04 (missing session context), and IDS-05 (revoked session reuse). Thresholds are currently deterministic and intentionally narrow; they require tuning against real application traffic before wider automated blocking is enabled. Other planned detection categories are not yet implemented.
+The currently implemented narrow IDS rules include IDS-03 (repeated denied admin access), IDS-04 (missing session context), IDS-05 (revoked session reuse), and staged permission-denial monitoring. RBAC-02 checks active user-role assignment applicability and reviewed permission matrices; RBAC-03 independently checks the four explicitly approved admin role policies. The periodic scanner persists success/failure health and exposes it to the web Security alerts page. Thresholds remain intentionally narrow and require tuning against real traffic before wider automated blocking is enabled.
 
 ## Admin Console navigation and table usability
 
@@ -204,8 +207,24 @@ Admin web actions and data loading map authentication, authorization, missing-re
 
 ## IDS/IPS completion status — 2026-11-27
 
-The existing IDS/IPS implementation includes audit fields, personal audit history, observed-session registry, alert lifecycle, IDS-03/04/05, RBAC-01/02, and an independent periodic scanner. RBAC-03 now checks the four explicitly seeded administrative role-permission policies independently of user assignments and exposes findings in the Security alerts page through a separate role-scoped endpoint/table. The API startup schema routine provisions the same table/index/RLS structure idempotently; migration 021 remains available for separately managed schema rollouts. It is not yet a complete IDS/IPS release: admin API routes still use the legacy administrator allowlist rather than enforcing each seeded permission, and actual administrator notification delivery has not been verified. The connected database currently has 0 user-role assignments in the RBAC registry, so do not remove or replace the existing bootstrap allowlist until a safe, approved migration and provisioning path exists.
+The existing IDS/IPS implementation includes audit fields, personal audit history, observed-session registry, alert lifecycle, IDS-03/04/05, RBAC-01/02/03, and an independent periodic scanner with persisted health. Operational Admin API routes declare route-specific RBAC permission guards while preserving the existing allowlist, active-session, AAL2, and two-verified-TOTP checks. Enforcement defaults to `observe`; `enforce` must not be enabled while the connected database has zero user-role assignments. The Security alerts page supports opt-in browser notifications while the authenticated web console is open. This is not background push/email delivery and does not notify after the console closes. The current live database has no user-role assignments, so do not remove or replace the existing bootstrap allowlist until approved administrator assignments and a safe provisioning path exist.
 
 Session inventory is an observed-application-session registry, not a claim that every Supabase Auth session is automatically listed. Session revocation is an application-side denial control; do not describe it as revoking Supabase refresh tokens unless a separate Auth revocation operation is implemented and tested.
 
 See `docs/IDS_IPS_COMPLETION_AUDIT_2026-11-27.md` for the criteria matrix, live schema observations, route inventory, and completion order.
+
+
+## User inventory, role policy, and device telemetry (2026-11-28)
+
+The Audit activity page supports server-side exact-action, actor/user-ID, and correlation-ID filters; the personal `GET /v1/audit/me` endpoint remains scoped to the verified caller and does not accept a caller-selected actor ID.
+
+The paginated Admin Console user inventory starts from Supabase `auth.users`, joins optional `lifelink_profiles`, and aggregates only active/non-expired `lifelink_user_roles` with their mapped permissions. It includes users without profiles, total count, legacy capability flags, active role keys, and effective permission keys. Missing-profile accounts remain visible but capability mutation buttons are unavailable until a profile exists.
+
+The product role registry contains exactly requester, donor, and admin. Requester and donor have no administrative permission grants and continue using application capability, ownership, consent, and participant checks. All administrative functional areas are permissions under the single admin role. The independent scanner checks the exact three-role registry and detects unapproved extra role definitions.
+
+Audit/session `device_used` stores a coarse platform label rather than the raw User-Agent string or browser/model version. Forwarded IP headers remain untrusted until the deployed proxy chain is verified.
+
+
+## Product-role boundary (2026-11-28)
+
+LifeLink has exactly three product roles: Requester, Blood Donor, and Admin. The Admin Console is web-only; the Android app is for Requester and Blood Donor. User-management, security, audit, and reporting areas are permissions under one Admin role, not separate administrator roles. See [the three-role authorization audit](THREE_ROLE_AUTHORIZATION_AUDIT_2026-11-28.md) and [RBAC implementation notes](RBAC_IMPLEMENTATION.md).
