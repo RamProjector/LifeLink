@@ -173,16 +173,22 @@ async def _scan_rbac_discrepancies_forever() -> None:
                     text("SELECT pg_try_advisory_xact_lock(728194620114)")
                 )
                 if acquired:
-                    started_at = time.monotonic()
                     await session.execute(text("SET LOCAL statement_timeout = '15000ms'"))
-                    await session.execute(text(
-                        "INSERT INTO lifelink_security_scanner_runs "
-                        "(scanner_key, status, last_started_at, last_findings, updated_at) "
-                        "VALUES ('rbac', 'running', now(), 0, now()) "
-                        "ON CONFLICT (scanner_key) DO UPDATE SET "
-                        "status = 'running', last_started_at = now(), last_finished_at = NULL, "
-                        "last_error_code = NULL, updated_at = now()"
-                    ))
+                    # Publish the running state in its own committed transaction.
+                    # The scan session must retain its transaction-scoped advisory
+                    # lock throughout the scan, so its uncommitted health write is
+                    # invisible to the Admin Console until the scan has finished.
+                    async with AsyncSessionLocal() as health_session:
+                        await health_session.execute(text(
+                            "INSERT INTO lifelink_security_scanner_runs "
+                            "(scanner_key, status, last_started_at, last_findings, updated_at) "
+                            "VALUES ('rbac', 'running', now(), 0, now()) "
+                            "ON CONFLICT (scanner_key) DO UPDATE SET "
+                            "status = 'running', last_started_at = now(), last_finished_at = NULL, "
+                            "last_error_code = NULL, updated_at = now()"
+                        ))
+                        await health_session.commit()
+                    started_at = time.monotonic()
                     findings = await _scan_rbac_discrepancies(
                         session, system_principal, None
                     )
