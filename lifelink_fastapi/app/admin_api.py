@@ -694,7 +694,7 @@ async def _scan_rbac_discrepancies(session: AsyncSession, principal: Principal, 
         "LEFT JOIN lifelink_profiles p ON p.user_id = ur.user_id::text "
         "LEFT JOIN lifelink_role_permissions rp ON rp.role_id = r.id "
         "LEFT JOIN lifelink_permissions perm ON perm.id = rp.permission_id "
-        "WHERE ur.expires_at IS NULL OR ur.expires_at > now() "
+        "WHERE ur.expires_at IS NULL OR ur.expires_at > statement_timestamp() "
         "GROUP BY ur.user_id, r.role_key, p.can_request, p.can_donate"
     ))
     count = 0
