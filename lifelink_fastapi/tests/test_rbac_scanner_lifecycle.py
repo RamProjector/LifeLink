@@ -6,9 +6,12 @@ from datetime import datetime, timezone
 import pytest
 
 
+SCANNER_STARTED_AT = datetime(2026, 11, 28, 12, 0, tzinfo=timezone.utc)
+
+
 class ScannerResult:
     def scalar_one(self):
-        return datetime(2026, 11, 28, 12, 0, tzinfo=timezone.utc)
+        return SCANNER_STARTED_AT
 
 
 class ScannerSession:
@@ -85,7 +88,7 @@ def test_background_rbac_scanner_respects_advisory_lock_and_cancels_cleanly(
             if params.get("scan_started_at") is not None
         ]
         assert len(scan_started_at_values) == 1
-        assert isinstance(scan_started_at_values[0], datetime)
+        assert scan_started_at_values[0] == SCANNER_STARTED_AT
         assert any(
             "clock_timestamp()" in statement and "RETURNING last_started_at" in statement
             for statement in session.statements
