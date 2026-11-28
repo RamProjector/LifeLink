@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -37,7 +38,7 @@ def device_class(user_agent: str | None) -> str:
     value = (user_agent or "").lower()
     if "android" in value:
         return "Android device"
-    if any(token in value for token in ("iphone", "ipad", "ipod", "ios")):
+    if any(token in value for token in ("iphone", "ipad", "ipod")) or re.search(r"(?<![a-z0-9])ios(?![a-z0-9])", value):
         return "iOS device"
     if "windows" in value:
         return "Windows device"
