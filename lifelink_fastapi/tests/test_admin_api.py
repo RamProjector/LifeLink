@@ -1674,3 +1674,60 @@ def test_super_admin_permission_is_not_granted_without_rbac_manager_allowlist(mo
     asyncio.run(check())
     assert session.scalar_parameters[-1]["is_rbac_manager"] is False
     assert recorded["rule_id"] == "IDS-08"
+
+
+def test_admin_user_inventory_includes_auth_accounts_and_effective_rbac_permissions():
+    from datetime import datetime, timezone
+
+    from app.admin_api import admin_list_users
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return [{
+                "user_id": "user-1",
+                "email": "user@example.test",
+                "role": "requester",
+                "display_name": None,
+                "can_request": True,
+                "can_donate": False,
+                "created_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+                "has_profile": True,
+                "rbac_roles": ["requester"],
+                "rbac_permissions": [],
+            }]
+
+    class UserInventorySession(FakeSession):
+        async def execute(self, statement, params=None):
+            sql = str(statement)
+            self.statements.append(sql)
+            if "FROM auth.users u" in sql:
+                return Rows()
+            return None
+
+    session = UserInventorySession([42])
+
+    async def check():
+        result = await admin_list_users(
+            request=_request_context(),
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True),
+            limit=25,
+            offset=0,
+            x_correlation_id=None,
+        )
+        assert result["total"] == 42
+        assert result["items"][0]["user_id"] == "user-1"
+        assert result["items"][0]["has_profile"] is True
+        assert result["items"][0]["rbac_roles"] == ["requester"]
+        assert result["items"][0]["rbac_permissions"] == []
+        query = next(sql for sql in session.statements if "FROM auth.users u" in sql)
+        assert "LEFT JOIN lifelink_profiles" in query
+        assert "LEFT JOIN lifelink_user_roles" in query
+        assert "LEFT JOIN lifelink_role_permissions" in query
+        assert "ur.expires_at > now()" in query
+        assert "array_agg(DISTINCT perm.permission_key" in query
+
+    asyncio.run(check())
