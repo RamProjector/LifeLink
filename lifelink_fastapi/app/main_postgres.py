@@ -167,6 +167,7 @@ async def _scan_rbac_discrepancies_forever() -> None:
 
     system_principal = Principal(subject="system:rbac-scanner", email_verified=True)
     while True:
+        scan_started_at: datetime | None = None
         try:
             async with AsyncSessionLocal() as session:
                 acquired = await session.scalar(
@@ -178,15 +179,16 @@ async def _scan_rbac_discrepancies_forever() -> None:
                     # The scan session must retain its transaction-scoped advisory
                     # lock throughout the scan, so its uncommitted health write is
                     # invisible to the Admin Console until the scan has finished.
+                    scan_started_at = datetime.now(timezone.utc)
                     async with AsyncSessionLocal() as health_session:
                         await health_session.execute(text(
                             "INSERT INTO lifelink_security_scanner_runs "
                             "(scanner_key, status, last_started_at, last_findings, updated_at) "
-                            "VALUES ('rbac', 'running', now(), 0, now()) "
+                            "VALUES ('rbac', 'running', :scan_started_at, 0, :scan_started_at) "
                             "ON CONFLICT (scanner_key) DO UPDATE SET "
-                            "status = 'running', last_started_at = now(), last_finished_at = NULL, "
-                            "last_error_code = NULL, updated_at = now()"
-                        ))
+                            "status = 'running', last_started_at = EXCLUDED.last_started_at, last_finished_at = NULL, "
+                            "last_error_code = NULL, updated_at = EXCLUDED.updated_at"
+                        ), {"scan_started_at": scan_started_at})
                         await health_session.commit()
                     started_at = time.monotonic()
                     findings = await _scan_rbac_discrepancies(
@@ -213,22 +215,23 @@ async def _scan_rbac_discrepancies_forever() -> None:
             raise
         except Exception:
             logger.exception("RBAC discrepancy scan failed")
-            # Persist a sanitized failure code in a fresh transaction. Never store
-            # exception text, SQL, credentials, or potentially sensitive row data.
+            # Update only the running record created by this exact scan. The
+            # advisory-lock transaction has been released during exception
+            # handling, so another instance may already have published a newer run.
+            # A timestamp guard prevents this stale failure from overwriting it.
             try:
-                async with AsyncSessionLocal() as health_session:
-                    await health_session.execute(text(
-                        "INSERT INTO lifelink_security_scanner_runs "
-                        "(scanner_key, status, last_started_at, last_finished_at, last_failed_at, "
-                        "last_error_code, consecutive_failures, updated_at) "
-                        "VALUES ('rbac', 'failed', clock_timestamp(), clock_timestamp(), clock_timestamp(), 'scan_failed', 1, clock_timestamp()) "
-                        "ON CONFLICT (scanner_key) DO UPDATE SET status = 'failed', "
-                        "last_finished_at = clock_timestamp(), last_failed_at = clock_timestamp(), "
-                        "last_error_code = 'scan_failed', "
-                        "consecutive_failures = lifelink_security_scanner_runs.consecutive_failures + 1, "
-                        "updated_at = clock_timestamp()"
-                    ))
-                    await health_session.commit()
+                if scan_started_at is not None:
+                    async with AsyncSessionLocal() as health_session:
+                        await health_session.execute(text(
+                            "UPDATE lifelink_security_scanner_runs SET status = 'failed', "
+                            "last_finished_at = clock_timestamp(), last_failed_at = clock_timestamp(), "
+                            "last_error_code = 'scan_failed', "
+                            "consecutive_failures = consecutive_failures + 1, "
+                            "updated_at = clock_timestamp() "
+                            "WHERE scanner_key = 'rbac' AND status = 'running' "
+                            "AND last_started_at = :scan_started_at"
+                        ), {"scan_started_at": scan_started_at})
+                        await health_session.commit()
             except asyncio.CancelledError:
                 raise
             except Exception:
