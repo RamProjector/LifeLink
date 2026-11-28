@@ -96,15 +96,15 @@ Prevention must be server-side and fail closed when required identity, session, 
 The latest read-only check of the connected Supabase project found:
 
 - Project `nphbhlxnujmylhubzmne`: `ACTIVE_HEALTHY`, PostgreSQL 17.6.1.166.
-- Migration history: `007_donor_map_chat_contact_sharing` and `020_rbac_role_permission_registry`.
-- Migrations 021–024 are not recorded as applied.
-- Seven historical role definitions, 19 permission definitions, 19 role-permission mappings, and zero user-role assignments.
-- The scanner-health table from migration 022 is absent.
+- Migration history records only `007_donor_map_chat_contact_sharing` and `020_rbac_role_permission_registry`, but the actual schema is ahead of that ledger in places.
+- Live catalog checks found `lifelink_user_sessions` (018), `lifelink_security_alerts` (019), and `lifelink_role_security_findings` with its RLS/indexes (021), although those versions are not recorded in the ledger. Reconcile before replaying or repairing migration history.
+- `lifelink_user_roles.assigned_by` exists, but the 023 index `ix_lifelink_user_roles_assigned_by` is absent. The 022 scanner-health table is absent.
+- The registry has seven role definitions, 19 permission definitions, 19 role-permission mappings, and zero user-role assignments; 024's exact-three-role normalization has not been applied.
 - Inspected audit/RBAC/session/security tables have no direct SELECT grant for `anon` or `authenticated`; `service_role` has SELECT.
 - Supabase Advisor reports 18 RLS-enabled/no-policy tables and leaked-password protection disabled. The no-policy tables must remain backend-only with client-role grants rechecked; the Auth setting requires a separate approved configuration decision.
 - The SQL inspection connection uses `postgres`; this does not establish the Render API runtime role.
 
-These are point-in-time observations, not permission to mutate production.
+These are point-in-time observations, not permission to mutate production. See release-gate section 17 for the full schema/ledger reconciliation, Render deployment configuration, and CI SHA evidence.
 
 ## 9. Safe implementation and release sequence
 
