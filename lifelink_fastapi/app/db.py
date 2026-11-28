@@ -296,6 +296,17 @@ async def create_all_tables() -> None:
         await connection.execute(text(
             "ALTER TABLE lifelink_role_security_findings ENABLE ROW LEVEL SECURITY"
         ))
+        await connection.execute(text(
+            "REVOKE ALL ON TABLE lifelink_role_security_findings FROM PUBLIC"
+        ))
+        if await connection.scalar(text("SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon')")):
+            await connection.execute(text(
+                "REVOKE ALL ON TABLE lifelink_role_security_findings FROM anon"
+            ))
+        if await connection.scalar(text("SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated')")):
+            await connection.execute(text(
+                "REVOKE ALL ON TABLE lifelink_role_security_findings FROM authenticated"
+            ))
         # Persist scanner health independently of process logs so administrators
         # can distinguish a healthy zero-finding scan from a scanner that stopped.
         await connection.execute(text(
