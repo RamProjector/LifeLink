@@ -71,6 +71,8 @@ def test_rbac_scanner_publishes_running_state_before_scan_and_persists_success(m
     assert "updated_at = clock_timestamp()" in sql
     assert "last_findings = :findings" in sql
     assert "last_duration_ms = :duration_ms" in sql
+    assert "WHERE scanner_key = 'rbac' AND status = 'running'" in sql
+    assert "AND last_started_at = :scan_started_at" in sql
     assert "INSERT INTO lifelink_security_scanner_runs" in running_sql
     assert "status = 'running'" in running_sql
     assert session.committed is True
