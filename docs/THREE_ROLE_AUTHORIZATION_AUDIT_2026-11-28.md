@@ -10,9 +10,9 @@ LifeLink has exactly three product roles:
 
 The Android application supports Requester and Blood Donor. Admin is web-only. This is a product-role boundary, not a requirement to create additional administrator personas.
 
-## Finding: current RBAC registry conflicts with the three-role requirement
+## Finding identified and branch remediation
 
-The current PR #227 branch migration 020 seeds seven role keys: requester, donor, super_admin, security_admin, operations_admin, user_admin, and auditor. The current policy scanner and RBAC documentation also explicitly validate those seven definitions. This conflicts with the required three-role product model.
+The base migration 020 seeds seven role keys: requester, donor, super_admin, security_admin, operations_admin, user_admin, and auditor. That historical schema conflicts with the required three-role product model. The current PR branch now adds migration 024, updates the API policy scanner and permission guard to exactly three roles, and adds regression coverage. Migration 024 has not been applied to any live database.
 
 The four administrative permission groupings may remain as **permissions/capabilities** within the single admin role, but they must not be modeled as additional assignable product roles. super_admin is also not a fourth product role; exceptional break-glass authority, if still required, must be represented as a separate server-side authorization condition and audited, not as a user-selectable role.
 
@@ -53,4 +53,4 @@ Before changing migration 020 or adding a follow-up migration:
 
 ## Release decision
 
-**Do not mark the full LifeLink feature set complete or merge PR #227 until the three-role mismatch is resolved.** The current branch's IDS/IPS and admin work may be retained, but its seven-role registry is not the approved product model. This audit is a repository finding, not evidence that the live database has been changed.
+**The branch-level three-role correction is implemented but not yet fully validated or deployed.** Do not mark the full LifeLink feature set complete. Do not merge until the exact-head CI is green, the outstanding review findings are cleared, and the remaining release gates are addressed. Migration 024 must be applied only through the approved deployment process after a fresh read-only check confirms that no legacy role assignments would be discarded. This audit is not evidence that the live database has been changed.
