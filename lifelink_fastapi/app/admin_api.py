@@ -595,7 +595,7 @@ async def admin_list_users(
             "FROM auth.users u "
             "LEFT JOIN lifelink_profiles p ON p.user_id = u.id::varchar "
             "LEFT JOIN lifelink_user_roles ur ON ur.user_id = u.id "
-            "AND (ur.expires_at IS NULL OR ur.expires_at > now()) "
+            "AND (ur.expires_at IS NULL OR ur.expires_at > statement_timestamp()) "
             "LEFT JOIN lifelink_roles r ON r.id = ur.role_id "
             "LEFT JOIN lifelink_role_permissions rp ON rp.role_id = r.id "
             "LEFT JOIN lifelink_permissions perm ON perm.id = rp.permission_id "
@@ -1308,7 +1308,7 @@ async def admin_get_user_roles(
             "SELECT r.role_key, r.display_name, ur.assigned_at, ur.expires_at "
             "FROM lifelink_user_roles ur JOIN lifelink_roles r ON r.id = ur.role_id "
             "WHERE ur.user_id = CAST(:user_id AS uuid) "
-            "AND (ur.expires_at IS NULL OR ur.expires_at > now()) "
+            "AND (ur.expires_at IS NULL OR ur.expires_at > statement_timestamp()) "
             "ORDER BY r.display_name"
         ),
         {"user_id": user_id},
@@ -1386,7 +1386,7 @@ async def admin_replace_user_roles(
             "SELECT r.role_key FROM lifelink_user_roles ur "
             "JOIN lifelink_roles r ON r.id = ur.role_id "
             "WHERE ur.user_id = CAST(:user_id AS uuid) "
-            "AND (ur.expires_at IS NULL OR ur.expires_at > now())"
+            "AND (ur.expires_at IS NULL OR ur.expires_at > statement_timestamp())"
         ),
         {"user_id": user_id},
     )
