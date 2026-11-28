@@ -16,7 +16,7 @@ Administrative functional areas are represented as permissions attached to the s
 
 - Dashboard: dashboard.read
 - User administration: users.read, users.update, users.suspend
-- Operational visibility: requests.read, operations.read, communications.metadata.read
+- Operational visibility: requests.read, operations.read
 - Audit and security: audit.read, security.alerts.read, security.alerts.manage, security.sessions.read, security.sessions.revoke
 - Role visibility and reporting: roles.read, reports.read
 
