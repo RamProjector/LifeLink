@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 
 import pytest
+
+
+class ScannerResult:
+    def scalar_one(self):
+        return datetime(2026, 11, 28, 12, 0, tzinfo=timezone.utc)
 
 
 class ScannerSession:
@@ -18,8 +24,11 @@ class ScannerSession:
         return self.lock_acquired
 
     async def execute(self, statement, params=None):
-        self.statements.append(str(statement))
+        statement_text = str(statement)
+        self.statements.append(statement_text)
         self.parameters.append(params or {})
+        if "RETURNING last_started_at" in statement_text:
+            return ScannerResult()
 
     async def commit(self):
         self.committed = True
