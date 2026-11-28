@@ -1605,6 +1605,53 @@ def test_admin_security_notification_feed_returns_only_safe_event_metadata(monke
 
 
 
+def test_admin_security_notification_feed_uses_server_time_when_cursor_is_omitted(monkeypatch):
+    from datetime import datetime, timezone
+    from uuid import UUID
+    from app import admin_api
+
+    server_now = datetime(2026, 11, 28, 3, 45, tzinfo=timezone.utc)
+
+    class FixedDateTime:
+        @staticmethod
+        def now(tz=None):
+            return server_now
+
+    class Rows:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class Session(FakeSession):
+        def __init__(self):
+            super().__init__()
+            self.parameters = []
+
+        async def execute(self, statement, params=None):
+            self.statements.append(str(statement))
+            self.parameters.append(params or {})
+            return Rows()
+
+    monkeypatch.setattr(admin_api, "datetime", FixedDateTime)
+    session = Session()
+
+    async def check():
+        result = await admin_api.admin_security_notifications(
+            request=_request_context(),
+            after=None,
+            after_id=UUID(int=0),
+            limit=25,
+            session=session,
+            principal=Principal(subject="admin-1", email_verified=True, session_id="session-1"),
+        )
+        assert result["cursor"] == {"created_at": server_now, "id": str(UUID(int=0))}
+        assert session.parameters[0]["after"] == server_now
+
+    asyncio.run(check())
+
+
 def test_admin_security_notification_feed_rejects_timezone_naive_cursor():
     from datetime import datetime
 
