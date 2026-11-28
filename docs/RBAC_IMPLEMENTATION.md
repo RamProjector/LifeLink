@@ -22,6 +22,17 @@ Administrative functional areas are represented as permissions attached to the s
 
 The admin role does not receive permissions.manage or settings.update by default. Any future grant requires a separate reviewed policy change. Requester and donor have no administrative permission grants; their application authorization remains governed by capabilities, resource ownership, contact consent, and conversation-participant checks.
 
+
+### User-directory disclosure boundary
+
+The approved route matrix intentionally separates a **directory summary** from **role administration**:
+
+- `GET /v1/admin/users` is protected by `users.read` and may return each account's effective, non-expired product-role keys plus the mapped administrative-permission summary. This is part of the user-directory read contract used to review account posture; it does not expose assignment attribution, expiry metadata, the role registry, or grant-management controls.
+- `GET /v1/admin/roles` and `GET /v1/admin/users/{user_id}/roles` remain protected by `roles.read`. They expose the role registry or individual assignment details, including assignment timestamps and expiry.
+- `PUT /v1/admin/users/{user_id}/roles` remains separately protected by the RBAC-manager allowlist and the server-side target-account rules.
+
+Therefore `users.read` explicitly includes the limited summary disclosure shown in the directory, while `roles.read` governs registry and assignment-detail disclosure. This same boundary is implemented in the API and covered by the user-inventory response test. Do not treat the directory summary as permission to read or modify assignment records.
+
 ## Registry migration
 
 Migration 020 originally seeded multiple administrator subroles. Migration 024 normalizes the registry to exactly requester, donor, and admin. It:
