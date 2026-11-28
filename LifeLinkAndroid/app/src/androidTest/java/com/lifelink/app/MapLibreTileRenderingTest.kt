@@ -37,6 +37,18 @@ class MapLibreTileRenderingTest {
     @Test
     fun openFreeMapLoadsAndParsesNetworkTilesBeforeMapIsReportedRendered() {
         val tileActions = CopyOnWriteArrayList<TileOperation>()
+        renderPublicBasemap(tileActions)
+        awaitRenderedMapAndNetworkTiles(tileActions)
+        assertRendererAndTileOperations(tileActions)
+        assertRenderedMapViewport()
+        writeProductionTileSummary(tileActions)
+        assertTrue(
+            "OpenFreeMap tile-render screenshot could not be captured",
+            VisualEvidence.capture("lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"),
+        )
+    }
+
+    private fun renderPublicBasemap(tileActions: CopyOnWriteArrayList<TileOperation>) {
         composeRule.activity.runOnUiThread {
             composeRule.activity.setContent {
                 LifeLinkTheme(themeMode = ThemeMode.LIGHT) {
@@ -55,7 +67,9 @@ class MapLibreTileRenderingTest {
                 }
             }
         }
+    }
 
+    private fun awaitRenderedMapAndNetworkTiles(tileActions: CopyOnWriteArrayList<TileOperation>) {
         composeRule.waitUntil(timeoutMillis = 70_000) {
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
                 .fetchSemanticsNodes().isNotEmpty()
@@ -65,25 +79,31 @@ class MapLibreTileRenderingTest {
                 tileActions.contains(TileOperation.LoadFromNetwork) &&
                 tileActions.contains(TileOperation.EndParse)
         }
+    }
 
+    private fun assertRendererAndTileOperations(tileActions: List<TileOperation>) {
         val renderer = RenderingEngine.getCurrentType()
         val networkRequests = tileActions.count { it == TileOperation.RequestedFromNetwork }
         val networkLoads = tileActions.count { it == TileOperation.LoadFromNetwork }
         val parsedTiles = tileActions.count { it == TileOperation.EndParse }
         val tileErrors = tileActions.count { it == TileOperation.Error }
+
         Log.i(
             "LifeLinkMapTiles",
             "renderer=$renderer networkRequested=$networkRequests networkLoaded=$networkLoads parsed=$parsedTiles errors=$tileErrors",
         )
         assertEquals(
-            "The CI emulator should select MapLibre Vulkan so OpenFreeMap text/symbol layers render",
-            RenderingEngine.Type.VULKAN,
+            "LifeLink explicitly selects OpenGL ES because the CI emulator's Vulkan surface rendered blank despite successful tile parsing",
+            RenderingEngine.Type.OPENGL,
             renderer,
         )
         assertTrue("MapLibre did not request any network tiles: $tileActions", networkRequests > 0)
         assertTrue("MapLibre did not load any network tiles: $tileActions", networkLoads > 0)
         assertTrue("MapLibre did not parse any tiles: $tileActions", parsedTiles > 0)
         assertEquals("MapLibre reported tile request failures: $tileActions", 0, tileErrors)
+    }
+
+    private fun assertRenderedMapViewport() {
         assertTrue(
             "MapLibre did not report a fully rendered map",
             composeRule.onAllNodesWithContentDescription("Donor map rendered")
@@ -91,9 +111,22 @@ class MapLibreTileRenderingTest {
         )
         composeRule.onNodeWithContentDescription("Donor map rendered")
             .assertHeightIsAtLeast(500.dp)
+    }
+
+    private fun writeProductionTileSummary(tileActions: List<TileOperation>) {
+        val renderer = RenderingEngine.getCurrentType()
+        val tileSummary = listOf(
+            "renderer=${renderer.name}",
+            "networkRequested=${tileActions.count { it == TileOperation.RequestedFromNetwork }}",
+            "networkLoaded=${tileActions.count { it == TileOperation.LoadFromNetwork }}",
+            "parsedTiles=${tileActions.count { it == TileOperation.EndParse }}",
+            "tileErrors=${tileActions.count { it == TileOperation.Error }}",
+            "mapRendered=true",
+            "minimumViewportHeightDp=500",
+        ).joinToString(separator = "\n", postfix = "\n")
         assertTrue(
-            "OpenFreeMap tile-render screenshot could not be captured",
-            VisualEvidence.capture("lifelink-phone-light-donor-map-openfreemap-tiles-rendered.png"),
+            "MapLibre production tile diagnostics could not be saved",
+            VisualEvidence.writeText("lifelink-maplibre-production-tile-summary.txt", tileSummary),
         )
     }
 }

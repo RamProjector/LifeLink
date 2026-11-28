@@ -2,6 +2,7 @@
 
 package com.lifelink.app.core.location
 
+import android.content.Context
 import android.view.MotionEvent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,6 +45,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.lifelink.app.domain.DonorMapArea
 import kotlinx.coroutines.delay
 import org.maplibre.android.MapLibre
+import org.maplibre.android.RenderingEngine
+import org.maplibre.android.WellKnownTileServer
 import org.maplibre.android.annotations.Marker
 import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.camera.CameraPosition
@@ -54,6 +57,22 @@ import org.maplibre.android.maps.Style
 import org.maplibre.android.tile.TileOperation
 
 private const val OPEN_FREE_MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
+
+/**
+ * LifeLink uses the dual-backend MapLibre artifact. Explicitly select OpenGL ES
+ * before creating the first MapView: the default Vulkan renderer loaded and
+ * parsed tiles in our API 34 emulator but produced a blank map screenshot,
+ * while the isolated OpenGL viewport probe rendered the full surface. This is
+ * a renderer choice only; style, tiles, privacy, and MapLibre APIs are unchanged.
+ */
+private fun initializeLifeLinkMapLibre(context: Context) {
+    MapLibre.getInstance(
+        context.applicationContext,
+        null,
+        WellKnownTileServer.MapLibre,
+        RenderingEngine.Type.OPENGL,
+    )
+}
 
 // If MapLibre never reports success or failure, the loading state must still end
 // so the picker does not spin forever.
@@ -110,7 +129,7 @@ fun MapLibreLocationPicker(
     var recenterBump by remember { mutableStateOf(0) }
     val effectiveRecenterRequest = recenterRequest + recenterBump
     val mapView = remember {
-        MapLibre.getInstance(context.applicationContext)
+        initializeLifeLinkMapLibre(context)
         MapView(context).also { it.onCreate(null) }
     }
 
@@ -380,7 +399,7 @@ fun MapLibrePrivacySafeDonorMap(
     var appliedCenter by remember { mutableStateOf<LatLng?>(null) }
     var appliedAreas by remember { mutableStateOf<List<DonorMapArea>?>(null) }
     val mapView = remember {
-        MapLibre.getInstance(context.applicationContext)
+        initializeLifeLinkMapLibre(context)
         MapView(context).also { it.onCreate(null) }
     }
     val tileActionListener = remember(mapView) {
