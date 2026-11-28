@@ -60,6 +60,7 @@ The security advisor returned:
 
 - 18 informational findings for RLS-enabled tables without client policies. A separate read-only grant inventory found no direct table privileges for `anon` or `authenticated` on any of these 18 tables, consistent with the FastAPI-only data-access boundary. Preserve that boundary; do not add broad client policies merely to silence the informational advisor.
 - One warning: Supabase Auth leaked-password protection is disabled. This setting was not changed in this review.
+- The performance advisor also reports one unindexed foreign key on `lifelink_user_roles.assigned_by`, 12 RLS auth-function init-plan notices, and 38 unused-index notices. The implementation branch now adds an idempotent index migration (`023_rbac_assigned_by_index.sql`), a guarded startup index path, and regression checks for the assignment-actor index. This index has not been applied to the live database. The RLS policies were not rewritten, and no unused indexes were dropped: those require query/workload evidence rather than advisor counters alone.
 
 ## 3. Live Render deployment boundary
 
