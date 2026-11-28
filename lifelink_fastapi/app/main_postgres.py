@@ -774,6 +774,7 @@ async def create_emergency_request_postgres(
     if principal.subject != "development-user" and principal.subject != payload.requester_id:
         raise HTTPException(status_code=403, detail="requester_id must match the authenticated user")
     require_verified_email(principal)
+    requester_id = payload.requester_id
     await enforce_rate_limit(f"request-create:{principal.subject}", 5, 300)
     if idempotency_header and idempotency_header != payload.idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key header must match payload.idempotency_key.")
@@ -824,7 +825,7 @@ async def create_emergency_request_postgres(
     # serializes distinct request intents from the same account across API workers.
     await session.execute(
         text("SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"),
-        {"lock_key": f"lifelink:requester-active-request:{principal.subject}"},
+        {"lock_key": f"lifelink:requester-active-request:{requester_id}"},
     )
     now = datetime.now(timezone.utc)
 
@@ -835,7 +836,7 @@ async def create_emergency_request_postgres(
     expired_result = await session.execute(
         update(EmergencyRequestRow)
         .where(
-            EmergencyRequestRow.requester_id == principal.subject,
+            EmergencyRequestRow.requester_id == requester_id,
             EmergencyRequestRow.status.in_(
                 [RequestStatusEnum(value) for value in ACTIVE_REQUEST_STATUSES]
             ),
