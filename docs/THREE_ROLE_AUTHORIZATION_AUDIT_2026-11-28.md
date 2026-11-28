@@ -21,10 +21,10 @@ The four administrative permission groupings may remain as **permissions/capabil
 | Product role | Assignment source | Authorization boundary |
 |---|---|---|
 | requester | Server-validated account capability/profile | Own requests; explicitly authorized contact/conversation resources |
-| blood_donor | Server-validated donor profile and eligibility state | Own donor profile/availability; eligible requests; accepted contact relationships |
+| donor | Server-validated donor profile and eligibility state | Own donor profile/availability; eligible requests; accepted contact relationships |
 | admin | Server-side allowlist plus verified session and MFA; optional explicit admin permission grants | Admin API only; no client-supplied role or profile metadata can grant it |
 
-The persisted key currently named donor must be normalized to one canonical product key, blood_donor, only after reviewing every Android, API, migration, seed, test, and live-data reference. If backwards compatibility requires keeping donor as a wire alias, it must not create a fourth role or a second independently assignable donor identity.
+The persisted key currently named donor must be normalized to one canonical product key, donor, only after reviewing every Android, API, migration, seed, test, and live-data reference. If backwards compatibility requires keeping donor as a wire alias, it must not create a fourth role or a second independently assignable donor identity.
 
 Admin functional divisions such as user management, security monitoring, audit review, and operational reporting belong in permission keys (for example, users.read, security.alerts.read, and audit.read) attached to the single admin role. The product role registry must contain only the three approved keys.
 
@@ -42,7 +42,7 @@ Before changing migration 020 or adding a follow-up migration:
 
 ## Acceptance tests
 
-- The role registry contains exactly requester, blood_donor, and admin after the approved migration path.
+- The role registry contains exactly requester, donor, and admin after the approved migration path.
 - Signup and profile updates cannot create or elevate admin.
 - A requester cannot invoke donor-only operations unless the product explicitly permits dual capability; a donor cannot manage another donor's profile or respond to their own request.
 - Admin APIs reject requester/donor accounts even if they tamper with local storage, profile metadata, or request payloads.
