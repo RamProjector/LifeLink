@@ -1478,6 +1478,7 @@ def test_admin_scanner_health_returns_persisted_status_without_error_details(mon
 
 
 def test_admin_scanner_health_reports_never_run_when_no_status_exists(monkeypatch):
+    monkeypatch.delenv("LIFELINK_RBAC_SCAN_SECONDS", raising=False)
     from app import admin_api
 
     class Rows:
