@@ -160,3 +160,83 @@ def test_rbac_scanner_caps_extreme_interval(monkeypatch):
 
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(main_postgres._scan_rbac_discrepancies_forever())
+
+def test_fastapi_lifespan_starts_and_cancels_every_background_worker(monkeypatch):
+    async def run_lifespan():
+        started: set[str] = set()
+        cancelled: set[str] = set()
+        all_started = asyncio.Event()
+        all_cancelled = asyncio.Event()
+        worker_names = (
+            "location-share",
+            "donor-presence",
+            "request-expiry",
+            "rbac-scanner",
+        )
+
+        async def fake_create_all_tables():
+            return None
+
+        async def worker(name: str):
+            started.add(name)
+            if len(started) == len(worker_names):
+                all_started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.add(name)
+                if len(cancelled) == len(worker_names):
+                    all_cancelled.set()
+
+        monkeypatch.setattr(main_postgres, "create_all_tables", fake_create_all_tables)
+        monkeypatch.setattr(
+            main_postgres, "_expire_stale_location_shares_forever",
+            lambda: worker("location-share"),
+        )
+        monkeypatch.setattr(
+            main_postgres, "_expire_stale_donor_presence_forever",
+            lambda: worker("donor-presence"),
+        )
+        monkeypatch.setattr(
+            main_postgres, "_expire_timed_out_requests_forever",
+            lambda: worker("request-expiry"),
+        )
+        monkeypatch.setattr(
+            main_postgres, "_scan_rbac_discrepancies_forever",
+            lambda: worker("rbac-scanner"),
+        )
+
+        async with main_postgres.lifespan(None):
+            await asyncio.wait_for(all_started.wait(), timeout=1)
+
+        await asyncio.wait_for(all_cancelled.wait(), timeout=1)
+        assert started == set(worker_names)
+        assert cancelled == set(worker_names)
+
+    asyncio.run(run_lifespan())
+
+
+def test_fastapi_lifespan_does_not_start_workers_when_schema_setup_fails(monkeypatch):
+    async def run_lifespan():
+        started: list[str] = []
+
+        async def fail_schema_setup():
+            raise RuntimeError("schema setup failed")
+
+        async def worker():
+            started.append("started")
+
+        monkeypatch.setattr(main_postgres, "create_all_tables", fail_schema_setup)
+        monkeypatch.setattr(main_postgres, "_expire_stale_location_shares_forever", worker)
+        monkeypatch.setattr(main_postgres, "_expire_stale_donor_presence_forever", worker)
+        monkeypatch.setattr(main_postgres, "_expire_timed_out_requests_forever", worker)
+        monkeypatch.setattr(main_postgres, "_scan_rbac_discrepancies_forever", worker)
+
+        with pytest.raises(RuntimeError, match="schema setup failed"):
+            async with main_postgres.lifespan(None):
+                pytest.fail("lifespan must not yield after schema setup failure")
+
+        await asyncio.sleep(0)
+        assert started == []
+
+    asyncio.run(run_lifespan())
