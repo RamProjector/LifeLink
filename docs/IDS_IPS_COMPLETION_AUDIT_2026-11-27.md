@@ -83,11 +83,16 @@ Reference: `docs/SECURITY_AUDIT_COVERAGE_REVIEW_2026-11-22.md`.
 
 ### Intrusion detection and alert lifecycle
 
-Confirmed narrow rules:
+Confirmed request-time intrusion rules:
 
 - IDS-03: repeated unauthorized administrator access; threshold is five attempts within ten minutes.
-- IDS-04: missing administrator session context.
-- IDS-05: reuse of a revoked administrator session.
+- IDS-04: missing administrator session context; threshold is three attempts.
+- IDS-05: reuse of a revoked administrator session; threshold is one attempt.
+- IDS-06: administrator access without AAL2; threshold is three attempts.
+- IDS-07: administrator access without two server-verified TOTP factors; threshold is three attempts.
+- IDS-08: denied per-route RBAC permission; threshold is three attempts.
+
+These rules block the current request at the corresponding authorization boundary and create deduplicated security alerts when their configured thresholds are met. They are narrow admin-focused detectors, not a claim of general anomaly detection across all application traffic.
 
 The security-alert API is read-only; detection is performed by an independent periodic RBAC scan started from the FastAPI lifespan (default 300 seconds, configurable with a 60-second minimum). A PostgreSQL transaction-scoped advisory lock prevents overlapping scans across API instances; each scan transaction has a 15-second statement timeout. The continuation implementation now persists scanner success/failure metadata and exposes it through a protected Admin Console endpoint. Execution in a deployed instance remains unverified; host sleep/restarts can interrupt the in-process task.
 
@@ -195,7 +200,7 @@ For each mutating or sensitive-read route, the next implementation pass must rec
 
 ## Live-database inspection notes
 
-Read-only SQL inspection on 2026-11-27 confirmed the seven public IDS/RBAC tables exist and reported the row counts above. The inspected tables had RLS enabled. Client roles do not receive direct access to these backend-only registries; the API uses its backend database identity.
+Read-only SQL inspection on 2026-11-27 confirmed the seven public IDS/RBAC tables exist and reported the row counts above. The inspected tables had RLS enabled. Client roles do not receive direct access to these backend-only registries; the API uses its backend database identity. The complete Admin Console user inventory now additionally queries `auth.users`; the actual Render database connection role's read access to that Auth table must be verified before deployment, without granting client roles access.
 
 This inspection did not read user-identifying audit evidence, modify records, change grants, or apply migrations.
 
