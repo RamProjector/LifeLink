@@ -103,3 +103,23 @@ Mark a checklist item complete only with a source path or test name plus observe
 - Supabase Row Level Security: https://supabase.com/docs/guides/database/postgres/row-level-security
 - Android app architecture: https://developer.android.com/topic/architecture
 - WCAG 2.2: https://www.w3.org/TR/WCAG22/
+
+
+## Implementation evidence update — 2026-11-28
+
+The PostgreSQL request-creation endpoint now enforces one active request per authenticated requester:
+
+- An idempotency-key transaction lock still makes retries of the same create operation safe.
+- A second transaction-scoped advisory lock is keyed by the request owner's ID, serializing different create intents for the same requester across API workers.
+- Under that lock, overdue active requests are transitioned to `expired` and their open matches/contacts are closed before checking for another active request.
+- If a non-expired active request remains (`matching`, `awaiting_responses`, `partially_fulfilled`, or `manual_broadcast`), the API returns HTTP 409 with the `active_request_exists` code.
+- The lock remains held until the new request and its creation audit event commit. A failed/conflicting create rolls back and releases the lock.
+
+Regression evidence added:
+- `test_requester_cannot_create_two_active_requests_concurrently` uses two different idempotency keys and concurrent PostgreSQL-backed API requests; it asserts exactly one create succeeds, the other receives 409, and only one active row exists.
+- `test_overdue_active_request_is_expired_before_replacement` verifies an overdue active request is closed before a replacement is created.
+- Existing lifecycle tests were adjusted to use separate requester accounts or close/expire the prior request when they need multiple simultaneous examples for other test purposes.
+
+**Status:** implemented in PR #227; automated PostgreSQL validation is pending on the latest branch head. No production migration or live database change was made for this application-level transaction lock.
+
+This does not yet complete the broader requester lifecycle checklist. Editing a pending request and explicitly reposting an inactive request remain separate feature/acceptance items and must not be marked complete based on the one-active-request guard alone.
