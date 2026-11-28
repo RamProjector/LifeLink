@@ -12,12 +12,12 @@ from __future__ import annotations
 import asyncio
 import tempfile
 import uuid
-from pathlib import Path
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-import pytest
 from fastapi import Depends, HTTPException
+import pytest
 from starlette.requests import Request
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1511,6 +1511,7 @@ def test_three_product_role_migration_reconciles_real_postgres_registry(pg_url: 
 
 def test_three_product_role_migration_refuses_legacy_assignments(pg_url: str):
     import asyncio
+
     import asyncpg
 
     async def check():
