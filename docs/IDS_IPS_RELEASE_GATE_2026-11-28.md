@@ -357,3 +357,10 @@ The latest Supabase security advisor still reports 18 RLS-enabled/no-policy tabl
 ### Release disposition
 
 Keep `LIFELINK_RBAC_ENFORCEMENT_MODE=observe`. Do not apply migrations 021–023, grant Auth-schema privileges, provision role assignments, enable enforce mode, or deploy PR #227 until the Render runtime role is positively identified, non-production MFA and two-operator recovery rehearsals pass, scanner health is verified after deployment to non-production, browser/Android acceptance is recorded, independent review is complete, and production rollout is explicitly approved.
+
+
+## Superseding three-role authorization decision — 2026-11-28
+
+The product role requirement is exactly **Requester, Blood Donor, and Admin**. The earlier RBAC registry design in migration 020 introduced administrator subroles and super_admin, which are not approved product roles. The PR branch now adds migration 024 to normalize the registry to requester, donor, and admin, moves the reviewed administrative permission set under the single admin role, and refuses to remove legacy role definitions while any assignments remain. The API permission guard and RBAC-03 policy have been updated to the three-role model.
+
+Migration 024 has **not** been applied to production. The prior read-only snapshot reported zero role assignments, but that must be rechecked immediately before any migration. If assignments exist, migration 024 intentionally aborts; do not force it or delete assignment records. Keep RBAC in observe mode until non-production migration, assignment, and route verification pass.
