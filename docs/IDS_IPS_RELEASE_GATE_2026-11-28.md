@@ -157,3 +157,23 @@ Current references checked:
 - Supabase TOTP guide: https://supabase.com/docs/guides/auth/auth-mfa/totp
 
 No Supabase Auth settings, MFA factors, user accounts, or production configuration were changed during this documentation review.
+
+## 9. Superseding verification snapshot — 2026-11-28 11:30 UTC
+
+This section supersedes any earlier head, workflow, PR-state, or review-status statements above where they differ.
+
+- Current PR #227 state: **open, ready for review, unmerged, mergeable**. Base: `main`. Head branch: `security/ids-ips-consolidated-completion`.
+- Current verified head: `5da45a77797eb34e1df7563d75b84ec45757c472`. The branch has 140 commits, 27 changed files, and the PR metadata reports no merge conflict.
+- All five PR-triggered workflows associated with this exact head completed successfully:
+  - Security scan / Gitleaks: run [#2165](https://github.com/RamProjector/LifeLink/actions/runs/46102887185) — success.
+  - Android UI test APK (fake backend): run [#1004](https://github.com/RamProjector/LifeLink/actions/runs/46102887199) — success.
+  - Validate cloud package: run [#4432](https://github.com/RamProjector/LifeLink/actions/runs/46102887200) — success. The Android quality gate, Admin Console/SVG validation, Docker build, backend lint, and backend/PostgreSQL test jobs all completed successfully.
+  - Build Android APKs: run [#1684](https://github.com/RamProjector/LifeLink/actions/runs/46102887191) — success. Debug APK artifact SHA-256: `9c6b4ae787a63b84da55ce450e58f7bec28f860aadcf0781c01270d78abf22c9`.
+  - CodeQL: run [#2063](https://github.com/RamProjector/LifeLink/actions/runs/46102887212) — success.
+- The PR's current validation record reports 343 backend tests passed, Ruff and mypy passed, Gitleaks passed, Python and Java/Kotlin CodeQL passed, and Android lint/Detekt/Spotless/unit tests/debug build passed. The single upstream Starlette/AnyIO deprecation warning is non-failing.
+- The latest GitHub review queries returned **zero submitted PR reviews and zero inline review threads**. The latest CodeRabbit command response says the review was triggered; it is not a completed review or an approval. Do not claim independent review is complete.
+- The two Android APK artifacts remain available through 2026-12-12. The APK build run above contains the downloadable artifacts; artifact hashes are recorded in the PR description.
+- Current live-production boundaries remain unchanged: the candidate PR is not deployed; Render services auto-deploy from `main`; the actual Render API database role is still unverified; the scanner-health migration is not live; user-role assignment count remains zero; RBAC stays in `observe`; no MFA non-production rehearsal or manual browser/device acceptance has been evidenced in this refresh.
+- No production migration, database grant, Auth configuration change, role assignment, deployment, or merge was performed by this verification.
+
+**Disposition:** implementation CI is green on the current head, but the release is not complete. Keep PR #227 open. Required external gates remain runtime DB-role verification, non-production MFA and RBAC enforcement/recovery rehearsals, scanner lifecycle verification after a non-production deployment, notification-channel decision, manual web/Android acceptance, independent review, and explicit production deployment/merge approval.
