@@ -528,3 +528,44 @@ The current branch source was checked against previously reported review finding
 Keep `LIFELINK_RBAC_ENFORCEMENT_MODE=observe`. Do not apply migrations 021–024, change grants, provision roles, alter Auth configuration, or deploy until the actual Render API runtime database role is identified and least-privilege access is verified; a non-production migration/assignment/enforcement rehearsal is completed; MFA backup and two-operator recovery are rehearsed; scanner health and notification delivery are observed after non-production deployment; and manual requester, donor, and admin acceptance plus independent review pass.
 
 The current Supabase project is the production project. No non-production Supabase branch was created because branch creation may incur cost and requires explicit cost/workspace approval. No production migration or deployment is authorized by this verification.
+
+
+## 17. Superseding deployment, live-schema reconciliation, and latest validation snapshot — 2026-11-28
+
+This section supersedes earlier statements that treated every migration from 021 through 024 as absent. The current production schema was checked again read-only; the migration ledger and actual schema do not fully agree. No DDL, grants, role assignments, Auth changes, deployment, or production data mutation was performed.
+
+### Exact Render deployment configuration
+
+- API service `LifeLink-API` (`srv-dalugdbl550s73chtsfg`) deploys `RamProjector/LifeLink` branch `main`, root directory `lifelink_fastapi/`, on the Free plan in Singapore. Health-check path is `/health`. PR previews are disabled.
+- Admin Console static site (`srv-dbf3uaa9lscs738nfsu0`) also deploys branch `main`; PR previews are disabled.
+- Latest live API and Admin Console deployments are both commit `3205ed4eb9eba307eeb94ab7aa8d420d83376e0a` (PR #226 merge). PR #227's feature branch is not deployed and has no Render preview.
+- The workspace contains no Render-managed PostgreSQL instance. The API database is the connected Supabase project. Render configuration inspection did not expose environment-variable values; secrets were not read or changed.
+
+### Supabase migration-ledger versus actual schema
+
+The Supabase migration ledger reports only `007_donor_map_chat_contact_sharing` and `020_rbac_role_permission_registry`. Read-only catalog inspection found:
+
+- `lifelink_user_sessions` exists (the schema object from migration 018), although 018 is absent from the migration ledger.
+- `lifelink_security_alerts` exists (the schema object from migration 019), although 019 is absent from the migration ledger.
+- `lifelink_role_security_findings` exists with RLS enabled and the expected active-finding/status indexes (migration 021's schema objects), although 021 is absent from the migration ledger.
+- `lifelink_user_roles.assigned_by` exists, but index `ix_lifelink_user_roles_assigned_by` from migration 023 is absent. Migration 023 is therefore not fully reflected in the live schema.
+- `lifelink_security_scanner_runs` is absent; migration 022 is not reflected in the live schema.
+- The role registry still has seven role definitions and zero user-role assignments; migration 024's exact-three-role normalization has not been applied.
+- The ledger/schema discrepancy means migrations 018, 019, and 021 must be reconciled against the migration files and recorded history before any automated migration replay. Do not blindly replay or mark versions applied based only on table existence.
+
+### Live runtime and log evidence
+
+- The direct Supabase SQL inspection connection reports `current_user = postgres`; that is the inspection connection, not proof of the Render API's runtime role.
+- Supavisor logs contain connections under user `postgres`, but their private peer address and timing do not uniquely attribute those sessions to the Render API. The actual API runtime database identity remains **not verified**.
+- Render app logs show no warning/error entries in the inspected 24-hour window. The configured `/health` path is a liveness check; it does not prove scanner health or full database readiness.
+- Historical logs show `GET /v1/admin/security/alerts` failed on 2026-11-25 23:10 UTC because `lifelink_user_roles` did not yet exist; migration 020 was recorded at 23:41 UTC that day. Logs on 2026-11-26 08:14 and 09:22 UTC show an ambiguous PostgreSQL bind-parameter error on the same route. Current source explicitly casts nullable filters, and the PostgreSQL end-to-end correlation-filter test exercises a null status with a non-null correlation ID. No recent live request was observed to independently confirm the historical error is resolved in the deployed build.
+
+### Exact source/CI evidence
+
+- Commit `673eb138e75dbf400d78bd57b785ffb3e93cccb8` is the latest fully completed workflow snapshot containing the database-clock scanner-start implementation. Its workflows completed successfully: [Security scan](https://github.com/RamProjector/LifeLink/actions/runs/46146106038), [Android UI test APK](https://github.com/RamProjector/LifeLink/actions/runs/46146106072), [Android APK build](https://github.com/RamProjector/LifeLink/actions/runs/46146106007), [cloud package validation](https://github.com/RamProjector/LifeLink/actions/runs/46146106089), and [CodeQL](https://github.com/RamProjector/LifeLink/actions/runs/46146106049).
+- Later commits corrected the local PostgreSQL README bootstrap and strengthened the scanner test to assert the exact timestamp returned by the database clock. On current head `080250f31e416cb18f46efa9f159407b0cd79325`, backend tests, backend lint, Dockerfile validation, secret scanning, and Python analysis passed; Android quality, APK validation, fake-backend UI APK, and Java/Kotlin analysis were still in progress at this snapshot. CodeRabbit's status was neutral/skipped, not an approval.
+- The local PostgreSQL README now creates a clearly labelled local-only minimal `auth.users` compatibility stub before the complete migration glob; it must never be run against hosted Supabase.
+
+### Corrected release disposition
+
+Keep `LIFELINK_RBAC_ENFORCEMENT_MODE=observe`. Before release, reconcile the migration ledger with existing schema objects; verify/apply 022 and 023 only in a rehearsed non-production environment; rehearse 024 against a snapshot of the current seven-role/zero-assignment registry; verify the Render runtime database identity and least privilege; verify the notification delivery provider and durable receipts; and complete MFA recovery, scanner runtime, browser/Android acceptance, and independent review. The current Render services have no PR preview, and no non-production Supabase branch exists. No production change is authorized by this snapshot.
