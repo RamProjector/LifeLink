@@ -268,8 +268,27 @@ def main() -> None:
         or 'pollSecurityNotifications' not in html
         or 'Notification.requestPermission()' not in html
         or '"/v1/admin/security/notifications"' not in html
+        or "running_age_seconds" not in admin_api
+        or "success_age_seconds" not in admin_api
+        or "clock_timestamp() - last_started_at" not in admin_api
+        or "clock_timestamp() - last_succeeded_at" not in admin_api
+        or "running_age_seconds" not in html
+        or "success_age_seconds" not in html
+        or "Date.now()-startedAt" in html
+        or "Date.now()-succeededAt" in html
     ):
-        fail("security center must expose scanner health and opt-in browser notifications behind staged RBAC permission enforcement")
+        fail("security center must expose server-clock scanner freshness and opt-in browser notifications behind staged RBAC permission enforcement")
+
+    if (
+        'RBAC_APPROVED_PERMISSION_MATRIX = {' not in admin_api
+        or '"requester": frozenset()' not in admin_api
+        or '"donor": frozenset()' not in admin_api
+        or '"admin": frozenset({' not in admin_api
+        or "operations_admin" in admin_api
+        or "security_admin" in admin_api
+        or "super_admin" in admin_api
+    ):
+        fail("backend RBAC must define exactly requester, donor, and admin product roles")
 
     if 'data-status="false_positive"' not in html or "a.acknowledged_at" not in html or "a.resolved_at" not in html:
         fail("security alerts must support false-positive disposition and show their recorded handling history")
