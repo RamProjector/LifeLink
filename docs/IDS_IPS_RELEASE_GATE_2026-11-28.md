@@ -139,3 +139,21 @@ A further read-only check was made after the final CI run:
 **Conclusion:** The Render runtime database identity remains unverified. This is an evidence limitation, not evidence of a permission failure or success. The next valid test must execute a read-only identity query from the actual API runtime (for example, a tightly scoped, authenticated internal diagnostic that returns only `current_user` and `session_user`, never a DSN, password, host, or token), then verify the minimum required Auth-schema reads for that exact role. Do not add a public unauthenticated endpoint or expose connection details. Prefer a staging deployment and remove the diagnostic after the check.
 
 The PR was changed from draft to ready-for-review after all five workflows passed. A fresh `/review` request was posted. No independent review result had been received at the time this note was written. This does not authorize merge or production deployment.
+
+
+## 8. Supabase Auth MFA recovery semantics — documentation verification
+
+Supabase Auth documentation was rechecked on 2026-11-28 against the current JavaScript MFA API, application MFA guide, and TOTP guide:
+
+- Supabase's current JavaScript MFA reference says application MFA supports TOTP and phone as second factors, does not support recovery codes through that API, and permits up to 10 enrolled factors. A second verified TOTP authenticator is therefore the supported application-level backup path used by this implementation.
+- Do not confuse recovery codes for a person's Supabase Dashboard account with recovery for users in the LifeLink Supabase Auth project. The Dashboard's account-security recovery-code feature is not evidence that LifeLink end users can use those codes for project Auth MFA.
+- Supabase's TOTP guide documents the AAL1-to-AAL2 enrollment/challenge/verify flow. Only a successfully verified factor becomes active. The application must enforce the resulting assurance level server-side; displaying an MFA screen alone is not enforcement.
+- Supabase's application MFA guide states that factor unenrollment requires an AAL2 session and that an existing AAL2 JWT may need an explicit session refresh to reflect the downgrade to AAL1 immediately. Factor replacement must therefore retain at least one other verified factor and verify the replacement before removing the old factor; do not allow a self-service path that removes the final factor without a separately approved recovery procedure.
+- The current project design's requirement for two verified TOTP factors is a stricter LifeLink administrator policy than merely enrolling one factor. It is a deliberate backup-authenticator control, not a claim that Supabase supplies app recovery codes.
+
+Current references checked:
+- Supabase JavaScript Auth MFA reference: https://supabase.com/docs/reference/javascript/auth-mfa
+- Supabase application MFA guide (updated 2026-11-18): https://supabase.com/docs/guides/auth/auth-mfa
+- Supabase TOTP guide: https://supabase.com/docs/guides/auth/auth-mfa/totp
+
+No Supabase Auth settings, MFA factors, user accounts, or production configuration were changed during this documentation review.
